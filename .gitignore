@@ -1,0 +1,34 @@
+# Dipendenze
+node_modules/
+.pnpm-store/
+
+# Build Next.js
+.next/
+out/
+*.tsbuildinfo
+next-env.d.ts
+
+# Test e coverage
+coverage/
+playwright-report/
+test-results/
+
+# Stato locale dell'applicazione (snapshot JSON, media caricati)
+.data/
+
+# Variabili d'ambiente (l'esempio resta versionato)
+.env
+.env.*
+!.env.example
+
+# Log e file di sistema
+*.log
+npm-debug.log*
+pnpm-debug.log*
+.DS_Store
+Thumbs.db
+
+# Editor
+.idea/
+.vscode/*
+!.vscode/extensions.json
