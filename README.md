@@ -3,10 +3,11 @@
 Sistema web per la gestione dell'accoglienza dei veicoli in officina: elimina la gestione cartacea,
 riduce le attese e rende trasparente lo stato della pratica a operatori e clienti.
 
-> Stato del progetto: **fase 1 in sviluppo**. Login, dashboard di accettazione e vista
-> multi-sportello sono funzionanti con dati simulati. Tutti i sistemi aziendali (Infinity, Spoki,
-> SMS Hosting, CRM) sono disaccoppiati tramite interfacce e oggi rispondono con implementazioni
-> **Mock** deterministiche. Nessun dato reale viene letto o scritto.
+> Stato del progetto: **in sviluppo**. Sono funzionanti con dati simulati la dashboard di
+> accettazione con vista multi-sportello e il portale cliente raggiungibile da QR code. Tutti i
+> sistemi aziendali (Infinity, Spoki, SMS Hosting, CRM) sono disaccoppiati tramite interfacce e
+> oggi rispondono con implementazioni **Mock** deterministiche. Nessun dato reale viene letto o
+> scritto.
 
 ## Indice
 
@@ -31,9 +32,10 @@ la mette in coda. Gli accettatori lavorano su una dashboard monopagina con tre a
 | **Salta**             | Saltata                     | Pospone la pratica lasciandola al proprio orario     |
 | **Completato**        | Completata (evidenza verde) | Libera la campata; la pratica esce dalla vista attiva |
 
-Completano il flusso: il **portale cliente** via QR code (ricerca targa, codice e clienti in attesa),
-le **comunicazioni** WhatsApp con fallback SMS, i **display** delle campate e l'acquisizione
-**foto/video** da tablet. La priorità di sviluppo è definita in [`CLAUDE.md`](CLAUDE.md); i requisiti
+Il **portale cliente** completa il quadro: chi entra in officina inquadra il QR code della corsia,
+digita la targa e vede il proprio codice, quanti clienti ha davanti e cosa deve fare, con la pagina
+che si aggiorna da sola mentre l'operatore lavora. Restano da sviluppare le **comunicazioni**
+WhatsApp con fallback SMS, i **display** delle campate e l'acquisizione **foto/video** da tablet. La priorità di sviluppo è definita in [`CLAUDE.md`](CLAUDE.md); i requisiti
 completi sono in [`docs/ANALISI_REQUISITI.md`](docs/ANALISI_REQUISITI.md).
 
 ## Architettura Mock-First
@@ -110,14 +112,29 @@ predefinita): determinano il filtro iniziale della coda e la campata proposta al
 | `/login`              | Accettatore    | disponibile    | Credenziali, scelta sportello/brand e postazione                                          |
 | `/accettazione`       | Accettatore    | disponibile    | Coda ordinata per orario con codici F001…, azioni rapide, banner sync, **vista globale** per prendere in carico pratiche di altri sportelli, aggiornamento ogni 3 s |
 | `/sistema`            | Responsabile   | disponibile    | Stato delle porte esterne (Infinity, Spoki, SMS Hosting, CRM)                              |
-| `/cliente`            | Cliente (QR)   | pianificato M2 | Ricerca targa, codice assegnato e clienti in attesa                                       |
+| `/cliente` (`/qr`)    | Cliente (QR)   | disponibile    | Ricerca per targa e stato del turno in tempo reale: codice, clienti in attesa, messaggio per stato; nessuna autenticazione e nessun dato personale |
 | `/comunicazioni`      | Responsabile   | pianificato M3 | Registro invii WhatsApp/SMS e fallback manuale                                            |
 | `/display/[campata]`  | Monitor        | pianificato M4 | Codice in servizio sulla campata, segnale di libero                                       |
 | `/ispezione`          | Tablet         | pianificato M5 | Foto e video associati alla pratica                                                       |
 
 API principali (JSON, autenticate via cookie di sessione): `GET /api/v1/queue`,
-`POST /api/v1/appointments/{id}/actions`, `POST /api/v1/sync`, `POST /api/v1/auth/login`,
-`GET /api/v1/health` (pubblica).
+`POST /api/v1/appointments/{id}/actions`, `POST /api/v1/sync`, `POST /api/v1/auth/login`.
+Pubbliche, senza sessione: `GET /api/v1/public/status?targa=AB123CD` (stato del turno, protetta da
+limiti di frequenza) e `GET /api/v1/health`.
+
+### Provare il portale cliente
+
+Il portale si apre su <http://localhost:3000/qr> (alias breve di `/cliente`, adatto ai cartelli con
+il QR code). Serve una targa presente nell'agenda del giorno: le targhe finte sono generate in modo
+deterministico dal seme dei mock **e dalla data**, quindi cambiano ogni giorno. Per leggere quelle
+di oggi apri la dashboard e copia una targa dalla colonna Targa, oppure interroga l'API:
+
+```bash
+curl -s -c /tmp/c.txt -H 'content-type: application/json' -d '{"username":"mario.rossi","password":"demo","workstationId":"ws-p2"}' http://localhost:3000/api/v1/auth/login >/dev/null && curl -s -b /tmp/c.txt 'http://localhost:3000/api/v1/queue?view=global'
+```
+
+Con la dashboard aperta su una postazione e il portale su un'altra scheda, ogni azione
+dell'operatore si riflette sulla schermata del cliente entro cinque secondi.
 
 ## Script disponibili
 

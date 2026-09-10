@@ -23,6 +23,20 @@ export const POLLING_MS = {
 /** Dopo quanti ms senza aggiornamenti la UI mostra "Dati non aggiornati" (usata da M1, `useStaleIndicator`). */
 export const STALE_WARNING_MS = 15000;
 
+/**
+ * Limiti anti-abuso dell'API pubblica del portale cliente (richieste al minuto).
+ * Devono restare SOPRA il traffico legittimo generato dal polling della pagina di stato
+ * (`60_000 / POLLING_MS.portal` richieste al minuto per ogni scheda aperta), altrimenti il
+ * portale bloccherebbe i clienti invece degli abusi: la coerenza è verificata da un test.
+ * `perIp` regge molte schede dietro lo stesso indirizzo (wifi ospiti dell'officina),
+ * `perPlate` consente il polling di due dispositivi sulla stessa vettura.
+ */
+export const PUBLIC_STATUS_RATE_LIMIT = {
+  perIp: 240,
+  perPlate: 30,
+  windowMs: 60_000,
+} as const;
+
 /** Durata della segnalazione "libero" sul display dopo un Completato (usata da M4, `BayDisplayView`). */
 export const RELEASING_DISPLAY_MS = 20000;
 

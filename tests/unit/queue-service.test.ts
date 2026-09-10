@@ -14,6 +14,7 @@ function setup() {
     clock: env.clock,
     ids: env.ids,
     logger: env.logger,
+    queueAheadScope: 'SITE',
   });
   const ctx: ActionContext = {
     operatorId: asOperatorId('op-advisor-1'),

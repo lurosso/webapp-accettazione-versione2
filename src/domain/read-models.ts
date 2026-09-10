@@ -15,6 +15,8 @@ export interface QueuePositionView {
   /** Campata in servizio quando la pratica è IN_PROGRESS. */
   readonly bayNumber: number | null;
   readonly brandCode: string;
+  /** Orario di prenotazione: aiuta il cliente a riconoscere il proprio appuntamento. */
+  readonly scheduledAt: IsoDateTime;
   readonly updatedAt: IsoDateTime;
 }
 

@@ -1,16 +1,18 @@
 // Caso d'uso della coda di accettazione (modulo A): letture arricchite e transizioni di stato
 // con state machine, concorrenza ottimistica (version) e invariante "una pratica in carico per
 // campata". Dipende solo da interfacce: identico con repository in-memory o Prisma.
-import type { Appointment, AppointmentStatus } from '@/domain/entities/appointment';
+import { isInQueue, type Appointment, type AppointmentStatus } from '@/domain/entities/appointment';
 import type { Bay } from '@/domain/entities/bay';
 import type { Desk } from '@/domain/entities/desk';
 import { assertTransition } from '@/domain/appointment-state-machine';
 import { domainError, type DomainError } from '@/domain/errors';
 import type { AppointmentId, BayId, DeskId, OperatorId, WorkstationId } from '@/domain/ids';
-import type { QueueRowView } from '@/domain/read-models';
+import type { QueuePositionView, QueueRowView } from '@/domain/read-models';
 import { err, ok, type Result } from '@/domain/result';
 import type { IsoDate } from '@/domain/value-objects/iso-date';
+import { parsePlate, type PlateNumber } from '@/domain/value-objects/plate';
 import type {
+  AheadScope,
   IAppointmentRepository,
   IOperatorRepository,
   IReferenceDataRepository,
@@ -28,6 +30,11 @@ export interface QueueServiceDeps {
   readonly clock: IClock;
   readonly ids: IIdGenerator;
   readonly logger: ILogger;
+  /**
+   * Ambito del conteggio "clienti prima di te" del portale (`QUEUE_AHEAD_SCOPE`):
+   * `SITE` conta tutta l'accettazione, `DESK` solo lo sportello della pratica.
+   */
+  readonly queueAheadScope: AheadScope;
 }
 
 /** Filtro della dashboard: sportello proprio oppure vista globale di tutta l'accettazione. */
@@ -83,6 +90,54 @@ export class QueueService {
         : await this.deps.referenceData.findDeskById(query.deskId);
     const visible = desk === null ? all : all.filter((a) => this.belongsToDesk(a, desk));
     return this.enrich(visible);
+  }
+
+  /**
+   * Stato pubblico della pratica per il portale cliente (modulo B): unico proprietario della
+   * regola "clienti prima di te". Restituisce SOLO dati non personali (codice, stato, conteggio,
+   * campata, marchio, orari): nomi, telefoni e modello del veicolo non escono mai da qui.
+   *
+   * - targa non valida → `VALIDATION`; targa non in agenda oggi → `NOT_FOUND`;
+   * - più pratiche per la stessa targa: vince quella ancora aperta (in coda o in carico),
+   *   altrimenti l'ultima chiusa della giornata;
+   * - `aheadCount` è 0 quando la pratica non è più in coda (in carico, completata, chiusa).
+   */
+  async getPublicPositionByPlate(
+    rawPlate: string,
+    businessDate: IsoDate,
+  ): Promise<Result<QueuePositionView, DomainError>> {
+    const plate = parsePlate(rawPlate);
+    if (!plate.ok) {
+      return plate;
+    }
+    const appointment = await this.findPublicAppointment(plate.value, businessDate);
+    if (appointment === null) {
+      return err(
+        domainError(
+          'NOT_FOUND',
+          "Targa non trovata nell'agenda di oggi. Rivolgiti allo sportello dell'accettazione.",
+          { plate: plate.value },
+        ),
+      );
+    }
+    const [aheadCount, brand, bay] = await Promise.all([
+      isInQueue(appointment.status)
+        ? this.deps.appointments.countAhead(appointment, this.deps.queueAheadScope)
+        : Promise.resolve(0),
+      this.deps.referenceData.listBrands(),
+      appointment.bayId === null
+        ? Promise.resolve(null)
+        : this.deps.referenceData.findBayById(appointment.bayId),
+    ]);
+    return ok({
+      code: appointment.code,
+      status: appointment.status,
+      aheadCount,
+      bayNumber: appointment.status === 'IN_PROGRESS' ? (bay?.number ?? null) : null,
+      brandCode: brand.find((b) => b.id === appointment.brandId)?.code ?? '',
+      scheduledAt: appointment.scheduledAt,
+      updatedAt: appointment.updatedAt,
+    });
   }
 
   /** Occupazione di tutte le campate attive, derivata da `status` + `bayId` delle pratiche. */
@@ -177,6 +232,19 @@ export class QueueService {
   }
 
   // --- interni ---------------------------------------------------------------------------
+
+  /**
+   * Pratica da mostrare al cliente fra quelle con la stessa targa nella giornata:
+   * la prima ancora aperta (in coda o in carico) per orario, altrimenti l'ultima chiusa.
+   */
+  private async findPublicAppointment(
+    plate: PlateNumber,
+    businessDate: IsoDate,
+  ): Promise<Appointment | null> {
+    const found = await this.deps.appointments.findByPlate(plate, businessDate);
+    const open = found.find((a) => isInQueue(a.status) || a.status === 'IN_PROGRESS');
+    return open ?? found.at(-1) ?? null;
+  }
 
   private belongsToDesk(a: Appointment, desk: Desk): boolean {
     if (a.deskId !== null) {

@@ -166,8 +166,11 @@ webapp-accettazione-versione2/
     │   │   ├── comunicazioni/page.tsx # P3 stato invii, reinvio, conferma contatto manuale
     │   │   ├── ispezione/[appointmentId]/page.tsx # P5 tablet foto/video
     │   │   └── sistema/page.tsx       # [M1 parziale] stato delle porte esterne (healthCheck); SyncRun, modalità mock, outbox CRM in M1-T15 / M6
-    │   ├── (public)/cliente/page.tsx  # P2 portale QR: ricerca targa (mobile-first)
-    │   ├── (public)/cliente/stato/page.tsx        # P2 esito: codice + clienti in attesa
+    │   ├── (public)/cliente/page.tsx  # [M2 fatto] portale QR: ricerca targa mobile-first (formattazione live, validazione, nota privacy)
+    │   ├── (public)/layout.tsx        # [M2 fatto] intestazione neutra, nessuna navigazione operatore, piè di pagina con rimando allo sportello
+    │   ├── (public)/error.tsx         # [M2 fatto] error boundary del portale: messaggio comprensibile e pulsante Riprova
+    │   ├── qr/page.tsx                # [M2 fatto] alias breve stampato sui cartelli: /qr?src=corsiaN → /cliente
+    │   ├── (public)/cliente/stato/page.tsx        # [M2 fatto] esito: codice grande, clienti prima di te, messaggio per stato; polling 5 s lato client
     │   ├── (display)/display/[bayCode]/page.tsx   # P4 kiosk full-screen per campata (?token=)
     │   └── api/v1/                    # Route Handlers: unica superficie HTTP per letture in polling e mutazioni
     │       ├── auth/login/route.ts, auth/logout/route.ts      # [M1 fatto] login (Zod, cookie HttpOnly SameSite=Lax, Secure in produzione, 8 h) e logout; rate limit rinviato (M1-T07-S04b)
@@ -178,7 +181,7 @@ webapp-accettazione-versione2/
     │       ├── appointments/[id]/route.ts            # (M1) GET dettaglio pratica
     │       ├── appointments/[id]/notes/route.ts      # (M1) PATCH note
     │       ├── appointments/[id]/actions/route.ts    # [M1 fatto] POST take|skip|complete|release|restore (expectedVersion, bayId?) → 409 con details.current; no-show/reopen e Idempotency-Key rinviati
-    │       ├── public/status/route.ts                # (M2) GET ?plate= → QueuePositionView (nessun dato personale, rate limit)
+    │       ├── public/status/route.ts                # [M2 fatto] GET ?targa= (alias ?plate=) → QueuePositionView, nessun dato personale, no-store, 404/400/429/503
     │       ├── public/bays/[bayCode]/route.ts        # (M4) GET BayDisplayView (token campata)
     │       ├── sync/route.ts                         # [M1 fatto] POST sync manuale (SUPERVISOR/ADMIN sempre, ADVISOR solo con sync assente o FAILED); GET ultime SyncRun e SYNC_SECRET rinviati
     │       ├── system/mock-settings/route.ts         # (M3) PATCH modalità mock a runtime (ADMIN, solo non-production)
@@ -193,7 +196,7 @@ webapp-accettazione-versione2/
     │       └── health/route.ts                       # [BOOTSTRAP] liveness (sempre 200) + HealthStatus aggregato delle quattro porte esterne; ?probe=dependencies → 503 se DOWN; x-correlation-id
     ├── modules/                       # feature module (componenti + hook + query) rispecchiano i moduli A–F
     │   ├── reception/                 # A – [M1 fatti] LoginForm, QueueDashboard, QueueTable, AppointmentRow, StatusBadge, ActionButtons, SyncBanner, types.ts; ManualAppointmentForm e BaySelectDialog rinviati
-    │   ├── customer-portal/           # B – PlateSearchForm, QueuePositionCard, ServiceUnavailableCard
+    │   ├── customer-portal/           # B – [M2 fatti] PlateSearchForm, PublicStatusView, QueuePositionCard, ServiceUnavailableCard, status-messages.ts, plate-input.ts
     │   ├── notifications/             # C – NotificationStatusList, ManualConfirmDialog
     │   ├── bay-displays/              # D – BayDisplayBoard, FreeBayScreen, ConnectionLostOverlay
     │   ├── inspection-media/          # E – MediaCapture, MediaGallery, UploadQueue
@@ -202,7 +205,7 @@ webapp-accettazione-versione2/
     │   ├── ui/                        # primitive scritte a mano stile shadcn (nessuna dipendenza): Button, Badge, Card, Input, Label, Select, Table, Alert, Dialog
     │   ├── layout/                    # [M1 fatti] AppShell, Header (identità, ruolo, postazione, orologio Europe/Rome, logout); SystemStatusBanner rinviato; indicatore dati non aggiornati inline in QueueDashboard
     │   └── shared/                    # ErrorBoundary, EmptyState, OfflineBanner
-    ├── hooks/                         # [M1 fatti] useQueue (polling 3 s, keepPreviousData), useAppointmentActions (409 → conflitto, BAY_BUSY → campate libere); usePublicStatus/useBayDisplay in M2/M4
+    ├── hooks/                         # [M1/M2 fatti] useQueue (polling 3 s), useAppointmentActions (409 e BAY_BUSY), usePublicStatus (portale, polling 5 s); useBayDisplay in M4
     ├── store/                         # (rinviato) ui-store zustand: oggi vista e sportello vivono nei search param dell'URL (?view=&deskId=)
     ├── domain/                        # PURO: entità, value object, state machine, eventi, errori, read model   [SCAFFOLD]
     │   ├── ids.ts                     # branded id (AppointmentId, OperatorId, BayId, ...)
@@ -235,7 +238,7 @@ webapp-accettazione-versione2/
     ├── application/                   # casi d'uso: logica reale, mai mockata, nessun import di adapter
     │   ├── notifications/             # NotificationOrchestrator (WhatsApp → SMS → MANUAL_REQUIRED), templates.ts   [SCAFFOLD]
     │   ├── health/                    # check-health.ts: aggregateHealth(), checkExternalHealth(ports, { clock, kinds, correlationId? }) con timeout locale 2000 ms; tipo locale ExternalHealthPorts (solo interfacce, nessun import dal factory); isStartupError()   [BOOTSTRAP]
-    │   ├── queue/                     # [M1 fatto] QueueService (getQueue, getBayOccupancy, takeInCharge, skip, complete, release, restore) e CodeGenerator (SITE|BRAND)
+    │   ├── queue/                     # [M1/M2 fatto] QueueService (coda, transizioni, campate, getPublicPositionByPlate per il portale) e CodeGenerator (SITE|BRAND)
     │   ├── sync/                      # [M1 fatto] SyncService (idempotente, non distruttivo, lock per giornata) e SyncScheduler (tick 60 s, catch-up al riavvio)
     │   ├── auth/                      # [M1 fatto] IAuthService, LocalAuthService (account locali + JWT HS256 con jose, riverifica operatore), session-token.ts
     │   ├── crm/                       # (M6) AnomalyReporter
@@ -243,7 +246,7 @@ webapp-accettazione-versione2/
     ├── config/                        # composition root   [SCAFFOLD]
     │   ├── env.ts                     # EnvSource da process.env (@types/node; fallback {} senza `process`), parseEnv() con default sicuri, APP_TIMEZONE validato
     │   ├── auth.ts                    # [M1 fatto] SESSION_COOKIE_NAME, SESSION_TTL_HOURS (8 h), resolveSessionSecret(): default solo tutto-mock e non production, altrimenti ConfigurationError
-    │   ├── constants.ts               # TIMEZONE, DEFAULT_SYNC_HOUR_LOCAL, DEFAULT_CODE_PREFIX, BAY_COUNT, POLLING_MS, STALE_WARNING_MS, RELEASING_DISPLAY_MS, MAX_SKIPS_BEFORE_ANOMALY, NOTIFICATION_IN_FLIGHT_STALE_MS
+    │   ├── constants.ts               # TIMEZONE, DEFAULT_SYNC_HOUR_LOCAL, DEFAULT_CODE_PREFIX, BAY_COUNT, POLLING_MS, STALE_WARNING_MS, PUBLIC_STATUS_RATE_LIMIT (coerente col polling), RELEASING_DISPLAY_MS, MAX_SKIPS_BEFORE_ANOMALY
     │   ├── seed.ts                    # brand, sportelli, postazioni, campate, operatori demo (+ hasDemoCredentials per il guard)
     │   └── container.ts               # getContainer(): singolo composition root, singleton su globalThis; guard credenziali demo ↔ provider reali
     ├── lib/                           # utilità senza dipendenze di dominio
@@ -251,7 +254,7 @@ webapp-accettazione-versione2/
     │   ├── hash.ts                    # fnv1a32 per seed deterministici   [SCAFFOLD]
     │   ├── hash-password.ts           # [M1 fatto] scrypt (node:crypto) hashPassword/verifyPassword a tempo costante; prefisso demo `plain:` solo sviluppo
     │   ├── utils/cn.ts                # [M1 fatto] concatenazione classi CSS (sostituisce clsx/tailwind-merge)
-    │   ├── http/                      # [M1 parziale] api-error.ts (DomainError → HTTP, 401/403/400); with-logging.ts, rate-limit.ts, idempotency.ts rinviati
+    │   ├── http/                      # [M1/M2] api-error.ts (DomainError → HTTP), rate-limit.ts (finestra scorrevole per IP e targa); with-logging.ts e idempotency.ts rinviati
     │   ├── api-client/                # [M1 fatto] client.ts (apiFetch con timeout 8 s e ApiError, fetchQueue, postAppointmentAction, postSync, postLogin/postLogout) e query-keys.ts
     │   └── realtime/                  # (M6) sse-server.ts, use-sse.ts
     └── types/                         # .gitkeep: dichiarazioni globali future (nessun `declare var process`)

@@ -143,6 +143,7 @@ export function createContainer(overrides: ContainerOverrides = {}): Container {
     clock,
     ids,
     logger,
+    queueAheadScope: env.queueAheadScope,
   });
 
   const syncService = new SyncService({
