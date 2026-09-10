@@ -1,6 +1,5 @@
 # Dipendenze
 node_modules/
-.pnpm-store/
 
 # Build Next.js
 .next/
@@ -24,7 +23,6 @@ test-results/
 # Log e file di sistema
 *.log
 npm-debug.log*
-pnpm-debug.log*
 .DS_Store
 Thumbs.db
 
@@ -32,3 +30,6 @@ Thumbs.db
 .idea/
 .vscode/*
 !.vscode/extensions.json
+
+# Configurazione locale del browser di anteprima (Claude Code)
+.claude/launch.json

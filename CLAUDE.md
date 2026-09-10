@@ -42,3 +42,8 @@ Tutto il sistema DEVE essere progettato con interfacce (es. `IInfinityService`, 
 
 5\. \*\*Modulo Tablet Ispezione Foto/Video (Opzionale / Fase 2):\*\* Acquisizione media associati alla pratica.
 
+
+## Gestione Token e Uso degli Agenti (Sub-Agents)
+- **Uso Prudente degli Agenti:** Gli sotto-agenti consumano molti token e crediti di sessione. Valuta sempre la complessità dei task prima di crearne uno:
+  - Per modifiche standard, refactoring semplici o creazione di componenti UI, **opera direttamente nella sessione principale** senza spawnare sotto-agenti.
+  - Ricorri agli agenti secondari **solo quando strettamente necessario** per task ad alta complessità o analisi architetturali parallele, riducendone al minimo il numero.

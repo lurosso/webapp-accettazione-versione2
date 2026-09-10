@@ -1,6 +1,7 @@
 // Lettura e parsing tipizzato delle variabili d'ambiente, con default sicuri (tutto mock).
-// Nessun @types/node: l'ambiente è letto tramite cast su globalThis. In M0 il parser
-// manuale sarà sostituito da uno schema Zod che esporta gli stessi tipi.
+// L'ambiente è letto da `process.env` (tipizzato da @types/node), con fallback su un oggetto vuoto
+// dove `process` non esiste (browser, test isolati). In M0-T10 il parser manuale sarà sostituito
+// da uno schema Zod che esporta gli stessi tipi.
 // Non importa nulla dai factory né dai mock: i tipi condivisi vivono in services/interfaces.
 
 import type {
@@ -19,10 +20,9 @@ import { DEFAULT_CODE_PREFIX, DEFAULT_SYNC_HOUR_LOCAL, TIMEZONE } from './consta
 /** Sorgente grezza delle variabili (process.env o un oggetto nei test). */
 export type EnvSource = Readonly<Record<string, string | undefined>>;
 
-/** Legge `process.env` se esiste (Node), altrimenti un oggetto vuoto (browser, edge, test). */
+/** Legge `process.env` se esiste (Node, edge), altrimenti un oggetto vuoto (browser, test isolati). */
 export function readEnvSource(): EnvSource {
-  const g = globalThis as { process?: { env?: EnvSource } };
-  return g.process?.env ?? {};
+  return typeof process !== 'undefined' && process.env !== undefined ? process.env : {};
 }
 
 /** Configurazione applicativa tipizzata. */

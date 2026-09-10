@@ -115,6 +115,18 @@ export function addMinutes(iso: IsoDateTime, minutes: number): IsoDateTime {
   return isoDateTime(new Date(new Date(iso).getTime() + minutes * 60_000));
 }
 
+/**
+ * Formatta un istante ISO per la UI in italiano nel fuso indicato (es. "10/09/2026, 08:12:33").
+ * Solo per la presentazione: i dati restano sempre ISO 8601 UTC.
+ */
+export function formatDateTimeIt(iso: IsoDateTime, timeZone = DEFAULT_TIME_ZONE): string {
+  return new Intl.DateTimeFormat('it-IT', {
+    timeZone,
+    dateStyle: 'short',
+    timeStyle: 'medium',
+  }).format(new Date(iso));
+}
+
 /** Confronto lessicografico di due istanti ISO UTC (negativo se `a` precede `b`). */
 export function compareIso(a: string, b: string): number {
   if (a < b) {

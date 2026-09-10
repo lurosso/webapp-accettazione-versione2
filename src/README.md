@@ -1,21 +1,21 @@
 # Struttura di `src/`
 
-Scaffold TypeScript puro del sistema di Gestione Accettazione e Flussi Officina. Nessuna
-dipendenza npm: si verifica con `npx -y -p typescript@5 tsc -p tsconfig.json --noEmit`.
-Il bootstrap Next.js (package.json, App Router, Tailwind, test) è il prossimo task di M0
-(M0-T06 e seguenti) in `TASKS.md`; le sottocartelle di `app/` nascono con M0-T11.
+Struttura TypeScript del sistema di Gestione Accettazione e Flussi Officina, ora dentro
+un'app Next.js 16 (App Router) con Tailwind CSS 4 e package manager npm. Verifica:
+`npm run typecheck` e `npm run build`. Lint, test e shadcn/ui arrivano con M0-T07..M0-T10
+(`TASKS.md`).
 
 ## Strati (dal più interno al più esterno)
 
 | Cartella | Ruolo | Può importare |
 | --- | --- | --- |
 | `domain/` | Entità, value object, state machine, eventi, errori, read model. PURO. | nulla |
-| `application/` | Casi d'uso (es. `NotificationOrchestrator`): logica reale, mai mockata. | `domain`, `services/interfaces`, `repositories/interfaces`, `config/constants` |
+| `application/` | Casi d'uso (es. `NotificationOrchestrator`, `health/check-health.ts`): logica reale, mai mockata. | `domain`, `services/interfaces`, `repositories/interfaces`, `config/constants` (mai i factory, nemmeno `import type`: i tipi aggregati si dichiarano localmente in modo strutturale, es. `ExternalHealthPorts`) |
 | `services/` | Porte verso l'esterno (`interfaces/`, inclusi i tipi neutri `provider-kinds.ts` e `mock-config.ts`), DTO di trasporto, mapper puri, `mocks/`, `real/` | `domain`, `lib` |
 | `repositories/` | Persistenza interna: `interfaces/` + `in-memory/` (Prisma in futuro) | `domain`, `services/interfaces` |
 | `config/` | Composition root: `env.ts`, `seed.ts`, `container.ts` | tutto (è l'unico che cabla le classi concrete; `env.ts` importa solo tipi neutri, mai classi mock) |
 | `lib/` | Utilità senza dipendenze di dominio (`dates.ts`, `hash.ts`) | `domain` (solo tipi) |
-| `app/`, `modules/`, `components/`, `hooks/`, `store/` | UI Next.js/React (M0+) | `application`, `domain`, `lib`, `config/container` |
+| `app/` (`layout.tsx`, `error.tsx`, `page.tsx`, `globals.css`, `api/v1/health/route.ts`), `instrumentation.ts`, `modules/`, `components/`, `hooks/`, `store/` | UI Next.js/React e hook di avvio | `application`, `domain`, `lib`, `config/container` |
 
 ## Regola d'Oro e import vietati
 
@@ -63,5 +63,11 @@ viene ritentato in automatico.
 ## Verifica
 
 ```bash
-npx -y -p typescript@5 tsc -p tsconfig.json --noEmit
+npm run typecheck   # tsc --noEmit
+npm run build       # next build (output standalone)
 ```
+
+`GET /api/v1/health` risponde sempre 200 (liveness) con lo stato aggregato delle quattro porte
+nel body; `?probe=dependencies` restituisce 503 quando una porta è `DOWN`. Con un provider
+`real` o `NODE_ENV=production` e il seed demo il container non si costruisce: `src/instrumentation.ts`
+fa fallire l'avvio (`ConfigurationError`/`NotImplementedError` in italiano).

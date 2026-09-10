@@ -1,15 +1,18 @@
 {
-  // Configurazione TypeScript minima dello scaffold: type-checka SENZA node_modules
-  // con `npx -y -p typescript@5 tsc -p tsconfig.json --noEmit`.
-  // In M0 (bootstrap Next.js): aggiungere "plugins": [{ "name": "next" }], "incremental": true,
-  // "allowJs": true, rimuovere "types": [] (arriva @types/node) e includere "next-env.d.ts"
-  // e ".next/types/**/*.ts".
+  // Configurazione TypeScript del progetto Next.js (bootstrap M0-T06).
+  // Verifica: `npm run typecheck`. Next.js può aggiungere opzioni al primo avvio: vanno mantenute.
   "compilerOptions": {
     "target": "ES2022",
-    "lib": ["dom", "dom.iterable", "esnext"],
+    "lib": [
+      "dom",
+      "dom.iterable",
+      "esnext"
+    ],
     "module": "ESNext",
     "moduleResolution": "bundler",
-    "jsx": "preserve",
+    "jsx": "react-jsx",
+    "allowJs": true,
+    "incremental": true,
     "strict": true,
     "noUncheckedIndexedAccess": true,
     "noImplicitOverride": true,
@@ -25,12 +28,27 @@
     "forceConsistentCasingInFileNames": true,
     "skipLibCheck": true,
     "noEmit": true,
-    "types": [],
     "baseUrl": ".",
     "paths": {
-      "@/*": ["./src/*"]
-    }
+      "@/*": [
+        "./src/*"
+      ]
+    },
+    "plugins": [
+      {
+        "name": "next"
+      }
+    ]
   },
-  "include": ["src/**/*.ts", "src/**/*.tsx"],
-  "exclude": ["node_modules", ".next", "tests"]
+  "include": [
+    "next-env.d.ts",
+    "src/**/*.ts",
+    "src/**/*.tsx",
+    ".next/types/**/*.ts",
+    ".next/dev/types/**/*.ts"
+  ],
+  "exclude": [
+    "node_modules",
+    "tests"
+  ]
 }

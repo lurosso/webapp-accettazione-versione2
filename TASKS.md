@@ -10,8 +10,8 @@ Backlog operativo del progetto, organizzato in **Milestone → Task → Sotto-ta
 - **Sotto-task**: piccoli (≤ ~2 h), concreti e verificabili: nominano il file/componente/interfaccia da toccare, il comportamento atteso e il file di test da scrivere. Nessun "se necessario"/"se accettato" dentro un sotto-task: le decisioni si prendono in un sotto-task dedicato e si annotano qui. "Verificato" indica sempre lo strumento e la soglia (es. «axe-core, 0 violazioni `color-contrast`»).
 - **Definition of Done generale** (vale per ogni task, oltre ai criteri specifici della milestone):
   1. codice TypeScript strict, fortemente tipizzato, commentato in italiano, identificatori in inglese;
-  2. `pnpm typecheck` e `pnpm lint` verdi (nessun import di `services/mocks|real` o `repositories/in-memory|prisma` fuori dai factory);
-  3. test unit/contract/e2e previsti dal task scritti e verdi (`pnpm test`);
+  2. `npm run typecheck` e `npm run lint` verdi (nessun import di `services/mocks|real` o `repositories/in-memory|prisma` fuori dai factory);
+  3. test unit/contract/e2e previsti dal task scritti e verdi (`npm test`);
   4. errori attesi restituiti come `Result<T,E>`, nessun blocco della UI, fallback manuale presente dove previsto;
   5. commit atomico in italiano con prefisso conventional e ID task nello stesso formato di questo file (es. `feat(M1-T03): QueueService con state machine e versioning`, così `git log --grep M1-T03` lo trova); il sotto-task di commit si spunta solo dopo aver verificato l'hash con `git log -1`, annotandolo accanto alla checkbox (es. `[x] … (68c07e1)`);
   6. `TASKS.md` aggiornato (checkbox, note, eventuali nuovi task).
@@ -19,13 +19,14 @@ Backlog operativo del progetto, organizzato in **Milestone → Task → Sotto-ta
 
 ## Stato attuale
 
-Setup iniziale (M0-T01..T05) completato. Il resto di M0 (bootstrap manuale di Next.js nel repo non vuoto, Tailwind, ESLint/Prettier, Vitest, layout base, CI) è il prossimo lavoro a partire da M0-T06.
+Setup iniziale (M0-T01..T05) completato. Bootstrap manuale di Next.js eseguito (M0-T06 completo; M0-T11 quasi completo: manca `providers.tsx`, rinviato a M0-T07/M1-T09), con `.gitattributes` che forza LF; `npm run typecheck` e `npm run build` verdi (route: `ƒ /`, `○ /_not-found`, `ƒ /api/v1/health`). Package manager scelto dal PO: **npm** (`package-lock.json` versionato, nessun campo `packageManager`). Prossimo lavoro: M0-T07 (token Tailwind, shadcn/ui, editorconfig, env.example), M0-T08 (ESLint/Prettier), M0-T09 (Vitest), M0-T10 (Zod), completamento M0-T11, M0-T12, M0-T13.
 
 - [x] **M0-T01** Documenti di setup: `CLAUDE.md` (regole, Regola d'Oro Mock-First, priorità P1..P5) e `docs/ANALISI_REQUISITI.md` (moduli A–F) (commit `68c07e1`).
 - [x] **M0-T02** `ARCHITECTURE.md`: stack, albero cartelle, modello di dominio, porte/adapter, strategia mock, flusso dati e stato server-side, regola dei codici, tabella sintetica ADR-001..014 (§8; i file in `docs/adr/` arrivano con M0-T12).
 - [x] **M0-T03** `TASKS.md` (questo file): milestone M0..M7 con task granulari.
-- [x] **M0-T04** Impalcatura `src/` in TypeScript puro (dominio, `services/interfaces`, DTO, mapper, `services/mocks` con `InfinityServiceMock`/`SpokiServiceMock`/`SmsHostingServiceMock`/`CrmServiceMock`/`MediaStorageMock`, `repositories/in-memory`, factory, `config/container.ts`, `NotificationOrchestrator`), `.gitkeep` per le cartelle future (le sottocartelle di `src/app` nascono con M0-T11), `tsconfig.json` minimo (strict, `noUnused*`, alias `@/*`), `.gitignore`; verificato con `npx -y -p typescript@5 tsc -p tsconfig.json --noEmit`.
+- [x] **M0-T04** Impalcatura `src/` in TypeScript puro (dominio, `services/interfaces`, DTO, mapper, `services/mocks` con `InfinityServiceMock`/`SpokiServiceMock`/`SmsHostingServiceMock`/`CrmServiceMock`/`MediaStorageMock`, `repositories/in-memory`, factory, `config/container.ts`, `NotificationOrchestrator`), `.gitkeep` per le cartelle future (le sottocartelle di `src/app` nascono con M0-T11), `tsconfig.json` minimo (strict, `noUnused*`, alias `@/*`), `.gitignore`; verificato con `npx -y -p typescript@5 tsc -p tsconfig.json --noEmit` (scaffold superato dal bootstrap Next.js: `tsconfig.json` ora è quello di Next, vedi M0-T06-S04).
 - [x] **M0-T05** Commit `feat(setup): inizializzazione architettura, task e impalcatura mock` (è il commit che contiene questa versione del file: hash con `git log -1`).
+- [x] **M0-T06 + M0-T11 (parziale)** Bootstrap Next.js: commit unico `feat(setup): bootstrap Next.js, fix gitattributes e architettura iniziale` richiesto dal PO (hash da annotare con `git log -1` dopo il commit); copre anche `.gitattributes`, `src/instrumentation.ts` (fail-fast anticipato da M1-T06-S02), `src/app/error.tsx` e l'allineamento di `ARCHITECTURE.md`/`src/README.md`.
 
 ---
 
@@ -33,39 +34,39 @@ Setup iniziale (M0-T01..T05) completato. Il resto di M0 (bootstrap manuale di Ne
 
 - **Priorità**: prerequisito di tutte le milestone.
 - **Obiettivo**: trasformare lo scaffold TypeScript puro in un'app Next.js 16 avviabile dentro questo repo non vuoto (nessun `create-next-app`), con qualità (lint, format, test) e CI.
-- **Criteri di completamento**: `pnpm dev` mostra la pagina base; `GET /api/v1/health` risponde con le quattro porte esterne (Infinity, Spoki, SMS Hosting, CRM) in stato `UP` con `implementation: 'mock'` (`IMediaStorage` è escluso dall'health check: infrastruttura locale senza `healthCheck()`); `pnpm typecheck && pnpm lint && pnpm test && pnpm build` verdi in locale e in CI; la regola ESLint `no-restricted-imports` blocca un import di prova di `services/mocks` da `src/app`.
+- **Criteri di completamento**: `npm run dev` mostra la pagina base; `GET /api/v1/health` risponde con le quattro porte esterne (Infinity, Spoki, SMS Hosting, CRM) in stato `UP` con `implementation: 'mock'` (`IMediaStorage` è escluso dall'health check: infrastruttura locale senza `healthCheck()`); `npm run typecheck && npm run lint && npm test && npm run build` verdi in locale e in CI; la regola ESLint `no-restricted-imports` blocca un import di prova di `services/mocks` da `src/app`.
 - **Dipendenze**: M0-T01..T05.
 
-### M0-T06 — package.json, pnpm e tsconfig definitivo
+### M0-T06 — package.json, npm e tsconfig definitivo
 Rendere installabile il progetto senza `create-next-app`, con versioni pinnate.
-- [ ] M0-T06-S01 Creare `package.json` (name, `"private": true`, `"type": "module"`, `packageManager: pnpm@10`, `engines.node >=22`) con script `dev`, `build`, `start`, `typecheck`, `lint`, `lint:fix`, `format`, `format:check`, `test`, `test:watch`, `test:e2e`.
-- [ ] M0-T06-S02 Dipendenze pinnate: `next@16`, `react@19`, `react-dom@19`, `@tanstack/react-query@5`, `zustand@5`, `zod@4`, `jose@6`, `lucide-react`; dev: `typescript@5.9`, `@types/node@24`, `@types/react`, `@types/react-dom`, `tailwindcss@4`, `@tailwindcss/postcss`, `vitest@4`, `@testing-library/react@16`, `eslint@9`, `eslint-config-next`, `typescript-eslint`, `prettier@3`, `prettier-plugin-tailwindcss`. Verificare le versioni correnti al momento dell'esecuzione e annotare qui la data della verifica (le versioni in `ARCHITECTURE.md` §2 vanno allineate).
-- [ ] M0-T06-S03 `pnpm install` e commit di `pnpm-lock.yaml`; verificare che `node_modules` sia ignorato da `.gitignore`.
-- [ ] M0-T06-S04 Aggiornare `tsconfig.json`: `jsx: preserve`, `plugins: [{ name: 'next' }]`, `incremental: true`, rimuovere `types: []`, includere `next-env.d.ts` e `tests/`; mantenere `strict`, `noUncheckedIndexedAccess`, `exactOptionalPropertyTypes`, `verbatimModuleSyntax`, alias `@/*`.
-- [ ] M0-T06-S05 Creare `next.config.ts` con `output: 'standalone'`, `reactStrictMode: true`, `typedRoutes` se stabile; commento in italiano sul vincolo di processo singolo.
-- [ ] M0-T06-S06 Verificare `config/env.ts`: con `@types/node` presente rimuovere il cast su `globalThis` a favore di `process.env` senza collisioni di tipo; `pnpm typecheck` verde.
-- [ ] M0-T06-S07 Commit `chore(M0-T06): package.json, pnpm e tsconfig per Next.js 16`.
+- [x] M0-T06-S01 Creato `package.json` (name `webapp-accettazione`, `"private": true`, `engines.node >=22`) con script `dev`, `build`, `start`, `typecheck`. Decisioni: package manager **npm** (scelta del PO, nessun campo `packageManager`); nessun `"type": "module"` (non necessario a Next 16; `postcss.config.mjs` è ESM per estensione). Gli script `lint`, `lint:fix`, `format`, `format:check` arrivano con M0-T08, `test`/`test:watch` con M0-T09, `test:e2e` con M1-T17.
+- [x] M0-T06-S02 Dipendenze pinnate (verifica del 2026-09-10): `next@16.3.4`, `react@19.3.0`, `react-dom@19.3.0`; dev `typescript@5.9.3` (TypeScript 7 è già sul registry ma **non adottato**: si attende il supporto del plugin Next e di typescript-eslint), `@types/node@24.13.4`, `@types/react@19.3.0`, `@types/react-dom@19.3.0`, `tailwindcss@4.3.3`, `@tailwindcss/postcss@4.3.3`, `postcss@8.5.28`. Le altre dipendenze si installano nel task che le usa: `@tanstack/react-query`, `zustand`, `lucide-react`, shadcn → M0-T07; `eslint`, `eslint-config-next`, `typescript-eslint`, `prettier`, `prettier-plugin-tailwindcss` → M0-T08; `vitest`, `@testing-library/react` → M0-T09; `zod` → M0-T10; `jose` → M1-T07. `ARCHITECTURE.md` §2 allineato.
+- [x] M0-T06-S03 `npm install` (46 pacchetti) e `package-lock.json` (lockfileVersion 3) versionato; `node_modules` ignorato da `.gitignore` (voci del package manager precedente rimosse).
+- [x] M0-T06-S04 `tsconfig.json` aggiornato: `plugins: [{ name: 'next' }]`, `incremental`, `allowJs`, `types: []` rimosso, include `next-env.d.ts`, `.next/types/**/*.ts` e `.next/dev/types/**/*.ts` (`.next` NON è in `exclude`, altrimenti il validator di Next non verrebbe compilato da `npm run typecheck`); opzioni strict, `noUncheckedIndexedAccess`, `exactOptionalPropertyTypes`, `verbatimModuleSyntax`, alias `@/*` mantenuti. Deviazioni: `jsx: react-jsx` (impostato da Next al primo build, da mantenere); `tests/` resta in `exclude` finché la cartella non esiste (si include in M0-T09-S01).
+- [x] M0-T06-S05 `next.config.ts` con `reactStrictMode: true`, `output: 'standalone'` e commento sul vincolo di processo singolo. `typedRoutes` **non attivato** (decisione: si valuta in M1-T10 quando esistono route reali e si può verificare l'impatto su `Link`/`redirect()` con il build).
+- [x] M0-T06-S06 `config/env.ts`: `readEnvSource()` legge `process.env` (tipizzato da `@types/node`, fallback `{}` dove `process` non esiste), cast su `globalThis` rimosso, commento di testa aggiornato; `npm run typecheck` verde.
+- [x] M0-T06-S07 Il commit per task previsto (`chore(M0-T06): …`) è sostituito dal commit unico richiesto dal PO `feat(setup): bootstrap Next.js, fix gitattributes e architettura iniziale`, che copre M0-T06, M0-T11 (parziale) e `.gitattributes`; spuntare con l'hash dopo `git log -1`.
 
 ### M0-T07 — Tailwind 4, shadcn/ui, editorconfig, env.example
 Base grafica e configurazione d'ambiente.
-- [ ] M0-T07-S01 `postcss.config.mjs` con `@tailwindcss/postcss`; `src/app/globals.css` con `@import "tailwindcss"` e token colore per gli stati pratica (`--status-waiting`, `--status-in-progress`, `--status-skipped`, `--status-completed`, `--status-no-show`, `--status-cancelled`) definiti in `@theme`.
+- [ ] M0-T07-S01 `postcss.config.mjs` (`@tailwindcss/postcss`) e `src/app/globals.css` (`@import 'tailwindcss'`) esistono dal bootstrap: aggiungere in `globals.css` i token colore per gli stati pratica (`--status-waiting`, `--status-in-progress`, `--status-skipped`, `--status-completed`, `--status-no-show`, `--status-cancelled`) definiti in `@theme`.
 - [ ] M0-T07-S02 Inizializzare shadcn/ui (`components.json`, alias `@/components/ui`) e aggiungere `Button`, `Badge`, `Table`, `Dialog`, `Toast`/`Sonner`, `Select`, `Input`, `Tooltip`; nessun lock-in (codice nel repo).
-- [ ] M0-T07-S03 `.editorconfig` (UTF-8, LF, 2 spazi, `insert_final_newline`); `.prettierrc`/`prettier.config.mjs` con `endOfLine: 'lf'` e plugin Tailwind.
+- [ ] M0-T07-S03 `.editorconfig` (UTF-8, LF, 2 spazi, `insert_final_newline`); `.prettierrc`/`prettier.config.mjs` con `endOfLine: 'lf'` e plugin Tailwind. Nota: il fine riga LF è già imposto lato Git da `.gitattributes` (`* text=auto eol=lf`, fatto nel bootstrap); `.editorconfig` e Prettier lo garantiscono anche in editor.
 - [ ] M0-T07-S04 `.env.example` con tutte le variabili lette da `config/env.ts` (`SERVICES_PROVIDER=mock`, `*_PROVIDER`, `REPOSITORY_PROVIDER=memory`, `MEDIA_STORAGE_PROVIDER=memory`, `APP_TIMEZONE=Europe/Rome` (mai `TZ`), `SYNC_HOUR_LOCAL=06:00`, `CODE_PREFIX=F`, `CODE_SEQUENCE_SCOPE=SITE`, `QUEUE_AHEAD_SCOPE=SITE`, interruttori `MOCK_*` inclusi `MOCK_INFINITY_CANCEL_ON_SECOND_CALL` e `MOCK_SMS_FAILURE_RATE`, `SESSION_SECRET`, `SYNC_SECRET`) con commento per riga.
 - [ ] M0-T07-S05 Commit `chore(M0-T07): Tailwind 4, shadcn/ui, editorconfig ed env.example`.
 
 ### M0-T08 — ESLint 9 flat config e Prettier con guardia architetturale
 Rendere meccanica la Regola d'Oro.
 - [ ] M0-T08-S01 `eslint.config.mjs` flat con `eslint-config-next` e `typescript-eslint` (regole `consistent-type-imports`, `no-floating-promises`, `switch-exhaustiveness-check`).
-- [ ] M0-T08-S02 Regola `no-restricted-imports` per `src/app/**`, `src/modules/**`, `src/components/**`, `src/hooks/**`, `src/application/**`: vietati `@/services/mocks*`, `@/services/real*`, `@/repositories/in-memory*`, `@/repositories/prisma*` con messaggio in italiano che rimanda ai factory.
-- [ ] M0-T08-S03 Test negativo della regola: file temporaneo in `src/app` che importa `InfinityServiceMock` → `pnpm lint` fallisce; rimuovere il file.
-- [ ] M0-T08-S04 `pnpm format` su tutto il repo; verificare assenza di BOM e CRLF con uno script `scripts/check-encoding.mjs` (aggiunto a `lint`).
+- [ ] M0-T08-S02 Regola `no-restricted-imports` per `src/app/**`, `src/modules/**`, `src/components/**`, `src/hooks/**`, `src/application/**`: vietati `@/services/mocks*`, `@/services/real*`, `@/repositories/in-memory*`, `@/repositories/prisma*` con messaggio in italiano che rimanda ai factory. Decisione di layering (bootstrap): `application/` importa solo da `domain`, `services/interfaces`, `repositories/interfaces`, `config/constants`, MAI dai factory (nemmeno `import type`): `application/health/check-health.ts` definisce localmente `ExternalHealthPorts` e `providerKindsFromEnv()` con tipi strutturali; la regola ESLint può quindi vietare anche `@/services/factory` e `@/repositories/factory` in `src/application/**`.
+- [ ] M0-T08-S03 Test negativo della regola: file temporaneo in `src/app` che importa `InfinityServiceMock` → `npm run lint` fallisce; rimuovere il file.
+- [ ] M0-T08-S04 `npm run format` su tutto il repo; verificare assenza di BOM e CRLF con uno script `scripts/check-encoding.mjs` (aggiunto a `lint`; `.gitattributes` normalizza già i fine riga al commit: lo script verifica la working copy e il BOM).
 - [ ] M0-T08-S05 (Opzionale) `dependency-cruiser` con regole di layering domain ← application ← services/repositories ← modules/app, eseguibile in CI.
 - [ ] M0-T08-S06 Commit `chore(M0-T08): ESLint flat config, Prettier e guardia no-restricted-imports`.
 
 ### M0-T09 — Vitest e primi test dello scaffold
 Verificare che lo scaffold sia corretto, non solo tipizzato.
-- [ ] M0-T09-S01 `vitest.config.ts` con alias `@/`, `environment: 'node'` di default, `include: ['tests/**/*.test.ts', 'tests/**/*.contract.ts']`, coverage v8.
+- [ ] M0-T09-S01 `vitest.config.ts` con alias `@/`, `environment: 'node'` di default, `include: ['tests/**/*.test.ts', 'tests/**/*.contract.ts']`, coverage v8; aggiungere `tests/**/*.ts` all'`include` di `tsconfig.json` e rimuovere `tests` da `exclude` (rinviato da M0-T06-S04 perché la cartella non esisteva ancora).
 - [ ] M0-T09-S02 `tests/unit/appointment-state-machine.test.ts`: tutte le transizioni consentite/vietate di `ALLOWED_TRANSITIONS`, `assertTransition` → `INVALID_TRANSITION`.
 - [ ] M0-T09-S03 `tests/unit/queue-code.test.ts`: `formatQueueCode('F', 1) === 'F001'`, padding oltre 999 (`F1000`), `parseQueueCode`, `compareByScheduleThenSequence`.
 - [ ] M0-T09-S04 `tests/unit/value-objects.test.ts`: `parsePlate` (AA123BB, spazi/trattini, formati UE, targhe non valide), `parsePhoneE164` (00→+, prefisso +39, punti/spazi), `lastDigits`.
@@ -79,28 +80,30 @@ Un solo linguaggio di schema per env, DTO e body HTTP.
 - [ ] M0-T10-S01 `src/config/env.schema.ts`: schema Zod di `AppEnv` con default sicuri e `coerce` per numeri; `parseEnv()` usa `safeParse`, logga warning per valori non validi e ricade sui default (mai throw all'avvio in modalità mock).
 - [ ] M0-T10-S02 `src/services/dto/infinity.dto.ts`: `InfinityAppointmentDtoSchema`, `InfinityAgendaDtoSchema`; tipi esportati con `z.infer` mantenendo gli stessi nomi; `isInfinityAppointmentDto` reimplementato su `safeParse`.
 - [ ] M0-T10-S03 Schemi Zod per `spoki.dto.ts`, `sms-hosting.dto.ts`, `crm.dto.ts` (usati in M3/M6/M7 dai Route Handler e dai contract test).
-- [ ] M0-T10-S04 Test `tests/unit/dto-schemas.test.ts` con payload validi e invalidi; `pnpm typecheck` verde.
+- [ ] M0-T10-S04 Test `tests/unit/dto-schemas.test.ts` con payload validi e invalidi; `npm run typecheck` verde.
 - [ ] M0-T10-S05 Commit `refactor(M0-T10): schemi Zod per env e DTO`.
 
 ### M0-T11 — App Router minimo e /api/v1/health
 Primo avvio dell'app con il container reale.
-- [ ] M0-T11-S01 `src/app/layout.tsx` (lang `it`, font, `globals.css`), `src/app/providers.tsx` con `QueryClientProvider` (client component) e `Toaster`.
-- [ ] M0-T11-S02 `src/app/page.tsx`: pagina base con titolo del progetto e link a `/api/v1/health` (redirect verso `/accettazione` o `/login` arriverà in M1).
-- [ ] M0-T11-S03 `src/app/api/v1/health/route.ts`: `GET` che chiama `getContainer()` e restituisce `{ status: 'UP', checkedAt, providers: HealthStatus[] }` con `healthCheck()` delle quattro porte esterne (Infinity, Spoki, SMS Hosting, CRM; `mediaStorage` escluso: nessun `healthCheck()` su `IMediaStorage`), header `x-correlation-id`.
-- [ ] M0-T11-S04 Verifica manuale: `pnpm dev`, `/`, `/api/v1/health` con `SERVICES_PROVIDER=mock`; con `INFINITY_PROVIDER=real` il server fallisce all'avvio con `NotImplementedError` in italiano (fail-fast documentato).
-- [ ] M0-T11-S05 `pnpm build` verde con `output: 'standalone'`.
-- [ ] M0-T11-S06 Commit `feat(M0-T11): App Router minimo e endpoint health`.
+- [x] M0-T11-S01 `src/app/layout.tsx` (lang `it`, font di sistema, `globals.css`, metadata in italiano).
+- [ ] M0-T11-S01b `src/app/providers.tsx` (client component) con `QueryClientProvider` e `Toaster`/`Sonner`: rinviato perché `@tanstack/react-query` e shadcn non sono ancora installati; dipende da M0-T07-S02 e va completato al più tardi in M1-T09 (prima di `useQueue`).
+- [x] M0-T11-S02 `src/app/page.tsx`: Server Component (`force-dynamic`) con titolo, tabella Tailwind dell'`healthCheck` delle quattro porte esterne (badge con etichette italiane e codice tecnico nel `title`, `<th scope="col">`, implementazione, dettaglio, "Ultimo controllo" formattato in `APP_TIMEZONE` con `lib/dates.ts::formatDateTimeIt`) e link a `/api/v1/health`; se il container non è costruibile (`ConfigurationError`/`NotImplementedError`) mostra un pannello in italiano con il suggerimento `SERVICES_PROVIDER=mock`. Il redirect verso `/accettazione`/`/login` arriva in M1-T10-S02.
+- [x] M0-T11-S02b `src/app/error.tsx` (error boundary radice, client component): messaggio in italiano, `digest` e pulsante "Riprova" al posto della pagina generica inglese di Next. Gli `ErrorBoundary` per modulo restano nei task delle rispettive milestone.
+- [x] M0-T11-S03 `src/app/api/v1/health/route.ts`: `GET(request)` (`force-dynamic`) che chiama `getContainer()` e `checkExternalHealth()`; nuovo caso d'uso `src/application/health/check-health.ts` (`aggregateHealth`, `checkExternalHealth(ports, { clock, kinds, correlationId? })`: dipende solo da `domain` e `services/interfaces` tramite il tipo locale `ExternalHealthPorts`, mai lancia, porta che lancia o non risponde entro `HEALTH_CHECK_TIMEOUT_MS` = 2000 ms → `DOWN` con `checkedAt` da `IClock` e `implementation` dall'ambiente) che restituisce `{ status: 'UP'|'DEGRADED'|'DOWN', checkedAt, providers: HealthStatus[] }`. Codici HTTP: **200 sempre** come liveness del processo (una dipendenza giù non deve far riavviare l'app: fallback manuali); `?probe=dependencies` → 503 quando `DOWN`; container non costruibile → 503 JSON `{ status: 'DOWN', checkedAt: null, providers: [], error: { name, message } }`. Header `x-correlation-id` sempre presente (riuso dell'header in ingresso, altrimenti `container.ids.next()`), propagato alle porte via `CallOptions.correlationId`.
+- [x] M0-T11-S04 Verifica manuale: `npm run dev`, `/`, `/api/v1/health` e `/api/v1/health?probe=dependencies` con `SERVICES_PROVIDER=mock`. Fail-fast: `src/instrumentation.ts` (anticipato da M1-T06-S02) costruisce il container all'avvio del server, quindi con `INFINITY_PROVIDER=real` il processo fallisce all'avvio; nota: con il seed demo attuale (password `plain:`) scatta prima `ConfigurationError` (guard `assertNoDemoCredentialsOutsideMock`), non `NotImplementedError`, e per lo stesso motivo `npm start` (`NODE_ENV=production`) è atteso fallire finché il seed non viene sostituito in M1. Stato: **non eseguita** (finora verificati solo `npm run typecheck` e `npm run build`). **Esito 2026-09-10:** home 200 con le 4 porte "Operativo"; `/api/v1/health` 200 con `x-correlation-id` (riusato se presente in ingresso); `?probe=dependencies` 200; con `INFINITY_PROVIDER=real` sul build standalone il server logga subito `ConfigurationError` in italiano all'avvio ("Failed to prepare server") ma il processo resta in ascolto (unhandledRejection): la terminazione esplicita del processo va aggiunta in M1-T06-S02.
+- [x] M0-T11-S05 `npm run build` verde con `output: 'standalone'` (route: `ƒ /`, `○ /_not-found`, `ƒ /api/v1/health`); da ripetere dal lead dopo l'aggiunta di `error.tsx`, `instrumentation.ts` e `?probe=dependencies`.
+- [x] M0-T11-S06 Commit per task sostituito dal commit unico `feat(setup): bootstrap Next.js, fix gitattributes e architettura iniziale` (vedi M0-T06-S07); spuntare con l'hash.
 
 ### M0-T12 — Documentazione di bootstrap
-- [ ] M0-T12-S01 `README.md`: avvio (`pnpm install`, `pnpm dev`), variabili env, vincolo processo singolo (mai serverless/multi-istanza in fase mock), tabella "ultima cifra telefono → esito" dei mock, credenziali demo.
-- [ ] M0-T12-S02 `docs/GLOSSARIO.md` generato da `src/domain/glossary.ts` con script `scripts/gen-glossary.mts` (aggiunto a `pnpm docs`).
+- [ ] M0-T12-S01 `README.md`: avvio (`npm install`, `npm run dev`), variabili env, vincolo processo singolo (mai serverless/multi-istanza in fase mock), tabella "ultima cifra telefono → esito" dei mock, credenziali demo.
+- [ ] M0-T12-S02 `docs/GLOSSARIO.md` generato da `src/domain/glossary.ts` con script `scripts/gen-glossary.mts` (aggiunto a `npm run docs`).
 - [ ] M0-T12-S03 `docs/adr/ADR-001..014.md` (un file per decisione, template: contesto, decisione, motivazione, alternative, conseguenze); aggiornare i rimandi in `ARCHITECTURE.md` (§ intestazione) e in questo file.
 - [ ] M0-T12-S03b Pulizia del markdown "escapato" in `CLAUDE.md` e `docs/ANALISI_REQUISITI.md` (`\#`, `\*\*`, `\-`, `&#x20;` → markdown normale, refuso «Visone Generale» → «Visione Generale»), senza modificare il contenuto delle regole; verificare il rendering su GitHub.
 - [ ] M0-T12-S04 Allineare `ARCHITECTURE.md` ed `src/README.md` alle eventuali deviazioni emerse in M0-T06..T11.
 - [ ] M0-T12-S05 Commit `docs(M0-T12): README, glossario e ADR`.
 
 ### M0-T13 — Continuous Integration
-- [ ] M0-T13-S01 `.github/workflows/ci.yml`: trigger push/PR su `main`, Node 24, pnpm con cache, passi `install --frozen-lockfile`, `typecheck`, `lint`, `test`, `build`.
+- [ ] M0-T13-S01 `.github/workflows/ci.yml`: trigger push/PR su `main`, Node 24, npm con cache (`actions/setup-node` con `cache: npm`), passi `npm ci`, `npm run typecheck`, `npm run lint`, `npm test`, `npm run build`.
 - [ ] M0-T13-S02 Badge CI nel `README.md`.
 - [ ] M0-T13-S02b Protezione del branch `main` (PR obbligatoria, CI verde richiesta) attivata nelle impostazioni del repository e documentata nella sezione «Flusso di lavoro Git» del `README.md` (branch `feature/M<n>-<slug>`, commit atomici, nessun push diretto su `main`).
 - [ ] M0-T13-S03 Commit `ci(M0-T13): pipeline GitHub Actions`.
@@ -158,7 +161,7 @@ Cuore del modulo A; dipende solo da interfacce.
 
 ### M1-T06 — SyncScheduler, bootstrap e snapshot dello stato
 - [ ] M1-T06-S01 `src/application/sync/SyncScheduler.ts`: `tick()` ogni 30 s che esegue `runDailySync(today, 'SCHEDULED')` la prima volta in cui l'ora locale Europe/Rome supera `SYNC_HOUR_LOCAL` per una `businessDate` senza `SyncRun` SUCCESS/PARTIAL (catch-up dopo riavvio); `start()`/`stop()`; guard su `globalThis.__accettazioneScheduler` (un solo scheduler anche con HMR).
-- [ ] M1-T06-S02 `src/instrumentation.ts` (`register()` solo su runtime `nodejs`): `getContainer()`, ripristino snapshot, `runDailySync(today, 'BOOTSTRAP')` se la giornata non è sincronizzata, avvio scheduler; stesso bootstrap idempotente alla prima richiesta che chiama `getContainer()`.
+- [ ] M1-T06-S02 `src/instrumentation.ts` (`register()` solo su runtime `nodejs`; il file esiste dal bootstrap e chiama già `getContainer()` per il fail-fast all'avvio): ripristino snapshot, `runDailySync(today, 'BOOTSTRAP')` se la giornata non è sincronizzata, avvio scheduler; stesso bootstrap idempotente alla prima richiesta che chiama `getContainer()`.
 - [ ] M1-T06-S03 `src/repositories/in-memory/SnapshotPersistence.ts` (importato solo da `repositories/factory.ts`): `InMemoryStore.toSnapshot()` → scrittura debounced (2 s) atomica `tmp + rename` in `.data/state.json`; `loadSnapshot` validato con Zod all'avvio.
 - [ ] M1-T06-S03b Rotazione e ripristino: prima di ogni scrittura `state.json` → `state.prev.json`; alla chiusura giornata archivio `.data/archive/<businessDate>.json`; all'avvio principale invalido → ripristino da `prev` (log warn); entrambi invalidi → log error, si parte vuoti, sync immediata, banner. Test `tests/unit/snapshot-persistence.test.ts` (round-trip, principale corrotto → `prev`, entrambi corrotti). La procedura manuale va nel `RUNBOOK_OPERATIVO.md` (M6-T06-S01).
 - [ ] M1-T06-S04 Test `tests/unit/sync-scheduler.test.ts` con `FixedClock`: nessuna sync alle 05:59, una sola sync dopo le 06:00, catch-up avviando alle 09:00, cambio ora legale (ultima domenica di marzo/ottobre).
@@ -199,7 +202,7 @@ Cuore del modulo A; dipende solo da interfacce.
 
 ### M1-T10 — Pagina di login e scelta postazione
 - [ ] M1-T10-S01 `src/app/(auth)/login/page.tsx` + `modules/reception/LoginForm.tsx`: username, password, `Select` postazione (da `GET /api/v1/auth/workstations`, M1-T07-S04, o props del Server Component), errore in italiano, gestione del focus, `Enter` per inviare.
-- [ ] M1-T10-S02 Redirect post-login a `/accettazione` (o a `next=`); `src/app/page.tsx` reindirizza a `/accettazione` se sessione valida, altrimenti `/login`.
+- [ ] M1-T10-S02 Redirect post-login a `/accettazione` (o a `next=`); `src/app/page.tsx` reindirizza a `/accettazione` se sessione valida, altrimenti `/login` (sostituisce la pagina di verifica dell'health del bootstrap). Decidere qui l'attivazione di `typedRoutes: true` in `next.config.ts` (rinviata da M0-T06-S05): verificare che `Link`/`redirect()` restino verdi con `npm run typecheck` e `npm run build`.
 - [ ] M1-T10-S03 Test componente `LoginForm` (validazione campi, messaggio errore) e e2e login riuscito/fallito.
 - [ ] M1-T10-S04 Commit `feat(M1-T10): pagina login con scelta postazione`.
 
@@ -255,7 +258,7 @@ Cuore del modulo A; dipende solo da interfacce.
 - [ ] M1-T16-S05 Commit `feat(M1-T16): accessibilità, scorciatoie e banner offline`.
 
 ### M1-T17 — Test di contratto ed e2e del modulo A
-- [ ] M1-T17-S01 `tests/contracts/infinity-service.contract.ts` (`runInfinityServiceContract(label, factory)`): mai throw, `Result.err` in `error`/`timeout`, rispetto di `signal`, forma DTO valida (Zod), determinismo per `businessDate`, `healthCheck`; eseguita su `InfinityServiceMock`.
+- [ ] M1-T17-S01 `tests/contracts/infinity-service.contract.ts` (`runInfinityServiceContract(label, factory)`): mai throw, `Result.err` in `error`/`timeout`, rispetto di `signal`, forma DTO valida (Zod), determinismo per `businessDate`, `healthCheck` (rispetta `timeoutMs`/`signal` di `CallOptions`: oggi i mock li ignorano e `check-health.ts` applica un timer locale di 2000 ms); eseguita su `InfinityServiceMock`.
 - [ ] M1-T17-S02 `tests/contracts/appointment-repository.contract.ts`: ordinamento, `VERSION_CONFLICT`, `reserveNextSequence` mai riutilizzato, `countAhead` per scope; eseguita su `InMemoryAppointmentRepository` (Prisma in M7).
 - [ ] M1-T17-S03 `playwright.config.ts` + `tests/e2e/smoke.spec.ts`: login → coda con F001 → prendi in carico (campata C1) → completato; `tests/e2e/conflict.spec.ts`: due contesti browser, stessa pratica → `ConflictDialog`.
 - [ ] M1-T17-S04 Script `test:e2e` in CI con server avviato in modalità mock e `FixedClock` via env `MOCK_FIXED_NOW`.
@@ -356,7 +359,7 @@ Cuore del modulo A; dipende solo da interfacce.
 - [ ] M3-T05-S01a Creare `src/application/scheduler/Scheduler.ts` generico con job registrabili (`register(name, everyMs, run)`, lock per job, `start()`/`stop()`, guard su `globalThis`); test `tests/unit/scheduler.test.ts` con `FixedClock`.
 - [ ] M3-T05-S01b Refactor deciso: `SyncScheduler` (M1) diventa il job `syncJob` registrato sullo `Scheduler` generico; il file `SyncScheduler.ts` viene rimosso e i suoi test migrano in `tests/unit/sync-job.test.ts` (nessun comportamento cambia).
 - [ ] M3-T05-S01c Job `notificationDrainJob` (ogni 30 s): job `FAILED` con `nextAttemptAt <= now` → `retry`, poi `refreshDeliveryStatuses`.
-- [ ] M3-T05-S02 Log strutturato per ciclo (job processati, esiti) e metriche semplici esposte in `/api/v1/health`.
+- [ ] M3-T05-S02 Log strutturato per ciclo (job processati, esiti) e metriche semplici esposte in `/api/v1/health`. Nello stesso task: memoizzare nel container l'esito di `checkExternalHealth()` per ~10 s (`lastHealth`/`lastHealthAt`), così probe Docker e `SystemStatusBanner` condividono una sola tornata di chiamate verso i provider reali, e con `implementation === 'real'` e `NODE_ENV=production` sostituire `detail` con un messaggio generico loggando il dettaglio completo via `ILogger` (l'endpoint è anonimo).
 - [ ] M3-T05-S03 Test unit `tests/unit/notification-drain-job.test.ts` con `FixedClock`.
 - [ ] M3-T05-S04 Commit `feat(M3-T05): scheduler generico e svuotamento outbox notifiche`.
 
@@ -382,7 +385,7 @@ Cuore del modulo A; dipende solo da interfacce.
 - [ ] M3-T08-S04 Commit `feat(M3-T08): pannello modalità mock a runtime`.
 
 ### M3-T09 — Test di contratto e chiusura M3
-- [ ] M3-T09-S01 `tests/contracts/spoki-service.contract.ts` e `sms-hosting-service.contract.ts`: mai throw, idempotenza per `idempotencyKey`, esiti per suffisso, `healthCheck`, `getDeliveryStatus`, credito.
+- [ ] M3-T09-S01 `tests/contracts/spoki-service.contract.ts` e `sms-hosting-service.contract.ts`: mai throw, idempotenza per `idempotencyKey`, esiti per suffisso, `healthCheck` (rispetta `timeoutMs`/`signal`), `getDeliveryStatus`, credito.
 - [ ] M3-T09-S02 README: tabella regole cifre finali e interruttori `MOCK_*`, flusso demo comunicazioni.
 - [ ] M3-T09-S03 Aggiornare `ARCHITECTURE.md`, ADR-010 se necessario, `TASKS.md`; PR → `main`; commit `docs(M3-T09): chiusura milestone M3`.
 
@@ -497,14 +500,14 @@ Cuore del modulo A; dipende solo da interfacce.
 ### M6-T05 — SSE e indicatori di stato sistema
 - [ ] M6-T05-S01 `src/lib/realtime/sse-server.ts` + `GET /api/v1/events?since=<seq>`: stream `text/event-stream` dal `IEventBus` con `id: seq`, replay via `listSince`, heartbeat 15 s, chiusura pulita su `signal`.
 - [ ] M6-T05-S02 `src/lib/realtime/use-sse.ts` + `src/hooks/useLiveUpdates.ts`: `EventSource` con `Last-Event-ID`, invalidazione delle query per tipo evento; badge "live"/"polling" nell'header; il polling resta attivo come fallback.
-- [ ] M6-T05-S03 `SystemStatusBanner` alimentato da `/api/v1/health` ogni 30 s: giallo = degradato con fallback attivo, rosso = dipendenza giù, con azione manuale suggerita per porta; `StaleDataIndicator` unificato.
+- [ ] M6-T05-S03 `SystemStatusBanner` alimentato da `/api/v1/health` ogni 30 s (legge `status` e `providers` dal body: l'endpoint risponde sempre 200 come liveness, il 503 è riservato a `?probe=dependencies`): giallo = degradato con fallback attivo, rosso = dipendenza giù, con azione manuale suggerita per porta; `StaleDataIndicator` unificato. Richiede la memoizzazione dell'health nel container (M3-T05-S02) per non moltiplicare le chiamate ai provider reali.
 - [ ] M6-T05-S03b Log strutturato in formato JSON: `src/services/real/JsonConsoleLogger.ts` (una riga JSON per evento con `level`, `time`, `correlationId`, contesto) dietro `ILogger`, selezionato con `LOG_FORMAT=json` (default `pretty` in sviluppo); pino con trasporti file/OTel resta nel backlog. Test `tests/unit/json-console-logger.test.ts`.
 - [ ] M6-T05-S04 Test: SSE replay da `since`, riconnessione; componente banner per i tre stati.
 - [ ] M6-T05-S05 Commit `feat(M6-T05): SSE con resume, live updates e banner stato sistema`.
 
 ### M6-T06 — Runbook, Docker e chiusura M6
 - [ ] M6-T06-S01 `docs/RUNBOOK_OPERATIVO.md`: cosa fa l'officina quando Infinity/Spoki/SMS/CRM sono giù, fallback cartaceo, riavvio del servizio, ripristino manuale dello snapshot (`state.json` corrotto → copia di `state.prev.json` o dell'archivio `.data/archive/<businessDate>.json`, verifica del contatore codici prima di riaprire la giornata; M1-T06-S03b), contatti.
-- [ ] M6-T06-S02 `Dockerfile` multi-stage (`output: 'standalone'`, utente non root, `TZ=Europe/Rome` per i log di sistema e `APP_TIMEZONE=Europe/Rome` per l'applicazione) e `docker-compose.yml` con volume `.data`, healthcheck su `/api/v1/health`, `restart: unless-stopped`; guida per servizio Windows alternativo.
+- [ ] M6-T06-S02 `Dockerfile` multi-stage (`output: 'standalone'`, utente non root, `TZ=Europe/Rome` per i log di sistema e `APP_TIMEZONE=Europe/Rome` per l'applicazione) e `docker-compose.yml` con volume `.data`, healthcheck sul probe di **liveness** `GET /api/v1/health` (sempre 200 finché il processo risponde: una dipendenza esterna giù non deve far riavviare il container; `?probe=dependencies` resta per il monitoraggio delle dipendenze), `restart: unless-stopped`; guida per servizio Windows alternativo.
 - [ ] M6-T06-S03 `tests/contracts/crm-service.contract.ts`; `tests/e2e/no-show.spec.ts` (no-show → outbox → SENT).
 - [ ] M6-T06-S04 Aggiornare `README.md`, `ARCHITECTURE.md`, ADR-010/011/012, `TASKS.md`; PR → `main`; commit `docs(M6-T06): chiusura milestone M6`.
 

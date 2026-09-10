@@ -1,0 +1,23 @@
+# Normalizzazione dei fine riga: LF nel repository e nella working copy,
+# indipendentemente da core.autocrlf della macchina (convenzione del progetto).
+* text=auto eol=lf
+
+# File testuali dichiarati esplicitamente (niente euristiche)
+*.svg text eol=lf
+
+# File binari: nessuna conversione
+*.png binary
+*.jpg binary
+*.jpeg binary
+*.gif binary
+*.ico binary
+*.webp binary
+*.woff binary
+*.woff2 binary
+*.ttf binary
+*.otf binary
+*.eot binary
+*.pdf binary
+*.mp4 binary
+*.zip binary
+*.gz binary
