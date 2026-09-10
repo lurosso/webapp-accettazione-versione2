@@ -6,7 +6,10 @@
  * È l'unica regola con cui si confrontano i codici provenienti dall'esterno.
  */
 export function normalizeReferenceCode(code: string): string {
-  return code.trim().toUpperCase().replace(/[\s-]+/g, '_');
+  return code
+    .trim()
+    .toUpperCase()
+    .replace(/[\s-]+/g, '_');
 }
 
 /** Confronto di due codici di riferimento dopo normalizzazione. */

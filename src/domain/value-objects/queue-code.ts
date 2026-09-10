@@ -44,10 +44,7 @@ export interface ScheduleOrderable {
  * Ordinamento canonico della coda: prima per orario di prenotazione (ISO UTC,
  * confronto lessicografico), a pari orario per sequenza del codice.
  */
-export function compareByScheduleThenSequence(
-  a: ScheduleOrderable,
-  b: ScheduleOrderable,
-): number {
+export function compareByScheduleThenSequence(a: ScheduleOrderable, b: ScheduleOrderable): number {
   if (a.scheduledAt < b.scheduledAt) {
     return -1;
   }

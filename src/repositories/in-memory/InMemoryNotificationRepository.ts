@@ -59,7 +59,8 @@ export class InMemoryNotificationRepository implements INotificationRepository {
     return [...this.map.values()]
       .filter(
         (j) =>
-          statuses.includes(j.status) && (businessDate === undefined || j.businessDate === businessDate),
+          statuses.includes(j.status) &&
+          (businessDate === undefined || j.businessDate === businessDate),
       )
       .sort((a, b) => (a.createdAt < b.createdAt ? -1 : a.createdAt > b.createdAt ? 1 : 0))
       .map(clone);

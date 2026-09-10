@@ -5,8 +5,7 @@ import type { DomainError } from './errors';
 
 /** Esito di un'operazione: `ok: true` con valore oppure `ok: false` con errore tipizzato. */
 export type Result<T, E = DomainError> =
-  | { readonly ok: true; readonly value: T }
-  | { readonly ok: false; readonly error: E };
+  { readonly ok: true; readonly value: T } | { readonly ok: false; readonly error: E };
 
 /** Crea un Result di successo. */
 export function ok<T>(value: T): Result<T, never> {

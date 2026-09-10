@@ -3,11 +3,7 @@
   // Verifica: `npm run typecheck`. Next.js può aggiungere opzioni al primo avvio: vanno mantenute.
   "compilerOptions": {
     "target": "ES2022",
-    "lib": [
-      "dom",
-      "dom.iterable",
-      "esnext"
-    ],
+    "lib": ["dom", "dom.iterable", "esnext"],
     "module": "ESNext",
     "moduleResolution": "bundler",
     "jsx": "react-jsx",
@@ -30,9 +26,7 @@
     "noEmit": true,
     "baseUrl": ".",
     "paths": {
-      "@/*": [
-        "./src/*"
-      ]
+      "@/*": ["./src/*"]
     },
     "plugins": [
       {
@@ -42,13 +36,13 @@
   },
   "include": [
     "next-env.d.ts",
+    "next.config.ts",
+    "vitest.config.ts",
     "src/**/*.ts",
     "src/**/*.tsx",
+    "tests/**/*.ts",
     ".next/types/**/*.ts",
     ".next/dev/types/**/*.ts"
   ],
-  "exclude": [
-    "node_modules",
-    "tests"
-  ]
+  "exclude": ["node_modules"]
 }

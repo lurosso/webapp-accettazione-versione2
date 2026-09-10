@@ -172,20 +172,32 @@ export class SpokiServiceMock implements ISpokiService {
     _headers: Readonly<Record<string, string>>,
   ): Result<DeliveryStatus, ProviderError> {
     if (typeof rawBody !== 'object' || rawBody === null) {
-      return err(providerError('SPOKI', 'INVALID_REQUEST', 'Webhook Spoki: corpo non valido.', false));
+      return err(
+        providerError('SPOKI', 'INVALID_REQUEST', 'Webhook Spoki: corpo non valido.', false),
+      );
     }
     const body = rawBody as Record<string, unknown>;
     const messageId = body['messageId'];
     const status = body['status'];
     if (typeof messageId !== 'string' || typeof status !== 'string') {
       return err(
-        providerError('SPOKI', 'INVALID_REQUEST', 'Webhook Spoki: messageId o status mancanti.', false),
+        providerError(
+          'SPOKI',
+          'INVALID_REQUEST',
+          'Webhook Spoki: messageId o status mancanti.',
+          false,
+        ),
       );
     }
     const state = WEBHOOK_STATES.find((s) => s === status.toUpperCase());
     if (state === undefined) {
       return err(
-        providerError('SPOKI', 'INVALID_REQUEST', `Webhook Spoki: stato sconosciuto "${status}".`, false),
+        providerError(
+          'SPOKI',
+          'INVALID_REQUEST',
+          `Webhook Spoki: stato sconosciuto "${status}".`,
+          false,
+        ),
       );
     }
     const reason = body['reason'];
@@ -217,7 +229,12 @@ export class SpokiServiceMock implements ISpokiService {
     if (this.options.failureRate !== null) {
       const rng = new SeededRandom(seedFrom(this.options.seed, request.idempotencyKey));
       return rng.chance(this.options.failureRate)
-        ? providerError('SPOKI', 'PROVIDER_ERROR', 'Invio WhatsApp fallito (failureRate simulato).', false)
+        ? providerError(
+            'SPOKI',
+            'PROVIDER_ERROR',
+            'Invio WhatsApp fallito (failureRate simulato).',
+            false,
+          )
         : null;
     }
     if (this.options.failSuffix.length > 0 && request.to.endsWith(this.options.failSuffix)) {
@@ -237,6 +254,8 @@ export class SpokiServiceMock implements ISpokiService {
   /** Istante di accettazione registrato per un messaggio (per i test). */
   acceptedAtOf(providerMessageId: string): IsoDateTime | null {
     const record = this.deliveries.get(providerMessageId);
-    return record === undefined ? null : (new Date(record.acceptedAtMs).toISOString() as IsoDateTime);
+    return record === undefined
+      ? null
+      : (new Date(record.acceptedAtMs).toISOString() as IsoDateTime);
   }
 }

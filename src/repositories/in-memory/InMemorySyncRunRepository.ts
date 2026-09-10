@@ -44,7 +44,8 @@ export class InMemorySyncRunRepository implements ISyncRunRepository {
   async findLastSuccessful(businessDate: IsoDate): Promise<SyncRun | null> {
     const runs = [...this.map.values()]
       .filter(
-        (r) => r.businessDate === businessDate && (r.status === 'SUCCESS' || r.status === 'PARTIAL'),
+        (r) =>
+          r.businessDate === businessDate && (r.status === 'SUCCESS' || r.status === 'PARTIAL'),
       )
       .sort(byStartedAtDesc);
     const latest = runs[0];

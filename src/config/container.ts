@@ -1,13 +1,13 @@
-// Composition root UNICO dell'applicazione. `getContainer()` costruisce una sola volta
-// (memoizzando su globalThis, così l'HMR di Next.js e le Route Handler condividono la
-// stessa istanza) clock, id generator, logger, event bus, repository e porte esterne.
-//
-// Vincolo di deploy: un solo processo Node long-running (Docker/VM/servizio Windows),
-// MAI serverless o multi-istanza finché lo stato vive in memoria (ADR-002).
-// Dai milestone M1+ il container esporrà anche queueService, syncService, authService
-// e anomalyReporter.
-
+// Composition root: UNICO punto che collega porte (interfacce) e implementazioni concrete
+// (oggi Mock e in-memory, domani adapter reali e Prisma) e costruisce i casi d'uso.
+// Memoizzato su globalThis: sopravvive all'HMR di Next e viene condiviso da tutte le richieste.
+import { LocalAuthService } from '@/application/auth/LocalAuthService';
+import type { IAuthService } from '@/application/auth/IAuthService';
 import { NotificationOrchestrator } from '@/application/notifications/NotificationOrchestrator';
+import { CodeGenerator } from '@/application/queue/CodeGenerator';
+import { QueueService } from '@/application/queue/QueueService';
+import { SyncScheduler } from '@/application/sync/SyncScheduler';
+import { SyncService } from '@/application/sync/SyncService';
 import { ConfigurationError } from '@/domain/errors';
 import { createRepositories } from '@/repositories/factory';
 import { InMemoryStore } from '@/repositories/in-memory/InMemoryStore';
@@ -22,12 +22,13 @@ import { ConsoleLogger } from '@/services/mocks/ConsoleLogger';
 import { InProcessEventBus } from '@/services/mocks/InProcessEventBus';
 import { SystemClock } from '@/services/mocks/SystemClock';
 import { UuidIdGenerator } from '@/services/mocks/UuidIdGenerator';
+import { resolveSessionSecret, SESSION_TTL_HOURS } from './auth';
 import type { AppEnv } from './env';
 import { parseEnv } from './env';
 import type { SeedData } from './seed';
 import { buildSeedData, hasDemoCredentials } from './seed';
 
-/** Grafo delle dipendenze dell'applicazione. */
+/** Tutto ciò che pagine, Route Handler e hook di avvio possono usare. */
 export interface Container {
   readonly env: AppEnv;
   readonly clock: IClock;
@@ -37,24 +38,27 @@ export interface Container {
   readonly external: ExternalServices;
   readonly repos: Repositories;
   readonly notificationOrchestrator: NotificationOrchestrator;
+  readonly authService: IAuthService;
+  readonly codeGenerator: CodeGenerator;
+  readonly queueService: QueueService;
+  readonly syncService: SyncService;
+  readonly syncScheduler: SyncScheduler;
 }
 
-/** Override per i test: env parziale, orologio fisso, id sequenziali, logger silenzioso, store isolato. */
+/** Sovrascritture per test e demo (clock fisso, id sequenziali, store isolato, env parziale). */
 export interface ContainerOverrides {
   readonly env?: Partial<AppEnv>;
   readonly clock?: IClock;
   readonly ids?: IIdGenerator;
   readonly logger?: ILogger;
   readonly store?: InMemoryStore;
+  /** Segreto di sessione esplicito (nei test evita la lettura di process.env). */
+  readonly sessionSecret?: string;
 }
 
 const GLOBAL_KEY = '__accettazioneContainer';
 
-/**
- * Guard di sicurezza (fail-fast all'avvio): le credenziali demo del seed (password `plain:`,
- * token display prevedibili) non possono convivere con `NODE_ENV=production` né con un
- * qualunque provider `real` o persistenza `prisma`.
- */
+/** Rifiuta credenziali demo (password "plain:", token display prevedibili) fuori dalla modalità mock. */
 function assertNoDemoCredentialsOutsideMock(env: AppEnv, seed: SeedData, logger: ILogger): void {
   const anyReal =
     env.nodeEnv === 'production' ||
@@ -73,10 +77,6 @@ function assertNoDemoCredentialsOutsideMock(env: AppEnv, seed: SeedData, logger:
   }
 }
 
-/**
- * Costruisce un container (funzione pura rispetto a globalThis: usata dai test).
- * Se lo store non ha ancora i dati di riferimento, li carica dal seed.
- */
 export function createContainer(overrides: ContainerOverrides = {}): Container {
   const env: AppEnv = { ...parseEnv(), ...overrides.env };
   const clock = overrides.clock ?? new SystemClock(env.timeZone);
@@ -84,10 +84,12 @@ export function createContainer(overrides: ContainerOverrides = {}): Container {
   const logger =
     overrides.logger ?? new ConsoleLogger('', env.nodeEnv === 'production' ? 'info' : 'debug');
   const eventBus = new InProcessEventBus();
-
   const store = overrides.store ?? InMemoryStore.getGlobal();
   const seed = buildSeedData();
+
   assertNoDemoCredentialsOutsideMock(env, seed, logger);
+  const sessionSecret = overrides.sessionSecret ?? resolveSessionSecret(env);
+
   if (!store.hasReferenceData()) {
     store.seedReferenceData(seed);
     logger.info('[Container] dati di riferimento caricati dal seed', {
@@ -100,7 +102,6 @@ export function createContainer(overrides: ContainerOverrides = {}): Container {
   }
 
   const repos = createRepositories(env, { clock, store });
-  // Alle porte esterne si passano COPIE dei dati di riferimento, mai riferimenti vivi allo store.
   const external = createExternalServices(env, {
     clock,
     ids,
@@ -120,6 +121,52 @@ export function createContainer(overrides: ContainerOverrides = {}): Container {
     timeZone: env.timeZone,
   });
 
+  const authService = new LocalAuthService({
+    operators: repos.operators,
+    referenceData: repos.referenceData,
+    clock,
+    logger,
+    secret: sessionSecret,
+    ttlHours: SESSION_TTL_HOURS,
+  });
+
+  const codeGenerator = new CodeGenerator(repos.appointments, {
+    sitePrefix: env.codePrefix,
+    scope: env.codeSequenceScope,
+  });
+
+  const queueService = new QueueService({
+    appointments: repos.appointments,
+    referenceData: repos.referenceData,
+    operators: repos.operators,
+    eventBus,
+    clock,
+    ids,
+    logger,
+  });
+
+  const syncService = new SyncService({
+    infinity: external.infinity,
+    appointments: repos.appointments,
+    syncRuns: repos.syncRuns,
+    referenceData: repos.referenceData,
+    codeGenerator,
+    eventBus,
+    clock,
+    ids,
+    logger,
+    timeZone: env.timeZone,
+  });
+
+  const syncScheduler = new SyncScheduler({
+    syncService,
+    syncRuns: repos.syncRuns,
+    clock,
+    logger,
+    syncHourLocal: env.syncHourLocal,
+    timeZone: env.timeZone,
+  });
+
   logger.info('[Container] inizializzato', {
     servicesProvider: env.servicesProvider,
     infinity: env.infinityProvider,
@@ -131,10 +178,24 @@ export function createContainer(overrides: ContainerOverrides = {}): Container {
     nodeEnv: env.nodeEnv,
   });
 
-  return { env, clock, ids, logger, eventBus, external, repos, notificationOrchestrator };
+  return {
+    env,
+    clock,
+    ids,
+    logger,
+    eventBus,
+    external,
+    repos,
+    notificationOrchestrator,
+    authService,
+    codeGenerator,
+    queueService,
+    syncService,
+    syncScheduler,
+  };
 }
 
-/** Container condiviso del processo, creato alla prima chiamata e memoizzato su globalThis. */
+/** Container condiviso del processo (creato alla prima richiesta o da `instrumentation.ts`). */
 export function getContainer(): Container {
   const g = globalThis as unknown as Record<string, unknown>;
   const existing = g[GLOBAL_KEY];
@@ -146,20 +207,25 @@ export function getContainer(): Container {
   return created;
 }
 
-/** Rimuove il container e svuota lo store globale (solo test). */
+/** Solo per i test: elimina container e stato condiviso. */
 export function resetContainerForTests(): void {
   const g = globalThis as unknown as Record<string, unknown>;
+  const existing = g[GLOBAL_KEY];
+  if (isContainer(existing)) {
+    existing.syncScheduler.stop();
+  }
   delete g[GLOBAL_KEY];
   InMemoryStore.getGlobal().reset();
 }
 
-/** Controllo strutturale (non `instanceof`): resiste alla rivalutazione del modulo con l'HMR. */
 function isContainer(v: unknown): v is Container {
+  // `queueService` distingue un container completo da uno creato prima di M1 (HMR).
   return (
     typeof v === 'object' &&
     v !== null &&
     'repos' in v &&
     'external' in v &&
-    'notificationOrchestrator' in v
+    'queueService' in v &&
+    'syncScheduler' in v
   );
 }

@@ -1,9 +1,15 @@
 # Struttura di `src/`
 
-Struttura TypeScript del sistema di Gestione Accettazione e Flussi Officina, ora dentro
-un'app Next.js 16 (App Router) con Tailwind CSS 4 e package manager npm. Verifica:
-`npm run typecheck` e `npm run build`. Lint, test e shadcn/ui arrivano con M0-T07..M0-T10
-(`TASKS.md`).
+Struttura TypeScript del sistema di Gestione Accettazione e Flussi Officina, dentro un'app
+Next.js 16 (App Router) con Tailwind CSS 4, TanStack Query e package manager npm. Verifica:
+`npm run typecheck`, `npm run lint` (ESLint con guardia architetturale + controllo encoding),
+`npm test` (Vitest) e `npm run build`. Le primitive UI in `components/ui` sono scritte a mano
+con le convenzioni di shadcn/ui (la CLI shadcn e Zod per l'env restano in `TASKS.md`).
+
+Stato (M1): login con scelta Sportello/Brand e Postazione (`(auth)/login`), dashboard della coda
+(`(operator)/accettazione`) con azioni Prendi in carico / Salta / Completato / Rilascia /
+Ripristina, vista globale multi-sportello, sync Infinity delle 06:00 con catch-up e banner,
+pagina `/sistema` con lo stato delle porte esterne.
 
 ## Strati (dal più interno al più esterno)
 
@@ -63,9 +69,18 @@ viene ritentato in automatico.
 ## Verifica
 
 ```bash
-npm run typecheck   # tsc --noEmit
+npm run typecheck   # tsc --noEmit (include tests/ e i file di configurazione)
+npm run lint        # eslint . + scripts/check-encoding.mjs (BOM e CRLF)
+npm test            # vitest run (tests/unit/*.test.ts, fixture in tests/helpers)
 npm run build       # next build (output standalone)
 ```
+
+Sessione operatore: cookie HttpOnly `accettazione_session` con JWT HS256 (`jose`, 8 ore) firmato
+con `SESSION_SECRET` (`config/auth.ts`; senza variabile, in modalità tutta-mock, vale un segreto
+di sviluppo). `src/proxy.ts` verifica firma e scadenza; `app/_server/session.ts` rilegge
+l'operatore dal repository a ogni richiesta. Le pagine e i Route Handler in `app/` sono gli unici
+a importare `config/container`; `modules/`, `components/`, `hooks/` ricevono dati e chiamano
+`/api/v1` tramite `lib/api-client`.
 
 `GET /api/v1/health` risponde sempre 200 (liveness) con lo stato aggregato delle quattro porte
 nel body; `?probe=dependencies` restituisce 503 quando una porta è `DOWN`. Con un provider

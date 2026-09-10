@@ -95,7 +95,10 @@ export function mapInfinityAppointment(
 
   // La giornata è quella dell'agenda richiesta: un orario che cade in un altro giorno
   // (dato incoerente, es. a ridosso della mezzanotte) romperebbe findByExternalRef(externalRef, businessDate).
-  const scheduledBusinessDate = toBusinessDate(new Date(scheduledAt), ctx.timeZone ?? 'Europe/Rome');
+  const scheduledBusinessDate = toBusinessDate(
+    new Date(scheduledAt),
+    ctx.timeZone ?? 'Europe/Rome',
+  );
   if (scheduledBusinessDate !== ctx.businessDate) {
     return err(
       domainError(
@@ -161,7 +164,10 @@ export function mapInfinityAgenda(
       }),
     );
   }
-  const appointmentCtx: InfinityAppointmentMappingContext = { ...ctx, businessDate: agenda.businessDate };
+  const appointmentCtx: InfinityAppointmentMappingContext = {
+    ...ctx,
+    businessDate: agenda.businessDate,
+  };
   const drafts: AppointmentDraft[] = [];
   const rejected: { externalId: string | null; error: DomainError }[] = [];
   for (const dto of agenda.appointments) {

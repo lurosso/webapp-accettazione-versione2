@@ -89,7 +89,9 @@ export function isStartupError(error: unknown): error is ConfigurationError | No
 }
 
 /** Costruisce la risposta `DOWN` per un errore di avvio del container. */
-export function unavailableHealth(error: ConfigurationError | NotImplementedError): SystemHealthUnavailable {
+export function unavailableHealth(
+  error: ConfigurationError | NotImplementedError,
+): SystemHealthUnavailable {
   return {
     status: 'DOWN',
     checkedAt: null,
@@ -106,11 +108,7 @@ export function aggregateHealth(providers: readonly HealthStatus[]): SystemHealt
 }
 
 /** Esito `DOWN` sintetico per una porta che ha lanciato o non ha risposto in tempo. */
-function downStatus(
-  provider: ProviderName,
-  detail: string,
-  deps: CheckHealthDeps,
-): HealthStatus {
+function downStatus(provider: ProviderName, detail: string, deps: CheckHealthDeps): HealthStatus {
   return {
     provider,
     status: 'DOWN',
@@ -170,6 +168,10 @@ export async function checkExternalHealth(
     [ports.infinity, ports.spoki, ports.smsHosting, ports.crm].map((port) => checkPort(port, deps)),
   );
   // `IsoDateTime` è una stringa ISO UTC a larghezza fissa: l'ordinamento lessicografico è cronologico.
-  const checkedAt = providers.map((p) => p.checkedAt).sort().at(-1) ?? null;
+  const checkedAt =
+    providers
+      .map((p) => p.checkedAt)
+      .sort()
+      .at(-1) ?? null;
   return { status: aggregateHealth(providers), checkedAt, providers };
 }

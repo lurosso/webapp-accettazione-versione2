@@ -115,21 +115,21 @@ if (!result.ok) { /* SyncRun FAILED + banner, mai throw */ }
 webapp-accettazione-versione2/
 ├── CLAUDE.md                          # regole di progetto (esistente)
 ├── TASKS.md                           # piano milestone M0..M7 e stato dei task (M0-T03)
-├── README.md                          # avvio, variabili env, vincolo processo singolo, regole cifre telefono mock (M0)
+├── README.md                          # avvio rapido, architettura Mock-First, account demo, dashboard, script, struttura   [M0-T12 fatto]
 ├── ARCHITECTURE.md                    # architettura consolidata in italiano (questo documento)
 ├── .gitignore                         # Node/Next: node_modules, .next, next-env.d.ts, .env*, .data/, coverage   [BOOTSTRAP]
 ├── .gitattributes                     # `* text=auto eol=lf` + regole binary: LF forzato nel repo e nella working copy   [BOOTSTRAP]
-├── .editorconfig                      # UTF-8 senza BOM, LF, 2 spazi (M0-T07)
-├── .env.example                       # SERVICES_PROVIDER=mock, interruttori MOCK_*, APP_TIMEZONE (M0-T07)
+├── .editorconfig                      # UTF-8 senza BOM, LF, 2 spazi, newline finale   [M0-T07 fatto]
+├── .env.example                       # tutte le variabili di config/env.ts e config/auth.ts (SESSION_SECRET), default = tutto mock   [M0-T07 fatto]
 ├── tsconfig.json                      # Next (plugin next, react-jsx, incremental), strict, noUncheckedIndexedAccess, noUnused*, alias "@/*"   [BOOTSTRAP]
 ├── package.json / package-lock.json   # npm (scelta PO): script dev/build/start/typecheck; lint/format (M0-T08), test (M0-T09)   [BOOTSTRAP]
 ├── next.config.ts                     # reactStrictMode, output: 'standalone'   [BOOTSTRAP]
 ├── postcss.config.mjs                 # Tailwind 4 CSS-first (@tailwindcss/postcss)   [BOOTSTRAP]
-├── eslint.config.mjs                  # (M0) flat config + no-restricted-imports sui mock/adapter
-├── prettier.config.mjs                # (M0)
-├── vitest.config.ts                   # (M0) unit + contract, alias @/
+├── eslint.config.mjs                  # flat config Next + typescript-eslint (type-aware); no-restricted-imports: mock/real/in-memory/prisma e factory/container fuori dal composition root   [M0-T08 fatto]
+├── prettier.config.mjs                # Prettier 3, printWidth 100, singleQuote, endOfLine lf, plugin Tailwind   [M0-T07 fatto]
+├── vitest.config.ts                   # Vitest 5: tests/**/*.test.ts, ambiente node, alias @/, coverage v8   [M0-T09 fatto]
 ├── playwright.config.ts               # (M1-T17) e2e: smoke login → prendi in carico → completato
-├── components.json                    # (M0) shadcn/ui
+├── components.json                    # (rinviato) CLI shadcn/ui: oggi primitive scritte a mano in components/ui con la stessa convenzione
 ├── docs/
 │   ├── ANALISI_REQUISITI.md           # requisiti (esistente)
 │   ├── GLOSSARIO.md                   # glossario IT→EN (M0, generato da src/domain/glossary.ts)
@@ -138,46 +138,49 @@ webapp-accettazione-versione2/
 ├── public/
 │   ├── brand/                         # loghi marchi (M1)
 │   └── qr/                            # QR code stampabili per le corsie (M2)
-├── tests/                             # (M0+) fuori da src: non incluso in tsconfig dello scaffold
-│   ├── unit/                          # state machine, generatore codici, orchestratore notifiche, sync idempotente
+├── tests/                             # test Vitest fuori da src, inclusi in tsconfig   [M0-T09 fatto]
+│   ├── unit/                          # [fatti] state machine, codici, value object, PRNG, repository in-memory, InfinityServiceMock, CodeGenerator, QueueService, SyncService, LocalAuthService, hash password, segreto sessione
+│   ├── helpers/                       # fixtures.ts: TestClock (IClock fisso e avanzabile), buildTestEnv(), makeAppointment()
 │   ├── contracts/                     # runXContract(label, factory) eseguite su mock oggi, reali/Prisma domani
 │   ├── fixtures/                      # agende Infinity congelate (JSON) per asserzioni deterministiche
 │   ├── components/                    # Testing Library
 │   └── e2e/                           # Playwright: login → prendi in carico → completato; portale targa
 └── src/
     ├── README.md                      # nota breve in italiano su layering e Regola d'Oro   [SCAFFOLD]
-    ├── proxy.ts                       # (M1) guard sessione operatore, token display, rate limit portale (ex middleware.ts)
-    ├── instrumentation.ts             # [BOOTSTRAP] register() su runtime nodejs: getContainer() all'avvio (fail-fast reale); (M1) scheduler sync 06:00 con catch-up, svuotamento outbox
-    ├── app/                           # SOLO routing e composizione pagine, nessuna logica. Dal bootstrap contiene layout.tsx, error.tsx,
-    │   │                              # page.tsx, globals.css e api/v1/health; i route group e le altre API nascono nelle milestone indicate
-    │   ├── layout.tsx                 # root layout (lang it, globals.css)   [BOOTSTRAP]; QueryClientProvider/Toaster in providers.tsx (M0-T07/M1-T09)
+    ├── proxy.ts                       # [M1 fatto] guard JWT (firma e scadenza) su /accettazione, /sistema, /api/v1 (esclusi auth/, health, public/, webhooks/); redirect /login?next=; x-correlation-id. Rate limit e SYNC_SECRET rinviati
+    ├── instrumentation.ts             # [BOOTSTRAP + M1] register() su runtime nodejs: getContainer() (fail-fast) e avvio di SyncScheduler (06:00 con catch-up), un solo timer per processo
+    ├── app/                           # SOLO routing e composizione pagine, nessuna logica: layout, error, page (redirect), providers, _server/,
+    │   │                              # (auth)/login, (operator)/{accettazione,sistema} e api/v1 (auth, queue, appointments/[id]/actions, sync, health); il resto arriva con le milestone indicate
+    │   ├── layout.tsx                 # root layout (lang it, globals.css) che monta providers.tsx   [fatto]
+    │   ├── providers.tsx              # [M1 fatto] QueryClientProvider (client component)
+    │   ├── _server/session.ts         # [M1 fatto] cartella privata: readSession/requireSession/readApiSession, cookie di sessione, correlationIdFrom
     │   ├── error.tsx                  # [BOOTSTRAP] error boundary radice in italiano (digest + "Riprova"); gli ErrorBoundary per modulo arrivano con le milestone
     │   ├── globals.css                # @import 'tailwindcss'   [BOOTSTRAP]; token colori stati in M0-T07
-    │   ├── page.tsx                   # [BOOTSTRAP] pagina di verifica: tabella healthCheck delle 4 porte + link /api/v1/health; redirect → /accettazione o /login da M1-T10
-    │   ├── (auth)/login/page.tsx      # P1 login operatore + scelta postazione
+    │   ├── page.tsx                   # [M1 fatto] redirect: sessione valida → /accettazione, altrimenti → /login (la verifica delle porte è in /sistema)
+    │   ├── (auth)/login/page.tsx      # [M1 fatto] login operatore: credenziali, Sportello/Brand (chip marchi), Postazione; account demo cliccabili
     │   ├── (operator)/                # area autenticata accettatori (segmenti URL in italiano)
-    │   │   ├── layout.tsx             # shell: header postazione, SystemStatusBanner, filtro brand/sportello
-    │   │   ├── accettazione/page.tsx  # P1 dashboard coda multi-postazione
+    │   │   ├── layout.tsx             # [M1 fatto] requireSession() + AppShell/Header (operatore, ruolo, postazione, sportello, orologio, logout)
+    │   │   ├── accettazione/page.tsx  # [M1 fatto] dashboard coda: sportello / vista globale (URL), azioni rapide, banner sync, polling 3 s, dialog conflitto e campata occupata
     │   │   ├── accettazione/nuova/page.tsx        # P1 fallback: inserimento pratica manuale
     │   │   ├── accettazione/pratiche/[id]/page.tsx # dettaglio pratica, storico, notifiche, media
     │   │   ├── comunicazioni/page.tsx # P3 stato invii, reinvio, conferma contatto manuale
     │   │   ├── ispezione/[appointmentId]/page.tsx # P5 tablet foto/video
-    │   │   └── sistema/page.tsx       # admin: sync manuale, SyncRun, stato dipendenze, outbox CRM, modalità mock
+    │   │   └── sistema/page.tsx       # [M1 parziale] stato delle porte esterne (healthCheck); SyncRun, modalità mock, outbox CRM in M1-T15 / M6
     │   ├── (public)/cliente/page.tsx  # P2 portale QR: ricerca targa (mobile-first)
     │   ├── (public)/cliente/stato/page.tsx        # P2 esito: codice + clienti in attesa
     │   ├── (display)/display/[bayCode]/page.tsx   # P4 kiosk full-screen per campata (?token=)
     │   └── api/v1/                    # Route Handlers: unica superficie HTTP per letture in polling e mutazioni
-    │       ├── auth/login/route.ts, auth/logout/route.ts      # (M1) login con rate limit 5 tentativi/min per IP+username
-    │       ├── auth/me/route.ts, auth/workstation/route.ts    # (M1) sessione corrente; cambio postazione senza logout
-    │       ├── auth/workstations/route.ts            # (M1) GET elenco postazioni per il form di login (anonimo, sotto auth/ non public/)
-    │       ├── queue/route.ts                        # (M1) GET coda (date, deskId, view=desk|global)
+    │       ├── auth/login/route.ts, auth/logout/route.ts      # [M1 fatto] login (Zod, cookie HttpOnly SameSite=Lax, Secure in produzione, 8 h) e logout; rate limit rinviato (M1-T07-S04b)
+    │       ├── auth/me/route.ts, auth/workstation/route.ts    # me [M1 fatto]; cambio postazione senza logout rinviato (M1-T11-S02)
+    │       ├── auth/workstations/route.ts            # (non necessario) le postazioni arrivano al form di login come props del Server Component
+    │       ├── queue/route.ts                        # [M1 fatto] GET coda (date, deskId, view=desk|global) + occupazione campate, ultima SyncRun, sportelli/marchi/postazioni
     │       ├── appointments/route.ts                 # (M1) POST inserimento manuale
     │       ├── appointments/[id]/route.ts            # (M1) GET dettaglio pratica
     │       ├── appointments/[id]/notes/route.ts      # (M1) PATCH note
-    │       ├── appointments/[id]/actions/route.ts    # (M1) POST take|skip|complete|release|restore|no-show|reopen (Idempotency-Key, expectedVersion → 409)
+    │       ├── appointments/[id]/actions/route.ts    # [M1 fatto] POST take|skip|complete|release|restore (expectedVersion, bayId?) → 409 con details.current; no-show/reopen e Idempotency-Key rinviati
     │       ├── public/status/route.ts                # (M2) GET ?plate= → QueuePositionView (nessun dato personale, rate limit)
     │       ├── public/bays/[bayCode]/route.ts        # (M4) GET BayDisplayView (token campata)
-    │       ├── sync/route.ts                         # (M1) POST sync manuale / cron esterno con SYNC_SECRET; GET ultime SyncRun
+    │       ├── sync/route.ts                         # [M1 fatto] POST sync manuale (SUPERVISOR/ADMIN sempre, ADVISOR solo con sync assente o FAILED); GET ultime SyncRun e SYNC_SECRET rinviati
     │       ├── system/mock-settings/route.ts         # (M3) PATCH modalità mock a runtime (ADMIN, solo non-production)
     │       ├── system/bays/route.ts                  # (M4) GET stato di tutti i display (ADMIN: sotto system/, non public/)
     │       ├── notifications/route.ts, notifications/[id]/route.ts   # (M3) elenco job e tentativi, dettaglio
@@ -189,18 +192,18 @@ webapp-accettazione-versione2/
     │       ├── events/route.ts                       # (M6) SSE
     │       └── health/route.ts                       # [BOOTSTRAP] liveness (sempre 200) + HealthStatus aggregato delle quattro porte esterne; ?probe=dependencies → 503 se DOWN; x-correlation-id
     ├── modules/                       # feature module (componenti + hook + query) rispecchiano i moduli A–F
-    │   ├── reception/                 # A – QueueTable, AppointmentRow, StatusBadge, ActionButtons, ConflictDialog, ManualAppointmentForm, SyncBanner, WorkstationSwitcher, GlobalViewToggle
+    │   ├── reception/                 # A – [M1 fatti] LoginForm, QueueDashboard, QueueTable, AppointmentRow, StatusBadge, ActionButtons, SyncBanner, types.ts; ManualAppointmentForm e BaySelectDialog rinviati
     │   ├── customer-portal/           # B – PlateSearchForm, QueuePositionCard, ServiceUnavailableCard
     │   ├── notifications/             # C – NotificationStatusList, ManualConfirmDialog
     │   ├── bay-displays/              # D – BayDisplayBoard, FreeBayScreen, ConnectionLostOverlay
     │   ├── inspection-media/          # E – MediaCapture, MediaGallery, UploadQueue
     │   └── crm/                       # F – CrmOutboxTable, AnomalyLog
     ├── components/
-    │   ├── ui/                        # shadcn/ui generati
-    │   ├── layout/                    # AppShell, Header, SystemStatusBanner, StaleDataIndicator
+    │   ├── ui/                        # primitive scritte a mano stile shadcn (nessuna dipendenza): Button, Badge, Card, Input, Label, Select, Table, Alert, Dialog
+    │   ├── layout/                    # [M1 fatti] AppShell, Header (identità, ruolo, postazione, orologio Europe/Rome, logout); SystemStatusBanner rinviato; indicatore dati non aggiornati inline in QueueDashboard
     │   └── shared/                    # ErrorBoundary, EmptyState, OfflineBanner
-    ├── hooks/                         # useQueue, usePublicStatus, useBayDisplay, useAppointmentActions, useStaleIndicator
-    ├── store/                         # ui-store.ts (zustand persist: postazione, vista globale, filtri)
+    ├── hooks/                         # [M1 fatti] useQueue (polling 3 s, keepPreviousData), useAppointmentActions (409 → conflitto, BAY_BUSY → campate libere); usePublicStatus/useBayDisplay in M2/M4
+    ├── store/                         # (rinviato) ui-store zustand: oggi vista e sportello vivono nei search param dell'URL (?view=&deskId=)
     ├── domain/                        # PURO: entità, value object, state machine, eventi, errori, read model   [SCAFFOLD]
     │   ├── ids.ts                     # branded id (AppointmentId, OperatorId, BayId, ...)
     │   ├── result.ts                  # Result<T,E>, ok(), err(), isOk(), isErr()
@@ -232,21 +235,24 @@ webapp-accettazione-versione2/
     ├── application/                   # casi d'uso: logica reale, mai mockata, nessun import di adapter
     │   ├── notifications/             # NotificationOrchestrator (WhatsApp → SMS → MANUAL_REQUIRED), templates.ts   [SCAFFOLD]
     │   ├── health/                    # check-health.ts: aggregateHealth(), checkExternalHealth(ports, { clock, kinds, correlationId? }) con timeout locale 2000 ms; tipo locale ExternalHealthPorts (solo interfacce, nessun import dal factory); isStartupError()   [BOOTSTRAP]
-    │   ├── queue/                     # (M1) QueueService, CodeGenerator
-    │   ├── sync/                      # (M1) SyncService, SyncScheduler con catch-up
-    │   ├── auth/                      # (M1) IAuthService, LocalAuthService
+    │   ├── queue/                     # [M1 fatto] QueueService (getQueue, getBayOccupancy, takeInCharge, skip, complete, release, restore) e CodeGenerator (SITE|BRAND)
+    │   ├── sync/                      # [M1 fatto] SyncService (idempotente, non distruttivo, lock per giornata) e SyncScheduler (tick 60 s, catch-up al riavvio)
+    │   ├── auth/                      # [M1 fatto] IAuthService, LocalAuthService (account locali + JWT HS256 con jose, riverifica operatore), session-token.ts
     │   ├── crm/                       # (M6) AnomalyReporter
     │   └── media/                     # (M5) MediaService
     ├── config/                        # composition root   [SCAFFOLD]
-    │   ├── env.ts                     # EnvSource da process.env (@types/node; fallback {} senza `process`), parseEnv() con default sicuri, APP_TIMEZONE validato; schema Zod in M0-T10
+    │   ├── env.ts                     # EnvSource da process.env (@types/node; fallback {} senza `process`), parseEnv() con default sicuri, APP_TIMEZONE validato
+    │   ├── auth.ts                    # [M1 fatto] SESSION_COOKIE_NAME, SESSION_TTL_HOURS (8 h), resolveSessionSecret(): default solo tutto-mock e non production, altrimenti ConfigurationError
     │   ├── constants.ts               # TIMEZONE, DEFAULT_SYNC_HOUR_LOCAL, DEFAULT_CODE_PREFIX, BAY_COUNT, POLLING_MS, STALE_WARNING_MS, RELEASING_DISPLAY_MS, MAX_SKIPS_BEFORE_ANOMALY, NOTIFICATION_IN_FLIGHT_STALE_MS
     │   ├── seed.ts                    # brand, sportelli, postazioni, campate, operatori demo (+ hasDemoCredentials per il guard)
     │   └── container.ts               # getContainer(): singolo composition root, singleton su globalThis; guard credenziali demo ↔ provider reali
     ├── lib/                           # utilità senza dipendenze di dominio
     │   ├── dates.ts                   # businessDate Europe/Rome via Intl, parsing orari, formatDateTimeIt() per la UI   [SCAFFOLD]
     │   ├── hash.ts                    # fnv1a32 per seed deterministici   [SCAFFOLD]
-    │   ├── http/                      # (M1) respond.ts, with-auth.ts, with-validation.ts, with-logging.ts, idempotency.ts, rate-limit.ts
-    │   ├── api-client/                # (M1) client tipizzato /api/v1 + query-keys
+    │   ├── hash-password.ts           # [M1 fatto] scrypt (node:crypto) hashPassword/verifyPassword a tempo costante; prefisso demo `plain:` solo sviluppo
+    │   ├── utils/cn.ts                # [M1 fatto] concatenazione classi CSS (sostituisce clsx/tailwind-merge)
+    │   ├── http/                      # [M1 parziale] api-error.ts (DomainError → HTTP, 401/403/400); with-logging.ts, rate-limit.ts, idempotency.ts rinviati
+    │   ├── api-client/                # [M1 fatto] client.ts (apiFetch con timeout 8 s e ApiError, fetchQueue, postAppointmentAction, postSync, postLogin/postLogout) e query-keys.ts
     │   └── realtime/                  # (M6) sse-server.ts, use-sse.ts
     └── types/                         # .gitkeep: dichiarazioni globali future (nessun `declare var process`)
 ```

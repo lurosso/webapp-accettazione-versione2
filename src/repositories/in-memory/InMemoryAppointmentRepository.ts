@@ -69,7 +69,10 @@ export class InMemoryAppointmentRepository implements IAppointmentRepository {
     return out.sort(compareByScheduleThenSequence);
   }
 
-  async listByDate(businessDate: IsoDate, filter?: AppointmentFilter): Promise<readonly Appointment[]> {
+  async listByDate(
+    businessDate: IsoDate,
+    filter?: AppointmentFilter,
+  ): Promise<readonly Appointment[]> {
     // `statuses` è autoritativo: chi chiede esplicitamente CANCELLED le ottiene anche senza includeCancelled.
     const includeCancelled =
       filter?.includeCancelled ?? filter?.statuses?.includes('CANCELLED') ?? false;

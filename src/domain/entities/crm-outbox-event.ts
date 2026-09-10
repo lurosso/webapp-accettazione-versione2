@@ -9,10 +9,7 @@ export type CrmEventType = 'NO_SHOW' | 'ANOMALY';
 
 /** Anomalie di flusso segnalate al BDC. */
 export type CrmAnomalyKind =
-  | 'EXCESSIVE_SKIPS'
-  | 'LONG_WAIT'
-  | 'NOTIFICATION_FAILED'
-  | 'MANUAL_APPOINTMENT';
+  'EXCESSIVE_SKIPS' | 'LONG_WAIT' | 'NOTIFICATION_FAILED' | 'MANUAL_APPOINTMENT';
 
 /** Stato di consegna dell'evento. */
 export type CrmOutboxStatus = 'PENDING' | 'SENT' | 'FAILED' | 'MANUAL';

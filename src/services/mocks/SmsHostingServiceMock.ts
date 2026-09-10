@@ -67,7 +67,9 @@ export class SmsHostingServiceMock implements ISmsHostingService {
   ): Promise<ProviderResult<SendReceipt>> {
     const signal = options?.signal;
     if (isAborted(signal)) {
-      return err(providerError('SMS_HOSTING', 'TIMEOUT', 'Richiesta annullata dal chiamante.', true));
+      return err(
+        providerError('SMS_HOSTING', 'TIMEOUT', 'Richiesta annullata dal chiamante.', true),
+      );
     }
 
     const existing = this.receipts.get(request.idempotencyKey);
@@ -81,7 +83,9 @@ export class SmsHostingServiceMock implements ISmsHostingService {
 
     const completed = await simulateLatency(this.options.latencyMs, signal);
     if (!completed) {
-      return err(providerError('SMS_HOSTING', 'TIMEOUT', 'Richiesta annullata dal chiamante.', true));
+      return err(
+        providerError('SMS_HOSTING', 'TIMEOUT', 'Richiesta annullata dal chiamante.', true),
+      );
     }
 
     const failure = this.decideFailure(request);
@@ -132,11 +136,18 @@ export class SmsHostingServiceMock implements ISmsHostingService {
     options?: CallOptions,
   ): Promise<ProviderResult<DeliveryStatus>> {
     if (isAborted(options?.signal)) {
-      return err(providerError('SMS_HOSTING', 'TIMEOUT', 'Richiesta annullata dal chiamante.', true));
+      return err(
+        providerError('SMS_HOSTING', 'TIMEOUT', 'Richiesta annullata dal chiamante.', true),
+      );
     }
     if (this.options.mode === 'down') {
       return err(
-        providerError('SMS_HOSTING', 'UNAVAILABLE', 'SMS Hosting non disponibile (simulato).', true),
+        providerError(
+          'SMS_HOSTING',
+          'UNAVAILABLE',
+          'SMS Hosting non disponibile (simulato).',
+          true,
+        ),
       );
     }
     const receipt = this.sent.get(providerMessageId);
@@ -156,11 +167,18 @@ export class SmsHostingServiceMock implements ISmsHostingService {
 
   async getCredits(options?: CallOptions): Promise<ProviderResult<{ readonly remaining: number }>> {
     if (isAborted(options?.signal)) {
-      return err(providerError('SMS_HOSTING', 'TIMEOUT', 'Richiesta annullata dal chiamante.', true));
+      return err(
+        providerError('SMS_HOSTING', 'TIMEOUT', 'Richiesta annullata dal chiamante.', true),
+      );
     }
     if (this.options.mode === 'down') {
       return err(
-        providerError('SMS_HOSTING', 'UNAVAILABLE', 'SMS Hosting non disponibile (simulato).', true),
+        providerError(
+          'SMS_HOSTING',
+          'UNAVAILABLE',
+          'SMS Hosting non disponibile (simulato).',
+          true,
+        ),
       );
     }
     return ok({ remaining: this.credits });
@@ -182,7 +200,12 @@ export class SmsHostingServiceMock implements ISmsHostingService {
 
   private decideFailure(request: SmsSendRequestDto): ProviderError | null {
     if (this.options.mode === 'down') {
-      return providerError('SMS_HOSTING', 'UNAVAILABLE', 'SMS Hosting non disponibile (simulato).', true);
+      return providerError(
+        'SMS_HOSTING',
+        'UNAVAILABLE',
+        'SMS Hosting non disponibile (simulato).',
+        true,
+      );
     }
     if (this.credits <= 0) {
       return providerError('SMS_HOSTING', 'RATE_LIMIT', 'Credito SMS esaurito (simulato).', false);
@@ -190,7 +213,12 @@ export class SmsHostingServiceMock implements ISmsHostingService {
     if (this.options.failureRate !== null) {
       const rng = new SeededRandom(seedFrom(this.options.seed ?? 'sms', request.idempotencyKey));
       return rng.chance(this.options.failureRate)
-        ? providerError('SMS_HOSTING', 'PROVIDER_ERROR', 'Invio SMS fallito (failureRate simulato).', false)
+        ? providerError(
+            'SMS_HOSTING',
+            'PROVIDER_ERROR',
+            'Invio SMS fallito (failureRate simulato).',
+            false,
+          )
         : null;
     }
     if (this.options.failSuffix.length > 0 && request.to.endsWith(this.options.failSuffix)) {
@@ -202,7 +230,12 @@ export class SmsHostingServiceMock implements ISmsHostingService {
       );
     }
     if (lastDigit(request.to) === PHONE_OUTCOME_RULES.timeout) {
-      return providerError('SMS_HOSTING', 'TIMEOUT', 'SMS Hosting non ha risposto in tempo (simulato).', true);
+      return providerError(
+        'SMS_HOSTING',
+        'TIMEOUT',
+        'SMS Hosting non ha risposto in tempo (simulato).',
+        true,
+      );
     }
     return null;
   }

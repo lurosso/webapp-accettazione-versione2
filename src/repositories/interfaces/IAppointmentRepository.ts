@@ -49,7 +49,10 @@ export interface IAppointmentRepository {
    * versione corrente → VERSION_CONFLICT (409). In caso di successo incrementa `version`
    * e aggiorna `updatedAt`.
    */
-  update(appointment: Appointment, expectedVersion: number): Promise<Result<Appointment, DomainError>>;
+  update(
+    appointment: Appointment,
+    expectedVersion: number,
+  ): Promise<Result<Appointment, DomainError>>;
   /** Contatore atomico per (giornata, prefisso): il numero restituito non viene mai riutilizzato. */
   reserveNextSequence(businessDate: IsoDate, prefix: string): Promise<number>;
   /** Pratiche WAITING/SKIPPED con (scheduledAt, sequence) precedente, nell'ambito indicato. */

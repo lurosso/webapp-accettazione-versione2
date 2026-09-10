@@ -32,9 +32,7 @@ export function parsePlate(raw: string): Result<PlateNumber, DomainError> {
   if (IT_PLATE_PATTERN.test(normalized) || EU_PLATE_PATTERN.test(normalized)) {
     return ok(normalized as PlateNumber);
   }
-  return err(
-    domainError('VALIDATION', `Targa non valida: "${raw}".`, { normalized }),
-  );
+  return err(domainError('VALIDATION', `Targa non valida: "${raw}".`, { normalized }));
 }
 
 /** Indica se la targa rispetta il formato italiano corrente. */

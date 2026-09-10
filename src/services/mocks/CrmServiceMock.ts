@@ -3,7 +3,12 @@
 
 import { err, ok } from '@/domain/result';
 import type { CrmAckDto, CrmAnomalyPayloadDto, CrmNoShowPayloadDto } from '../dto/crm.dto';
-import type { CallOptions, HealthStatus, ProviderError, ProviderResult } from '../interfaces/common';
+import type {
+  CallOptions,
+  HealthStatus,
+  ProviderError,
+  ProviderResult,
+} from '../interfaces/common';
 import { providerError } from '../interfaces/common';
 import type { IClock } from '../interfaces/IClock';
 import type { ICrmService } from '../interfaces/ICrmService';
@@ -128,17 +133,32 @@ export class CrmServiceMock implements ICrmService {
     if (this.options.mode === 'timeout') {
       const timeoutMs = options?.timeoutMs ?? DEFAULT_TIMEOUT_MS;
       await simulateLatency(timeoutMs + 50, signal);
-      return providerError('CRM', 'TIMEOUT', `Il CRM non ha risposto entro ${timeoutMs} ms (simulato).`, true);
+      return providerError(
+        'CRM',
+        'TIMEOUT',
+        `Il CRM non ha risposto entro ${timeoutMs} ms (simulato).`,
+        true,
+      );
     }
     const completed = await simulateLatency(this.options.latencyMs, signal);
     if (!completed) {
       return providerError('CRM', 'TIMEOUT', 'Richiesta annullata dal chiamante.', true);
     }
     if (this.options.mode === 'error') {
-      return providerError('CRM', 'PROVIDER_ERROR', 'Il CRM ha rifiutato il webhook (simulato).', false);
+      return providerError(
+        'CRM',
+        'PROVIDER_ERROR',
+        'Il CRM ha rifiutato il webhook (simulato).',
+        false,
+      );
     }
     if (this.options.mode === 'flaky' && this.callCount % 3 === 0) {
-      return providerError('CRM', 'NETWORK', 'Connessione al CRM interrotta (simulato, 1 su 3).', true);
+      return providerError(
+        'CRM',
+        'NETWORK',
+        'Connessione al CRM interrotta (simulato, 1 su 3).',
+        true,
+      );
     }
     return null;
   }

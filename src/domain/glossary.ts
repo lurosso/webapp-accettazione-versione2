@@ -42,7 +42,11 @@ export const GLOSSARY = [
     en: 'takeInCharge / IN_PROGRESS',
     note: 'Azione "Prendi in carico" e relativo stato',
   },
-  { it: 'salta / Salta', en: 'skip / SKIPPED', note: 'Pratica momentaneamente posposta; skipCount' },
+  {
+    it: 'salta / Salta',
+    en: 'skip / SKIPPED',
+    note: 'Pratica momentaneamente posposta; skipCount',
+  },
   {
     it: 'completato / Completato',
     en: 'complete / COMPLETED',

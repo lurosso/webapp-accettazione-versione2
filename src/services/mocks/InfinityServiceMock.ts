@@ -9,7 +9,12 @@ import type { IsoDate } from '@/domain/value-objects/iso-date';
 import { normalizePlate } from '@/domain/value-objects/plate';
 import { addMinutes, buildLocalDateTime } from '@/lib/dates';
 import type { InfinityAgendaDto, InfinityAppointmentDto } from '../dto/infinity.dto';
-import type { CallOptions, HealthStatus, ProviderError, ProviderResult } from '../interfaces/common';
+import type {
+  CallOptions,
+  HealthStatus,
+  ProviderError,
+  ProviderResult,
+} from '../interfaces/common';
 import { providerError } from '../interfaces/common';
 import type { IClock } from '../interfaces/IClock';
 import type { IInfinityService } from '../interfaces/IInfinityService';

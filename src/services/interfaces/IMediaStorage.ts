@@ -13,7 +13,9 @@ export interface MediaPutInput {
 /** Storage dei binari; i metadati vivono in IMediaRepository. */
 export interface IMediaStorage {
   /** Salva i byte e restituisce chiave e URL di lettura. */
-  put(input: MediaPutInput): Promise<Result<{ readonly key: string; readonly url: string }, DomainError>>;
+  put(
+    input: MediaPutInput,
+  ): Promise<Result<{ readonly key: string; readonly url: string }, DomainError>>;
   /** URL pubblico (autenticato) di lettura della chiave. */
   getUrl(key: string): string;
   /** Elimina il binario. */

@@ -167,7 +167,11 @@ export class NotificationOrchestrator {
       if (job === null) {
         return err(domainError('NOT_FOUND', `Notifica non trovata: ${jobId}.`));
       }
-      if (job.status !== 'MANUAL_REQUIRED' && job.status !== 'FAILED' && job.status !== 'NO_RECIPIENT') {
+      if (
+        job.status !== 'MANUAL_REQUIRED' &&
+        job.status !== 'FAILED' &&
+        job.status !== 'NO_RECIPIENT'
+      ) {
         return err(
           domainError(
             'INVALID_TRANSITION',
@@ -217,12 +221,17 @@ export class NotificationOrchestrator {
       if (job === null) {
         return err(domainError('NOT_FOUND', `Notifica non trovata: ${jobId}.`));
       }
-      const retryable = job.status === 'FAILED' || job.status === 'MANUAL_REQUIRED' || this.isStaleInFlight(job);
+      const retryable =
+        job.status === 'FAILED' || job.status === 'MANUAL_REQUIRED' || this.isStaleInFlight(job);
       if (!retryable) {
         return err(
-          domainError('INVALID_TRANSITION', `La notifica è in stato ${job.status}: nessun retry possibile.`, {
-            status: job.status,
-          }),
+          domainError(
+            'INVALID_TRANSITION',
+            `La notifica è in stato ${job.status}: nessun retry possibile.`,
+            {
+              status: job.status,
+            },
+          ),
         );
       }
       if (job.recipientPhone === null) {
@@ -270,7 +279,11 @@ export class NotificationOrchestrator {
           to: phone,
           templateKey: template.spokiTemplateKey,
           // Variabili del template Meta: il codice è il progressivo F001, mai l'id tecnico.
-          variables: { ...current.templateVariables, code: current.code, text: current.renderedText },
+          variables: {
+            ...current.templateVariables,
+            code: current.code,
+            text: current.renderedText,
+          },
           correlationId,
         },
         { correlationId },
@@ -281,8 +294,10 @@ export class NotificationOrchestrator {
           correlationId,
         });
         const undeliverable =
-          delivery.ok && (delivery.value.state === 'UNDELIVERABLE' || delivery.value.state === 'FAILED');
-        const delivered = delivery.ok && (delivery.value.state === 'DELIVERED' || delivery.value.state === 'READ');
+          delivery.ok &&
+          (delivery.value.state === 'UNDELIVERABLE' || delivery.value.state === 'FAILED');
+        const delivered =
+          delivery.ok && (delivery.value.state === 'DELIVERED' || delivery.value.state === 'READ');
         const attempt = this.buildAttempt(current, {
           channel: 'WHATSAPP',
           provider: 'SPOKI',
@@ -293,7 +308,11 @@ export class NotificationOrchestrator {
           retryable: false,
           requestedAt,
         });
-        current = { ...current, attempts: [...current.attempts, attempt], currentChannel: 'WHATSAPP' };
+        current = {
+          ...current,
+          attempts: [...current.attempts, attempt],
+          currentChannel: 'WHATSAPP',
+        };
         if (!undeliverable) {
           current = await this.persist(
             { ...current, status: delivered ? 'DELIVERED' : 'SENT' },
@@ -309,7 +328,10 @@ export class NotificationOrchestrator {
       } else {
         current = {
           ...current,
-          attempts: [...current.attempts, this.failedAttempt(current, 'WHATSAPP', 'SPOKI', sent.error, requestedAt)],
+          attempts: [
+            ...current.attempts,
+            this.failedAttempt(current, 'WHATSAPP', 'SPOKI', sent.error, requestedAt),
+          ],
           currentChannel: 'WHATSAPP',
         };
         this.logger.warn('WhatsApp fallito: fallback su SMS', {
@@ -340,7 +362,10 @@ export class NotificationOrchestrator {
           ...current,
           status: 'SENT',
           currentChannel: 'SMS',
-          attempts: [...current.attempts, this.sentAttempt(current, 'SMS', 'SMS_HOSTING', sms.value, smsRequestedAt)],
+          attempts: [
+            ...current.attempts,
+            this.sentAttempt(current, 'SMS', 'SMS_HOSTING', sms.value, smsRequestedAt),
+          ],
         },
         correlationId,
         true,
@@ -356,7 +381,10 @@ export class NotificationOrchestrator {
         ...current,
         status: retryable ? 'FAILED' : 'MANUAL_REQUIRED',
         currentChannel: retryable ? 'SMS' : 'MANUAL',
-        attempts: [...current.attempts, this.failedAttempt(current, 'SMS', 'SMS_HOSTING', sms.error, smsRequestedAt)],
+        attempts: [
+          ...current.attempts,
+          this.failedAttempt(current, 'SMS', 'SMS_HOSTING', sms.error, smsRequestedAt),
+        ],
       },
       correlationId,
       true,
@@ -377,7 +405,11 @@ export class NotificationOrchestrator {
   }
 
   /** Ultima difesa contro bug inattesi: il job finisce in MANUAL_REQUIRED, mai un throw al chiamante. */
-  private async failSafe(job: NotificationJob, correlationId: string, cause: unknown): Promise<NotificationRun> {
+  private async failSafe(
+    job: NotificationJob,
+    correlationId: string,
+    cause: unknown,
+  ): Promise<NotificationRun> {
     this.logger.error("errore inatteso nell'orchestratore: job marcato MANUAL_REQUIRED", {
       jobId: job.id,
       cause,
@@ -435,7 +467,10 @@ export class NotificationOrchestrator {
       errorCode: input.errorCode,
       errorMessage: input.errorMessage,
       retryable: input.retryable,
-      latencyMs: Math.max(0, new Date(respondedAt).getTime() - new Date(input.requestedAt).getTime()),
+      latencyMs: Math.max(
+        0,
+        new Date(respondedAt).getTime() - new Date(input.requestedAt).getTime(),
+      ),
       requestedAt: input.requestedAt,
       respondedAt,
     };

@@ -44,7 +44,11 @@ function gsm7Length(text: string): number {
 }
 
 /** Codifica e numero di segmenti che il gateway userà per il testo (costo reale dell'SMS). */
-export function smsSegments(text: string): { readonly encoding: SmsEncoding; readonly segments: number; readonly length: number } {
+export function smsSegments(text: string): {
+  readonly encoding: SmsEncoding;
+  readonly segments: number;
+  readonly length: number;
+} {
   if (isGsm7(text)) {
     const length = gsm7Length(text);
     const segments = length <= SMS_MAX_LENGTH ? 1 : Math.ceil(length / SMS_MULTIPART_GSM7);

@@ -23,7 +23,11 @@ export const FAILURE_SUFFIXES: readonly string[] = [
  */
 export function generateItalianMobile(rng: SeededRandom, forcedSuffix?: string): PhoneE164 {
   let national = `3${rng.string('0123456789', 9)}`;
-  if (forcedSuffix !== undefined && forcedSuffix.length > 0 && forcedSuffix.length < national.length) {
+  if (
+    forcedSuffix !== undefined &&
+    forcedSuffix.length > 0 &&
+    forcedSuffix.length < national.length
+  ) {
     national = `${national.slice(0, national.length - forcedSuffix.length)}${forcedSuffix}`;
   }
   return `+39${national}` as PhoneE164;

@@ -1,6 +1,38 @@
 /* Tailwind CSS 4 (configurazione CSS-first, nessun tailwind.config.js) */
 @import 'tailwindcss';
 
+/*
+ * Token di tema del progetto (M0-T07). Le variabili `--color-*` generano le utility Tailwind
+ * (es. `bg-status-in-progress`, `text-status-completed`, `border-status-skipped`).
+ * Stati della pratica: In attesa, In carico (giallo), Saltata, Completata (verde), No-show, Annullata.
+ */
+@theme {
+  --color-status-waiting: oklch(0.62 0.02 250);
+  --color-status-waiting-soft: oklch(0.96 0.005 250);
+  --color-status-in-progress: oklch(0.8 0.17 85);
+  --color-status-in-progress-soft: oklch(0.97 0.06 95);
+  --color-status-skipped: oklch(0.7 0.16 55);
+  --color-status-skipped-soft: oklch(0.96 0.04 70);
+  --color-status-completed: oklch(0.65 0.17 150);
+  --color-status-completed-soft: oklch(0.96 0.05 150);
+  --color-status-no-show: oklch(0.6 0.2 25);
+  --color-status-no-show-soft: oklch(0.96 0.04 25);
+  --color-status-cancelled: oklch(0.55 0.02 260);
+  --color-status-cancelled-soft: oklch(0.95 0.005 260);
+
+  /* Marchi della concessionaria (chip nei filtri) */
+  --color-brand-fiat: oklch(0.5 0.2 25);
+  --color-brand-jeep: oklch(0.45 0.08 150);
+  --color-brand-alfa-romeo: oklch(0.45 0.2 20);
+  --color-brand-lancia: oklch(0.35 0.05 260);
+  --color-brand-peugeot: oklch(0.35 0.08 250);
+  --color-brand-citroen: oklch(0.55 0.2 20);
+  --color-brand-opel: oklch(0.6 0.15 55);
+
+  /* Target touch minimo per tablet e postazioni (ARCHITECTURE.md §2 UI) */
+  --spacing-touch: 3rem;
+}
+
 :root {
   color-scheme: light;
 }

@@ -13,15 +13,16 @@ import type { Result } from './result';
 import { err, ok } from './result';
 
 /** Transizioni ammesse da ogni stato (ADR-006). COMPLETED e CANCELLED sono terminali. */
-export const ALLOWED_TRANSITIONS: Readonly<Record<AppointmentStatus, readonly AppointmentStatus[]>> =
-  {
-    WAITING: ['IN_PROGRESS', 'SKIPPED', 'NO_SHOW', 'CANCELLED'],
-    SKIPPED: ['IN_PROGRESS', 'WAITING', 'NO_SHOW', 'CANCELLED'],
-    IN_PROGRESS: ['COMPLETED', 'WAITING'],
-    COMPLETED: [],
-    NO_SHOW: ['WAITING'],
-    CANCELLED: [],
-  };
+export const ALLOWED_TRANSITIONS: Readonly<
+  Record<AppointmentStatus, readonly AppointmentStatus[]>
+> = {
+  WAITING: ['IN_PROGRESS', 'SKIPPED', 'NO_SHOW', 'CANCELLED'],
+  SKIPPED: ['IN_PROGRESS', 'WAITING', 'NO_SHOW', 'CANCELLED'],
+  IN_PROGRESS: ['COMPLETED', 'WAITING'],
+  COMPLETED: [],
+  NO_SHOW: ['WAITING'],
+  CANCELLED: [],
+};
 
 /** Indica se la transizione `from → to` è ammessa dalla tabella. */
 export function canTransition(from: AppointmentStatus, to: AppointmentStatus): boolean {

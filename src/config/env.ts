@@ -126,7 +126,13 @@ function pickBool(source: EnvSource, key: string, fallback: boolean, warn: EnvWa
   return fallback;
 }
 
-function pickInt(source: EnvSource, key: string, fallback: number, warn: EnvWarning, min = 0): number {
+function pickInt(
+  source: EnvSource,
+  key: string,
+  fallback: number,
+  warn: EnvWarning,
+  min = 0,
+): number {
   const raw = source[key];
   if (raw === undefined || raw.trim() === '') {
     return fallback;
@@ -188,7 +194,10 @@ function pickTimeZone(source: EnvSource, key: string, fallback: string, warn: En
  * MOCK_SPOKI_FAIL_SUFFIX, MOCK_SPOKI_FAILURE_RATE, MOCK_SPOKI_MODE, MOCK_SMS_FAIL_SUFFIX,
  * MOCK_SMS_FAILURE_RATE, MOCK_SMS_MODE, MOCK_SMS_CREDITS, MOCK_CRM_MODE, MOCK_DELIVERY_DELAY_MS, NODE_ENV.
  */
-export function parseEnv(source: EnvSource = readEnvSource(), warn: EnvWarning = defaultWarning): AppEnv {
+export function parseEnv(
+  source: EnvSource = readEnvSource(),
+  warn: EnvWarning = defaultWarning,
+): AppEnv {
   const servicesProvider = pickEnum(source, 'SERVICES_PROVIDER', PROVIDER_KINDS, 'mock', warn);
   const perPort = (key: string): ProviderKind =>
     pickEnum(source, key, PROVIDER_KINDS, servicesProvider, warn);
@@ -199,8 +208,20 @@ export function parseEnv(source: EnvSource = readEnvSource(), warn: EnvWarning =
     spokiProvider: perPort('SPOKI_PROVIDER'),
     smsProvider: perPort('SMS_PROVIDER'),
     crmProvider: perPort('CRM_PROVIDER'),
-    repositoryProvider: pickEnum(source, 'REPOSITORY_PROVIDER', REPOSITORY_PROVIDERS, 'memory', warn),
-    mediaStorageProvider: pickEnum(source, 'MEDIA_STORAGE_PROVIDER', MEDIA_PROVIDERS, 'memory', warn),
+    repositoryProvider: pickEnum(
+      source,
+      'REPOSITORY_PROVIDER',
+      REPOSITORY_PROVIDERS,
+      'memory',
+      warn,
+    ),
+    mediaStorageProvider: pickEnum(
+      source,
+      'MEDIA_STORAGE_PROVIDER',
+      MEDIA_PROVIDERS,
+      'memory',
+      warn,
+    ),
     timeZone: pickTimeZone(source, 'APP_TIMEZONE', TIMEZONE, warn),
     syncHourLocal: pickHourLocal(source, 'SYNC_HOUR_LOCAL', DEFAULT_SYNC_HOUR_LOCAL, warn),
     codePrefix: pickString(source, 'CODE_PREFIX', DEFAULT_CODE_PREFIX).toUpperCase(),
@@ -210,11 +231,24 @@ export function parseEnv(source: EnvSource = readEnvSource(), warn: EnvWarning =
     mockLatencyMs: pickInt(source, 'MOCK_LATENCY_MS', 150, warn),
     mockInfinityMode: pickEnum(source, 'MOCK_INFINITY_MODE', INFINITY_MODES, 'ok', warn),
     mockInfinityFlakyFailures: pickInt(source, 'MOCK_INFINITY_FLAKY_FAILURES', 2, warn),
-    mockInfinityCancelOnSecondCall: pickBool(source, 'MOCK_INFINITY_CANCEL_ON_SECOND_CALL', true, warn),
-    mockSpokiFailSuffix: pickString(source, 'MOCK_SPOKI_FAIL_SUFFIX', MOCK_PHONE_RULES.whatsappInvalid),
+    mockInfinityCancelOnSecondCall: pickBool(
+      source,
+      'MOCK_INFINITY_CANCEL_ON_SECOND_CALL',
+      true,
+      warn,
+    ),
+    mockSpokiFailSuffix: pickString(
+      source,
+      'MOCK_SPOKI_FAIL_SUFFIX',
+      MOCK_PHONE_RULES.whatsappInvalid,
+    ),
     mockSpokiFailureRate: pickRateOrNull(source, 'MOCK_SPOKI_FAILURE_RATE', warn),
     mockSpokiMode: pickEnum(source, 'MOCK_SPOKI_MODE', UP_DOWN, 'ok', warn),
-    mockSmsFailSuffix: pickString(source, 'MOCK_SMS_FAIL_SUFFIX', MOCK_PHONE_RULES.bothChannelsFail),
+    mockSmsFailSuffix: pickString(
+      source,
+      'MOCK_SMS_FAIL_SUFFIX',
+      MOCK_PHONE_RULES.bothChannelsFail,
+    ),
     mockSmsFailureRate: pickRateOrNull(source, 'MOCK_SMS_FAILURE_RATE', warn),
     mockSmsMode: pickEnum(source, 'MOCK_SMS_MODE', UP_DOWN, 'ok', warn),
     mockSmsCredits: pickInt(source, 'MOCK_SMS_CREDITS', 500, warn),
