@@ -69,11 +69,11 @@ export function ActionButtons({
   }
 
   return (
-    <div className="flex flex-wrap items-center gap-1.5">
+    <div className="flex flex-wrap items-center gap-2">
       {buttons.map((b) => (
         <Button
           key={b.action}
-          size="sm"
+          size="touch"
           variant={b.variant}
           disabled={pending}
           onClick={() => onAction(b.action)}

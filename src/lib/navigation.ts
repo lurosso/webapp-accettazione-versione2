@@ -15,6 +15,18 @@ export function homePathForRole(role: OperatorRole): string {
   }
 }
 
+/**
+ * Schermata di ispezione di una pratica. Vive dentro l'area tablet (`/tablet`), che è la stessa
+ * vista usata sul piazzale: il parametro dice quale pratica aprire, così ci si arriva dalla
+ * dashboard senza duplicare la schermata.
+ */
+export function checkInPath(appointmentId: string): string {
+  return `/tablet?pratica=${encodeURIComponent(appointmentId)}`;
+}
+
+/** Nome del parametro letto dalla pagina tablet. */
+export const CHECK_IN_PARAM = 'pratica';
+
 /** Aree protette dell'applicazione. */
 export type ProtectedArea = 'accettazione' | 'tablet' | 'manager' | 'admin' | 'sistema';
 

@@ -203,6 +203,24 @@ chiude lo stesso e l'evento resta nella coda di uscita, pronto per il rinvio. Co
 `MEDIA_STORAGE_DIR` si sposta la cartella dei file; con `MEDIA_STORAGE_PROVIDER=memory` si torna
 allo storage in memoria delle prime demo (e `MOCK_MEDIA_LATENCY_MS` ne regola l'attesa simulata).
 
+### La stessa app al banco e sul piazzale
+
+L'applicazione è una sola: cambia il comportamento, non l'interfaccia. La soglia è **1024 px**.
+
+- **Su tablet o telefono** (≤ 1024 px) "Prendi in carico" porta subito alla schermata di ispezione
+  fotografica della pratica: è quello che l'accettatore farà comunque arrivato alla vettura.
+- **Su monitor** (> 1024 px) "Prendi in carico" apre il pannello di dettaglio del cliente e si
+  resta sulla coda.
+
+In entrambi i casi c'è una via d'uscita: dal pannello di dettaglio di una pratica in carico si
+apre l'ispezione a mano con **Passa al check-in / Ispeziona** (utile quando le foto arrivano per
+email), e dall'ispezione si esce con **Salta foto per ora**, che riporta alla coda lasciando la
+pratica in carico e le foto già scattate nel fascicolo: se piove o la vettura va spostata subito,
+il check-in si riprende dopo dalla scheda "Le mie prese in carico".
+
+La coda è tarata anche per il dito: righe alte, pulsanti di almeno 44 × 44 px e riga interamente
+toccabile per aprire il dettaglio.
+
 ### Provare il cruscotto BDC
 
 Serve un account con ruolo responsabile: `responsabile` / `demo`. Dalla dashboard di accettazione

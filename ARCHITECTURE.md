@@ -165,7 +165,7 @@ webapp-accettazione-versione2/
     │   │   ├── accettazione/pratiche/[id]/page.tsx # dettaglio pratica, storico, notifiche, media
     │   │   ├── comunicazioni/page.tsx # P3 stato invii, reinvio, conferma contatto manuale
     │   │   ├── manager/page.tsx      # [M6 fatto] cruscotto BDC: lead da ricontattare (clienti assenti), chiusura con esito
-    │   │   ├── tablet/page.tsx        # [M5 fatto] accettazione al veicolo: solo le pratiche del proprio sportello, due schede grandi, check-in a tutto schermo
+    │   │   ├── tablet/page.tsx        # [M5 fatto] accettazione al veicolo: due schede grandi, check-in a tutto schermo; `?pratica=<id>` apre subito l'ispezione (arrivo dalla dashboard)
     │   │   └── sistema/page.tsx       # [M1 parziale] stato delle porte esterne (healthCheck); SyncRun, modalità mock, outbox CRM in M1-T15 / M6
     │   ├── (public)/cliente/page.tsx  # [M2 fatto] portale QR: ricerca targa mobile-first (formattazione live, validazione, nota privacy)
     │   ├── (public)/layout.tsx        # [M2 fatto] intestazione neutra, nessuna navigazione operatore, piè di pagina con rimando allo sportello
@@ -212,7 +212,7 @@ webapp-accettazione-versione2/
     │   ├── ui/                        # primitive scritte a mano stile shadcn (nessuna dipendenza): Button, Badge, Card, Input, Label, Select, Table, Alert, Dialog
     │   ├── layout/                    # [M1 fatti] AppShell, Header (identità, ruolo, postazione, orologio Europe/Rome, logout), BrandMark (marchio Autoclub Group in CSS, senza file immagine); SystemStatusBanner rinviato; indicatore dati non aggiornati inline in QueueDashboard
     │   └── shared/                    # [fatti] OperatorChip, PlaceholderPage, AccessDenied; ErrorBoundary, EmptyState e OfflineBanner da fare
-    ├── hooks/                         # [fatti] useQueue (3 s), useAppointmentActions, usePublicStatus (5 s), useBayDisplay e useWaitingBoard (2 s, scollegato dopo 3 tentativi), useBdcLeads (10 s)
+    ├── hooks/                         # [fatti] useQueue (3 s), useAppointmentActions (con onSuccess per il flusso responsive), usePublicStatus (5 s), useBayDisplay e useWaitingBoard (2 s, scollegato dopo 3 tentativi), useBdcLeads (10 s), useMediaQuery/useIsTouchLayout (soglia 1024 px)
     ├── store/                         # (rinviato) ui-store zustand: oggi vista e sportello vivono nei search param dell'URL (?view=&deskId=)
     ├── domain/                        # PURO: entità, value object, state machine, eventi, errori, read model   [SCAFFOLD]
     │   ├── ids.ts                     # branded id (AppointmentId, OperatorId, BayId, ...)
@@ -479,6 +479,7 @@ Glossario tecnico (termini inglesi ammessi nella prosa perché identificatori o 
 | **014** Feature module in inglese che rispecchiano i moduli A–F, `app/` come tabella di routing | `src/modules/reception`, `customer-portal`, `notifications`, `bay-displays`, `inspection-media`, `crm`; `app/` solo pagine e Route Handler; URL in italiano | Raggruppamento tecnico (`components/`, `hooks/`) che si affolla; cartelle in italiano | Scala a sei moduli; posticipare P4/P5 significa non toccare una cartella |
 | **015** Terminologia a schermo: "Accettazione N" al posto di "campata", dominio invariato | Testi di coda, tabellone, monitor, portale e messaggi d'errore dicono "Accettazione"; `Bay`, `bayId`, `/display/[campata]` e `?campata=` restano; scelta annotata in `domain/glossary.ts` | Rename completo fino al dominio (tocca state machine, API dei monitor, documentazione e dati, senza vantaggi per il cliente); lasciare "campata" a schermo (gergo che il cliente non capisce) | Il cliente legge una parola che conosce, il codice resta quello descritto in analisi e nei documenti |
 | **016** Le quattro riprese del giro veicolo sono un invariante del caso d'uso, non solo una regola della UI | `MediaAsset.category`; `InspectionService.completeCheckIn` rifiuta con `VALIDATION` e l'elenco delle mancanti; il tablet disabilita il pulsante e dice cosa manca | Solo controllo nella UI (una seconda scheda aperta, un tablet vecchio o una chiamata diretta chiuderebbero la pratica a metà); nessun obbligo | Al ritiro, se il cliente contesta un danno, il fascicolo ha sempre le quattro fiancate: è la ragione per cui l'obbligo esiste |
+| **017** Un'unica applicazione che cambia comportamento con la larghezza dello schermo, non due app | `useIsTouchLayout()` (≤ 1024 px): "Prendi in carico" porta all'ispezione su tablet e apre il pannello di dettaglio su schermo grande; la destinazione è decisa nell'`onSuccess` dell'azione; vie d'uscita in entrambe le direzioni ("Passa al check-in", "Salta foto per ora") | Applicazione tablet separata (due basi di codice, due sessioni, due volte i bug); stesso identico flusso ovunque (al banco porterebbe fuori dalla coda senza motivo) | Una sola coda, una sola sessione, un solo insieme di regole; il dispositivo cambia solo la scorciatoia, mai quello che il sistema permette di fare |
 
 ## 9. Rischi e domande aperte per il committente
 

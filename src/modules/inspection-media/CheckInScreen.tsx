@@ -25,6 +25,12 @@ export interface CheckInScreenProps {
   readonly brandName: string;
   readonly timeZone: string;
   readonly onClose: () => void;
+  /**
+   * Uscita senza concludere ("Salta foto per ora"): la pratica resta in carico e il check-in si
+   * riprende dopo. Serve quando piove o bisogna spostare la vettura subito: l'officina non deve
+   * fermarsi davanti a una schermata che pretende quattro foto adesso.
+   */
+  readonly onSkip?: (() => void) | undefined;
   readonly onCompleted: (codice: string, foto: number) => void;
 }
 
@@ -33,8 +39,10 @@ export function CheckInScreen({
   brandName,
   timeZone,
   onClose,
+  onSkip,
   onCompleted,
 }: CheckInScreenProps) {
+  const esci = onSkip ?? onClose;
   const a = row.appointment;
   const queryClient = useQueryClient();
   const [photos, setPhotos] = useState<readonly InspectionPhoto[]>([]);
@@ -174,6 +182,20 @@ export function CheckInScreen({
           >
             {inChiusura ? 'Conclusione in corso…' : 'Completa check-in'}
           </button>
+          {/* Via di fuga sempre disponibile: si esce senza perdere la presa in carico. */}
+          <button
+            type="button"
+            onClick={esci}
+            disabled={inChiusura}
+            className="h-touch mt-3 w-full rounded-xl border-2 border-slate-300 bg-white text-base font-semibold text-slate-700 hover:bg-slate-100 focus-visible:ring-4 focus-visible:ring-slate-300 focus-visible:outline-none disabled:opacity-60"
+          >
+            Salta foto per ora
+          </button>
+          <p className="mt-2 text-center text-sm text-slate-500">
+            La pratica resta <strong>in carico</strong> a te: il check-in si riprende quando vuoi
+            dalla scheda &ldquo;Le mie prese in carico&rdquo;.
+          </p>
+
           {mancanti.length > 0 ? (
             <p
               id="foto-mancanti"

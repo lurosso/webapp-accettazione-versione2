@@ -1,5 +1,11 @@
 import { describe, expect, it } from 'vitest';
-import { canAccess, homePathForRole, safeInternalPath } from '@/lib/navigation';
+import {
+  canAccess,
+  homePathForRole,
+  safeInternalPath,
+  CHECK_IN_PARAM,
+  checkInPath,
+} from '@/lib/navigation';
 
 describe('homePathForRole', () => {
   it('ogni ruolo ha la propria area: nessuno viene mandato in accettazione per forza', () => {
@@ -39,5 +45,16 @@ describe('safeInternalPath', () => {
     expect(safeInternalPath('//evil.example.com', '/')).toBe('/');
     expect(safeInternalPath('https://evil.example.com', '/')).toBe('/');
     expect(safeInternalPath(undefined, '/accettazione')).toBe('/accettazione');
+  });
+});
+
+describe('checkInPath', () => {
+  it("porta all'ispezione della pratica indicata", () => {
+    expect(checkInPath('app-1')).toBe('/tablet?pratica=app-1');
+    expect(checkInPath('app-1')).toContain(`${CHECK_IN_PARAM}=`);
+  });
+
+  it('codifica gli identificativi con caratteri speciali', () => {
+    expect(checkInPath('app/1 2')).toBe('/tablet?pratica=app%2F1%202');
   });
 });

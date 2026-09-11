@@ -26,7 +26,7 @@ export function SyncBanner({
   message,
 }: SyncBannerProps) {
   const button = canSync ? (
-    <Button size="sm" variant="outline" onClick={onSync} disabled={syncing}>
+    <Button size="touch" variant="outline" onClick={onSync} disabled={syncing}>
       {syncing ? 'Sincronizzazione…' : lastSync === null ? 'Sincronizza ora' : 'Riprova sync'}
     </Button>
   ) : null;

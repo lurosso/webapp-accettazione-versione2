@@ -166,7 +166,7 @@ export function QueueTable({
               {section.collapsible ? (
                 <Button
                   variant="ghost"
-                  size="sm"
+                  size="touch"
                   onClick={() => setClosedOpen((v) => !v)}
                   aria-expanded={!hidden}
                 >

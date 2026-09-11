@@ -5,6 +5,7 @@
 // `tel:` così da un tablet o da un softphone parte la chiamata con un tocco.
 // I dati arrivano dalla riga già scaricata (`/api/v1/queue`), quindi il pannello si apre subito
 // e continua ad aggiornarsi con il polling della coda, senza una richiesta dedicata.
+import Link from 'next/link';
 import { useEffect } from 'react';
 import type { Appointment } from '@/domain/entities/appointment';
 import { customerFullName } from '@/domain/entities/customer';
@@ -14,6 +15,7 @@ import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { OperatorChip } from '@/components/shared/OperatorChip';
 import { formatDateTimeIt, localTimeHHmm } from '@/lib/dates';
+import { checkInPath } from '@/lib/navigation';
 import { MediaGallery } from '@/modules/inspection-media/MediaGallery';
 import { NotificationBadge } from './NotificationBadge';
 import { StatusBadge } from './StatusBadge';
@@ -136,12 +138,23 @@ export function AppointmentDetailPanel({
               ) : null}
             </div>
           </div>
-          <Button variant="ghost" size="sm" onClick={onClose} aria-label="Chiudi dettaglio">
+          <Button variant="ghost" size="touch" onClick={onClose} aria-label="Chiudi dettaglio">
             Chiudi
           </Button>
         </header>
 
         <div className="flex flex-col gap-6 px-5 py-4">
+          {/* Accesso manuale all'ispezione: dal banco si passa al check-in senza tablet, per
+              esempio quando le foto del veicolo arrivano per email o le fa un collega. */}
+          {a.status === 'IN_PROGRESS' ? (
+            <Link
+              href={checkInPath(a.id)}
+              className="bg-brand-blue hover:bg-brand-blue-dark focus-visible:ring-brand-blue-light flex min-h-12 items-center justify-center rounded-md px-4 text-base font-semibold text-white transition-colors focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:outline-none"
+            >
+              Passa al check-in / Ispeziona
+            </Link>
+          ) : null}
+
           <section>
             <h3 className="mb-1 text-sm font-bold text-slate-900">Cliente</h3>
             <dl>

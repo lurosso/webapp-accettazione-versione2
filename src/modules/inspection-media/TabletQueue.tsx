@@ -3,7 +3,8 @@
 // Vista tablet dell'accettazione (modulo E): si usa in piedi accanto alle vetture, quindi niente
 // tabella. Ogni pratica è una scheda alta con i dati che servono a riconoscere l'auto e un solo
 // comando grande. Due schede: chi aspetta sul mio sportello e cosa ho già preso in carico io.
-import { useState } from 'react';
+import { useRouter } from 'next/navigation';
+import { useEffect, useState } from 'react';
 import { effectiveScheduleTime } from '@/domain/entities/appointment';
 import type { QueueRowView } from '@/domain/read-models';
 import { compareByScheduleThenSequence } from '@/domain/value-objects/queue-code';
@@ -17,22 +18,39 @@ import { CheckInScreen } from './CheckInScreen';
 export interface TabletQueueProps {
   readonly session: Session;
   readonly homeDeskId: string | null;
+  /**
+   * Pratica da aprire subito in ispezione (parametro `?pratica=`). È così che ci si arriva dalla
+   * dashboard: presa in carico da tablet, oppure "Passa al check-in" dal pannello di dettaglio.
+   */
+  readonly openCheckInFor?: string | null;
 }
 
 type Scheda = 'attesa' | 'mie';
 
-export function TabletQueue({ session, homeDeskId }: TabletQueueProps) {
+export function TabletQueue({ session, homeDeskId, openCheckInFor = null }: TabletQueueProps) {
+  const router = useRouter();
   const [scheda, setScheda] = useState<Scheda>('attesa');
-  const [inCheckIn, setInCheckIn] = useState<string | null>(null);
+  const [inCheckIn, setInCheckIn] = useState<string | null>(openCheckInFor);
   const [conferma, setConferma] = useState<string | null>(null);
+  // Ricorda se l'ispezione è stata aperta dalla dashboard: uscendo si torna da dove si è arrivati.
+  const [daDashboard] = useState(openCheckInFor !== null);
 
-  const queue = useQueue({ date: null, deskId: homeDeskId, view: 'desk' });
+  // La coda arriva completa (tutti gli sportelli) e viene filtrata qui: così l'ispezione si apre
+  // anche su una pratica presa in carico dalla vista globale, che il filtro per sportello dello
+  // stesso accettatore non restituirebbe.
+  const queue = useQueue({ date: null, deskId: null, view: 'global' });
   const actions = useAppointmentActions();
   const data = queue.data;
 
   const rows = data?.rows ?? [];
+  const delMioSportello = (r: QueueRowView): boolean =>
+    homeDeskId === null || r.appointment.deskId === homeDeskId;
   const inAttesa = rows
-    .filter((r) => r.appointment.status === 'WAITING' || r.appointment.status === 'SKIPPED')
+    .filter(
+      (r) =>
+        delMioSportello(r) &&
+        (r.appointment.status === 'WAITING' || r.appointment.status === 'SKIPPED'),
+    )
     .sort((x, y) =>
       compareByScheduleThenSequence(
         { scheduledAt: effectiveScheduleTime(x.appointment), sequence: x.appointment.sequence },
@@ -46,6 +64,29 @@ export function TabletQueue({ session, homeDeskId }: TabletQueueProps) {
   const elenco = scheda === 'attesa' ? inAttesa : mie;
 
   const rigaInCheckIn = rows.find((r) => r.appointment.id === inCheckIn) ?? null;
+  // Pratica richiesta ma non più in elenco (chiusa da un collega, giornata cambiata): meglio
+  // dirlo che lasciare l'operatore davanti a una schermata che non si apre.
+  const richiestaAssente =
+    openCheckInFor !== null && data !== undefined && rigaInCheckIn === null && inCheckIn !== null;
+
+  // L'indirizzo torna pulito una volta aperta l'ispezione: ricaricando non si riapre da capo.
+  useEffect(() => {
+    if (openCheckInFor !== null) {
+      router.replace('/tablet', { scroll: false });
+    }
+  }, [openCheckInFor, router]);
+
+  /**
+   * Uscita dall'ispezione senza concluderla: la pratica resta in carico e le foto già scattate
+   * restano nel fascicolo. Arrivando dalla dashboard si torna alla coda, cioè da dove si è
+   * partiti; aprendo l'ispezione dall'elenco del tablet si chiude solo la schermata.
+   */
+  const esciDalCheckIn = (): void => {
+    setInCheckIn(null);
+    if (daDashboard) {
+      router.push('/accettazione');
+    }
+  };
   const brandName = (brandId: string): string =>
     data?.brands.find((b) => b.id === brandId)?.name ?? '';
 
@@ -79,6 +120,16 @@ export function TabletQueue({ session, homeDeskId }: TabletQueueProps) {
           className="bg-status-completed-soft rounded-xl px-5 py-4 text-lg font-semibold text-emerald-900"
         >
           {conferma}
+        </p>
+      ) : null}
+
+      {richiestaAssente ? (
+        <p
+          role="alert"
+          className="bg-status-skipped-soft rounded-xl px-5 py-4 text-base text-amber-900"
+        >
+          La pratica richiesta non è più in elenco: potrebbe essere stata chiusa o annullata da un
+          collega. Scegline una dall&apos;elenco qui sotto.
         </p>
       ) : null}
 
@@ -194,7 +245,8 @@ export function TabletQueue({ session, homeDeskId }: TabletQueueProps) {
           row={rigaInCheckIn}
           brandName={brandName(rigaInCheckIn.appointment.brandId)}
           timeZone={data.timeZone}
-          onClose={() => setInCheckIn(null)}
+          onClose={esciDalCheckIn}
+          onSkip={esciDalCheckIn}
           onCompleted={(codice, foto) => {
             setInCheckIn(null);
             setScheda('attesa');

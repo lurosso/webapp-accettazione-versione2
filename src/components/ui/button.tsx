@@ -14,7 +14,11 @@ export type ButtonVariant =
   /** Contorno chiaro per le barre blu e i monitor: sul fondo scuro l'outline normale sparisce. */
   | 'onDark';
 
-export type ButtonSize = 'sm' | 'md' | 'lg';
+/**
+ * `touch` è la misura delle azioni usate anche dal tablet sul piazzale: 44 px di lato, la
+ * soglia sotto la quale un dito sbaglia bersaglio. `sm` resta per i comandi di contorno.
+ */
+export type ButtonSize = 'sm' | 'md' | 'lg' | 'touch';
 
 export interface ButtonProps extends ButtonHTMLAttributes<HTMLButtonElement> {
   readonly variant?: ButtonVariant;
@@ -37,6 +41,7 @@ const VARIANT_CLASSES: Record<ButtonVariant, string> = {
 const SIZE_CLASSES: Record<ButtonSize, string> = {
   sm: 'h-8 px-3 text-xs',
   md: 'h-10 px-4 text-sm',
+  touch: 'min-h-11 min-w-11 px-4 text-sm',
   lg: 'h-touch px-5 text-base',
 };
 

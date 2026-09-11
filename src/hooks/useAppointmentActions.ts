@@ -98,9 +98,24 @@ export function useAppointmentActions() {
   });
 
   const run = useCallback(
-    (appointmentId: string, body: AppointmentActionRequest): void => {
+    (
+      appointmentId: string,
+      body: AppointmentActionRequest,
+      /**
+       * Cosa fare quando il server ha confermato l'azione. Serve al flusso responsive: su tablet
+       * la presa in carico porta alla schermata di ispezione, su schermo grande apre il pannello
+       * di dettaglio. Chiamato solo in caso di successo, così un conflitto fra postazioni non
+       * trascina l'operatore altrove.
+       */
+      options?: { readonly onSuccess?: (appointment: Appointment) => void },
+    ): void => {
       setOutcome(null);
-      mutation.mutate({ appointmentId, body });
+      mutation.mutate(
+        { appointmentId, body },
+        options?.onSuccess === undefined
+          ? undefined
+          : { onSuccess: (data) => options.onSuccess?.(data.appointment) },
+      );
     },
     [mutation],
   );

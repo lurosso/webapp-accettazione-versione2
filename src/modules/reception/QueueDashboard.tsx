@@ -14,7 +14,9 @@ import { Dialog } from '@/components/ui/dialog';
 import { Select } from '@/components/ui/select';
 import { STALE_WARNING_MS } from '@/config/constants';
 import { useAppointmentActions } from '@/hooks/useAppointmentActions';
+import { useIsTouchLayout } from '@/hooks/useMediaQuery';
 import { useQueue } from '@/hooks/useQueue';
+import { checkInPath } from '@/lib/navigation';
 import { ApiError, postSync } from '@/lib/api-client/client';
 import { queueKeys } from '@/lib/api-client/query-keys';
 import { formatDateTimeIt } from '@/lib/dates';
@@ -64,6 +66,11 @@ export function QueueDashboard({
   );
   const queue = useQueue(params);
   const actions = useAppointmentActions();
+  // Flusso responsive: stessa applicazione, comportamento diverso secondo il dispositivo.
+  // Al banco la presa in carico apre il pannello di dettaglio e l'operatore resta sulla coda;
+  // sul piazzale, tablet in mano, porta direttamente all'ispezione fotografica, che è la cosa
+  // che l'accettatore farà comunque appena arrivato alla vettura.
+  const touchLayout = useIsTouchLayout();
 
   const [syncing, setSyncing] = useState(false);
   const [syncMessage, setSyncMessage] = useState<string | null>(null);
@@ -92,11 +99,27 @@ export function QueueDashboard({
     [router, pathname, searchParams, view, deskId],
   );
 
+  /** Dopo una presa in carico riuscita: ispezione su tablet, pannello di dettaglio su schermo grande. */
+  const dopoPresaInCarico = useCallback(
+    (appointmentId: string): void => {
+      if (touchLayout) {
+        router.push(checkInPath(appointmentId));
+        return;
+      }
+      setSelectedId(appointmentId);
+    },
+    [router, touchLayout],
+  );
+
   const onAction = useCallback(
     (appointmentId: string, action: AppointmentAction, expectedVersion: number): void => {
-      actions.run(appointmentId, { action, expectedVersion });
+      actions.run(
+        appointmentId,
+        { action, expectedVersion },
+        action === 'take' ? { onSuccess: () => dopoPresaInCarico(appointmentId) } : undefined,
+      );
     },
-    [actions],
+    [actions, dopoPresaInCarico],
   );
 
   const onSync = async (): Promise<void> => {
@@ -347,11 +370,15 @@ export function QueueDashboard({
                   key={bay.id}
                   variant="secondary"
                   onClick={() =>
-                    actions.run(outcome.appointmentId, {
-                      action: 'take',
-                      expectedVersion: outcome.expectedVersion,
-                      bayId: bay.id,
-                    })
+                    actions.run(
+                      outcome.appointmentId,
+                      {
+                        action: 'take',
+                        expectedVersion: outcome.expectedVersion,
+                        bayId: bay.id,
+                      },
+                      { onSuccess: () => dopoPresaInCarico(outcome.appointmentId) },
+                    )
                   }
                 >
                   {bay.code} · {bay.name}
@@ -360,10 +387,11 @@ export function QueueDashboard({
               <Button
                 variant="ghost"
                 onClick={() =>
-                  actions.run(outcome.appointmentId, {
-                    action: 'take',
-                    expectedVersion: outcome.expectedVersion,
-                  })
+                  actions.run(
+                    outcome.appointmentId,
+                    { action: 'take', expectedVersion: outcome.expectedVersion },
+                    { onSuccess: () => dopoPresaInCarico(outcome.appointmentId) },
+                  )
                 }
               >
                 Senza accettazione

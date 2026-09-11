@@ -59,7 +59,10 @@ export function AppointmentRow({
   return (
     <TableRow
       className={cn(
-        'cursor-pointer hover:brightness-[0.97]',
+        // Riga interamente toccabile: sul tablet si apre il dettaglio con il dito, senza mirare
+        // il codice. `select-none` evita che il tocco prolungato selezioni il testo invece di
+        // aprire il pannello.
+        'cursor-pointer select-none hover:brightness-[0.97]',
         ROW_CLASSES[a.status],
         pending && 'opacity-60',
       )}
@@ -73,7 +76,7 @@ export function AppointmentRow({
             event.stopPropagation();
             onSelect();
           }}
-          className="rounded underline decoration-slate-400 decoration-dotted underline-offset-4 hover:decoration-slate-900 focus-visible:ring-2 focus-visible:ring-slate-500 focus-visible:outline-none"
+          className="-mx-2 inline-flex min-h-11 items-center rounded px-2 underline decoration-slate-400 decoration-dotted underline-offset-4 hover:decoration-slate-900 focus-visible:ring-2 focus-visible:ring-slate-500 focus-visible:outline-none"
           aria-label={`Apri i dettagli della pratica ${a.code}, ${a.vehicle.plate}`}
         >
           {a.code}
