@@ -1,29 +1,51 @@
 'use client';
 
-// Acquisizione foto dal tablet: apre direttamente la fotocamera posteriore grazie a
-// `capture="environment"`, mostra l'anteprima locale mentre il file viaggia verso il server e
-// solo a salvataggio riuscito tiene la foto nell'elenco.
+// Acquisizione foto dal tablet, organizzata in slot: una casella per ogni parte del veicolo.
+// Il pulsante generico "scatta una foto" lasciava all'accettatore il compito di ricordarsi cosa
+// aveva già fotografato; con gli slot il giro dell'auto è guidato e si vede a colpo d'occhio cosa
+// manca. Le quattro fiancate sono obbligatorie: senza, il check-in non si chiude.
 //
-// L'anteprima viene creata in locale per dare risposta immediata: l'accettatore vede subito lo
-// scatto, anche prima che il caricamento finisca. Se il salvataggio fallisce la foto sparisce e
-// compare l'errore, perché una foto che sembra esserci ma non è stata salvata è peggio di nessuna.
+// Ogni slot apre la fotocamera posteriore (`capture="environment"`). L'anteprima locale compare
+// subito, con la rotella, mentre il file viaggia verso il server; se il salvataggio fallisce la
+// foto sparisce e compare l'errore, perché una foto che sembra esserci ma non è stata salvata è
+// peggio di nessuna foto.
 import { useEffect, useRef, useState } from 'react';
+import {
+  PHOTO_CATEGORIES,
+  PHOTO_CATEGORY_LABELS,
+  isRequiredCategory,
+  type MediaCategory,
+} from '@/domain/entities/media-asset';
 import { ApiError, uploadInspectionPhoto, type InspectionPhoto } from '@/lib/api-client/client';
+import { cn } from '@/lib/utils/cn';
 
 export interface PhotoCaptureProps {
   readonly appointmentId: string;
   readonly photos: readonly InspectionPhoto[];
   readonly onUploaded: (photo: InspectionPhoto) => void;
+  /** Riprese obbligatorie ancora mancanti (calcolate dalla schermata di check-in). */
+  readonly missing: readonly MediaCategory[];
 }
 
-/** Foto in corso di caricamento: mostrata subito con l'anteprima locale. */
+/** Foto in corso di caricamento, tenuta accanto al proprio slot. */
 interface Caricamento {
   readonly id: string;
+  readonly category: MediaCategory;
   readonly previewUrl: string;
 }
 
-export function PhotoCapture({ appointmentId, photos, onUploaded }: PhotoCaptureProps) {
-  const inputRef = useRef<HTMLInputElement>(null);
+/** Suggerimento di inquadratura: dice cosa deve entrare nella foto, non solo il nome dello slot. */
+const SUGGERIMENTI: Readonly<Record<MediaCategory, string>> = {
+  FRONT: 'Paraurti e cofano',
+  REAR: 'Paraurti e portellone',
+  LEFT: 'Fiancata lato guida',
+  RIGHT: 'Fiancata lato passeggero',
+  INTERIOR: 'Abitacolo e cruscotto',
+  DAMAGE: 'Graffi, ammaccature, cristalli',
+};
+
+export function PhotoCapture({ appointmentId, photos, onUploaded, missing }: PhotoCaptureProps) {
+  const inputRefs = useRef(new Map<MediaCategory, HTMLInputElement | null>());
   const [inCorso, setInCorso] = useState<readonly Caricamento[]>([]);
   const [errore, setErrore] = useState<string | null>(null);
 
@@ -36,19 +58,19 @@ export function PhotoCapture({ appointmentId, photos, onUploaded }: PhotoCapture
     };
   }, [inCorso]);
 
-  const onFile = async (file: File): Promise<void> => {
+  const onFile = async (file: File, category: MediaCategory): Promise<void> => {
     setErrore(null);
     const previewUrl = URL.createObjectURL(file);
-    const id = `${file.name}-${file.size}-${previewUrl}`;
-    setInCorso((precedenti) => [...precedenti, { id, previewUrl }]);
+    const id = `${category}-${file.size}-${previewUrl}`;
+    setInCorso((precedenti) => [...precedenti, { id, category, previewUrl }]);
     try {
-      const salvata = await uploadInspectionPhoto(appointmentId, file);
+      const salvata = await uploadInspectionPhoto(appointmentId, file, category);
       onUploaded(salvata);
     } catch (cause) {
       setErrore(
         cause instanceof ApiError
           ? cause.message
-          : 'Foto non salvata: controlla la connessione e riprova.',
+          : `Foto "${PHOTO_CATEGORY_LABELS[category]}" non salvata: controlla la connessione e riprova.`,
       );
     } finally {
       setInCorso((precedenti) => precedenti.filter((c) => c.id !== id));
@@ -56,41 +78,21 @@ export function PhotoCapture({ appointmentId, photos, onUploaded }: PhotoCapture
     }
   };
 
+  const obbligatorieFatte = 4 - missing.length;
+
   return (
     <section className="flex flex-col gap-4">
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <h2 className="text-xl font-bold text-slate-900">
-          Foto del veicolo
-          <span className="ml-2 text-base font-normal text-slate-500">
-            {photos.length === 0
-              ? 'nessuna'
-              : photos.length === 1
-                ? '1 scattata'
-                : `${photos.length} scattate`}
-          </span>
-        </h2>
-        <button
-          type="button"
-          onClick={() => inputRef.current?.click()}
-          className="h-touch rounded-xl bg-slate-900 px-6 text-lg font-semibold text-white shadow-sm hover:bg-slate-700 focus-visible:ring-4 focus-visible:ring-slate-400 focus-visible:outline-none"
+      <div className="flex flex-wrap items-baseline justify-between gap-3">
+        <h2 className="text-xl font-bold text-slate-900">Giro del veicolo</h2>
+        <p
+          className={cn(
+            'text-base font-semibold',
+            missing.length === 0 ? 'text-status-completed' : 'text-slate-600',
+          )}
         >
-          Scatta foto
-        </button>
-        <input
-          ref={inputRef}
-          type="file"
-          accept="image/*"
-          capture="environment"
-          className="sr-only"
-          onChange={(event) => {
-            const file = event.target.files?.[0];
-            // Il campo viene svuotato subito: così si può riscattare lo stesso soggetto.
-            event.target.value = '';
-            if (file !== undefined) {
-              void onFile(file);
-            }
-          }}
-        />
+          {obbligatorieFatte} di 4 foto obbligatorie
+          {missing.length === 0 ? ' · completo' : ''}
+        </p>
       </div>
 
       {errore !== null ? (
@@ -102,51 +104,119 @@ export function PhotoCapture({ appointmentId, photos, onUploaded }: PhotoCapture
         </p>
       ) : null}
 
-      {photos.length === 0 && inCorso.length === 0 ? (
-        <p className="rounded-xl border-2 border-dashed border-slate-300 px-4 py-8 text-center text-base text-slate-500">
-          Fotografa i punti critici della carrozzeria prima di prendere in consegna la vettura.
-        </p>
-      ) : (
-        <ul className="grid grid-cols-2 gap-3 sm:grid-cols-3">
-          {inCorso.map((c) => (
-            <li
-              key={c.id}
-              className="relative aspect-square overflow-hidden rounded-xl bg-slate-200"
-            >
-              {/* Anteprima locale: si vede lo scatto mentre il file viaggia. */}
-              {/* eslint-disable-next-line @next/next/no-img-element */}
-              <img
-                src={c.previewUrl}
-                alt="Foto in caricamento"
-                className="h-full w-full object-cover opacity-50"
+      <ul className="grid grid-cols-2 gap-3 sm:grid-cols-3">
+        {PHOTO_CATEGORIES.map((category) => {
+          const scattate = photos.filter((p) => p.category === category);
+          const ultima = scattate.at(-1);
+          const caricamento = inCorso.find((c) => c.category === category);
+          const obbligatoria = isRequiredCategory(category);
+          const mancante = missing.includes(category);
+
+          return (
+            <li key={category}>
+              <button
+                type="button"
+                onClick={() => inputRefs.current.get(category)?.click()}
+                aria-label={`${PHOTO_CATEGORY_LABELS[category]}: ${
+                  scattate.length === 0 ? 'scatta la foto' : 'scatta un altro scatto'
+                }`}
+                className={cn(
+                  'flex w-full flex-col overflow-hidden rounded-xl border-2 bg-white text-left transition-colors',
+                  'focus-visible:ring-brand-blue-light focus-visible:ring-4 focus-visible:outline-none',
+                  mancante
+                    ? 'border-status-in-progress hover:border-brand-blue'
+                    : scattate.length > 0
+                      ? 'border-status-completed'
+                      : 'hover:border-brand-blue border-dashed border-slate-300',
+                )}
+              >
+                <span className="relative block aspect-square w-full bg-slate-100">
+                  {caricamento !== undefined ? (
+                    <>
+                      {/* eslint-disable-next-line @next/next/no-img-element */}
+                      <img
+                        src={caricamento.previewUrl}
+                        alt=""
+                        className="h-full w-full object-cover opacity-50"
+                      />
+                      <span className="absolute inset-0 flex flex-col items-center justify-center gap-2 bg-slate-900/40 text-white">
+                        <span
+                          aria-hidden="true"
+                          className="h-8 w-8 animate-spin rounded-full border-4 border-white/40 border-t-white"
+                        />
+                        <span className="text-sm font-semibold">Caricamento…</span>
+                      </span>
+                    </>
+                  ) : ultima !== undefined ? (
+                    <>
+                      {/* eslint-disable-next-line @next/next/no-img-element */}
+                      <img
+                        src={ultima.url}
+                        alt={`Foto ${PHOTO_CATEGORY_LABELS[category]}`}
+                        className="h-full w-full object-cover"
+                      />
+                      {scattate.length > 1 ? (
+                        <span className="absolute top-1.5 right-1.5 rounded-full bg-slate-900/75 px-2 py-0.5 text-xs font-bold text-white">
+                          {scattate.length} scatti
+                        </span>
+                      ) : null}
+                      <span className="bg-status-completed absolute right-1.5 bottom-1.5 rounded-full px-2 py-0.5 text-xs font-bold text-white">
+                        ✓ fatta
+                      </span>
+                    </>
+                  ) : (
+                    <span className="absolute inset-0 flex flex-col items-center justify-center gap-1 text-slate-500">
+                      <span aria-hidden="true" className="text-4xl leading-none">
+                        📷
+                      </span>
+                      <span className="text-sm font-semibold">
+                        {obbligatoria ? 'Da scattare' : 'Facoltativa'}
+                      </span>
+                    </span>
+                  )}
+                </span>
+                <span className="flex flex-col gap-0.5 px-3 py-2">
+                  <span className="flex items-center gap-2 text-base font-bold text-slate-900">
+                    {PHOTO_CATEGORY_LABELS[category]}
+                    {obbligatoria ? (
+                      <span
+                        aria-hidden="true"
+                        className="text-status-no-show text-lg leading-none font-black"
+                        title="Obbligatoria"
+                      >
+                        *
+                      </span>
+                    ) : null}
+                  </span>
+                  <span className="text-xs text-slate-500">{SUGGERIMENTI[category]}</span>
+                </span>
+              </button>
+              <input
+                ref={(el) => {
+                  inputRefs.current.set(category, el);
+                }}
+                type="file"
+                accept="image/*"
+                capture="environment"
+                className="sr-only"
+                onChange={(event) => {
+                  const file = event.target.files?.[0];
+                  // Il campo viene svuotato subito: così si può riscattare lo stesso soggetto.
+                  event.target.value = '';
+                  if (file !== undefined) {
+                    void onFile(file, category);
+                  }
+                }}
               />
-              <span className="absolute inset-0 flex flex-col items-center justify-center gap-2 bg-slate-900/40 text-white">
-                <span
-                  aria-hidden="true"
-                  className="h-8 w-8 animate-spin rounded-full border-4 border-white/40 border-t-white"
-                />
-                <span className="text-sm font-semibold">Caricamento…</span>
-              </span>
             </li>
-          ))}
-          {photos.map((p, indice) => (
-            <li
-              key={p.id}
-              className="relative aspect-square overflow-hidden rounded-xl bg-slate-200"
-            >
-              {/* eslint-disable-next-line @next/next/no-img-element */}
-              <img
-                src={p.url}
-                alt={`Foto ${indice + 1} del veicolo`}
-                className="h-full w-full object-cover"
-              />
-              <span className="absolute right-1 bottom-1 rounded bg-slate-900/70 px-1.5 py-0.5 text-xs font-semibold text-white">
-                {Math.max(1, Math.round(p.sizeBytes / 1024))} kB
-              </span>
-            </li>
-          ))}
-        </ul>
-      )}
+          );
+        })}
+      </ul>
+
+      <p className="text-sm text-slate-500">
+        Le voci con <span className="text-status-no-show font-black">*</span> sono obbligatorie.
+        Toccando uno slot già fatto si aggiunge un altro scatto della stessa parte.
+      </p>
     </section>
   );
 }

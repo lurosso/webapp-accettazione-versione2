@@ -48,6 +48,19 @@ BDC**, dove il back office lo richiama e chiude il lead. Restano da sviluppare i
 invii, i video e la vista tecnica degli eventi CRM. La priorità di sviluppo è definita in [`CLAUDE.md`](CLAUDE.md); i
 requisiti completi sono in [`docs/ANALISI_REQUISITI.md`](docs/ANALISI_REQUISITI.md).
 
+## Identità visiva
+
+I colori dell'interfaccia sono quelli del marchio: blu istituzionale `#0065A0`, verde `#87BD22`,
+grigi `#2E2E2E` e `#F2F2F2`, presi dalle variabili CSS pubblicate da
+[autoclubgroup.it](https://www.autoclubgroup.it/). Stanno in `src/app/globals.css` come token
+`--color-brand-*`, insieme alla scala neutra ritinta sul blu: cambiando quei valori cambia tutta
+l'applicazione. I colori di stato della coda (in attesa, in carico, completata, assente) restano
+invece indipendenti dal marchio, perché comunicano un'informazione e non uno stile.
+
+Il marchio a schermo (`BrandMark`) è scritto in CSS, non è un file immagine: resta nitido sui
+monitor appesi in officina e non aggiunge nulla da caricare. Quando ci verrà fornito il logo
+ufficiale basterà sostituire quel componente.
+
 ## Architettura Mock-First
 
 Il sistema è costruito **prima dei sistemi aziendali**, non dopo. Tutto ciò che è esterno sta dietro
@@ -167,18 +180,23 @@ sportello dell'operatore collegato, con due schede, **In attesa** e **Le mie pre
 pulsanti grandi da usare in piedi accanto alla vettura.
 
 1. **Inizia check-in** prende in carico la pratica e apre a tutto schermo la scheda di ispezione.
-2. **Scatta foto** apre la fotocamera posteriore del tablet (su un computer si sceglie un file).
-   L'anteprima compare subito con la rotella di attesa e resta nella griglia a caricamento
-   concluso; il file finisce dietro `IMediaStorage`, cioè in
-   `.data/uploads/<giornata>/<codice>/<id>.<estensione>`, e si rilegge da
+2. **Giro del veicolo**: sei slot, uno per parte. **Frontale, Posteriore, Fiancata sinistra e
+   Fiancata destra sono obbligatorie**; *Interni* e *Dettaglio danni* sono facoltative e accettano
+   più scatti. Toccando uno slot si apre la fotocamera posteriore del tablet (su un computer si
+   sceglie un file); l'anteprima compare subito con la rotella di attesa e resta nello slot a
+   caricamento concluso. Il file finisce dietro `IMediaStorage`, cioè in
+   `.data/uploads/<giornata>/<codice>/<parte>-<id>.<estensione>`, e si rilegge da
    `GET /api/v1/media/<chiave>` con la sessione attiva. Le foto restano lì anche dopo un riavvio.
 3. In **Note veicolo / danni rilevati** si annota quanto visto durante il giro dell'auto.
-4. **Completa check-in** chiude la pratica, libera l'accettazione e invia al CRM note e indirizzi delle
+4. **Completa check-in** resta disabilitato finché mancano le quattro foto obbligatorie (sotto al
+   pulsante c'è l'elenco di cosa manca); lo stesso controllo è ripetuto dal server, quindi non si
+   aggira da un'altra scheda. Una volta completo chiude la pratica, libera l'accettazione e invia al CRM note e indirizzi delle
    foto. Nel terminale del server compaiono le righe `[Media] file salvato: ...` e
    `[MOCK][Crm] notifyCheckIn {...}`; allo stesso modo, segnando un cliente assente dalla
    dashboard, compare `[MOCK][Crm] notifyNoShow {...}`.
 5. Nella dashboard di accettazione, il clic sulla pratica apre il pannello con la sezione
-   **Ispezione al veicolo**: le note e le foto scattate, ingrandibili con un clic.
+   **Ispezione al veicolo**: le note e le foto, raggruppate per parte del veicolo e ingrandibili
+   con un clic.
 
 Il CRM non può bloccare l'officina: se non risponde (`MOCK_CRM_MODE=error`) l'accettazione si
 chiude lo stesso e l'evento resta nella coda di uscita, pronto per il rinvio. Con

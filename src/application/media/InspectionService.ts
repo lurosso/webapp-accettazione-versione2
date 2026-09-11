@@ -6,7 +6,12 @@
 // deve far perdere il lavoro fatto: l'errore torna al tablet come valore, la pratica resta aperta
 // e l'accettatore può riprovare o concludere senza quella foto.
 import type { Appointment } from '@/domain/entities/appointment';
-import type { MediaAsset } from '@/domain/entities/media-asset';
+import {
+  PHOTO_CATEGORY_LABELS,
+  REQUIRED_PHOTO_CATEGORIES,
+  type MediaAsset,
+  type MediaCategory,
+} from '@/domain/entities/media-asset';
 import { domainError, type DomainError } from '@/domain/errors';
 import { asMediaAssetId, type AppointmentId, type OperatorId } from '@/domain/ids';
 import { err, ok, type Result } from '@/domain/result';
@@ -40,6 +45,8 @@ export interface AddPhotoInput {
   readonly operatorId: OperatorId;
   readonly bytes: Uint8Array;
   readonly mimeType: string;
+  /** Parte del veicolo ripresa: è il tablet a dire quale slot si sta riempiendo. */
+  readonly category: MediaCategory;
   readonly note?: string | null;
 }
 
@@ -97,7 +104,7 @@ export class InspectionService {
 
     const id = this.deps.ids.nextAs(asMediaAssetId);
     const estensione = input.mimeType.split('/')[1] ?? 'jpg';
-    const key = `${appointment.businessDate}/${appointment.code}/${id}.${estensione}`;
+    const key = `${appointment.businessDate}/${appointment.code}/${input.category.toLowerCase()}-${id}.${estensione}`;
     const salvata = await this.deps.mediaStorage.put({
       key,
       bytes: input.bytes,
@@ -114,6 +121,7 @@ export class InspectionService {
       id,
       appointmentId: appointment.id,
       kind: 'PHOTO',
+      category: input.category,
       mimeType: input.mimeType,
       sizeBytes: input.bytes.byteLength,
       storageKey: salvata.value.key,
@@ -124,6 +132,7 @@ export class InspectionService {
     });
     this.logger.info(`foto acquisita per ${appointment.code}`, {
       mediaId: asset.id,
+      categoria: input.category,
       sizeBytes: asset.sizeBytes,
     });
     return ok({ asset, url: salvata.value.url });
@@ -133,6 +142,18 @@ export class InspectionService {
   async listPhotos(appointmentId: AppointmentId): Promise<readonly StoredPhoto[]> {
     const assets = await this.deps.media.listByAppointment(appointmentId);
     return assets.map((asset) => ({ asset, url: this.deps.mediaStorage.getUrl(asset.storageKey) }));
+  }
+
+  /**
+   * Riprese obbligatorie non ancora scattate per la pratica.
+   * Vive qui e non solo nella UI: il tablet disabilita il pulsante, ma il controllo che conta è
+   * questo: un secondo tablet, una scheda rimasta aperta o una chiamata diretta all'API non
+   * devono poter chiudere un'accettazione senza il giro completo del veicolo.
+   */
+  async missingRequiredCategories(appointmentId: AppointmentId): Promise<readonly MediaCategory[]> {
+    const assets = await this.deps.media.listByAppointment(appointmentId);
+    const presenti = new Set(assets.map((a) => a.category));
+    return REQUIRED_PHOTO_CATEGORIES.filter((c) => !presenti.has(c));
   }
 
   /**
@@ -148,6 +169,17 @@ export class InspectionService {
     const corrente = await this.deps.appointments.findById(input.appointmentId);
     if (corrente === null) {
       return err(domainError('NOT_FOUND', `Pratica non trovata: ${input.appointmentId}.`));
+    }
+
+    const mancanti = await this.missingRequiredCategories(input.appointmentId);
+    if (mancanti.length > 0) {
+      return err(
+        domainError(
+          'VALIDATION',
+          `Mancano le foto obbligatorie: ${mancanti.map((c) => PHOTO_CATEGORY_LABELS[c]).join(', ')}.`,
+          { mancanti },
+        ),
+      );
     }
 
     const note = input.inspectionNotes?.trim();
@@ -180,7 +212,11 @@ export class InspectionService {
       completata.value,
       {
         inspectionNotes: noteFinali,
-        photos: foto.map((f) => ({ url: f.url, capturedAt: f.asset.capturedAt })),
+        photos: foto.map((f) => ({
+          url: f.url,
+          capturedAt: f.asset.capturedAt,
+          category: f.asset.category,
+        })),
         operatorId: ctx.operatorId,
       },
       ctx.correlationId ?? this.deps.ids.next(),

@@ -4,6 +4,7 @@ import type { Metadata } from 'next';
 import { redirect } from 'next/navigation';
 import { readSession } from '@/app/_server/session';
 import { getContainer } from '@/config/container';
+import { BrandMark } from '@/components/layout/BrandMark';
 import { isDemoPasswordHash } from '@/lib/hash-password';
 import { homePathForRole, safeInternalPath } from '@/lib/navigation';
 import {
@@ -62,9 +63,9 @@ export default async function LoginPage({ searchParams }: LoginPageProps) {
 
   return (
     <main className="mx-auto flex min-h-screen w-full max-w-md flex-col justify-center gap-6 px-6 py-12">
-      <header className="flex flex-col gap-1 text-center">
-        <p className="text-sm font-medium tracking-wide text-slate-500 uppercase">Autoclub Group</p>
-        <h1 className="text-2xl font-bold tracking-tight">Accettazione Officina</h1>
+      <header className="flex flex-col items-center gap-2 text-center">
+        <BrandMark className="text-2xl" />
+        <h1 className="text-2xl font-bold tracking-tight text-slate-900">Accettazione Officina</h1>
         <p className="text-sm text-slate-600">
           Accedi con le tue credenziali e scegli la postazione.
         </p>

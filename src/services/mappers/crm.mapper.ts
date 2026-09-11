@@ -69,7 +69,11 @@ export function toCrmCheckInPayload(
   brand: Brand,
   input: {
     readonly inspectionNotes: string | null;
-    readonly photos: readonly { readonly url: string; readonly capturedAt: string }[];
+    readonly photos: readonly {
+      readonly url: string;
+      readonly capturedAt: string;
+      readonly category: string | null;
+    }[];
     readonly completedAt: IsoDateTime;
     readonly operatorId: string;
   },

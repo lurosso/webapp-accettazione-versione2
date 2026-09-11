@@ -8,6 +8,7 @@ import { usePathname, useRouter } from 'next/navigation';
 import { useEffect, useState } from 'react';
 import type { OperatorRole } from '@/domain/entities/operator';
 import { Button } from '@/components/ui/button';
+import { BrandMark } from './BrandMark';
 import { OperatorChip } from '@/components/shared/OperatorChip';
 import { postLogout } from '@/lib/api-client/client';
 import { canAccess, type ProtectedArea } from '@/lib/navigation';
@@ -45,7 +46,7 @@ function WorkshopClock({ timeZone }: { readonly timeZone: string }) {
     return () => clearInterval(timer);
   }, [timeZone]);
   return (
-    <time className="font-mono text-sm text-slate-600 tabular-nums" aria-label="Ora dell'officina">
+    <time className="font-mono text-sm text-white/80 tabular-nums" aria-label="Ora dell'officina">
       {now}
     </time>
   );
@@ -67,18 +68,25 @@ export function Header({ displayName, role, workstationLabel, deskLabel, timeZon
   };
 
   return (
-    <header className="border-b border-slate-200 bg-white">
+    <header className="border-brand-lime bg-brand-blue-dark border-b-4 text-white">
       <div className="mx-auto flex max-w-screen-2xl flex-wrap items-center gap-x-6 gap-y-2 px-4 py-2 sm:px-6">
-        <div className="flex items-center gap-3">
-          <span className="text-sm font-bold tracking-tight">Accettazione Officina</span>
+        <div className="flex items-center gap-4">
+          <span className="flex items-baseline gap-2">
+            <BrandMark tone="light" className="text-base" />
+            <span className="hidden text-sm font-semibold text-white/70 sm:inline">
+              Accettazione officina
+            </span>
+          </span>
           <nav aria-label="Sezioni" className="flex items-center gap-1">
             {NAV.filter((item) => canAccess(item.area, role)).map((item) => (
               <Link
                 key={item.href}
                 href={item.href}
                 className={cn(
-                  'rounded-md px-2.5 py-1 text-sm hover:bg-slate-100',
-                  pathname.startsWith(item.href) ? 'bg-slate-100 font-semibold' : 'text-slate-600',
+                  'rounded-md px-2.5 py-1 text-sm transition-colors hover:bg-white/10',
+                  pathname.startsWith(item.href)
+                    ? 'bg-white/15 font-semibold text-white'
+                    : 'text-white/75',
                 )}
               >
                 {item.label}
@@ -88,18 +96,18 @@ export function Header({ displayName, role, workstationLabel, deskLabel, timeZon
         </div>
         <div className="ml-auto flex flex-wrap items-center gap-x-4 gap-y-2 text-sm">
           <WorkshopClock timeZone={timeZone} />
-          <span className="hidden text-slate-300 sm:inline">|</span>
-          <span className="text-slate-700">
+          <span className="hidden text-white/30 sm:inline">|</span>
+          <span className="text-white/85">
             <span className="font-medium">{workstationLabel}</span>
-            <span className="text-slate-400"> · </span>
+            <span className="text-white/50"> · </span>
             <span>{deskLabel}</span>
           </span>
-          <span className="hidden text-slate-300 sm:inline">|</span>
+          <span className="hidden text-white/30 sm:inline">|</span>
           {/* Chi è collegato: nome per esteso e ruolo, non solo un'iniziale. */}
-          <span className="flex items-center gap-2 rounded-full bg-slate-50 py-1 pr-3 pl-1 ring-1 ring-slate-200">
-            <OperatorChip displayName={displayName} role={role} isCurrent size="md" />
+          <span className="flex items-center gap-2 rounded-full bg-white/10 py-1 pr-3 pl-1 ring-1 ring-white/25">
+            <OperatorChip displayName={displayName} role={role} isCurrent size="md" tone="light" />
           </span>
-          <Button variant="outline" size="sm" onClick={() => void onLogout()} disabled={leaving}>
+          <Button variant="onDark" size="sm" onClick={() => void onLogout()} disabled={leaving}>
             {leaving ? 'Uscita…' : 'Esci'}
           </Button>
         </div>

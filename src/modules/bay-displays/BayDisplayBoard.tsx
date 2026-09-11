@@ -7,6 +7,7 @@
 import { useBayDisplay } from '@/hooks/useBayDisplay';
 import type { BayDisplayState } from '@/domain/read-models';
 import { localTimeHHmm } from '@/lib/dates';
+import { BrandMark } from '@/components/layout/BrandMark';
 import { cn } from '@/lib/utils/cn';
 
 export interface BayDisplayBoardProps {
@@ -17,9 +18,11 @@ export interface BayDisplayBoardProps {
 
 /** Sfondo e colore del testo per ogni stato: il colore è il primo segnale a distanza. */
 const SCREEN: Record<BayDisplayState, string> = {
-  SERVING: 'bg-slate-950 text-white',
-  RELEASING: 'bg-emerald-600 text-white',
-  FREE: 'bg-emerald-600 text-white',
+  // In servizio: blu istituzionale del marchio. Libera: il verde Autoclub, che a distanza si
+  // legge come "avanti" e resta coerente con la segnaletica del gruppo.
+  SERVING: 'bg-brand-blue-dark text-white',
+  RELEASING: 'bg-brand-lime text-slate-950',
+  FREE: 'bg-brand-lime text-slate-950',
   OFFLINE: 'bg-amber-500 text-slate-950',
 };
 
@@ -92,7 +95,7 @@ export function BayDisplayBoard({ bayRef, token }: BayDisplayBoardProps) {
         <span>
           {state === 'SERVING' ? `In servizio · Accettazione ${bayLabel}` : 'Accettazione officina'}
         </span>
-        <span>Autoclub Group</span>
+        <BrandMark tone={state === 'SERVING' ? 'light' : 'dark'} className="text-[2vw]" />
       </footer>
     </div>
   );

@@ -4,6 +4,7 @@ import type { Appointment } from '@/domain/entities/appointment';
 import type { SyncRun } from '@/domain/entities/sync-run';
 import type { Session } from '@/application/auth/IAuthService';
 import type { BdcLeadsView, BdcLeadView } from '@/domain/read-models';
+import type { MediaCategory } from '@/domain/entities/media-asset';
 import type { BoardStatus, DisplayStatus } from '@/modules/bay-displays/types';
 import type { PublicStatus } from '@/modules/customer-portal/types';
 import type {
@@ -166,6 +167,8 @@ export interface InspectionPhoto {
   readonly url: string;
   readonly capturedAt: string;
   readonly sizeBytes: number;
+  /** Parte del veicolo ripresa; `null` solo per foto acquisite prima delle categorie. */
+  readonly category: MediaCategory | null;
 }
 
 /**
@@ -176,9 +179,11 @@ export interface InspectionPhoto {
 export async function uploadInspectionPhoto(
   appointmentId: string,
   file: File,
+  category: MediaCategory,
 ): Promise<InspectionPhoto> {
   const body = new FormData();
   body.set('foto', file);
+  body.set('categoria', category);
   const response = await fetch(`/api/v1/appointments/${encodeURIComponent(appointmentId)}/media`, {
     method: 'POST',
     body,

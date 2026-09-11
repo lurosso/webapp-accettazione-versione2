@@ -35,7 +35,9 @@ const checkIn = (key = 'app-1:CHECK_IN:2026-09-10'): CrmCheckInPayloadDto => ({
   customer: { fullName: 'Mario Rossi', phone: '+393331234560' },
   vehicle: { plate: 'AB123CD', brandCode: 'FIAT', model: '500' },
   inspectionNotes: 'Graffio sul paraurti posteriore destro.',
-  photos: [{ url: '/api/v1/media/foto-1.jpg', capturedAt: '2026-09-10T08:05:00.000Z' }],
+  photos: [
+    { url: '/api/v1/media/foto-1.jpg', capturedAt: '2026-09-10T08:05:00.000Z', category: 'FRONT' },
+  ],
   completedAt: '2026-09-10T08:10:00.000Z',
   operatorId: 'op-advisor-1',
 });

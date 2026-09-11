@@ -7,6 +7,36 @@
  * Stati della pratica: In attesa, In carico (giallo), Saltata, Completata (verde), No-show, Annullata.
  */
 @theme {
+  /*
+   * Identità Autoclub Group. I valori arrivano dalle variabili CSS del sito aziendale
+   * (autoclubgroup.it): blu istituzionale #0065A0 dell'intestazione, verde #87BD22 del marchio
+   * "GROUP" e dei pulsanti, grigi #2E2E2E / #F2F2F2 dei testi e degli sfondi.
+   */
+  --color-brand-blue: #0065a0;
+  --color-brand-blue-dark: #00466f;
+  --color-brand-blue-light: #0180ca;
+  --color-brand-lime: #87bd22;
+  --color-brand-lime-dark: #6d9a17;
+  --color-brand-ink: #2e2e2e;
+
+  /*
+   * Neutri dell'applicazione: la scala `slate` di Tailwind viene ritinta verso il blu
+   * istituzionale. Così ogni schermata già scritta (coda, tablet, portale, tabelloni) prende il
+   * tono del marchio senza riscrivere centinaia di classi, e le nuove continuano a usare
+   * `slate-*` come prima. I colori di stato restano invariati: sono semantici, non decorativi.
+   */
+  --color-slate-50: #f5f8fa;
+  --color-slate-100: #e7eff4;
+  --color-slate-200: #cedfe9;
+  --color-slate-300: #a7c3d5;
+  --color-slate-400: #6e94ae;
+  --color-slate-500: #4a728e;
+  --color-slate-600: #335a76;
+  --color-slate-700: #24475f;
+  --color-slate-800: #1b384c;
+  --color-slate-900: #142c3d;
+  --color-slate-950: #0b1c28;
+
   --color-status-waiting: oklch(0.62 0.02 250);
   --color-status-waiting-soft: oklch(0.96 0.005 250);
   --color-status-in-progress: oklch(0.8 0.17 85);

@@ -41,7 +41,11 @@ export interface CrmDelivery {
 /** Dati raccolti al tablet durante l'accettazione al veicolo. */
 export interface CheckInReport {
   readonly inspectionNotes: string | null;
-  readonly photos: readonly { readonly url: string; readonly capturedAt: string }[];
+  readonly photos: readonly {
+    readonly url: string;
+    readonly capturedAt: string;
+    readonly category: string | null;
+  }[];
   readonly operatorId: OperatorId;
 }
 

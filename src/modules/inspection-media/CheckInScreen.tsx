@@ -6,6 +6,11 @@ import { useQueryClient } from '@tanstack/react-query';
 import { useEffect, useState } from 'react';
 import type { QueueRowView } from '@/domain/read-models';
 import {
+  PHOTO_CATEGORY_LABELS,
+  REQUIRED_PHOTO_CATEGORIES,
+  type MediaCategory,
+} from '@/domain/entities/media-asset';
+import {
   ApiError,
   fetchInspectionPhotos,
   postCheckIn,
@@ -53,6 +58,12 @@ export function CheckInScreen({
       attivo = false;
     };
   }, [a.id]);
+
+  // Riprese obbligatorie ancora da fare: la stessa regola vale sul server, qui serve a non far
+  // arrivare l'accettatore in fondo alla scheda per sentirsi dire che manca una foto.
+  const mancanti: readonly MediaCategory[] = REQUIRED_PHOTO_CATEGORIES.filter(
+    (categoria) => !photos.some((p) => p.category === categoria),
+  );
 
   const completa = async (): Promise<void> => {
     setErrore(null);
@@ -122,6 +133,7 @@ export function CheckInScreen({
         <PhotoCapture
           appointmentId={a.id}
           photos={photos}
+          missing={mancanti}
           onUploaded={(p) => setPhotos((precedenti) => [...precedenti, p])}
         />
 
@@ -156,15 +168,26 @@ export function CheckInScreen({
           <button
             type="button"
             onClick={() => void completa()}
-            disabled={inChiusura}
+            disabled={inChiusura || mancanti.length > 0}
+            aria-describedby={mancanti.length > 0 ? 'foto-mancanti' : undefined}
             className="bg-status-completed h-16 w-full rounded-xl text-xl font-bold text-white shadow-sm hover:brightness-95 focus-visible:ring-4 focus-visible:ring-emerald-300 focus-visible:outline-none disabled:opacity-60"
           >
             {inChiusura ? 'Conclusione in corso…' : 'Completa check-in'}
           </button>
-          <p className="mt-2 text-center text-sm text-slate-500">
-            La pratica viene chiusa, l&apos;accettazione si libera e il cliente successivo può
-            avanzare.
-          </p>
+          {mancanti.length > 0 ? (
+            <p
+              id="foto-mancanti"
+              className="bg-status-in-progress-soft mt-2 rounded-lg px-4 py-2 text-center text-base font-semibold text-amber-900"
+            >
+              Prima di concludere mancano:{' '}
+              {mancanti.map((categoria) => PHOTO_CATEGORY_LABELS[categoria]).join(', ')}.
+            </p>
+          ) : (
+            <p className="mt-2 text-center text-sm text-slate-500">
+              La pratica viene chiusa, l&apos;accettazione si libera e il cliente successivo può
+              avanzare.
+            </p>
+          )}
         </div>
       </main>
     </div>

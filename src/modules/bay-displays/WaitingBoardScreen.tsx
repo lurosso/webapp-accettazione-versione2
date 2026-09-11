@@ -6,6 +6,7 @@
 // perché lo schermo è visibile a chiunque sia presente.
 import { useWaitingBoard } from '@/hooks/useWaitingBoard';
 import type { BoardServingEntry } from '@/domain/read-models';
+import { BrandMark } from '@/components/layout/BrandMark';
 import { localTimeHHmm } from '@/lib/dates';
 
 export interface WaitingBoardScreenProps {
@@ -33,9 +34,12 @@ export function WaitingBoardScreen({ nextCount }: WaitingBoardScreenProps) {
 
   return (
     <div className="flex h-screen w-screen flex-col overflow-hidden bg-slate-950 text-white tabular-nums">
-      <header className="flex items-baseline justify-between border-b border-white/15 px-[2.5vw] py-[1.5vh]">
-        <span className="text-[2.2vw] font-bold tracking-[0.2em] uppercase">
-          Accettazione officina
+      <header className="border-brand-lime flex items-baseline justify-between border-b-[0.4vh] px-[2.5vw] py-[1.5vh]">
+        <span className="flex items-baseline gap-[1.5vw]">
+          <BrandMark tone="light" className="text-[2.4vw]" />
+          <span className="text-[1.8vw] font-semibold tracking-[0.2em] uppercase opacity-70">
+            Accettazione officina
+          </span>
         </span>
         <span className="text-[2.2vw] font-semibold opacity-80">
           {data !== undefined && !offline
@@ -54,7 +58,7 @@ export function WaitingBoardScreen({ nextCount }: WaitingBoardScreenProps) {
       ) : (
         <>
           <main className="flex flex-1 flex-col px-[2.5vw] py-[2vh]">
-            <h1 className="text-[2vw] font-bold tracking-[0.3em] text-emerald-400 uppercase">
+            <h1 className="text-brand-lime text-[2vw] font-bold tracking-[0.3em] uppercase">
               Chiamati ora
             </h1>
             {query.isPending ? (
@@ -75,7 +79,7 @@ export function WaitingBoardScreen({ nextCount }: WaitingBoardScreenProps) {
                     key={entry.code}
                     className={`flex items-center justify-between gap-[2vw] rounded-[1vw] px-[2vw] py-[1.2vh] ${
                       // La chiamata più recente è quella che la sala deve notare per prima.
-                      index === 0 ? 'bg-emerald-500 text-slate-950' : 'bg-white/10 text-white'
+                      index === 0 ? 'bg-brand-lime text-slate-950' : 'bg-white/10 text-white'
                     }`}
                   >
                     <span className="font-mono text-[9vw] leading-none font-black tracking-tight">

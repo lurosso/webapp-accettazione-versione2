@@ -46,7 +46,12 @@ export interface CrmCheckInPayloadDto {
   readonly vehicle: { readonly plate: string; readonly brandCode: string; readonly model: string };
   /** Note e danni rilevati dall'accettatore durante il giro del veicolo. */
   readonly inspectionNotes: string | null;
-  readonly photos: readonly { readonly url: string; readonly capturedAt: string }[];
+  /** Foto del giro veicolo: indirizzo, istante e parte ripresa (FRONT, REAR, LEFT, RIGHT, …). */
+  readonly photos: readonly {
+    readonly url: string;
+    readonly capturedAt: string;
+    readonly category: string | null;
+  }[];
   readonly completedAt: string;
   readonly operatorId: string;
 }

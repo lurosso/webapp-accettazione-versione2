@@ -9,6 +9,12 @@
 // utilizzabile, perché è quello che serve per lavorare.
 import { useEffect, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
+import {
+  PHOTO_CATEGORIES,
+  PHOTO_CATEGORY_LABELS,
+  isRequiredCategory,
+  type MediaCategory,
+} from '@/domain/entities/media-asset';
 import { fetchInspectionPhotos, type InspectionPhoto } from '@/lib/api-client/client';
 import { localTimeHHmm } from '@/lib/dates';
 
@@ -60,11 +66,18 @@ function Lightbox({
       {/* eslint-disable-next-line @next/next/no-img-element -- file servito dalla rotta media, non ottimizzabile da next/image */}
       <img
         src={photo.url}
-        alt={`Foto ${index + 1} dell'ispezione`}
+        alt={
+          photo.category === null
+            ? `Foto ${index + 1} dell'ispezione`
+            : `Foto dell'ispezione: ${PHOTO_CATEGORY_LABELS[photo.category]}`
+        }
         className="max-h-[80vh] max-w-full rounded-lg object-contain shadow-2xl"
         onClick={(event) => event.stopPropagation()}
       />
-      <div className="flex items-center gap-3 text-sm text-white">
+      <div className="flex flex-wrap items-center justify-center gap-3 text-sm text-white">
+        <span className="rounded bg-white/15 px-2 py-0.5 font-semibold">
+          {photo.category === null ? 'Senza categoria' : PHOTO_CATEGORY_LABELS[photo.category]}
+        </span>
         <span>
           Foto {index + 1} di {total}
         </span>
@@ -92,6 +105,18 @@ export function MediaGallery({ appointmentId, inspectionNotes, timeZone }: Media
   const [aperta, setAperta] = useState<number | null>(null);
 
   const photos = query.data?.photos ?? [];
+  // Ordine fisso (frontale, posteriore, fiancate, interni, danni) e in fondo le foto senza
+  // categoria, cioè quelle scattate prima che gli slot esistessero.
+  const gruppi: readonly { etichetta: string; foto: readonly InspectionPhoto[] }[] = [
+    ...PHOTO_CATEGORIES.map((categoria) => ({
+      etichetta: PHOTO_CATEGORY_LABELS[categoria],
+      foto: photos.filter((p) => p.category === categoria),
+    })),
+    { etichetta: 'Senza categoria', foto: photos.filter((p) => p.category === null) },
+  ].filter((g) => g.foto.length > 0);
+  const mancanti: readonly MediaCategory[] = PHOTO_CATEGORIES.filter(
+    (c) => isRequiredCategory(c) && !photos.some((p) => p.category === c),
+  );
   // Sezione silenziosa finché non c'è niente da mostrare: una pratica non ispezionata non deve
   // riempire il pannello di righe vuote.
   if (query.isPending || (photos.length === 0 && inspectionNotes === null)) {
@@ -117,32 +142,53 @@ export function MediaGallery({ appointmentId, inspectionNotes, timeZone }: Media
         <p className="text-sm text-slate-500">Nessuna foto acquisita dal tablet.</p>
       ) : (
         <>
-          <ul className="grid grid-cols-3 gap-2">
-            {photos.map((photo, index) => (
-              <li key={photo.id}>
-                <button
-                  type="button"
-                  onClick={() => setAperta(index)}
-                  className="group relative block aspect-square w-full overflow-hidden rounded-md border border-slate-200 focus:ring-2 focus:ring-slate-900 focus:outline-none"
-                  aria-label={`Ingrandisci la foto ${index + 1} delle ${photos.length}`}
-                >
-                  {/* eslint-disable-next-line @next/next/no-img-element -- file servito dalla rotta media, non ottimizzabile da next/image */}
-                  <img
-                    src={photo.url}
-                    alt=""
-                    className="h-full w-full object-cover transition group-hover:scale-105"
-                  />
-                  <span className="absolute right-1 bottom-1 rounded bg-slate-900/70 px-1 text-[10px] font-semibold text-white">
-                    {sizeLabel(photo.sizeBytes)}
+          {/* Raggruppate per parte del veicolo: chi guarda deve sapere cosa sta vedendo, non
+              scorrere sei miniature quadrate tutte uguali. */}
+          <div className="flex flex-col gap-3">
+            {gruppi.map((gruppo) => (
+              <div key={gruppo.etichetta}>
+                <h4 className="mb-1 flex items-baseline gap-2 text-xs font-bold tracking-wide text-slate-500 uppercase">
+                  {gruppo.etichetta}
+                  <span className="text-[10px] font-normal text-slate-400">
+                    {gruppo.foto.length === 1 ? '1 foto' : `${gruppo.foto.length} foto`}
                   </span>
-                </button>
-              </li>
+                </h4>
+                <ul className="grid grid-cols-3 gap-2">
+                  {gruppo.foto.map((photo) => (
+                    <li key={photo.id}>
+                      <button
+                        type="button"
+                        onClick={() => setAperta(photos.indexOf(photo))}
+                        className="group focus:ring-brand-blue relative block aspect-square w-full overflow-hidden rounded-md border border-slate-200 focus:ring-2 focus:outline-none"
+                        aria-label={`Ingrandisci la foto: ${gruppo.etichetta}`}
+                      >
+                        {/* eslint-disable-next-line @next/next/no-img-element -- file servito dalla rotta media, non ottimizzabile da next/image */}
+                        <img
+                          src={photo.url}
+                          alt=""
+                          className="h-full w-full object-cover transition group-hover:scale-105"
+                        />
+                        <span className="absolute right-1 bottom-1 rounded bg-slate-900/70 px-1 text-[10px] font-semibold text-white">
+                          {sizeLabel(photo.sizeBytes)}
+                        </span>
+                      </button>
+                    </li>
+                  ))}
+                </ul>
+              </div>
             ))}
-          </ul>
+          </div>
           <p className="mt-2 text-xs text-slate-500">
             {photos.length === 1 ? '1 foto acquisita' : `${photos.length} foto acquisite`} dal
             tablet · clicca per ingrandire
           </p>
+          {mancanti.length > 0 ? (
+            <p className="mt-1 text-xs text-amber-700">
+              Riprese obbligatorie non presenti:{' '}
+              {mancanti.map((c) => PHOTO_CATEGORY_LABELS[c]).join(', ')}. Sono pratiche chiuse prima
+              dell&apos;introduzione degli slot fotografici.
+            </p>
+          ) : null}
         </>
       )}
 

@@ -26,6 +26,8 @@ export interface OperatorChipProps {
   /** Evidenzia l'operatore collegato: le sue pratiche si distinguono da quelle dei colleghi. */
   readonly isCurrent?: boolean;
   readonly size?: 'sm' | 'md';
+  /** `light` sui fondi scuri (intestazione blu del marchio): altrimenti il ruolo non si legge. */
+  readonly tone?: 'dark' | 'light';
   readonly className?: string | undefined;
 }
 
@@ -34,9 +36,11 @@ export function OperatorChip({
   role,
   isCurrent = false,
   size = 'sm',
+  tone = 'dark',
   className,
 }: OperatorChipProps) {
   const big = size === 'md';
+  const chiaro = tone === 'light';
   return (
     <span className={cn('inline-flex items-center gap-2', className)}>
       <span
@@ -44,18 +48,28 @@ export function OperatorChip({
         className={cn(
           'inline-flex shrink-0 items-center justify-center rounded-full font-bold',
           big ? 'h-9 w-9 text-sm' : 'h-7 w-7 text-xs',
-          isCurrent ? 'bg-slate-900 text-white' : 'bg-slate-200 text-slate-700',
+          chiaro
+            ? 'text-brand-blue-dark bg-white'
+            : isCurrent
+              ? 'bg-brand-blue text-white'
+              : 'bg-slate-200 text-slate-700',
         )}
       >
         {operatorInitials(displayName)}
       </span>
       <span className="flex flex-col leading-tight">
-        <span className={cn('font-semibold text-slate-900', big ? 'text-sm' : 'text-sm')}>
+        <span className={cn('text-sm font-semibold', chiaro ? 'text-white' : 'text-slate-900')}>
           {displayName}
-          {isCurrent ? <span className="ml-1 font-normal text-slate-500">(tu)</span> : null}
+          {isCurrent ? (
+            <span className={cn('ml-1 font-normal', chiaro ? 'text-white/70' : 'text-slate-500')}>
+              (tu)
+            </span>
+          ) : null}
         </span>
         {role !== undefined ? (
-          <span className="text-xs text-slate-500">{ROLE_LABELS[role]}</span>
+          <span className={cn('text-xs', chiaro ? 'text-white/70' : 'text-slate-500')}>
+            {ROLE_LABELS[role]}
+          </span>
         ) : null}
       </span>
     </span>

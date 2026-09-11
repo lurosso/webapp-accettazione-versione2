@@ -155,7 +155,7 @@ webapp-accettazione-versione2/
     │   ├── providers.tsx              # [M1 fatto] QueryClientProvider (client component)
     │   ├── _server/session.ts         # [M1 fatto] cartella privata: readSession/requireSession/readApiSession, cookie di sessione, correlationIdFrom
     │   ├── error.tsx                  # [BOOTSTRAP] error boundary radice in italiano (digest + "Riprova"); gli ErrorBoundary per modulo arrivano con le milestone
-    │   ├── globals.css                # @import 'tailwindcss'   [BOOTSTRAP]; token colori stati in M0-T07
+    │   ├── globals.css                # @import 'tailwindcss'; token colori stati (M0-T07) e identità Autoclub (M1-T20): --color-brand-* e scala neutra slate ritinta sul blu istituzionale
     │   ├── page.tsx                   # [M1 fatto] redirect: sessione valida → /accettazione, altrimenti → /login (la verifica delle porte è in /sistema)
     │   ├── (auth)/login/page.tsx      # [M1 fatto] login operatore: credenziali, Sportello/Brand (chip marchi), Postazione; account demo cliccabili
     │   ├── (operator)/                # area autenticata: accettazione, manager e admin (segnaposto con permessi), sistema
@@ -206,11 +206,11 @@ webapp-accettazione-versione2/
     │   ├── customer-portal/           # B – [M2 fatti] PlateSearchForm, PublicStatusView, QueuePositionCard, ServiceUnavailableCard, status-messages.ts, plate-input.ts
     │   ├── notifications/             # C – NotificationStatusList, ManualConfirmDialog
     │   ├── bay-displays/              # D – [M4 fatti] BayDisplayBoard (in servizio, libera, scollegato), WaitingBoardScreen (tabellone sala d'attesa) e types.ts
-    │   ├── inspection-media/          # E – [M5 fatti] TabletQueue (due schede, pulsanti grandi), CheckInScreen (scheda a tutto schermo, note danni), PhotoCapture (fotocamera + anteprima in caricamento), MediaGallery (note e foto nel pannello di dettaglio, ingrandimento a tutto schermo); UploadQueue da fare
+    │   ├── inspection-media/          # E – [M5 fatti] TabletQueue (due schede, pulsanti grandi), CheckInScreen (scheda a tutto schermo, note danni, chiusura bloccata senza le 4 foto), PhotoCapture (slot per parte del veicolo, fotocamera + anteprima in caricamento), MediaGallery (note e foto raggruppate per categoria, ingrandimento a tutto schermo); UploadQueue da fare
     │   └── crm/                       # F – [M6 fatti] BdcDashboard (cruscotto del back office) e BdcLeadsTable; CrmOutboxTable e AnomalyLog da fare
     ├── components/
     │   ├── ui/                        # primitive scritte a mano stile shadcn (nessuna dipendenza): Button, Badge, Card, Input, Label, Select, Table, Alert, Dialog
-    │   ├── layout/                    # [M1 fatti] AppShell, Header (identità, ruolo, postazione, orologio Europe/Rome, logout); SystemStatusBanner rinviato; indicatore dati non aggiornati inline in QueueDashboard
+    │   ├── layout/                    # [M1 fatti] AppShell, Header (identità, ruolo, postazione, orologio Europe/Rome, logout), BrandMark (marchio Autoclub Group in CSS, senza file immagine); SystemStatusBanner rinviato; indicatore dati non aggiornati inline in QueueDashboard
     │   └── shared/                    # [fatti] OperatorChip, PlaceholderPage, AccessDenied; ErrorBoundary, EmptyState e OfflineBanner da fare
     ├── hooks/                         # [fatti] useQueue (3 s), useAppointmentActions, usePublicStatus (5 s), useBayDisplay e useWaitingBoard (2 s, scollegato dopo 3 tentativi), useBdcLeads (10 s)
     ├── store/                         # (rinviato) ui-store zustand: oggi vista e sportello vivono nei search param dell'URL (?view=&deskId=)
@@ -478,6 +478,7 @@ Glossario tecnico (termini inglesi ammessi nella prosa perché identificatori o 
 | **013** Scaffold in TypeScript puro verificabile senza `node_modules` | Solo tipi, interfacce, DTO, mapper, mock, repository in-memory, factory/config, `NotificationOrchestrator`, `.gitkeep`; `types: []`, env via cast su `globalThis`; nessun fs/process/React/Next | Shim `declare var process` (collide in M0); create-next-app subito (vietato) | Vincolo 8: type-check con `npx -y -p typescript@5 tsc -p tsconfig.json --noEmit` prima del bootstrap Next.js. **Superato** dal bootstrap Next.js (M0-T06): `types: []` rimosso, `@types/node` installato, `env.ts` legge `process.env`, verifica con `npm run typecheck`; resta il vincolo di non importare mock/adapter fuori dai factory |
 | **014** Feature module in inglese che rispecchiano i moduli A–F, `app/` come tabella di routing | `src/modules/reception`, `customer-portal`, `notifications`, `bay-displays`, `inspection-media`, `crm`; `app/` solo pagine e Route Handler; URL in italiano | Raggruppamento tecnico (`components/`, `hooks/`) che si affolla; cartelle in italiano | Scala a sei moduli; posticipare P4/P5 significa non toccare una cartella |
 | **015** Terminologia a schermo: "Accettazione N" al posto di "campata", dominio invariato | Testi di coda, tabellone, monitor, portale e messaggi d'errore dicono "Accettazione"; `Bay`, `bayId`, `/display/[campata]` e `?campata=` restano; scelta annotata in `domain/glossary.ts` | Rename completo fino al dominio (tocca state machine, API dei monitor, documentazione e dati, senza vantaggi per il cliente); lasciare "campata" a schermo (gergo che il cliente non capisce) | Il cliente legge una parola che conosce, il codice resta quello descritto in analisi e nei documenti |
+| **016** Le quattro riprese del giro veicolo sono un invariante del caso d'uso, non solo una regola della UI | `MediaAsset.category`; `InspectionService.completeCheckIn` rifiuta con `VALIDATION` e l'elenco delle mancanti; il tablet disabilita il pulsante e dice cosa manca | Solo controllo nella UI (una seconda scheda aperta, un tablet vecchio o una chiamata diretta chiuderebbero la pratica a metà); nessun obbligo | Al ritiro, se il cliente contesta un danno, il fascicolo ha sempre le quattro fiancate: è la ragione per cui l'obbligo esiste |
 
 ## 9. Rischi e domande aperte per il committente
 
