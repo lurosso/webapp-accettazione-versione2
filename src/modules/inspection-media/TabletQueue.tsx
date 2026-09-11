@@ -199,7 +199,7 @@ export function TabletQueue({ session, homeDeskId }: TabletQueueProps) {
             setInCheckIn(null);
             setScheda('attesa');
             setConferma(
-              `Check-in della pratica ${codice} completato${foto > 0 ? ` con ${foto} foto` : ''}. La campata è libera.`,
+              `Check-in della pratica ${codice} completato${foto > 0 ? ` con ${foto} foto` : ''}. L'accettazione è libera.`,
             );
           }}
         />

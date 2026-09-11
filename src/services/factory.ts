@@ -21,6 +21,7 @@ import {
   SmsHostingServiceMock,
   SpokiServiceMock,
 } from './mocks';
+import { MediaStorageLocalDisk } from './real';
 
 /** Tipo di implementazione selezionabile via env (definito in interfaces/provider-kinds). */
 export type { ProviderKind } from './interfaces/provider-kinds';
@@ -106,11 +107,17 @@ export function createExternalServices(env: AppEnv, deps: ExternalServiceDeps): 
         )
       : notImplemented('CRM', 'CRM_PROVIDER');
 
-  // Storage media: `memory` → MediaStorageMock; `local` → MediaStorageLocalDisk (M5); `blob` → futuro.
+  // Storage media: `local` → file su disco (default: le foto sopravvivono al riavvio);
+  // `memory` → MediaStorageMock (test e dimostrazioni usa e getta); `blob` → cloud, futuro.
   const mediaStorage: IMediaStorage =
-    env.mediaStorageProvider === 'memory'
-      ? new MediaStorageMock({ latencyMs: env.mockMediaLatencyMs }, { logger: deps.logger })
-      : notImplemented(`storage media "${env.mediaStorageProvider}"`, 'MEDIA_STORAGE_PROVIDER');
+    env.mediaStorageProvider === 'local'
+      ? new MediaStorageLocalDisk(
+          { baseDir: env.mediaStorageDir },
+          { ids: deps.ids, logger: deps.logger },
+        )
+      : env.mediaStorageProvider === 'memory'
+        ? new MediaStorageMock({ latencyMs: env.mockMediaLatencyMs }, { logger: deps.logger })
+        : notImplemented(`storage media "${env.mediaStorageProvider}"`, 'MEDIA_STORAGE_PROVIDER');
 
   return { infinity, spoki, smsHosting, crm, mediaStorage };
 }

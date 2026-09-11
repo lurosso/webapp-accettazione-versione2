@@ -16,7 +16,7 @@ export interface WaitingBoardScreenProps {
 /** Destinazione da annunciare: la campata è il posto fisico, lo sportello è il ripiego. */
 function destinationOf(entry: BoardServingEntry): string {
   if (entry.bayNumber !== null) {
-    return `Campata ${entry.bayNumber}`;
+    return `Accettazione ${entry.bayNumber}`;
   }
   if (entry.deskCode !== null) {
     return `Sportello ${entry.deskCode}`;

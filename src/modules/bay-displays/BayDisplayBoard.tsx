@@ -40,7 +40,7 @@ export function BayDisplayBoard({ bayRef, token }: BayDisplayBoardProps) {
       )}
     >
       <header className="flex w-full items-baseline justify-between text-[2.4vw] font-semibold tracking-[0.2em] uppercase opacity-80">
-        <span>Campata {bayLabel}</span>
+        <span>Accettazione {bayLabel}</span>
         <span>
           {data !== undefined && !offline
             ? localTimeHHmm(new Date(data.serverTime), data.timeZone)
@@ -75,13 +75,13 @@ export function BayDisplayBoard({ bayRef, token }: BayDisplayBoardProps) {
           </>
         ) : (
           <>
-            <p className="text-[11vw] leading-none font-black">CAMPATA LIBERA</p>
+            <p className="text-[11vw] leading-none font-black">ACCETTAZIONE LIBERA</p>
             <p className="mt-[2vh] text-[9vw] leading-none font-black tracking-[0.08em]">
               AVANZARE
             </p>
             {state === 'RELEASING' && data?.display.lastCompletedCode !== null ? (
               <p className="mt-[3vh] text-[2.6vw] font-semibold uppercase opacity-80">
-                Accettazione {data?.display.lastCompletedCode} completata
+                Pratica {data?.display.lastCompletedCode} completata
               </p>
             ) : null}
           </>
@@ -90,7 +90,7 @@ export function BayDisplayBoard({ bayRef, token }: BayDisplayBoardProps) {
 
       <footer className="flex w-full items-baseline justify-between text-[2vw] font-semibold tracking-[0.15em] uppercase opacity-70">
         <span>
-          {state === 'SERVING' ? `In servizio · Campata ${bayLabel}` : 'Accettazione officina'}
+          {state === 'SERVING' ? `In servizio · Accettazione ${bayLabel}` : 'Accettazione officina'}
         </span>
         <span>Autoclub Group</span>
       </footer>

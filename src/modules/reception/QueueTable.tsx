@@ -195,7 +195,7 @@ export function QueueTable({
                       <TableHead className="pt-3">Cliente</TableHead>
                       {showDesk ? <TableHead className="pt-3">Sportello</TableHead> : null}
                       <TableHead className="pt-3">Stato</TableHead>
-                      <TableHead className="pt-3">Campata</TableHead>
+                      <TableHead className="pt-3">Accettazione</TableHead>
                       <TableHead className="pt-3">Operatore</TableHead>
                       <TableHead className="pt-3">Azioni</TableHead>
                     </TableRow>

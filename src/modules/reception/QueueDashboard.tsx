@@ -327,7 +327,7 @@ export function QueueDashboard({
 
       <Dialog
         open={outcome !== null && outcome.kind === 'bay-busy'}
-        title="Campata occupata"
+        title="Accettazione occupata"
         description={outcome?.kind === 'bay-busy' ? outcome.message : undefined}
         onClose={actions.clearOutcome}
         footer={
@@ -339,7 +339,7 @@ export function QueueDashboard({
         {outcome?.kind === 'bay-busy' ? (
           <div className="flex flex-col gap-2">
             <p className="text-sm text-slate-600">
-              Scegli una campata libera oppure procedi senza campata.
+              Scegli un&apos;accettazione libera oppure procedi senza assegnarla.
             </p>
             <div className="flex flex-wrap gap-2">
               {outcome.freeBays.map((bay) => (
@@ -366,7 +366,7 @@ export function QueueDashboard({
                   })
                 }
               >
-                Senza campata
+                Senza accettazione
               </Button>
             </div>
           </div>

@@ -3,6 +3,7 @@
 import type { Appointment } from '@/domain/entities/appointment';
 import type { SyncRun } from '@/domain/entities/sync-run';
 import type { Session } from '@/application/auth/IAuthService';
+import type { BdcLeadsView, BdcLeadView } from '@/domain/read-models';
 import type { BoardStatus, DisplayStatus } from '@/modules/bay-displays/types';
 import type { PublicStatus } from '@/modules/customer-portal/types';
 import type {
@@ -213,6 +214,37 @@ export function postCheckIn(
   return apiFetch(`/api/v1/appointments/${encodeURIComponent(appointmentId)}/check-in`, {
     method: 'POST',
     json: body,
+  });
+}
+
+/** Parametri del cruscotto BDC: giornata da mostrare e se includere i lead già chiusi. */
+export interface BdcLeadsParams {
+  /** Giornata `YYYY-MM-DD`, oppure null per tutte quelle in memoria. */
+  readonly businessDate: string | null;
+  readonly includeHandled: boolean;
+}
+
+/** GET /api/v1/crm/leads: clienti da ricontattare (solo responsabile e amministratore). */
+export function fetchBdcLeads(params: BdcLeadsParams): Promise<
+  BdcLeadsView & {
+    readonly businessDate: string | null;
+  }
+> {
+  const search = new URLSearchParams({ giornata: params.businessDate ?? 'tutte' });
+  if (params.includeHandled) {
+    search.set('gestiti', '1');
+  }
+  return apiFetch(`/api/v1/crm/leads?${search.toString()}`);
+}
+
+/** POST /api/v1/crm/leads/{id}/contacted: chiude il lead dopo la telefonata del BDC. */
+export function postLeadContacted(
+  eventId: string,
+  note: string | null,
+): Promise<{ readonly lead: BdcLeadView }> {
+  return apiFetch(`/api/v1/crm/leads/${encodeURIComponent(eventId)}/contacted`, {
+    method: 'POST',
+    json: { note },
   });
 }
 

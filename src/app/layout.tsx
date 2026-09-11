@@ -9,8 +9,7 @@ export const metadata: Metadata = {
     default: 'Gestione Accettazione e Flussi Officina',
     template: '%s · Accettazione Officina',
   },
-  description:
-    "Web app operatore, portale cliente e display campate per l'accettazione in officina.",
+  description: "Web app operatore, portale cliente e monitor di accettazione per l'officina.",
 };
 
 export default function RootLayout({ children }: { readonly children: ReactNode }) {

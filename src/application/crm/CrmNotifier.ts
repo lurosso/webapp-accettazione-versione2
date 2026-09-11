@@ -158,6 +158,9 @@ export class CrmNotifier {
           crmAckId: null,
           createdAt: now,
           sentAt: null,
+          handledAt: null,
+          handledByOperatorId: null,
+          handledNote: null,
         }));
 
       const risultato = await input.send({ correlationId: input.correlationId });

@@ -5,7 +5,7 @@ import type { DomainError } from '@/domain/errors';
 import { domainError } from '@/domain/errors';
 import type { Result } from '@/domain/result';
 import { err, ok } from '@/domain/result';
-import type { IMediaStorage, MediaPutInput } from '../interfaces/IMediaStorage';
+import type { IMediaStorage, MediaPutInput, StoredMedia } from '../interfaces/IMediaStorage';
 import type { ILogger } from '../interfaces/ILogger';
 import { simulateLatency } from './simulate';
 
@@ -53,6 +53,14 @@ export class MediaStorageMock implements IMediaStorage {
       totaleInMemoria: this.blobs.size,
     });
     return ok({ key: input.key, url: this.getUrl(input.key) });
+  }
+
+  async read(key: string): Promise<Result<StoredMedia, DomainError>> {
+    const blob = this.blobs.get(key);
+    if (blob === undefined) {
+      return err(domainError('NOT_FOUND', `Media non trovato: "${key}".`));
+    }
+    return ok(blob);
   }
 
   getUrl(key: string): string {

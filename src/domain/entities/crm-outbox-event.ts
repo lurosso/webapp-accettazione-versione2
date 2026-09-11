@@ -1,7 +1,7 @@
 // Outbox verso CRM/BDC (modulo F): no-show e anomalie di flusso da consegnare
 // in modo asincrono con retry; MANUAL quando il supervisor segna "inviato al BDC".
 
-import type { AppointmentId, CrmOutboxEventId } from '../ids';
+import type { AppointmentId, CrmOutboxEventId, OperatorId } from '../ids';
 import type { IsoDateTime } from '../value-objects/iso-date';
 
 /** Tipo di evento verso il CRM. */
@@ -16,7 +16,11 @@ export type CrmEventType = 'NO_SHOW' | 'ANOMALY' | 'CHECK_IN';
 export type CrmAnomalyKind =
   'EXCESSIVE_SKIPS' | 'LONG_WAIT' | 'NOTIFICATION_FAILED' | 'MANUAL_APPOINTMENT';
 
-/** Stato di consegna dell'evento. */
+/**
+ * Stato di consegna dell'evento.
+ * `MANUAL` significa "gestito a mano": il BDC ha ricontattato il cliente (o ha inserito l'evento
+ * nel proprio gestionale) e la riga non va più lavorata, comunque sia andata la consegna al CRM.
+ */
 export type CrmOutboxStatus = 'PENDING' | 'SENT' | 'FAILED' | 'MANUAL';
 
 /** Evento in outbox verso il CRM. */
@@ -34,4 +38,9 @@ export interface CrmOutboxEvent {
   readonly crmAckId: string | null;
   readonly createdAt: IsoDateTime;
   readonly sentAt: IsoDateTime | null;
+  /** Quando un operatore del BDC ha dichiarato di aver ricontattato il cliente. */
+  readonly handledAt: IsoDateTime | null;
+  readonly handledByOperatorId: OperatorId | null;
+  /** Nota lasciata dal BDC al momento del ricontatto (esito della telefonata). */
+  readonly handledNote: string | null;
 }

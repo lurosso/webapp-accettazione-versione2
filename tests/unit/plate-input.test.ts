@@ -33,7 +33,7 @@ describe('messaggi di stato del portale', () => {
   it('ogni stato ha titolo e dettaglio; il conteggio si mostra solo in coda', () => {
     expect(statusMessage('WAITING', null).showAheadCount).toBe(true);
     expect(statusMessage('SKIPPED', null).showAheadCount).toBe(true);
-    expect(statusMessage('IN_PROGRESS', 3).detail).toContain('campata 3');
+    expect(statusMessage('IN_PROGRESS', 3).detail).toContain('accettazione 3');
     expect(statusMessage('IN_PROGRESS', null).detail).toContain('corsia');
     expect(statusMessage('COMPLETED', null).tone).toBe('done');
     expect(statusMessage('NO_SHOW', null).tone).toBe('attention');

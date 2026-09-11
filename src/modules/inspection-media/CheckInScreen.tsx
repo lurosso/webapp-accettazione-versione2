@@ -162,7 +162,8 @@ export function CheckInScreen({
             {inChiusura ? 'Conclusione in corso…' : 'Completa check-in'}
           </button>
           <p className="mt-2 text-center text-sm text-slate-500">
-            La pratica viene chiusa, la campata si libera e il cliente successivo può avanzare.
+            La pratica viene chiusa, l&apos;accettazione si libera e il cliente successivo può
+            avanzare.
           </p>
         </div>
       </main>

@@ -2,6 +2,7 @@
 // Nessun nome, telefono o modello: solo codice, stato e posizione.
 
 import type { Appointment, AppointmentStatus } from './entities/appointment';
+import type { CrmEventType, CrmOutboxStatus } from './entities/crm-outbox-event';
 import type { NotificationChannel, NotificationJobStatus } from './entities/notification';
 import type { IsoDateTime } from './value-objects/iso-date';
 import type { QueueCode } from './value-objects/queue-code';
@@ -78,4 +79,41 @@ export interface QueueRowView {
   readonly notificationStatus: NotificationJobStatus | null;
   /** Canale dell'ultimo tentativo: distingue il WhatsApp riuscito dall'SMS di ripiego. */
   readonly notificationChannel: NotificationChannel | null;
+}
+
+/**
+ * Riga del cruscotto BDC (modulo F): un cliente da ricontattare, con quanto serve per telefonargli
+ * senza aprire altre schermate. Nasce dall'evento in coda di uscita verso il CRM e viene arricchita
+ * con i dati della pratica; se la pratica non è più in memoria restano codice, motivo e giornata,
+ * perché un lead a metà è comunque meglio di un lead perso.
+ */
+export interface BdcLeadView {
+  readonly eventId: string;
+  readonly type: CrmEventType;
+  /** Stato dell'evento verso il CRM: MANUAL = già gestito dal BDC. */
+  readonly deliveryStatus: CrmOutboxStatus;
+  readonly appointmentId: string;
+  readonly code: QueueCode | null;
+  readonly businessDate: string | null;
+  readonly scheduledAt: IsoDateTime | null;
+  readonly customerName: string | null;
+  readonly phone: string | null;
+  readonly plate: string | null;
+  readonly vehicle: string | null;
+  readonly deskCode: string | null;
+  /** Motivo scritto dall'accettatore quando ha segnato l'assenza. */
+  readonly reason: string | null;
+  /** Quando l'assenza è stata registrata in officina. */
+  readonly detectedAt: IsoDateTime;
+  readonly handled: boolean;
+  readonly handledAt: IsoDateTime | null;
+  readonly handledByName: string | null;
+  readonly handledNote: string | null;
+}
+
+/** Cruscotto BDC completo: lead aperti, lead già chiusi e conteggi per l'intestazione. */
+export interface BdcLeadsView {
+  readonly leads: readonly BdcLeadView[];
+  readonly openCount: number;
+  readonly handledCount: number;
 }

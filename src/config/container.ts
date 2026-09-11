@@ -3,6 +3,7 @@
 // Memoizzato su globalThis: sopravvive all'HMR di Next e viene condiviso da tutte le richieste.
 import { LocalAuthService } from '@/application/auth/LocalAuthService';
 import type { IAuthService } from '@/application/auth/IAuthService';
+import { BdcLeadService } from '@/application/crm/BdcLeadService';
 import { CrmNotifier } from '@/application/crm/CrmNotifier';
 import { InspectionService } from '@/application/media/InspectionService';
 import { NotificationOrchestrator } from '@/application/notifications/NotificationOrchestrator';
@@ -44,6 +45,7 @@ export interface Container {
   readonly codeGenerator: CodeGenerator;
   readonly queueService: QueueService;
   readonly crmNotifier: CrmNotifier;
+  readonly bdcLeadService: BdcLeadService;
   readonly inspectionService: InspectionService;
   readonly syncService: SyncService;
   readonly syncScheduler: SyncScheduler;
@@ -154,6 +156,15 @@ export function createContainer(overrides: ContainerOverrides = {}): Container {
     logger,
   });
 
+  const bdcLeadService = new BdcLeadService({
+    outbox: repos.crmOutbox,
+    appointments: repos.appointments,
+    referenceData: repos.referenceData,
+    operators: repos.operators,
+    clock,
+    logger,
+  });
+
   const queueService = new QueueService({
     appointments: repos.appointments,
     referenceData: repos.referenceData,
@@ -224,6 +235,7 @@ export function createContainer(overrides: ContainerOverrides = {}): Container {
     codeGenerator,
     queueService,
     crmNotifier,
+    bdcLeadService,
     inspectionService,
     syncService,
     syncScheduler,

@@ -25,7 +25,7 @@ export interface HeaderProps {
 const NAV: readonly { href: string; label: string; area: ProtectedArea }[] = [
   { href: '/accettazione', label: 'Accettazione', area: 'accettazione' },
   { href: '/tablet', label: 'Tablet', area: 'tablet' },
-  { href: '/manager', label: 'Responsabile', area: 'manager' },
+  { href: '/manager', label: 'BDC', area: 'manager' },
   { href: '/admin', label: 'Admin', area: 'admin' },
   { href: '/sistema', label: 'Sistema', area: 'sistema' },
 ];

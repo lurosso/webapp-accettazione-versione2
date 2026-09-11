@@ -50,7 +50,9 @@ export async function GET(request: NextRequest): Promise<NextResponse<DisplayBod
     ''
   ).trim();
   if (bayRef === '') {
-    return badRequestResponse('Indicare la campata (parametro `campata`, es. 1 oppure C1).');
+    return badRequestResponse(
+      'Indicare la postazione di accettazione (parametro `campata`, es. 1 oppure C1).',
+    );
   }
 
   const limit = hitRateLimit(`display-ip:${clientIpFrom(request.headers)}`, PER_IP);
@@ -73,7 +75,7 @@ export async function GET(request: NextRequest): Promise<NextResponse<DisplayBod
     if (token !== null && token.trim() !== '') {
       const bay = await container.repos.referenceData.findBayByCode(result.value.bayCode);
       if (bay === null || bay.displayToken !== token.trim()) {
-        return forbiddenResponse('Token del display non valido per questa campata.');
+        return forbiddenResponse('Token del display non valido per questa accettazione.');
       }
     }
 

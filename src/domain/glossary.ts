@@ -24,7 +24,10 @@ export const GLOSSARY = [
   {
     it: 'campata',
     en: 'Bay',
-    note: '4 campate C1..C4 con display; occupazione derivata dalla pratica IN_PROGRESS',
+    note:
+      '4 campate C1..C4 con display; occupazione derivata dalla pratica IN_PROGRESS. ' +
+      'A schermo si chiama "Accettazione N": "campata" è gergo di officina e al cliente non dice nulla ' +
+      '(richiesta del committente, 2026-09-11). Nel codice e nei dati resta Bay/campata.',
   },
   { it: 'sportello', en: 'Desk', note: 'Filtro Brand/Sportello; distinto dalla postazione' },
   {

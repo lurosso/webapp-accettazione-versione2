@@ -14,6 +14,7 @@ import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { OperatorChip } from '@/components/shared/OperatorChip';
 import { formatDateTimeIt, localTimeHHmm } from '@/lib/dates';
+import { MediaGallery } from '@/modules/inspection-media/MediaGallery';
 import { NotificationBadge } from './NotificationBadge';
 import { StatusBadge } from './StatusBadge';
 
@@ -223,7 +224,7 @@ export function AppointmentDetailPanel({
               <Field label="Sportello">
                 {deskLabel ?? <span className="text-slate-500">Non assegnato</span>}
               </Field>
-              <Field label="Campata">
+              <Field label="Accettazione">
                 {row.bayCode ?? <span className="text-slate-500">Nessuna</span>}
               </Field>
               <Field label="Presa in carico da">
@@ -243,6 +244,9 @@ export function AppointmentDetailPanel({
               </Field>
             </dl>
           </section>
+
+          {/* Ispezione al veicolo: note e foto scattate al tablet, dove servono a chi sta al banco. */}
+          <MediaGallery appointmentId={a.id} inspectionNotes={a.notes} timeZone={timeZone} />
 
           {events.length > 0 ? (
             <section>

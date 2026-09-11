@@ -15,7 +15,12 @@ import type {
   ProviderKind,
   RepositoryProvider,
 } from '@/services/interfaces/provider-kinds';
-import { DEFAULT_CODE_PREFIX, DEFAULT_SYNC_HOUR_LOCAL, TIMEZONE } from './constants';
+import {
+  DEFAULT_CODE_PREFIX,
+  DEFAULT_MEDIA_DIR,
+  DEFAULT_SYNC_HOUR_LOCAL,
+  TIMEZONE,
+} from './constants';
 
 /** Sorgente grezza delle variabili (process.env o un oggetto nei test). */
 export type EnvSource = Readonly<Record<string, string | undefined>>;
@@ -34,6 +39,8 @@ export interface AppEnv {
   readonly crmProvider: ProviderKind;
   readonly repositoryProvider: RepositoryProvider;
   readonly mediaStorageProvider: MediaStorageProvider;
+  /** Cartella dei file quando lo storage media è `local`. */
+  readonly mediaStorageDir: string;
   /**
    * Fuso dell'officina (`APP_TIMEZONE`, zona IANA validata). Volutamente NON letto da `TZ`:
    * nei container Docker `TZ` è spesso UTC e farebbe scivolare giornata operativa e sync.
@@ -219,9 +226,10 @@ export function parseEnv(
       source,
       'MEDIA_STORAGE_PROVIDER',
       MEDIA_PROVIDERS,
-      'memory',
+      'local',
       warn,
     ),
+    mediaStorageDir: pickString(source, 'MEDIA_STORAGE_DIR', DEFAULT_MEDIA_DIR),
     timeZone: pickTimeZone(source, 'APP_TIMEZONE', TIMEZONE, warn),
     syncHourLocal: pickHourLocal(source, 'SYNC_HOUR_LOCAL', DEFAULT_SYNC_HOUR_LOCAL, warn),
     codePrefix: pickString(source, 'CODE_PREFIX', DEFAULT_CODE_PREFIX).toUpperCase(),

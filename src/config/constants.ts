@@ -10,6 +10,13 @@ export const DEFAULT_SYNC_HOUR_LOCAL = '06:00';
 /** Prefisso del codice progressivo F001 (default di `CODE_PREFIX`). */
 export const DEFAULT_CODE_PREFIX = 'F';
 
+/**
+ * Cartella dei file caricati quando lo storage media è `local` (env MEDIA_STORAGE_DIR).
+ * Sta sotto `.data/` come lo snapshot della giornata: è stato locale dell'officina, non codice,
+ * e come tale resta fuori dal repository.
+ */
+export const DEFAULT_MEDIA_DIR = '.data/uploads';
+
 /** Numero di campate d'accettazione con display (usata da M1 per la scelta campata e da M4 per i display). */
 export const BAY_COUNT = 4;
 

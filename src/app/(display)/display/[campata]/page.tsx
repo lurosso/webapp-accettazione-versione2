@@ -13,7 +13,7 @@ interface PageProps {
 
 export async function generateMetadata({ params }: PageProps): Promise<Metadata> {
   const { campata } = await params;
-  return { title: `Campata ${campata}` };
+  return { title: `Accettazione ${campata}` };
 }
 
 export default async function DisplayPage({ params, searchParams }: PageProps) {

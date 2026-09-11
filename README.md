@@ -28,9 +28,9 @@ la mette in coda. Gli accettatori lavorano su una dashboard monopagina con tre a
 
 | Azione                | Stato risultante            | Effetto                                              |
 | --------------------- | --------------------------- | ---------------------------------------------------- |
-| **Prendi in carico**  | In carico (evidenza gialla) | Assegna l'operatore e una campata libera             |
+| **Prendi in carico**  | In carico (evidenza gialla) | Assegna l'operatore e una postazione di accettazione libera |
 | **Salta**             | Saltata                     | Pospone la pratica lasciandola al proprio orario     |
-| **Completato**        | Completata (evidenza verde) | Libera la campata; la pratica esce dalla vista attiva |
+| **Completato**        | Completata (evidenza verde) | Libera l'accettazione; la pratica esce dalla vista attiva |
 
 Chi era atteso da più di dieci minuti e non è ancora stato preso in carico finisce nel blocco
 **In ritardo / assenti**, dove l'accettatore lo rimette in coda quando arriva, oppure lo segnala
@@ -38,13 +38,14 @@ assente perché il BDC lo ricontatti.
 
 Il **portale cliente** completa il quadro: chi entra in officina inquadra il QR code della corsia,
 digita la targa e vede il proprio codice, quanti clienti ha davanti e cosa deve fare, con la pagina
-che si aggiorna da sola mentre l'operatore lavora. Sopra ogni campata un **monitor** mostra il
+che si aggiorna da sola mentre l'operatore lavora. Sopra ogni postazione un **monitor** mostra il
 codice in lavorazione e, appena l'accettatore chiude la pratica, invita il cliente successivo ad
 avanzare. Le **comunicazioni** partono da sole dopo la sincronizzazione dell'agenda, con WhatsApp
 via Spoki e ripiego automatico su SMS. Dal **tablet** l'accettatore fa il giro della vettura,
 scatta le foto, annota i danni e chiude il check-in: note e foto finiscono nel fascicolo della
-pratica e al CRM. Restano da sviluppare il registro degli invii, i video e la galleria delle foto
-nel dettaglio pratica. La priorità di sviluppo è definita in [`CLAUDE.md`](CLAUDE.md); i
+pratica, si rivedono dalla dashboard e arrivano al CRM. Chi non si presenta finisce nel **cruscotto
+BDC**, dove il back office lo richiama e chiude il lead. Restano da sviluppare il registro degli
+invii, i video e la vista tecnica degli eventi CRM. La priorità di sviluppo è definita in [`CLAUDE.md`](CLAUDE.md); i
 requisiti completi sono in [`docs/ANALISI_REQUISITI.md`](docs/ANALISI_REQUISITI.md).
 
 ## Architettura Mock-First
@@ -114,8 +115,8 @@ container **rifiuta di avviarsi** con queste credenziali se un provider è impos
 | `laura.bianchi` | Accettatore    | S2 · Jeep / Alfa Romeo               |
 | `andrea.conti`  | Accettatore    | S3 · Peugeot / Citroën / Opel        |
 
-Al login si scelgono **Sportello / Brand** e **Postazione** (P1–P4, ognuna con una campata
-predefinita): determinano il filtro iniziale della coda e la campata proposta alla presa in carico.
+Al login si scelgono **Sportello / Brand** e **Postazione** (P1–P4, ognuna con un'accettazione
+predefinita): determinano il filtro iniziale della coda e l'accettazione proposta alla presa in carico.
 
 ## Le dashboard
 
@@ -125,35 +126,37 @@ predefinita): determinano il filtro iniziale della coda e la campata proposta al
 | `/accettazione`       | Accettatore    | disponibile    | Coda ordinata per orario con codici F001…, azioni rapide, blocco **In ritardo / assenti**, banner sync, **vista globale** per prendere in carico pratiche di altri sportelli, aggiornamento ogni 3 s; il clic su una riga apre i dati del cliente |
 | `/sistema`            | Responsabile   | disponibile    | Stato delle porte esterne (Infinity, Spoki, SMS Hosting, CRM)                              |
 | `/cliente` (`/qr`)    | Cliente (QR)   | disponibile    | Ricerca per targa e stato del turno in tempo reale: codice, clienti in attesa, messaggio per stato; nessuna autenticazione e nessun dato personale |
-| `/display/sala-attesa` | Sala d'attesa | disponibile    | Tabellone stile ufficio pubblico: codici chiamati con la campata a cui presentarsi e prossimi turni |
+| `/display/sala-attesa` | Sala d'attesa | disponibile    | Tabellone stile ufficio pubblico: codici chiamati con l'accettazione a cui presentarsi e prossimi turni |
+| `/manager`            | BDC / Responsabile | disponibile | Cruscotto del back office: clienti segnati assenti da ricontattare, con telefono richiamabile e chiusura del lead con esito; si aggiorna ogni 10 secondi |
 | `/comunicazioni`      | Responsabile   | pianificato    | Registro degli invii WhatsApp e SMS con conferma manuale (l'invio automatico funziona già) |
-| `/display/1` … `/4`   | Monitor        | disponibile    | Schermo a tutto campo per i monitor sopra le campate: codice e targa in servizio, oppure invito verde ad avanzare; si aggiorna ogni 2 secondi |
+| `/display/1` … `/4`   | Monitor        | disponibile    | Schermo a tutto campo per i monitor sopra le postazioni: codice e targa in servizio, oppure invito verde ad avanzare; si aggiorna ogni 2 secondi |
 | `/tablet`             | Tablet         | disponibile    | Accettazione al veicolo: le pratiche del proprio sportello in due schede grandi, check-in a tutto schermo con fotocamera e note sui danni rilevati |
 
 API principali (JSON, autenticate via cookie di sessione): `GET /api/v1/queue`,
 `POST /api/v1/appointments/{id}/actions`, `POST /api/v1/appointments/{id}/media` (foto, multipart),
-`POST /api/v1/appointments/{id}/check-in`, `POST /api/v1/sync`, `POST /api/v1/auth/login`.
+`POST /api/v1/appointments/{id}/check-in`, `POST /api/v1/sync`, `POST /api/v1/auth/login`,
+`GET /api/v1/crm/leads` e `POST /api/v1/crm/leads/{id}/contacted` (responsabile e amministratore).
 Pubbliche, senza sessione: `GET /api/v1/public/status?targa=AB123CD` (stato del turno, protetta da
 limiti di frequenza) e `GET /api/v1/health`.
 
 ### Provare il tabellone della sala d'attesa
 
 Il monitor grande della sala è su <http://localhost:3000/display/sala-attesa>, impostato come i
-tabelloni degli uffici pubblici: in alto i codici chiamati con la campata a cui presentarsi (la
+tabelloni degli uffici pubblici: in alto i codici chiamati con l'accettazione a cui presentarsi (la
 chiamata più recente in verde), in basso i prossimi turni. Con `?prossimi=6` si cambia quanti
 turni elencare. Mostra solo codici, senza targhe né nomi, perché lo schermo è visibile a tutte le
 persone presenti.
 
-### Provare i monitor delle campate
+### Provare i monitor delle accettazioni
 
-Ogni campata ha il suo schermo: <http://localhost:3000/display/1> (fino a `/display/4`; vale anche
+Ogni postazione di accettazione ha il suo schermo: <http://localhost:3000/display/1> (fino a `/display/4`; vale anche
 il codice, `/display/C1`). La pagina è pensata per un televisore in kiosk a tutto schermo e si
-aggiorna ogni 2 secondi. Prendendo in carico una pratica dalla dashboard, il monitor della campata
+aggiorna ogni 2 secondi. Prendendo in carico una pratica dalla dashboard, il monitor dell'accettazione
 assegnata mostra codice e targa su sfondo scuro; premendo **Completato** diventa verde con
-"CAMPATA LIBERA / AVANZARE". Se il server smette di rispondere lo schermo lo dichiara, invece di
+"ACCETTAZIONE LIBERA / AVANZARE". Se il server smette di rispondere lo schermo lo dichiara, invece di
 lasciare a video un codice non più valido.
 
-Ogni campata ha un token nel seed (`display-demo-token-c1`…). Passandolo come `?token=` viene
+Ogni accettazione ha un token nel seed (`display-demo-token-c1`…). Passandolo come `?token=` viene
 verificato e un token errato riceve 403; senza token l'accesso resta consentito, perché i monitor
 sono su rete interna. L'obbligatorietà è prevista con l'hardening.
 
@@ -166,17 +169,33 @@ pulsanti grandi da usare in piedi accanto alla vettura.
 1. **Inizia check-in** prende in carico la pratica e apre a tutto schermo la scheda di ispezione.
 2. **Scatta foto** apre la fotocamera posteriore del tablet (su un computer si sceglie un file).
    L'anteprima compare subito con la rotella di attesa e resta nella griglia a caricamento
-   concluso; il file finisce dietro `IMediaStorage` (oggi in memoria) e si rilegge da
-   `GET /api/v1/media/<chiave>` con la sessione attiva.
+   concluso; il file finisce dietro `IMediaStorage`, cioè in
+   `.data/uploads/<giornata>/<codice>/<id>.<estensione>`, e si rilegge da
+   `GET /api/v1/media/<chiave>` con la sessione attiva. Le foto restano lì anche dopo un riavvio.
 3. In **Note veicolo / danni rilevati** si annota quanto visto durante il giro dell'auto.
-4. **Completa check-in** chiude la pratica, libera la campata e invia al CRM note e indirizzi delle
-   foto. Nel terminale del server compaiono le righe `[MOCK][Media] foto salvata: ...` e
+4. **Completa check-in** chiude la pratica, libera l'accettazione e invia al CRM note e indirizzi delle
+   foto. Nel terminale del server compaiono le righe `[Media] file salvato: ...` e
    `[MOCK][Crm] notifyCheckIn {...}`; allo stesso modo, segnando un cliente assente dalla
    dashboard, compare `[MOCK][Crm] notifyNoShow {...}`.
+5. Nella dashboard di accettazione, il clic sulla pratica apre il pannello con la sezione
+   **Ispezione al veicolo**: le note e le foto scattate, ingrandibili con un clic.
 
 Il CRM non può bloccare l'officina: se non risponde (`MOCK_CRM_MODE=error`) l'accettazione si
 chiude lo stesso e l'evento resta nella coda di uscita, pronto per il rinvio. Con
-`MOCK_MEDIA_LATENCY_MS` si regola quanto dura il finto caricamento della foto (default 1200 ms).
+`MEDIA_STORAGE_DIR` si sposta la cartella dei file; con `MEDIA_STORAGE_PROVIDER=memory` si torna
+allo storage in memoria delle prime demo (e `MOCK_MEDIA_LATENCY_MS` ne regola l'attesa simulata).
+
+### Provare il cruscotto BDC
+
+Serve un account con ruolo responsabile: `responsabile` / `demo`. Dalla dashboard di accettazione
+segna assente un cliente del blocco **In ritardo / assenti**, poi apri
+<http://localhost:3000/manager>: la riga compare subito nel cruscotto con nome, numero richiamabile
+con un tocco, targa, veicolo, motivo e ora dell'assenza. **Segna come ricontattato** chiude il lead
+(con **Con esito** si aggiunge una nota, per esempio "richiama lunedì"), e la spunta *Mostra anche i
+già ricontattati* fa rivedere chi l'ha chiuso e quando.
+
+La chiusura del lead è indipendente dal CRM: con `MOCK_CRM_MODE=error` la riga dice "CRM non
+raggiungibile", ma il BDC può comunque telefonare e chiudere: l'evento resta in coda per il rinvio.
 
 ### Provare il portale cliente
 

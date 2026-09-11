@@ -38,7 +38,7 @@ export function statusMessage(status: AppointmentStatus, bayNumber: number | nul
         detail:
           bayNumber === null
             ? "Procedi in corsia: l'accettatore ti sta aspettando."
-            : `Procedi alla campata ${bayNumber}: l'accettatore ti sta aspettando.`,
+            : `Procedi all'accettazione ${bayNumber}: l'accettatore ti sta aspettando.`,
         tone: 'serving',
         showAheadCount: false,
       };

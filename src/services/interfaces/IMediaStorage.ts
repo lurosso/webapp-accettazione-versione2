@@ -10,12 +10,20 @@ export interface MediaPutInput {
   readonly mimeType: string;
 }
 
+/** Byte e tipo di un media salvato: quanto basta alla rotta di lettura per servirlo. */
+export interface StoredMedia {
+  readonly bytes: Uint8Array;
+  readonly mimeType: string;
+}
+
 /** Storage dei binari; i metadati vivono in IMediaRepository. */
 export interface IMediaStorage {
   /** Salva i byte e restituisce chiave e URL di lettura. */
   put(
     input: MediaPutInput,
   ): Promise<Result<{ readonly key: string; readonly url: string }, DomainError>>;
+  /** Rilegge i byte salvati; NOT_FOUND se la chiave non esiste. */
+  read(key: string): Promise<Result<StoredMedia, DomainError>>;
   /** URL pubblico (autenticato) di lettura della chiave. */
   getUrl(key: string): string;
   /** Elimina il binario. */

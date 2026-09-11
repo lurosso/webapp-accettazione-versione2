@@ -172,7 +172,7 @@ export class QueueService {
       bays.find((b) => String(b.number) === wanted);
     if (bay === undefined) {
       return err(
-        domainError('NOT_FOUND', `Campata sconosciuta: "${bayRef}".`, {
+        domainError('NOT_FOUND', `Accettazione sconosciuta: "${bayRef}".`, {
           bayRef,
           campateAttive: bays.filter((b) => b.isActive).map((b) => b.code),
         }),
@@ -522,14 +522,14 @@ export class QueueService {
       const slot = occupancy.find((o) => o.bay.id === requested);
       if (slot === undefined) {
         return err(
-          domainError('VALIDATION', 'Campata sconosciuta o non attiva.', { bayId: requested }),
+          domainError('VALIDATION', 'Accettazione sconosciuta o non attiva.', { bayId: requested }),
         );
       }
       if (slot.appointment !== null && slot.appointment.id !== a.id) {
         return err(
           domainError(
             'BAY_BUSY',
-            `La campata ${slot.bay.code} è occupata dalla pratica ${slot.appointment.code}.`,
+            `L'accettazione ${slot.bay.code} è occupata dalla pratica ${slot.appointment.code}.`,
             {
               bayId: requested,
               occupiedBy: slot.appointment.code,

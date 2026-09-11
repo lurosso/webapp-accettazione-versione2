@@ -86,7 +86,7 @@ export function buildSeedData(): SeedData {
     id: asBayId(`bay-c${n}`),
     code: `C${n}`,
     number: n,
-    name: `Campata ${n}`,
+    name: `Accettazione ${n}`,
     // Token demo prevedibile: in produzione va generato e conservato fuori dal repo.
     displayToken: `${DEMO_DISPLAY_TOKEN_PREFIX}token-c${n}`,
     isActive: true,

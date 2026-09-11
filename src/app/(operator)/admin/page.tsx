@@ -22,7 +22,7 @@ export default async function AdminPage() {
       intro="Configurazione del sistema e strumenti di manutenzione. In lavorazione: la rotta è già
         attiva, così la navigazione e i permessi si possono provare fin d'ora."
       planned={[
-        { label: 'Anagrafiche: marchi, sportelli, postazioni, campate', milestone: 'M6' },
+        { label: 'Anagrafiche: marchi, sportelli, postazioni, accettazioni', milestone: 'M6' },
         { label: 'Operatori e ruoli, reimpostazione delle password', milestone: 'M6' },
         { label: 'Interruttori dei mock e sincronizzazione manuale', milestone: 'M1-T15' },
         { label: 'Coda degli eventi verso il CRM e loro rinvio', milestone: 'M6' },
@@ -31,7 +31,7 @@ export default async function AdminPage() {
       shortcuts={[
         { href: '/sistema', label: 'Stato dei sistemi esterni' },
         { href: '/accettazione', label: 'Vai alla coda di accettazione' },
-        { href: '/display/1', label: 'Anteprima monitor campata 1' },
+        { href: '/display/1', label: 'Anteprima monitor accettazione 1' },
       ]}
     />
   );
