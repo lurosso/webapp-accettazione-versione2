@@ -127,7 +127,9 @@ export function buildSeedData(): SeedData {
     {
       id: asOperatorId('op-admin'),
       username: 'admin',
-      displayName: 'Amministratore',
+      // Nome proprio anche per l'amministratore: nell'intestazione si legge chi è collegato,
+      // il ruolo è un'informazione a parte.
+      displayName: 'Luca Moretti',
       role: 'ADMIN',
       deskIds: desks.map((d) => d.id),
       defaultWorkstationId: null,

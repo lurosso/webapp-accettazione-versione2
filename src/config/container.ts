@@ -58,6 +58,12 @@ export interface ContainerOverrides {
 
 const GLOBAL_KEY = '__accettazioneContainer';
 
+/**
+ * Flag condiviso con `instrumentation.ts`: dice se lo scheduler della sync è già stato avviato in
+ * questo processo. Serve a non lasciare due timer attivi quando il container viene ricostruito.
+ */
+export const SCHEDULER_STARTED_KEY = '__accettazioneSchedulerStarted';
+
 /** Rifiuta credenziali demo (password "plain:", token display prevedibili) fuori dalla modalità mock. */
 function assertNoDemoCredentialsOutsideMock(env: AppEnv, seed: SeedData, logger: ILogger): void {
   const anyReal =
@@ -196,12 +202,33 @@ export function createContainer(overrides: ContainerOverrides = {}): Container {
   };
 }
 
-/** Container condiviso del processo (creato alla prima richiesta o da `instrumentation.ts`). */
+/**
+ * Container condiviso del processo (creato alla prima richiesta o da `instrumentation.ts`).
+ *
+ * In sviluppo l'HMR ricarica i moduli ma il container resta memoizzato su `globalThis`: senza
+ * il controllo `instanceof` qui sotto si continuerebbe a usare il cablaggio vecchio, e un metodo
+ * appena aggiunto a un caso d'uso risulterebbe inesistente a runtime (errore molto difficile da
+ * leggere, perché compilazione e test sono verdi). Se le classi sono state ricaricate il container
+ * viene ricostruito; lo stato della coda non si perde, perché vive nell'`InMemoryStore`, che è
+ * riconosciuto per struttura e non per identità di classe.
+ * In produzione l'identità delle classi è stabile, quindi la ricostruzione non avviene mai.
+ */
 export function getContainer(): Container {
   const g = globalThis as unknown as Record<string, unknown>;
   const existing = g[GLOBAL_KEY];
   if (isContainer(existing)) {
-    return existing;
+    if (existing.queueService instanceof QueueService) {
+      return existing;
+    }
+    // Codice ricaricato: si sostituisce il cablaggio e si sposta il timer sul nuovo scheduler.
+    existing.syncScheduler.stop();
+    const rebuilt = createContainer();
+    g[GLOBAL_KEY] = rebuilt;
+    if (g[SCHEDULER_STARTED_KEY] === true) {
+      rebuilt.syncScheduler.start();
+    }
+    rebuilt.logger.info('[Container] ricostruito dopo una ricompilazione (solo sviluppo)');
+    return rebuilt;
   }
   const created = createContainer();
   g[GLOBAL_KEY] = created;

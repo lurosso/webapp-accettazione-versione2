@@ -8,14 +8,7 @@ import type { Desk } from '@/domain/entities/desk';
 import type { QueueRowView } from '@/domain/read-models';
 import { compareByScheduleThenSequence } from '@/domain/value-objects/queue-code';
 import { Button } from '@/components/ui/button';
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from '@/components/ui/table';
+import { Table, TableBody, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { AppointmentRow } from './AppointmentRow';
 import type { AppointmentAction } from './types';
 
@@ -28,11 +21,13 @@ export interface QueueTableProps {
   readonly showDesk: boolean;
   readonly timeZone: string;
   readonly pendingId: string | null;
+  readonly currentOperatorName: string;
   readonly onAction: (
     appointmentId: string,
     action: AppointmentAction,
     expectedVersion: number,
   ) => void;
+  readonly onSelect: (row: QueueRowView) => void;
 }
 
 interface Section {
@@ -59,7 +54,9 @@ export function QueueTable({
   showDesk,
   timeZone,
   pendingId,
+  currentOperatorName,
   onAction,
+  onSelect,
 }: QueueTableProps) {
   const [closedOpen, setClosedOpen] = useState(false);
 
@@ -148,15 +145,20 @@ export function QueueTable({
                           foreignDesk={foreignDesk}
                           timeZone={timeZone}
                           pending={pendingId === row.appointment.id}
+                          currentOperatorName={currentOperatorName}
                           onAction={(action) =>
                             onAction(row.appointment.id, action, row.appointment.version)
                           }
+                          onSelect={() => onSelect(row)}
                         />
                       );
                     })}
                   </TableBody>
                 </Table>
-                {section.rows.length > 0 ? <TableCaption count={section.rows.length} /> : null}
+                <p className="px-3 py-2 text-xs text-slate-400">
+                  {section.rows.length} {section.rows.length === 1 ? 'pratica' : 'pratiche'} ·
+                  clicca una riga per i dettagli del cliente
+                </p>
               </div>
             )}
           </section>
@@ -165,14 +167,3 @@ export function QueueTable({
     </div>
   );
 }
-
-function TableCaption({ count }: { readonly count: number }) {
-  return (
-    <p className="px-3 py-2 text-xs text-slate-400">
-      {count} {count === 1 ? 'pratica' : 'pratiche'}
-    </p>
-  );
-}
-
-// Riesportazione per i test della cella vuota (evita import inutilizzati nei consumer).
-export { TableCell };

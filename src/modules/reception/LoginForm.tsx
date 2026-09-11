@@ -6,6 +6,7 @@ import { useRouter } from 'next/navigation';
 import { useMemo, useState, type FormEvent } from 'react';
 import type { OperatorRole } from '@/domain/entities/operator';
 import { Badge } from '@/components/ui/badge';
+import { ROLE_LABELS } from '@/components/shared/OperatorChip';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
@@ -39,12 +40,6 @@ export interface LoginFormProps {
   readonly nextPath: string;
   readonly demoAccounts: readonly DemoAccount[];
 }
-
-const ROLE_LABELS: Record<OperatorRole, string> = {
-  ADVISOR: 'Accettatore',
-  SUPERVISOR: 'Responsabile',
-  ADMIN: 'Amministratore',
-};
 
 export function LoginForm({ desks, workstations, nextPath, demoAccounts }: LoginFormProps) {
   const router = useRouter();

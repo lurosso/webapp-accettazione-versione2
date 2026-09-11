@@ -3,6 +3,7 @@
 import type { Appointment } from '@/domain/entities/appointment';
 import type { SyncRun } from '@/domain/entities/sync-run';
 import type { Session } from '@/application/auth/IAuthService';
+import type { DisplayStatus } from '@/modules/bay-displays/types';
 import type { PublicStatus } from '@/modules/customer-portal/types';
 import type {
   AppointmentActionRequest,
@@ -130,6 +131,20 @@ export function postSync(): Promise<{ readonly run: SyncRun }> {
 export function fetchPublicStatus(targa: string): Promise<PublicStatus> {
   const search = new URLSearchParams({ targa });
   return apiFetch<PublicStatus>(`/api/v1/public/status?${search.toString()}`, {
+    publicEndpoint: true,
+  });
+}
+
+/**
+ * GET /api/v1/public/display: stato del monitor di una campata (kiosk senza sessione).
+ * `bayRef` accetta il numero ("1") o il codice ("C1"); `token` è opzionale.
+ */
+export function fetchDisplayStatus(bayRef: string, token?: string | null): Promise<DisplayStatus> {
+  const search = new URLSearchParams({ campata: bayRef });
+  if (token !== undefined && token !== null && token !== '') {
+    search.set('token', token);
+  }
+  return apiFetch<DisplayStatus>(`/api/v1/public/display?${search.toString()}`, {
     publicEndpoint: true,
   });
 }

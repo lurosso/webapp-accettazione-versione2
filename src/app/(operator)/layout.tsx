@@ -8,7 +8,9 @@ import { getContainer } from '@/config/container';
 export const dynamic = 'force-dynamic';
 
 export default async function OperatorLayout({ children }: { readonly children: ReactNode }) {
-  const session = await requireSession('/accettazione');
+  // Rete di sicurezza dietro al proxy (che ha già il percorso richiesto): qui basta la radice,
+  // che dopo il login smista ogni ruolo nella propria area.
+  const session = await requireSession('/');
   const container = getContainer();
   const workstation = await container.repos.referenceData.findWorkstationById(
     session.workstationId,

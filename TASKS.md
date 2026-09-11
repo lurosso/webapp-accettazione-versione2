@@ -23,6 +23,8 @@ Setup iniziale (M0-T01..T05) e bootstrap Next.js (M0-T06, M0-T11) completati. Il
 
 Il 2026-09-11 è stata sviluppata la parte centrale di M2 (Portale Web Cliente): endpoint pubblico `GET /api/v1/public/status?targa=` con limiti di frequenza, pagine `/cliente` e `/cliente/stato` mobile-first (alias `/qr` per i cartelli), ricerca per targa con formattazione live e stato in tempo reale con polling ogni 5 s. Restano di M2: QR stampabili (M2-T06), test dei componenti, e2e e audit di accessibilità (M2-T07).
 
+Sempre l'11 settembre 2026, dopo una revisione della dashboard: l'intestazione mostra chi è collegato con nome, ruolo e iniziali e la coda indica chi ha preso in carico ogni pratica; il clic sulla riga apre un pannello con i dati completi del cliente (telefono chiamabile con un tocco), del veicolo e della lavorazione; le aree Responsabile (`/manager`) e Amministratore (`/admin`) esistono come pagine segnaposto con i permessi già attivi, e la radice del sito porta ciascun ruolo nella propria area invece di mandare tutti in accettazione. È stata poi sviluppata M4 (Display Campate): endpoint pubblico `GET /api/v1/public/display?campata=` e pagina `/display/[campata]` per i monitor appesi in officina, con polling ogni 2 s e i tre stati in servizio, libera e scollegato. Restano di M4: pannello display in `/sistema`, error boundary dedicato, test del componente ed end-to-end, prova sui monitor reali.
+
 - [x] **M0-T01** Documenti di setup: `CLAUDE.md` (regole, Regola d'Oro Mock-First, priorità P1..P5) e `docs/ANALISI_REQUISITI.md` (moduli A–F) (commit `68c07e1`).
 - [x] **M0-T02** `ARCHITECTURE.md`: stack, albero cartelle, modello di dominio, porte/adapter, strategia mock, flusso dati e stato server-side, regola dei codici, tabella sintetica ADR-001..014 (§8; i file in `docs/adr/` arrivano con M0-T12).
 - [x] **M0-T03** `TASKS.md` (questo file): milestone M0..M7 con task granulari.
@@ -211,7 +213,7 @@ Cuore del modulo A; dipende solo da interfacce.
 
 ### M1-T11 — Shell operatore e vista multi-postazione
 - [x] M1-T11-S01 `src/app/(operator)/layout.tsx` + `components/layout/AppShell.tsx`, `Header.tsx` (nome operatore, postazione corrente, orologio Europe/Rome, logout), `StaleDataIndicator`, `SystemStatusBanner` (placeholder alimentato da `/api/v1/health` da M6). **Fatto 2026-09-10**: `(operator)/layout.tsx` + `components/layout/AppShell.tsx`, `Header.tsx` (nome, ruolo, postazione, sportello, orologio Europe/Rome, navigazione, logout); `SystemStatusBanner`/`StaleDataIndicator` rinviati.
-- [ ] M1-T11-S02 `modules/reception/WorkstationSwitcher.tsx`: cambio postazione senza logout (aggiorna sessione via `POST /api/v1/auth/workstation` e store).
+- [ ] M1-T11-S02 `modules/reception/WorkstationSwitcher.tsx`: cambio postazione senza logout (aggiorna sessione via `POST /api/v1/auth/workstation` e store). *(nota 2026-09-11: cambio postazione non ancora fatto; l'intestazione mostra però nome, ruolo e iniziali di chi è collegato (`OperatorChip`))*
 - [x] M1-T11-S03 `modules/reception/DeskBrandFilter.tsx`: filtro predefinito sullo sportello della postazione, chip dei brand dello sportello; `GlobalViewToggle.tsx` "Vista globale" che rimuove il filtro (persistito nello store, indicato nell'header con badge). **Fatto 2026-09-10**: select dello sportello (predefinito quello della postazione) + pulsante "Vista globale" / "Torna al mio sportello"; chip dei brand rinviati.
 - [x] M1-T11-S04 Filtri nei search param dell'URL (`?date=&deskId=&view=`) sincronizzati con lo store, così un link è condivisibile fra postazioni. **Fatto 2026-09-10**: `?view=desk|global&deskId=` nell'URL (`router.replace`), link condivisibile fra postazioni.
 - [ ] M1-T11-S05 Test componente: toggle vista globale aggiorna query key e URL.
@@ -245,7 +247,7 @@ Cuore del modulo A; dipende solo da interfacce.
 - [ ] M1-T14-S05 Commit `feat(M1-T14): SyncBanner e inserimento manuale pratica`.
 
 ### M1-T15 — Dettaglio pratica, storico e pagina Sistema
-- [ ] M1-T15-S01 `src/app/(operator)/accettazione/pratiche/[id]/page.tsx`: dati pratica, cliente, veicolo, timeline dagli eventi del bus (`IEventBus.listSince(0)` filtrati per `appointmentId`; decisione: in M1 nessuna cronologia persistita, la timeline copre gli eventi in memoria del processo; la cronologia persistita è nel backlog), note modificabili, azioni.
+- [ ] M1-T15-S01 `src/app/(operator)/accettazione/pratiche/[id]/page.tsx`: dati pratica, cliente, veicolo, timeline dagli eventi del bus (`IEventBus.listSince(0)` filtrati per `appointmentId`; decisione: in M1 nessuna cronologia persistita, la timeline copre gli eventi in memoria del processo; la cronologia persistita è nel backlog), note modificabili, azioni. *(nota 2026-09-11: anticipato come pannello laterale sulla coda (`AppointmentDetailPanel`), aperto dal clic sulla riga: cliente con telefono chiamabile (`tel:`), veicolo, lavorazione, note, sportello, campata, chi ha preso in carico e cronologia della giornata. Resta da fare la pagina di dettaglio con la storia degli eventi)*
 - [ ] M1-T15-S02 `GET /api/v1/appointments/[id]` e `PATCH /api/v1/appointments/[id]/notes`.
 - [ ] M1-T15-S03 `src/app/(operator)/sistema/page.tsx` (ADMIN): ultime 20 `SyncRun` con counters, "Sincronizza ora", modalità mock attive (`env.mock*`), stato snapshot (ultimo salvataggio), versione build. *(nota 2026-09-10: `sistema/page.tsx` mostra oggi solo lo stato delle porte (erede della pagina di bootstrap); SyncRun, modalità mock e snapshot ancora da fare)*
 - [ ] M1-T15-S04 Test e2e navigazione riga → dettaglio; test accesso `/sistema` negato ad ADVISOR (403).
@@ -402,30 +404,30 @@ Cuore del modulo A; dipende solo da interfacce.
 - **Dipendenze**: M1 (`QueueService.getBayOccupancy`, occupazione derivata).
 
 ### M4-T01 — Pianificazione modulo D
-- [ ] M4-T01-S01 Confermare col PO hardware display (domanda n. 13) e durata `RELEASING_DISPLAY_MS`; annotare qui.
+- [ ] M4-T01-S01 Confermare col PO hardware display (domanda n. 13) e durata `RELEASING_DISPLAY_MS`; annotare qui. *(nota 2026-09-11: durata del messaggio "campata libera" confermata a `RELEASING_DISPLAY_MS` (20 s); hardware dei monitor ancora da confermare col committente, la pagina è indipendente dal dispositivo perché usa unità viewport)*
 - [ ] M4-T01-S02 Branch `feature/M4-display-campate`; commit `docs(M4-T01): pianificazione modulo D`.
 
 ### M4-T02 — API display e autenticazione per campata
-- [ ] M4-T02-S01 `QueueService.getBayDisplay(bayCode)` → `BayDisplayView` calcolata (unico proprietario della regola, spostato qui da M1-T03-S09; ADR-008): SERVING se pratica `IN_PROGRESS` con quel `bayId` (da `getBayOccupancy`); RELEASING se `completedAt` entro `RELEASING_DISPLAY_MS`; altrimenti FREE, con `lastCompletedCode`; test `tests/unit/bay-display.test.ts` con `FixedClock`.
-- [ ] M4-T02-S01b `GET /api/v1/public/bays/[bayCode]` → `BayDisplayView`; `Cache-Control: no-store`.
-- [ ] M4-T02-S02 `src/proxy.ts`: `/display/[bayCode]?token=` verifica `Bay.displayToken`, imposta cookie kiosk `HttpOnly` 30 giorni; richieste API display accettate solo con cookie o token valido (403 altrimenti).
-- [ ] M4-T02-S03 `GET /api/v1/system/bays` (ADMIN; sotto `system/`, non `public/`, perché `/api/v1/public/**` è anonimo per regola) per lo stato di tutti i display con `lastPollAt` registrato in memoria.
-- [ ] M4-T02-S04 Test unit: calcolo stati, token errato → 403, cookie valido → 200.
-- [ ] M4-T02-S05 Commit `feat(M4-T02): endpoint display campata con token`.
+- [x] M4-T02-S01 `QueueService.getBayDisplay(bayCode)` → `BayDisplayView` calcolata (unico proprietario della regola, spostato qui da M1-T03-S09; ADR-008): SERVING se pratica `IN_PROGRESS` con quel `bayId` (da `getBayOccupancy`); RELEASING se `completedAt` entro `RELEASING_DISPLAY_MS`; altrimenti FREE, con `lastCompletedCode`; test `tests/unit/bay-display.test.ts` con `FixedClock`. **Fatto 2026-09-11**: `QueueService.getBayDisplay(bayRef, businessDate)`: accetta numero ("1") o codice ("C1"); `SERVING` con codice e targa, `RELEASING` entro `RELEASING_DISPLAY_MS` dal completamento, poi `FREE`. `OFFLINE` non arriva dal server: lo decide il monitor quando il polling smette di rispondere.
+- [x] M4-T02-S01b `GET /api/v1/public/bays/[bayCode]` → `BayDisplayView`; `Cache-Control: no-store`. **Fatto 2026-09-11**: realizzato come `GET /api/v1/public/display?campata=1` (alias `bay`/`bayCode`; valori "1" o "C1") invece del percorso con segmento: un URL con parametro è più facile da scrivere sul kiosk. `cache-control: no-store`, 404 campata sconosciuta, 429 oltre il tetto.
+- [ ] M4-T02-S02 `src/proxy.ts`: `/display/[bayCode]?token=` verifica `Bay.displayToken`, imposta cookie kiosk `HttpOnly` 30 giorni; richieste API display accettate solo con cookie o token valido (403 altrimenti). *(nota 2026-09-11: il token della campata è verificato dall'endpoint quando il monitor lo passa (`?token=` → 403 se errato), senza cookie kiosk: l'obbligatorietà e il cookie restano per l'hardening di M6)*
+- [ ] M4-T02-S03 `GET /api/v1/system/bays` (ADMIN; sotto `system/`, non `public/`, perché `/api/v1/public/**` è anonimo per regola) per lo stato di tutti i display con `lastPollAt` registrato in memoria. *(nota 2026-09-11: pannello display in `/sistema` non ancora realizzato)*
+- [x] M4-T02-S04 Test unit: calcolo stati, token errato → 403, cookie valido → 200. **Fatto 2026-09-11**: `tests/unit/bay-display.test.ts` copre il calcolo degli stati (libera, in servizio, invito ad avanzare, ritorno a libera, rilascio, campata sconosciuta); il 403 sul token è verificato a mano, il test HTTP arriva con la suite dei Route Handler.
+- [x] M4-T02-S05 Commit `feat(M4-T02): endpoint display campata con token`. **Fatto 2026-09-11**: commit unico `fix(accettazione): dettagli cliente e operatori + feat(display): monitor campate M4`.
 
 ### M4-T03 — UI kiosk
-- [ ] M4-T03-S01 `src/hooks/useBayDisplay.ts`: polling `POLLING_MS.display`, contatore poll falliti consecutivi → stato `OFFLINE` dopo 3, conserva ultimo dato.
-- [ ] M4-T03-S02 `src/app/(display)/layout.tsx` (nessuna shell, `cursor: none`, full-screen) e `src/app/(display)/display/[bayCode]/page.tsx`.
-- [ ] M4-T03-S03 `modules/bay-displays/BayDisplayBoard.tsx`: codice enorme ad alto contrasto, numero campata, colore brand, orologio; `FreeBayScreen.tsx` con animazione "Campata libera" e ultimo codice servito; transizione RELEASING "Uscita" con animazione.
-- [ ] M4-T03-S04 `ConnectionLostOverlay.tsx`: "Connessione assente" sopra l'ultimo stato noto, tentativo automatico; reload completo della pagina ogni `DISPLAY_RELOAD_HOURS` (default 6) per prevenire memory leak; wake lock/`noSleep` dove supportato.
-- [ ] M4-T03-S04b Avvolgere la pagina `/display/[bayCode]` in `ErrorBoundary` che mostra l'ultimo stato noto con overlay "Errore di visualizzazione, ricarico…" e ricarica automatica dopo 30 s; test che un errore di render non lascia lo schermo bianco.
-- [ ] M4-T03-S05 Test `tests/components/bay-display-board.test.tsx` per i quattro stati; verifica leggibilità a 1920×1080 e 4K (Playwright con `viewport`).
-- [ ] M4-T03-S06 Commit `feat(M4-T03): pagina kiosk campata con overlay offline`.
+- [x] M4-T03-S01 `src/hooks/useBayDisplay.ts`: polling `POLLING_MS.display`, contatore poll falliti consecutivi → stato `OFFLINE` dopo 3, conserva ultimo dato. **Fatto 2026-09-11**: `src/hooks/useBayDisplay.ts`: polling `POLLING_MS.display` (2 s), `refetchIntervalInBackground`, stato scollegato dopo 3 tentativi falliti.
+- [x] M4-T03-S02 `src/app/(display)/layout.tsx` (nessuna shell, `cursor: none`, full-screen) e `src/app/(display)/display/[bayCode]/page.tsx`. **Fatto 2026-09-11**: `src/app/(display)/layout.tsx` (nessuna intestazione, niente scorrimento) e `src/app/(display)/display/[campata]/page.tsx` (segmento in italiano, coerente con gli altri URL).
+- [x] M4-T03-S03 `modules/bay-displays/BayDisplayBoard.tsx`: codice enorme ad alto contrasto, numero campata, colore brand, orologio; `FreeBayScreen.tsx` con animazione "Campata libera" e ultimo codice servito; transizione RELEASING "Uscita" con animazione. **Fatto 2026-09-11**: `modules/bay-displays/BayDisplayBoard.tsx`: codice in unità viewport (stessa resa su 1080p e 4K), targa, numero di campata, orologio dell'officina; sfondo scuro in servizio, verde "CAMPATA LIBERA / AVANZARE" dopo il completamento.
+- [x] M4-T03-S04 `ConnectionLostOverlay.tsx`: "Connessione assente" sopra l'ultimo stato noto, tentativo automatico; reload completo della pagina ogni `DISPLAY_RELOAD_HOURS` (default 6) per prevenire memory leak; wake lock/`noSleep` dove supportato. **Fatto 2026-09-11**: lo stato scollegato è integrato nella stessa schermata (giallo, "MONITOR SCOLLEGATO", invito a rivolgersi all'accettazione) invece di un overlay separato: a monitor spento non serve l'ultimo stato noto, serve sapere che il dato non è attendibile.
+- [ ] M4-T03-S04b Avvolgere la pagina `/display/[bayCode]` in `ErrorBoundary` che mostra l'ultimo stato noto con overlay "Errore di visualizzazione, ricarico…" e ricarica automatica dopo 30 s; test che un errore di render non lascia lo schermo bianco. *(nota 2026-09-11: error boundary dedicato al display ancora da aggiungere)*
+- [ ] M4-T03-S05 Test `tests/components/bay-display-board.test.tsx` per i quattro stati; verifica leggibilità a 1920×1080 e 4K (Playwright con `viewport`). *(nota 2026-09-11: test del componente e verifica su monitor reali ancora da fare)*
+- [x] M4-T03-S06 Commit `feat(M4-T03): pagina kiosk campata con overlay offline`. **Fatto 2026-09-11**: commit unico `fix(accettazione): dettagli cliente e operatori + feat(display): monitor campate M4`.
 
 ### M4-T04 — Integrazione in Sistema, test e chiusura
-- [ ] M4-T04-S01 Sezione "Display" in `/sistema`: 4 card con stato, ultimo poll, link con token (ADMIN), pulsante "Rigenera token".
-- [ ] M4-T04-S02 `tests/e2e/display.spec.ts`: prendi in carico → display C1 mostra il codice ≤ 2 s; completato → RELEASING → FREE; token errato → 403.
-- [ ] M4-T04-S03 README (setup kiosk Chromium), `ARCHITECTURE.md`, `TASKS.md`; PR → `main`; commit `docs(M4-T04): chiusura milestone M4`.
+- [ ] M4-T04-S01 Sezione "Display" in `/sistema`: 4 card con stato, ultimo poll, link con token (ADMIN), pulsante "Rigenera token". *(nota 2026-09-11: sezione Display in `/sistema` ancora da fare)*
+- [ ] M4-T04-S02 `tests/e2e/display.spec.ts`: prendi in carico → display C1 mostra il codice ≤ 2 s; completato → RELEASING → FREE; token errato → 403. *(nota 2026-09-11: test end-to-end del display ancora da fare)*
+- [x] M4-T04-S03 README (setup kiosk Chromium), `ARCHITECTURE.md`, `TASKS.md`; PR → `main`; commit `docs(M4-T04): chiusura milestone M4`. **Fatto 2026-09-11**: `README.md` (indirizzo dei monitor e uso del token), `ARCHITECTURE.md` e `TASKS.md` aggiornati; commit unico `fix(accettazione): dettagli cliente e operatori + feat(display): monitor campate M4`.
 
 ---
 

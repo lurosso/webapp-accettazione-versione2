@@ -1,14 +1,16 @@
 'use client';
 
-// Intestazione dell'area operatore: identità, postazione/sportello, orologio dell'officina,
-// navigazione e uscita.
+// Intestazione dell'area operatore: identità di chi è collegato (sempre visibile, è la prima
+// domanda che si fa chi trova una postazione già aperta), postazione e sportello, orologio
+// dell'officina, navigazione consentita dal ruolo e uscita.
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
 import { useEffect, useState } from 'react';
 import type { OperatorRole } from '@/domain/entities/operator';
-import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
+import { OperatorChip } from '@/components/shared/OperatorChip';
 import { postLogout } from '@/lib/api-client/client';
+import { canAccess, type ProtectedArea } from '@/lib/navigation';
 import { cn } from '@/lib/utils/cn';
 
 export interface HeaderProps {
@@ -19,16 +21,13 @@ export interface HeaderProps {
   readonly timeZone: string;
 }
 
-const ROLE_LABELS: Record<OperatorRole, string> = {
-  ADVISOR: 'Accettatore',
-  SUPERVISOR: 'Responsabile',
-  ADMIN: 'Amministratore',
-};
-
-const NAV = [
-  { href: '/accettazione', label: 'Accettazione' },
-  { href: '/sistema', label: 'Sistema' },
-] as const;
+/** Voci di navigazione: i permessi arrivano da `AREA_ROLES`, non duplicati qui. */
+const NAV: readonly { href: string; label: string; area: ProtectedArea }[] = [
+  { href: '/accettazione', label: 'Accettazione', area: 'accettazione' },
+  { href: '/manager', label: 'Responsabile', area: 'manager' },
+  { href: '/admin', label: 'Admin', area: 'admin' },
+  { href: '/sistema', label: 'Sistema', area: 'sistema' },
+];
 
 function WorkshopClock({ timeZone }: { readonly timeZone: string }) {
   const [now, setNow] = useState<string>('');
@@ -72,7 +71,7 @@ export function Header({ displayName, role, workstationLabel, deskLabel, timeZon
         <div className="flex items-center gap-3">
           <span className="text-sm font-bold tracking-tight">Accettazione Officina</span>
           <nav aria-label="Sezioni" className="flex items-center gap-1">
-            {NAV.map((item) => (
+            {NAV.filter((item) => canAccess(item.area, role)).map((item) => (
               <Link
                 key={item.href}
                 href={item.href}
@@ -86,7 +85,7 @@ export function Header({ displayName, role, workstationLabel, deskLabel, timeZon
             ))}
           </nav>
         </div>
-        <div className="ml-auto flex flex-wrap items-center gap-3 text-sm">
+        <div className="ml-auto flex flex-wrap items-center gap-x-4 gap-y-2 text-sm">
           <WorkshopClock timeZone={timeZone} />
           <span className="hidden text-slate-300 sm:inline">|</span>
           <span className="text-slate-700">
@@ -95,9 +94,9 @@ export function Header({ displayName, role, workstationLabel, deskLabel, timeZon
             <span>{deskLabel}</span>
           </span>
           <span className="hidden text-slate-300 sm:inline">|</span>
-          <span className="flex items-center gap-2">
-            <span className="font-medium">{displayName}</span>
-            <Badge tone={role === 'ADVISOR' ? 'neutral' : 'info'}>{ROLE_LABELS[role]}</Badge>
+          {/* Chi è collegato: nome per esteso e ruolo, non solo un'iniziale. */}
+          <span className="flex items-center gap-2 rounded-full bg-slate-50 py-1 pr-3 pl-1 ring-1 ring-slate-200">
+            <OperatorChip displayName={displayName} role={role} isCurrent size="md" />
           </span>
           <Button variant="outline" size="sm" onClick={() => void onLogout()} disabled={leaving}>
             {leaving ? 'Uscita…' : 'Esci'}

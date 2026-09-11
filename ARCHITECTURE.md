@@ -158,7 +158,7 @@ webapp-accettazione-versione2/
     │   ├── globals.css                # @import 'tailwindcss'   [BOOTSTRAP]; token colori stati in M0-T07
     │   ├── page.tsx                   # [M1 fatto] redirect: sessione valida → /accettazione, altrimenti → /login (la verifica delle porte è in /sistema)
     │   ├── (auth)/login/page.tsx      # [M1 fatto] login operatore: credenziali, Sportello/Brand (chip marchi), Postazione; account demo cliccabili
-    │   ├── (operator)/                # area autenticata accettatori (segmenti URL in italiano)
+    │   ├── (operator)/                # area autenticata: accettazione, manager e admin (segnaposto con permessi), sistema
     │   │   ├── layout.tsx             # [M1 fatto] requireSession() + AppShell/Header (operatore, ruolo, postazione, sportello, orologio, logout)
     │   │   ├── accettazione/page.tsx  # [M1 fatto] dashboard coda: sportello / vista globale (URL), azioni rapide, banner sync, polling 3 s, dialog conflitto e campata occupata
     │   │   ├── accettazione/nuova/page.tsx        # P1 fallback: inserimento pratica manuale
@@ -171,7 +171,7 @@ webapp-accettazione-versione2/
     │   ├── (public)/error.tsx         # [M2 fatto] error boundary del portale: messaggio comprensibile e pulsante Riprova
     │   ├── qr/page.tsx                # [M2 fatto] alias breve stampato sui cartelli: /qr?src=corsiaN → /cliente
     │   ├── (public)/cliente/stato/page.tsx        # [M2 fatto] esito: codice grande, clienti prima di te, messaggio per stato; polling 5 s lato client
-    │   ├── (display)/display/[bayCode]/page.tsx   # P4 kiosk full-screen per campata (?token=)
+    │   ├── (display)/display/[campata]/page.tsx   # [M4 fatto] monitor di campata a tutto schermo: /display/1 … /display/4 (anche C1), ?token= opzionale
     │   └── api/v1/                    # Route Handlers: unica superficie HTTP per letture in polling e mutazioni
     │       ├── auth/login/route.ts, auth/logout/route.ts      # [M1 fatto] login (Zod, cookie HttpOnly SameSite=Lax, Secure in produzione, 8 h) e logout; rate limit rinviato (M1-T07-S04b)
     │       ├── auth/me/route.ts, auth/workstation/route.ts    # me [M1 fatto]; cambio postazione senza logout rinviato (M1-T11-S02)
@@ -182,7 +182,7 @@ webapp-accettazione-versione2/
     │       ├── appointments/[id]/notes/route.ts      # (M1) PATCH note
     │       ├── appointments/[id]/actions/route.ts    # [M1 fatto] POST take|skip|complete|release|restore (expectedVersion, bayId?) → 409 con details.current; no-show/reopen e Idempotency-Key rinviati
     │       ├── public/status/route.ts                # [M2 fatto] GET ?targa= (alias ?plate=) → QueuePositionView, nessun dato personale, no-store, 404/400/429/503
-    │       ├── public/bays/[bayCode]/route.ts        # (M4) GET BayDisplayView (token campata)
+    │       ├── public/display/route.ts               # [M4 fatto] GET ?campata=1|C1 → BayDisplayView (stato, codice, targa); token verificato se fornito
     │       ├── sync/route.ts                         # [M1 fatto] POST sync manuale (SUPERVISOR/ADMIN sempre, ADVISOR solo con sync assente o FAILED); GET ultime SyncRun e SYNC_SECRET rinviati
     │       ├── system/mock-settings/route.ts         # (M3) PATCH modalità mock a runtime (ADMIN, solo non-production)
     │       ├── system/bays/route.ts                  # (M4) GET stato di tutti i display (ADMIN: sotto system/, non public/)
@@ -195,17 +195,17 @@ webapp-accettazione-versione2/
     │       ├── events/route.ts                       # (M6) SSE
     │       └── health/route.ts                       # [BOOTSTRAP] liveness (sempre 200) + HealthStatus aggregato delle quattro porte esterne; ?probe=dependencies → 503 se DOWN; x-correlation-id
     ├── modules/                       # feature module (componenti + hook + query) rispecchiano i moduli A–F
-    │   ├── reception/                 # A – [M1 fatti] LoginForm, QueueDashboard, QueueTable, AppointmentRow, StatusBadge, ActionButtons, SyncBanner, types.ts; ManualAppointmentForm e BaySelectDialog rinviati
+    │   ├── reception/                 # A – [M1 fatti] LoginForm, QueueDashboard, QueueTable, AppointmentRow, AppointmentDetailPanel, StatusBadge, ActionButtons, SyncBanner
     │   ├── customer-portal/           # B – [M2 fatti] PlateSearchForm, PublicStatusView, QueuePositionCard, ServiceUnavailableCard, status-messages.ts, plate-input.ts
     │   ├── notifications/             # C – NotificationStatusList, ManualConfirmDialog
-    │   ├── bay-displays/              # D – BayDisplayBoard, FreeBayScreen, ConnectionLostOverlay
+    │   ├── bay-displays/              # D – [M4 fatti] BayDisplayBoard (in servizio, libera, scollegato) e types.ts
     │   ├── inspection-media/          # E – MediaCapture, MediaGallery, UploadQueue
     │   └── crm/                       # F – CrmOutboxTable, AnomalyLog
     ├── components/
     │   ├── ui/                        # primitive scritte a mano stile shadcn (nessuna dipendenza): Button, Badge, Card, Input, Label, Select, Table, Alert, Dialog
     │   ├── layout/                    # [M1 fatti] AppShell, Header (identità, ruolo, postazione, orologio Europe/Rome, logout); SystemStatusBanner rinviato; indicatore dati non aggiornati inline in QueueDashboard
-    │   └── shared/                    # ErrorBoundary, EmptyState, OfflineBanner
-    ├── hooks/                         # [M1/M2 fatti] useQueue (polling 3 s), useAppointmentActions (409 e BAY_BUSY), usePublicStatus (portale, polling 5 s); useBayDisplay in M4
+    │   └── shared/                    # [fatti] OperatorChip, PlaceholderPage, AccessDenied; ErrorBoundary, EmptyState e OfflineBanner da fare
+    ├── hooks/                         # [M1/M2/M4 fatti] useQueue (3 s), useAppointmentActions, usePublicStatus (5 s), useBayDisplay (2 s, scollegato dopo 3 tentativi)
     ├── store/                         # (rinviato) ui-store zustand: oggi vista e sportello vivono nei search param dell'URL (?view=&deskId=)
     ├── domain/                        # PURO: entità, value object, state machine, eventi, errori, read model   [SCAFFOLD]
     │   ├── ids.ts                     # branded id (AppointmentId, OperatorId, BayId, ...)
@@ -238,7 +238,7 @@ webapp-accettazione-versione2/
     ├── application/                   # casi d'uso: logica reale, mai mockata, nessun import di adapter
     │   ├── notifications/             # NotificationOrchestrator (WhatsApp → SMS → MANUAL_REQUIRED), templates.ts   [SCAFFOLD]
     │   ├── health/                    # check-health.ts: aggregateHealth(), checkExternalHealth(ports, { clock, kinds, correlationId? }) con timeout locale 2000 ms; tipo locale ExternalHealthPorts (solo interfacce, nessun import dal factory); isStartupError()   [BOOTSTRAP]
-    │   ├── queue/                     # [M1/M2 fatto] QueueService (coda, transizioni, campate, getPublicPositionByPlate per il portale) e CodeGenerator (SITE|BRAND)
+    │   ├── queue/                     # [M1/M2/M4] QueueService (coda, transizioni, campate, getPublicPositionByPlate, getBayDisplay) e CodeGenerator
     │   ├── sync/                      # [M1 fatto] SyncService (idempotente, non distruttivo, lock per giornata) e SyncScheduler (tick 60 s, catch-up al riavvio)
     │   ├── auth/                      # [M1 fatto] IAuthService, LocalAuthService (account locali + JWT HS256 con jose, riverifica operatore), session-token.ts
     │   ├── crm/                       # (M6) AnomalyReporter
@@ -361,7 +361,7 @@ I Server Component fanno il primo render chiamando direttamente `getContainer().
 | --- | --- | --- | --- |
 | Dashboard accettazione | `GET /api/v1/queue?date=&deskId=&view=desk\|global` | 3 s | Filtri nei search param, postazione nel cookie di sessione. |
 | Portale cliente | `GET /api/v1/public/status?plate=` | 5 s | Solo `QueuePositionView`, rate limit in memoria per IP. |
-| Display campata | `GET /api/v1/public/bays/:bayCode?token=` | 2 s | `BayDisplayView`; OFFLINE dopo 3 poll falliti con `ConnectionLostOverlay` che conserva l'ultimo stato noto; reload automatico ogni `DISPLAY_RELOAD_HOURS` (default 6). |
+| Display campata | `GET /api/v1/public/display?campata=1` | 2 s | `BayDisplayView`; OFFLINE dopo 3 poll falliti con `ConnectionLostOverlay` che conserva l'ultimo stato noto; reload automatico ogni `DISPLAY_RELOAD_HOURS` (default 6). |
 
 `StaleDataIndicator` avvisa ("Dati non aggiornati da N s") ma non blocca mai le azioni. In M6 `useLiveUpdates` apre l'SSE `/api/v1/events?since=<seq>` che invalida le query; se cade, il polling resta e cambia solo il badge live/polling.
 
@@ -370,6 +370,8 @@ I Server Component fanno il primo render chiamando direttamente `getContainer().
 Tutte via `POST /api/v1/appointments/:id/actions` con body `{ action: 'take'|'skip'|'complete'|'release'|'restore'|'no-show'|'reopen', expectedVersion, bayId?, workstationId?, reason? }` (`restore` = SKIPPED → WAITING; `reopen` = NO_SHOW → WAITING, solo SUPERVISOR/ADMIN) e header `Idempotency-Key` (uuid per click, risposta memorizzata ~10 min: il doppio tap non duplica). Catena: `with-auth` (sessione + ruolo) → `with-validation` (Zod) → servizio applicativo (state machine, versione, invariante una `IN_PROGRESS` per campata) → `repo.update(expectedVersion)` → `eventBus.publish` → risposta. Le azioni sono **pessimistiche** (spinner con timeout 8 s e "Riprova"): un falso "preso in carico" davanti al cliente costa più di 300 ms. 409 restituisce la pratica aggiornata → `ConflictDialog`; `BAY_BUSY` propone un'altra campata. Le Server Actions non sono usate per il dominio: una sola superficie HTTP serve dashboard, tablet, kiosk, cron, Playwright e integrazioni future.
 
 ### 6.5 Autenticazione
+
+Dopo il login ogni ruolo raggiunge la propria area (`/accettazione`, `/manager`, `/admin`): la radice del sito smista in base al ruolo e non manda più tutti sulla dashboard dell'accettatore. I permessi delle aree stanno in `lib/navigation.ts` (`AREA_ROLES`), usati sia dalla navigazione sia dalle pagine; a chi non è autorizzato si mostra un messaggio esplicito invece di un redirect silenzioso.
 
 `POST /api/v1/auth/login` (username, password, workstationId) → `LocalAuthService` verifica su `IOperatorRepository` (scrypt nativo) → JWT jose HS256 in cookie HttpOnly/SameSite=Lax 8 h con `operatorId`, `role`, `workstationId`, `deskIds`. Il login è protetto da rate limit (5 tentativi/min per IP+username → 429 con `Retry-After`, log warn) e `SESSION_SECRET` è validato all'avvio (il valore di default è rifiutato fuori dalla modalità mock). `src/proxy.ts` protegge `(operator)/**` e `/api/v1/**` tranne `/api/v1/public/**` (anonimo: solo `QueuePositionView`/`BayDisplayView`), `/api/v1/auth/**` (login, logout, `me`, `workstation`, elenco `workstations` per il form di login), `/api/v1/health`, `/api/v1/sync` (SYNC_SECRET) e `/api/v1/webhooks/**` (firma provider); `/api/v1/system/**` richiede il ruolo ADMIN; `/display/**` richiede `?token=<displayToken>` una volta, poi cookie kiosk; il portale è anonimo. Regola: sotto `public/` stanno solo endpoint davvero anonimi; ciò che serve prima del login sta sotto `auth/`, ciò che serve all'amministratore sotto `system/`. I ruoli sono riverificati nei servizi applicativi, mai fidandosi del solo JWT.
 

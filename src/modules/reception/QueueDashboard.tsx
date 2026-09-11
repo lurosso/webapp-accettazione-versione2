@@ -18,7 +18,8 @@ import { useQueue } from '@/hooks/useQueue';
 import { ApiError, postSync } from '@/lib/api-client/client';
 import { queueKeys } from '@/lib/api-client/query-keys';
 import { formatDateTimeIt } from '@/lib/dates';
-import { QueueTable } from './QueueTable';
+import { AppointmentDetailPanel } from './AppointmentDetailPanel';
+import { deskOf, QueueTable } from './QueueTable';
 import { StatusBadge } from './StatusBadge';
 import { SyncBanner } from './SyncBanner';
 import type { AppointmentAction, QueueParams, QueueView } from './types';
@@ -66,6 +67,9 @@ export function QueueDashboard({
 
   const [syncing, setSyncing] = useState(false);
   const [syncMessage, setSyncMessage] = useState<string | null>(null);
+  // Si memorizza l'id, non la riga: così il pannello aperto segue gli aggiornamenti del polling
+  // (se un collega prende in carico la pratica, il dettaglio lo mostra senza riaprirlo).
+  const [selectedId, setSelectedId] = useState<string | null>(null);
   const [now, setNow] = useState(() => Date.now());
   useEffect(() => {
     const timer = setInterval(() => setNow(Date.now()), 5_000);
@@ -133,6 +137,8 @@ export function QueueDashboard({
   }, [data]);
 
   const outcome = actions.outcome;
+  const selectedRow = data?.rows.find((r) => r.appointment.id === selectedId) ?? null;
+  const selectedDesk = selectedRow === null ? null : deskOf(selectedRow, desks);
 
   return (
     <div className="flex flex-col gap-4">
@@ -270,7 +276,9 @@ export function QueueDashboard({
             showDesk={view === 'global' || currentDesk?.id !== homeDeskId}
             timeZone={data.timeZone}
             pendingId={actions.pendingId}
+            currentOperatorName={session.displayName}
             onAction={onAction}
+            onSelect={(row) => setSelectedId(row.appointment.id)}
           />
         )
       ) : queue.isLoading ? (
@@ -283,6 +291,19 @@ export function QueueDashboard({
           {formatDateTimeIt(data.serverTime, data.timeZone)}
         </p>
       ) : null}
+
+      <AppointmentDetailPanel
+        row={selectedRow}
+        brandName={
+          selectedRow === null
+            ? ''
+            : (data?.brands.find((b) => b.id === selectedRow.appointment.brandId)?.name ?? '')
+        }
+        deskLabel={selectedDesk === null ? null : `${selectedDesk.code} · ${selectedDesk.name}`}
+        timeZone={data?.timeZone ?? 'Europe/Rome'}
+        currentOperatorName={session.displayName}
+        onClose={() => setSelectedId(null)}
+      />
 
       <Dialog
         open={outcome !== null && outcome.kind === 'version-conflict'}

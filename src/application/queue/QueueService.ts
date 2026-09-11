@@ -4,10 +4,11 @@
 import { isInQueue, type Appointment, type AppointmentStatus } from '@/domain/entities/appointment';
 import type { Bay } from '@/domain/entities/bay';
 import type { Desk } from '@/domain/entities/desk';
+import { RELEASING_DISPLAY_MS } from '@/config/constants';
 import { assertTransition } from '@/domain/appointment-state-machine';
 import { domainError, type DomainError } from '@/domain/errors';
 import type { AppointmentId, BayId, DeskId, OperatorId, WorkstationId } from '@/domain/ids';
-import type { QueuePositionView, QueueRowView } from '@/domain/read-models';
+import type { BayDisplayView, QueuePositionView, QueueRowView } from '@/domain/read-models';
 import { err, ok, type Result } from '@/domain/result';
 import type { IsoDate } from '@/domain/value-objects/iso-date';
 import { parsePlate, type PlateNumber } from '@/domain/value-objects/plate';
@@ -137,6 +138,75 @@ export class QueueService {
       brandCode: brand.find((b) => b.id === appointment.brandId)?.code ?? '',
       scheduledAt: appointment.scheduledAt,
       updatedAt: appointment.updatedAt,
+    });
+  }
+
+  /**
+   * Stato del monitor di una campata (modulo D): unico proprietario della regola di visualizzazione.
+   * La campata è identificata dal codice ("C1") oppure dal solo numero ("1"), come lo scrive
+   * l'installatore nell'URL del kiosk.
+   *
+   * - pratica `IN_PROGRESS` su quella campata → `SERVING` con codice e targa;
+   * - appena completata (entro `RELEASING_DISPLAY_MS`) → `RELEASING`: il monitor invita ad avanzare
+   *   mostrando ancora il codice appena servito, così il cliente successivo capisce che tocca a lui;
+   * - altrimenti → `FREE`. `OFFLINE` non è mai restituito dal server: lo decide il client quando
+   *   il polling non risponde più (un monitor scollegato deve accorgersene da solo).
+   */
+  async getBayDisplay(
+    bayRef: string,
+    businessDate: IsoDate,
+  ): Promise<Result<BayDisplayView, DomainError>> {
+    const bays = await this.deps.referenceData.listBays();
+    const wanted = bayRef.trim().toUpperCase();
+    const bay =
+      bays.find((b) => b.code.toUpperCase() === wanted) ??
+      bays.find((b) => String(b.number) === wanted);
+    if (bay === undefined) {
+      return err(
+        domainError('NOT_FOUND', `Campata sconosciuta: "${bayRef}".`, {
+          bayRef,
+          campateAttive: bays.filter((b) => b.isActive).map((b) => b.code),
+        }),
+      );
+    }
+
+    const onThisBay = (await this.deps.appointments.listByDate(businessDate)).filter(
+      (a) => a.bayId === bay.id,
+    );
+    const serving = onThisBay.find((a) => a.status === 'IN_PROGRESS') ?? null;
+    const lastCompleted =
+      onThisBay
+        .filter((a) => a.status === 'COMPLETED' && a.completedAt !== null)
+        .sort((x, y) => (x.completedAt ?? '').localeCompare(y.completedAt ?? ''))
+        .at(-1) ?? null;
+
+    const base = { bayCode: bay.code, bayNumber: bay.number, bayName: bay.name } as const;
+    if (serving !== null) {
+      return ok({
+        ...base,
+        state: 'SERVING',
+        currentCode: serving.code,
+        currentPlate: serving.vehicle.plate,
+        since: serving.takenAt,
+        lastCompletedCode: lastCompleted?.code ?? null,
+        lastCompletedAt: lastCompleted?.completedAt ?? null,
+      });
+    }
+
+    const releasing =
+      lastCompleted?.completedAt !== undefined &&
+      lastCompleted.completedAt !== null &&
+      this.deps.clock.now().getTime() - new Date(lastCompleted.completedAt).getTime() <
+        RELEASING_DISPLAY_MS;
+
+    return ok({
+      ...base,
+      state: releasing ? 'RELEASING' : 'FREE',
+      currentCode: null,
+      currentPlate: null,
+      since: null,
+      lastCompletedCode: lastCompleted?.code ?? null,
+      lastCompletedAt: lastCompleted?.completedAt ?? null,
     });
   }
 

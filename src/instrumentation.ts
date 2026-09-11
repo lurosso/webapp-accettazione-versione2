@@ -3,14 +3,12 @@
 //    adapter reale non disponibile (`NotImplementedError`) emergono all'avvio, non alla prima richiesta;
 // 2) avvia lo scheduler della sync giornaliera (06:00 con catch-up al riavvio).
 // Un solo scheduler per processo, anche con l'HMR di sviluppo (flag su globalThis).
-const SCHEDULER_STARTED_KEY = '__accettazioneSchedulerStarted';
-
 export async function register(): Promise<void> {
   // Solo nel runtime Node: i mock e lo store in memoria non hanno senso nell'edge runtime.
   if (process.env.NEXT_RUNTIME !== 'nodejs') {
     return;
   }
-  const { getContainer } = await import('@/config/container');
+  const { getContainer, SCHEDULER_STARTED_KEY } = await import('@/config/container');
   const container = getContainer();
 
   const g = globalThis as unknown as Record<string, unknown>;

@@ -5,6 +5,7 @@ import { redirect } from 'next/navigation';
 import { readSession } from '@/app/_server/session';
 import { getContainer } from '@/config/container';
 import { isDemoPasswordHash } from '@/lib/hash-password';
+import { homePathForRole, safeInternalPath } from '@/lib/navigation';
 import {
   LoginForm,
   type DemoAccount,
@@ -20,20 +21,13 @@ interface LoginPageProps {
   readonly searchParams: Promise<{ readonly next?: string | string[] }>;
 }
 
-/** Accetta solo percorsi interni (niente open redirect). */
-function safeNextPath(raw: string | string[] | undefined): string {
-  const value = Array.isArray(raw) ? raw[0] : raw;
-  if (value === undefined || !value.startsWith('/') || value.startsWith('//')) {
-    return '/accettazione';
-  }
-  return value;
-}
-
 export default async function LoginPage({ searchParams }: LoginPageProps) {
   const [session, params] = await Promise.all([readSession(), searchParams]);
-  const nextPath = safeNextPath(params.next);
+  // Senza una destinazione esplicita si passa dalla radice, che smista ogni ruolo nella sua area
+  // (accettatore, responsabile, amministratore) invece di mandare tutti in accettazione.
+  const nextPath = safeInternalPath(params.next, '/');
   if (session !== null) {
-    redirect(nextPath);
+    redirect(nextPath === '/' ? homePathForRole(session.role) : nextPath);
   }
 
   const container = getContainer();

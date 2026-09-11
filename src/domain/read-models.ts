@@ -27,8 +27,14 @@ export type BayDisplayState = 'SERVING' | 'RELEASING' | 'FREE' | 'OFFLINE';
 export interface BayDisplayView {
   readonly bayCode: string;
   readonly bayNumber: number;
+  readonly bayName: string;
   readonly state: BayDisplayState;
   readonly currentCode: QueueCode | null;
+  /**
+   * Targa in lavorazione: il monitor è appeso sopra la campata e serve a far riconoscere al
+   * cliente la propria vettura. È l'unico dato del veicolo esposto, senza nome né telefono.
+   */
+  readonly currentPlate: string | null;
   readonly since: IsoDateTime | null;
   readonly lastCompletedCode: QueueCode | null;
   readonly lastCompletedAt: IsoDateTime | null;

@@ -34,9 +34,11 @@ la mette in coda. Gli accettatori lavorano su una dashboard monopagina con tre a
 
 Il **portale cliente** completa il quadro: chi entra in officina inquadra il QR code della corsia,
 digita la targa e vede il proprio codice, quanti clienti ha davanti e cosa deve fare, con la pagina
-che si aggiorna da sola mentre l'operatore lavora. Restano da sviluppare le **comunicazioni**
-WhatsApp con fallback SMS, i **display** delle campate e l'acquisizione **foto/video** da tablet. La priorità di sviluppo è definita in [`CLAUDE.md`](CLAUDE.md); i requisiti
-completi sono in [`docs/ANALISI_REQUISITI.md`](docs/ANALISI_REQUISITI.md).
+che si aggiorna da sola mentre l'operatore lavora. Sopra ogni campata un **monitor** mostra il
+codice in lavorazione e, appena l'accettatore chiude la pratica, invita il cliente successivo ad
+avanzare. Restano da sviluppare le **comunicazioni** WhatsApp con fallback SMS e l'acquisizione
+**foto/video** da tablet. La priorità di sviluppo è definita in [`CLAUDE.md`](CLAUDE.md); i
+requisiti completi sono in [`docs/ANALISI_REQUISITI.md`](docs/ANALISI_REQUISITI.md).
 
 ## Architettura Mock-First
 
@@ -114,13 +116,26 @@ predefinita): determinano il filtro iniziale della coda e la campata proposta al
 | `/sistema`            | Responsabile   | disponibile    | Stato delle porte esterne (Infinity, Spoki, SMS Hosting, CRM)                              |
 | `/cliente` (`/qr`)    | Cliente (QR)   | disponibile    | Ricerca per targa e stato del turno in tempo reale: codice, clienti in attesa, messaggio per stato; nessuna autenticazione e nessun dato personale |
 | `/comunicazioni`      | Responsabile   | pianificato M3 | Registro invii WhatsApp/SMS e fallback manuale                                            |
-| `/display/[campata]`  | Monitor        | pianificato M4 | Codice in servizio sulla campata, segnale di libero                                       |
+| `/display/1` … `/4`   | Monitor        | disponibile    | Schermo a tutto campo per i monitor sopra le campate: codice e targa in servizio, oppure invito verde ad avanzare; si aggiorna ogni 2 secondi |
 | `/ispezione`          | Tablet         | pianificato M5 | Foto e video associati alla pratica                                                       |
 
 API principali (JSON, autenticate via cookie di sessione): `GET /api/v1/queue`,
 `POST /api/v1/appointments/{id}/actions`, `POST /api/v1/sync`, `POST /api/v1/auth/login`.
 Pubbliche, senza sessione: `GET /api/v1/public/status?targa=AB123CD` (stato del turno, protetta da
 limiti di frequenza) e `GET /api/v1/health`.
+
+### Provare i monitor delle campate
+
+Ogni campata ha il suo schermo: <http://localhost:3000/display/1> (fino a `/display/4`; vale anche
+il codice, `/display/C1`). La pagina è pensata per un televisore in kiosk a tutto schermo e si
+aggiorna ogni 2 secondi. Prendendo in carico una pratica dalla dashboard, il monitor della campata
+assegnata mostra codice e targa su sfondo scuro; premendo **Completato** diventa verde con
+"CAMPATA LIBERA / AVANZARE". Se il server smette di rispondere lo schermo lo dichiara, invece di
+lasciare a video un codice non più valido.
+
+Ogni campata ha un token nel seed (`display-demo-token-c1`…). Passandolo come `?token=` viene
+verificato e un token errato riceve 403; senza token l'accesso resta consentito, perché i monitor
+sono su rete interna. L'obbligatorietà è prevista con l'hardening.
 
 ### Provare il portale cliente
 
