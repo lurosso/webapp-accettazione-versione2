@@ -5,6 +5,7 @@
 // elemento interattivo (nessuno tocca questi schermi). Le dimensioni usano unità viewport così
 // la resa è identica su un 1080p e su un 4K senza configurazione.
 import { useBayDisplay } from '@/hooks/useBayDisplay';
+import { useLiveUpdates } from '@/hooks/useLiveUpdates';
 import type { BayDisplayState } from '@/domain/read-models';
 import { localTimeHHmm } from '@/lib/dates';
 import { BrandMark } from '@/components/layout/BrandMark';
@@ -28,6 +29,11 @@ const SCREEN: Record<BayDisplayState, string> = {
 
 export function BayDisplayBoard({ bayRef, token }: BayDisplayBoardProps) {
   const query = useBayDisplay(bayRef, token);
+  useLiveUpdates({
+    url: '/api/v1/public/events/stream',
+    types: ['APPOINTMENT_STATUS_CHANGED', 'BUSINESS_DAY_CLOSED'],
+    invalidate: [['bay-display']],
+  });
   const data = query.data;
 
   // Nessun dato e polling fallito: schermo di allarme, mai un codice potenzialmente vecchio.

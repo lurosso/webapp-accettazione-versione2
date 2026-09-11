@@ -201,7 +201,10 @@ webapp-accettazione-versione2/
     │       ├── appointments/[id]/check-in/route.ts   # [M5 fatto] POST chiusura dell'accettazione al veicolo (expectedVersion, note) → pratica completata, foto e note al CRM
     │       ├── media/[key]/route.ts                  # [M5 fatto] GET rilettura del file con sessione attiva (cache privata 5 min); `media/route.ts` non serve: la foto nasce dentro una pratica
     │       ├── webhooks/spoki/route.ts               # (M3 stub, M7 reale) esiti consegna
-    │       ├── events/route.ts                       # (M6) SSE
+    │       ├── events/stream/route.ts                # [M7 fatto] SSE area operatore (sessione): segnali con id pratica
+    │       ├── public/events/stream/route.ts         # [M7 fatto] SSE monitor e tabellone (pubblico): solo tipo evento, nessun identificativo
+    │       ├── reports/daily/route.ts                # [M7 fatto] GET indicatori della giornata (SUPERVISOR/ADMIN)
+    │       ├── reports/daily/csv/route.ts            # [M7 fatto] GET riepilogo CSV da scaricare (SUPERVISOR/ADMIN)
     │       └── health/route.ts                       # [BOOTSTRAP] liveness (sempre 200) + HealthStatus aggregato delle quattro porte esterne; ?probe=dependencies → 503 se DOWN; x-correlation-id
     ├── modules/                       # feature module (componenti + hook + query) rispecchiano i moduli A–F
     │   ├── reception/                 # A – [M1/M3 fatti] LoginForm, QueueDashboard, QueueTable (con blocco ritardi), AppointmentRow, AppointmentDetailPanel (esito promemoria), StatusBadge, NotificationBadge, ActionButtons, SyncBanner
@@ -209,12 +212,12 @@ webapp-accettazione-versione2/
     │   ├── notifications/             # C – NotificationStatusList, ManualConfirmDialog
     │   ├── bay-displays/              # D – [M4 fatti] BayDisplayBoard (in servizio, libera, scollegato), WaitingBoardScreen (tabellone sala d'attesa) e types.ts
     │   ├── inspection-media/          # E – [M5 fatti] TabletQueue (due schede, pulsanti grandi), CheckInScreen (scheda a tutto schermo, note danni, chiusura bloccata senza le 4 foto), PhotoCapture (slot per parte del veicolo, fotocamera + anteprima in caricamento), MediaGallery (note e foto raggruppate per categoria, ingrandimento a tutto schermo); UploadQueue da fare
-    │   └── crm/                       # F – [M6 fatti] BdcDashboard (cruscotto del back office, con chiusura di giornata), BdcLeadsTable e CrmOutboxTable (coda di uscita nel pannello Sistema); AnomalyLog da fare
+    │   └── crm/                       # F – [M6/M7 fatti] BdcDashboard (cruscotto del back office, con chiusura di giornata), BdcLeadsTable, CrmOutboxTable (coda di uscita nel pannello Sistema) e DailyReportPanel (statistiche del giorno ed export CSV); AnomalyLog da fare
     ├── components/
     │   ├── ui/                        # primitive scritte a mano stile shadcn (nessuna dipendenza): Button, Badge, Card, Input, Label, Select, Table, Alert, Dialog
     │   ├── layout/                    # [M1 fatti] AppShell, Header (identità, ruolo, postazione, orologio Europe/Rome, logout), BrandMark (marchio Autoclub Group in CSS, senza file immagine); SystemStatusBanner rinviato; indicatore dati non aggiornati inline in QueueDashboard
     │   └── shared/                    # [fatti] OperatorChip, PlaceholderPage, AccessDenied; ErrorBoundary, EmptyState e OfflineBanner da fare
-    ├── hooks/                         # [fatti] useQueue (3 s), useAppointmentActions (con onSuccess per il flusso responsive), usePublicStatus (5 s), useBayDisplay e useWaitingBoard (2 s, scollegato dopo 3 tentativi), useBdcLeads (10 s), useMediaQuery/useIsTouchLayout (soglia 1024 px)
+    ├── hooks/                         # [fatti] useQueue (3 s), useAppointmentActions (con onSuccess per il flusso responsive), usePublicStatus (5 s), useBayDisplay e useWaitingBoard (2 s, scollegato dopo 3 tentativi), useBdcLeads (10 s), useMediaQuery/useIsTouchLayout (soglia 1024 px), useLiveUpdates (SSE + invalidazione query, polling come rete di sicurezza)
     ├── store/                         # (rinviato) ui-store zustand: oggi vista e sportello vivono nei search param dell'URL (?view=&deskId=)
     ├── domain/                        # PURO: entità, value object, state machine, eventi, errori, read model   [SCAFFOLD]
     │   ├── ids.ts                     # branded id (AppointmentId, OperatorId, BayId, ...)
@@ -248,7 +251,8 @@ webapp-accettazione-versione2/
     │   ├── notifications/             # C – [M3 fatti] NotificationOrchestrator (WhatsApp → SMS → contatto manuale; sendMorningReminders agganciato alla sync), templates.ts
     │   ├── health/                    # check-health.ts: aggregateHealth(), checkExternalHealth(ports, { clock, kinds, correlationId? }) con timeout locale 2000 ms; tipo locale ExternalHealthPorts (solo interfacce, nessun import dal factory); isStartupError()   [BOOTSTRAP]
     │   ├── queue/                     # [M1/M2/M4] QueueService (coda, transizioni, campate, no-show con outbox CRM, rimessa in coda, conteggio per sportello, display, tabellone) e CodeGenerator
-    │   ├── sync/                      # [M1 fatto] SyncService (idempotente, non distruttivo, lock per giornata) e SyncScheduler (tick 60 s, catch-up al riavvio)
+    │   ├── sync/                      # [M1/M7] SyncService (idempotente, non distruttivo, lock per giornata) e SyncScheduler: apre la giornata (sync 06:00 con catch-up) e la chiude dopo BUSINESS_DAY_END_TIME (19:00), una volta sola e solo se resta qualcosa di aperto
+    │   ├── reporting/                  # [M7 fatto] DailyReportService: attesa media, durata media dell'accettazione, esito della giornata ed export CSV (separatore ;, virgola decimale, BOM per Excel)
     │   ├── auth/                      # [M1 fatto] IAuthService, LocalAuthService (account locali + JWT HS256 con jose, riverifica operatore), session-token.ts
     │   ├── crm/                       # [M5/M6 fatti] CrmNotifier (coda di uscita + consegna + rinvii con attesa progressiva), BdcLeadService (lead del BDC), CrmOutboxService (vista tecnica e riprova forzata), CrmRetryScheduler (passata ogni minuto); AnomalyReporter in M6-T02
     │   └── media/                     # [M5 fatto] InspectionService: addPhoto (validazione tipo/dimensione, IMediaStorage, MediaAsset), listPhotos, completeCheckIn (note salvate prima della chiusura, poi CRM)
@@ -265,7 +269,7 @@ webapp-accettazione-versione2/
     │   ├── utils/cn.ts                # [M1 fatto] concatenazione classi CSS (sostituisce clsx/tailwind-merge)
     │   ├── http/                      # [M1/M2] api-error.ts (DomainError → HTTP), rate-limit.ts (finestra scorrevole per IP e targa); with-logging.ts e idempotency.ts rinviati
     │   ├── api-client/                # [M1/M5 fatto] client.ts (apiFetch con timeout 8 s e ApiError, fetchQueue, postAppointmentAction, postSync, postLogin/postLogout, uploadInspectionPhoto con FormData e timeout 30 s, fetchInspectionPhotos, postCheckIn) e query-keys.ts
-    │   └── realtime/                  # (M6) sse-server.ts, use-sse.ts
+    │   └── realtime/                  # [M7 fatto] sse.ts: costruzione del flusso SSE dal bus (id: seq, resume via Last-Event-ID, battito 15 s) e segnali senza dati personali
     └── types/                         # .gitkeep: dichiarazioni globali future (nessun `declare var process`)
 ```
 

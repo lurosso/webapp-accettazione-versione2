@@ -7,6 +7,14 @@ export const TIMEZONE = 'Europe/Rome';
 /** Ora locale della sincronizzazione giornaliera dell'agenda (default di `SYNC_HOUR_LOCAL`). */
 export const DEFAULT_SYNC_HOUR_LOCAL = '06:00';
 
+/**
+ * Ora locale di fine turno (default di `BUSINESS_DAY_END_TIME`): superata quest'ora la giornata
+ * viene chiusa da sola, se non l'ha già chiusa il responsabile. Serve perché l'officina chiude e
+ * nessuno resta a premere un pulsante: senza, le pratiche di oggi resterebbero aperte e
+ * contaminerebbero la coda di domani.
+ */
+export const DEFAULT_BUSINESS_DAY_END = '19:00';
+
 /** Prefisso del codice progressivo F001 (default di `CODE_PREFIX`). */
 export const DEFAULT_CODE_PREFIX = 'F';
 

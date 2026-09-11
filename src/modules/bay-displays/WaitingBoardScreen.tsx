@@ -4,6 +4,7 @@
 // chiamati ora con la campata a cui presentarsi, in basso i prossimi turni.
 // Vincoli: si legge da tutta la sala, non si tocca, non scorre. Solo codici: né targhe né nomi,
 // perché lo schermo è visibile a chiunque sia presente.
+import { useLiveUpdates } from '@/hooks/useLiveUpdates';
 import { useWaitingBoard } from '@/hooks/useWaitingBoard';
 import type { BoardServingEntry } from '@/domain/read-models';
 import { BrandMark } from '@/components/layout/BrandMark';
@@ -27,6 +28,13 @@ function destinationOf(entry: BoardServingEntry): string {
 
 export function WaitingBoardScreen({ nextCount }: WaitingBoardScreenProps) {
   const query = useWaitingBoard(nextCount);
+  // Il tabellone deve cambiare nell'istante in cui l'accettatore chiama un codice: chi è in sala
+  // guarda lo schermo proprio in quel momento. Il polling di 2 s resta come rete di sicurezza.
+  useLiveUpdates({
+    url: '/api/v1/public/events/stream',
+    types: ['APPOINTMENT_STATUS_CHANGED', 'BUSINESS_DAY_CLOSED'],
+    invalidate: [['waiting-board']],
+  });
   const data = query.data;
   const offline = query.isError;
   const serving = data?.board.serving ?? [];

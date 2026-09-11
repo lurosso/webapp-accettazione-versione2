@@ -8,6 +8,7 @@ import { CrmNotifier } from '@/application/crm/CrmNotifier';
 import { CrmOutboxService } from '@/application/crm/CrmOutboxService';
 import { CrmRetryScheduler } from '@/application/crm/CrmRetryScheduler';
 import { InspectionService } from '@/application/media/InspectionService';
+import { DailyReportService } from '@/application/reporting/DailyReportService';
 import { NotificationOrchestrator } from '@/application/notifications/NotificationOrchestrator';
 import { CodeGenerator } from '@/application/queue/CodeGenerator';
 import { QueueService } from '@/application/queue/QueueService';
@@ -51,6 +52,7 @@ export interface Container {
   readonly crmOutboxService: CrmOutboxService;
   readonly crmRetryScheduler: CrmRetryScheduler;
   readonly inspectionService: InspectionService;
+  readonly dailyReportService: DailyReportService;
   readonly syncService: SyncService;
   readonly syncScheduler: SyncScheduler;
 }
@@ -203,6 +205,14 @@ export function createContainer(overrides: ContainerOverrides = {}): Container {
     logger,
   });
 
+  const dailyReportService = new DailyReportService({
+    appointments: repos.appointments,
+    referenceData: repos.referenceData,
+    operators: repos.operators,
+    media: repos.media,
+    logger,
+  });
+
   const syncService = new SyncService({
     infinity: external.infinity,
     appointments: repos.appointments,
@@ -220,9 +230,12 @@ export function createContainer(overrides: ContainerOverrides = {}): Container {
   const syncScheduler = new SyncScheduler({
     syncService,
     syncRuns: repos.syncRuns,
+    queueService,
+    appointments: repos.appointments,
     clock,
     logger,
     syncHourLocal: env.syncHourLocal,
+    businessDayEndLocal: env.businessDayEndLocal,
     timeZone: env.timeZone,
   });
 
@@ -254,6 +267,7 @@ export function createContainer(overrides: ContainerOverrides = {}): Container {
     crmOutboxService,
     crmRetryScheduler,
     inspectionService,
+    dailyReportService,
     syncService,
     syncScheduler,
   };

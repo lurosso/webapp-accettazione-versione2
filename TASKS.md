@@ -39,6 +39,19 @@ Chiusura della giornata dell'11 settembre 2026, su richiesta del committente: **
 
 Il 2026-09-11, operatività di fine giornata e gestione tecnica (M6). (1) **Chiusura giornata** dal cruscotto BDC, con conferma: chi era ancora in coda diventa assente (lead per il BDC, evento al CRM), chi era ancora in carico viene annullato, le pratiche già chiuse non si toccano; monitor e tabellone si svuotano perché le loro viste derivano dalle pratiche aperte, e l'evento `BUSINESS_DAY_CLOSED` finisce sul bus. (2) **Pannello IT** in `/sistema` (solo amministratori): la coda di uscita verso il CRM con data/ora, evento, pratica, stato, tentativi e ultimo errore, più "Forza riprova" per riga. (3) **Rinvii automatici**: attesa progressiva 1-5-15-60-240 minuti, sei tentativi al massimo, poi la consegna è abbandonata e resta al tecnico; il temporizzatore gira nel processo ogni minuto (`CRM_RETRY_ENABLED=false` lo spegne) e lo stesso lavoro è esposto a un cron esterno su `POST /api/v1/system/cron/crm-retry`. Nella coda di uscita finisce ora il payload esatto inviato al CRM, così ogni rinvio rispedisce quello che era stato deciso al momento del fatto.
 
+Il 2026-09-11, ultima parte di M6 e apertura di M7 (tempo reale, automatismi, reportistica).
+(1) **Chiusura automatica di fine turno**: lo scheduler della giornata, che finora la apriva con
+la sincronizzazione delle 06:00, ora la chiude dopo `BUSINESS_DAY_END_TIME` (default 19:00) se è
+rimasto qualcosa di aperto e il responsabile non ha già chiuso a mano; l'azione è registrata come
+di sistema, non di una persona. (2) **Aggiornamenti in tempo reale (SSE)**: due flussi,
+`/api/v1/events/stream` per l'area operatore e `/api/v1/public/events/stream` per monitor e
+tabellone, che trasmettono segnali e non dati — chi riceve rilegge dal proprio endpoint, quindi
+uno schermo pubblico non può ricevere un nome nemmeno per errore. Il polling resta attivo come
+rete di sicurezza e la dashboard mostra "In diretta" o "Aggiornamento periodico". (3)
+**Reportistica**: riquadro "Statistiche del giorno" nel cruscotto responsabile (attesa media,
+durata media dell'accettazione, esito della giornata in percentuale) e pulsante "Esporta report
+CSV" con il dettaglio di tutte le pratiche, pronto per Excel italiano.
+
 - [x] **M0-T01** Documenti di setup: `CLAUDE.md` (regole, Regola d'Oro Mock-First, priorità P1..P5) e `docs/ANALISI_REQUISITI.md` (moduli A–F) (commit `68c07e1`).
 - [x] **M0-T02** `ARCHITECTURE.md`: stack, albero cartelle, modello di dominio, porte/adapter, strategia mock, flusso dati e stato server-side, regola dei codici, tabella sintetica ADR-001..014 (§8; i file in `docs/adr/` arrivano con M0-T12).
 - [x] **M0-T03** `TASKS.md` (questo file): milestone M0..M7 con task granulari.
@@ -534,6 +547,7 @@ Cuore del modulo A; dipende solo da interfacce.
 
 ### M6-T03 — Chiusura giornata e no-show automatici
 - [x] M6-T03-S01 `QueueService.closeBusinessDay(businessDate, actor SYSTEM)`: pratiche `WAITING|SKIPPED` residue → `NO_SHOW` con outbox; eseguito manualmente. **Fatto 2026-09-11**: azione del responsabile dal cruscotto BDC (`POST /api/v1/system/close-day`), con conferma. Oltre agli assenti chiude anche le prese in carico rimaste aperte, portandole a `CANCELLED` (transizione `IN_PROGRESS → CANCELLED` aggiunta alla state machine per questo): a officina chiusa non può restare nulla di aperto. L'operazione non si ferma al primo conflitto: la riga che non si chiude viene contata e segnalata. L'esecuzione automatica a `CLOSE_HOUR_LOCAL` resta da fare (S02).
+- [x] M6-T03-S02b *(nuovo 2026-09-11)* Chiusura automatica a fine turno agganciata allo scheduler esistente: `SyncScheduler` apre la giornata (sync 06:00) e la chiude (`BUSINESS_DAY_END_TIME`, default 19:00). Una volta sola al giorno e solo se resta qualcosa di aperto: se il responsabile ha già chiuso, il temporizzatore non aggiunge un secondo evento. `ActionContext.actorKind = 'SYSTEM'` (con `SYSTEM_ACTOR_ID`) fa sì che nel registro eventi resti scritto che non è stata una persona. Test `tests/unit/business-day-end.test.ts` (6 prove). **Fatto 2026-09-11.**
 - [ ] M6-T03-S02 Regola opzionale `NO_SHOW_AFTER_MINUTES` (proposta in UI, mai automatica in orario di apertura senza conferma del PO).
 - [x] M6-T03-S03 Test unit con `FixedClock`; e2e "chiudi giornata" da Sistema. **Fatto 2026-09-11**: `tests/unit/close-business-day.test.ts` (7 prove: assenti e annullate, pratiche già chiuse intatte, lead per il BDC con evento al CRM, monitor e tabellone vuoti, evento `BUSINESS_DAY_CLOSED`, giornata vuota, chiusura ripetuta senza doppioni). Il test end-to-end resta con la suite Playwright.
 - [ ] M6-T03-S04 Commit `feat(M6-T03): chiusura giornata con no-show automatici`.
@@ -548,6 +562,8 @@ Cuore del modulo A; dipende solo da interfacce.
 - [ ] M6-T04-S04 Commit `feat(M6-T04): vista supervisor outbox CRM`.
 
 ### M6-T05 — SSE e indicatori di stato sistema
+- [x] M6-T05-S01b *(nuovo 2026-09-11)* `src/lib/realtime/sse.ts` + `GET /api/v1/events/stream` (sessione) e `GET /api/v1/public/events/stream` (kiosk): flusso `text/event-stream` dal bus con `id: seq`, resume via `Last-Event-ID`, battito ogni 15 s e chiusura pulita su `signal`. Sul filo viaggia un segnale (tipo, seq, istante; l'id della pratica solo sul canale autenticato), non i dati: chi riceve rilegge dal proprio endpoint. L'arretrato si rispedisce solo a chi si riconnette con un `Last-Event-ID`. **Fatto 2026-09-11.**
+- [x] M6-T05-S02b *(nuovo 2026-09-11)* `src/hooks/useLiveUpdates.ts`: `EventSource` per tipo di evento, invalidazione delle query TanStack, stato `live`/`polling` mostrato in dashboard come "In diretta" / "Aggiornamento periodico". Agganciato a coda, tabellone e monitor; il polling resta attivo come rete di sicurezza. Verificato: il tabellone si aggiorna 253 ms dopo l'azione, contro i 2 s del polling. **Fatto 2026-09-11.**
 - [ ] M6-T05-S01 `src/lib/realtime/sse-server.ts` + `GET /api/v1/events?since=<seq>`: stream `text/event-stream` dal `IEventBus` con `id: seq`, replay via `listSince`, heartbeat 15 s, chiusura pulita su `signal`.
 - [ ] M6-T05-S02 `src/lib/realtime/use-sse.ts` + `src/hooks/useLiveUpdates.ts`: `EventSource` con `Last-Event-ID`, invalidazione delle query per tipo evento; badge "live"/"polling" nell'header; il polling resta attivo come fallback.
 - [ ] M6-T05-S03 `SystemStatusBanner` alimentato da `/api/v1/health` ogni 30 s (legge `status` e `providers` dal body: l'endpoint risponde sempre 200 come liveness, il 503 è riservato a `?probe=dependencies`): giallo = degradato con fallback attivo, rosso = dipendenza giù, con azione manuale suggerita per porta; `StaleDataIndicator` unificato. Richiede la memoizzazione dell'health nel container (M3-T05-S02) per non moltiplicare le chiamate ai provider reali.
@@ -560,6 +576,17 @@ Cuore del modulo A; dipende solo da interfacce.
 - [ ] M6-T06-S02 `Dockerfile` multi-stage (`output: 'standalone'`, utente non root, `TZ=Europe/Rome` per i log di sistema e `APP_TIMEZONE=Europe/Rome` per l'applicazione) e `docker-compose.yml` con volume `.data`, healthcheck sul probe di **liveness** `GET /api/v1/health` (sempre 200 finché il processo risponde: una dipendenza esterna giù non deve far riavviare il container; `?probe=dependencies` resta per il monitoraggio delle dipendenze), `restart: unless-stopped`; guida per servizio Windows alternativo.
 - [ ] M6-T06-S03 `tests/contracts/crm-service.contract.ts`; `tests/e2e/no-show.spec.ts` (no-show → outbox → SENT).
 - [ ] M6-T06-S04 Aggiornare `README.md`, `ARCHITECTURE.md`, ADR-010/011/012, `TASKS.md`; PR → `main`; commit `docs(M6-T06): chiusura milestone M6`.
+
+---
+
+## M7bis — Reportistica della giornata *(nuovo 2026-09-11, richiesta del committente)*
+
+- [x] M7bis-T01-S01 `src/application/reporting/DailyReportService.ts`: attesa media (dall'orario effettivo alla presa in carico), durata media dell'accettazione (dalla presa in carico alla chiusura), attesa massima, conteggi per stato e percentuali di esito. Le medie si calcolano solo sulle pratiche che hanno davvero i due istanti, e il numero di pratiche su cui sono calcolate viaggia insieme al valore: una media su tre pratiche non è un indicatore. I numeri sono ricalcolati dalle pratiche, non accumulati in contatori che prima o poi divergono. **Fatto 2026-09-11.**
+- [x] M7bis-T01-S02 `GET /api/v1/reports/daily` e `GET /api/v1/reports/daily/csv` (SUPERVISOR/ADMIN); il CSV ha separatore `;`, virgola decimale, ritorni a capo CRLF e BOM iniziale, cioè quello che serve perché Excel italiano lo apra con un doppio clic. Le pratiche annullate rientrano nel conteggio (`includeCancelled`), altrimenti la percentuale di annullate sarebbe sempre zero. **Fatto 2026-09-11.**
+- [x] M7bis-T01-S03 `modules/crm/DailyReportPanel.tsx` nel cruscotto responsabile: tre indicatori, barra dell'esito della giornata e pulsante "Esporta report CSV" (link con `download`, funziona anche se JavaScript inciampa). **Fatto 2026-09-11.**
+- [x] M7bis-T01-S04 Test `tests/unit/daily-report.test.ts` (9 prove: medie e campione, orario effettivo dopo una rimessa in coda, percentuali, giornata vuota, pratiche aperte, intestazione e separatori del CSV, campi con virgolette, conteggio foto, file della giornata vuota). **Fatto 2026-09-11.**
+- [ ] M7bis-T02-S01 Confronto fra giornate e andamento settimanale (media mobile, sportello per sportello).
+- [ ] M7bis-T02-S02 Esportazione programmata (invio automatico del CSV al responsabile a fine turno).
 
 ---
 

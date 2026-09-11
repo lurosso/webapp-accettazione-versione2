@@ -14,6 +14,7 @@ import { Dialog } from '@/components/ui/dialog';
 import { Select } from '@/components/ui/select';
 import { STALE_WARNING_MS } from '@/config/constants';
 import { useAppointmentActions } from '@/hooks/useAppointmentActions';
+import { useLiveUpdates } from '@/hooks/useLiveUpdates';
 import { useIsTouchLayout } from '@/hooks/useMediaQuery';
 import { useQueue } from '@/hooks/useQueue';
 import { checkInPath } from '@/lib/navigation';
@@ -71,6 +72,13 @@ export function QueueDashboard({
   // sul piazzale, tablet in mano, porta direttamente all'ispezione fotografica, che è la cosa
   // che l'accettatore farà comunque appena arrivato alla vettura.
   const touchLayout = useIsTouchLayout();
+  // Aggiornamento immediato quando un collega tocca una pratica: il flusso porta il segnale, la
+  // coda viene riletta. Il polling di 3 s resta attivo come rete di sicurezza.
+  const live = useLiveUpdates({
+    url: '/api/v1/events/stream',
+    types: ['APPOINTMENT_STATUS_CHANGED', 'APPOINTMENT_CREATED', 'BUSINESS_DAY_CLOSED'],
+    invalidate: [queueKeys.all],
+  });
 
   const [syncing, setSyncing] = useState(false);
   const [syncMessage, setSyncMessage] = useState<string | null>(null);
@@ -214,6 +222,16 @@ export function QueueDashboard({
               Dati non aggiornati
             </Badge>
           ) : null}
+          <Badge
+            tone={live === 'live' ? 'success' : 'neutral'}
+            title={
+              live === 'live'
+                ? 'Collegato al flusso eventi: la coda si aggiorna appena qualcosa cambia'
+                : 'Flusso eventi non disponibile: la coda si aggiorna comunque ogni 3 secondi'
+            }
+          >
+            {live === 'live' ? 'In diretta' : 'Aggiornamento periodico'}
+          </Badge>
         </div>
       </div>
 

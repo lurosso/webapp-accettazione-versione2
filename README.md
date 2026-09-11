@@ -249,6 +249,19 @@ curl -s -c /tmp/c.txt -H 'content-type: application/json' -d '{"username":"mario
 Con la dashboard aperta su una postazione e il portale su un'altra scheda, ogni azione
 dell'operatore si riflette sulla schermata del cliente entro cinque secondi.
 
+## Aggiornamenti in tempo reale
+
+Coda, tabellone e monitor non aspettano il prossimo giro di aggiornamento: restano collegati a un
+flusso di eventi (SSE) e si aggiornano nell'istante in cui qualcosa cambia — misurato in officina
+simulata, circa 250 ms contro i 2 secondi del solo polling. Il polling resta comunque attivo come
+rete di sicurezza: se il flusso cade, gli schermi rallentano ma non si fermano, e la dashboard lo
+dice con l'etichetta **In diretta** / **Aggiornamento periodico**.
+
+Sul flusso viaggiano segnali, non dati: "è cambiata una pratica", e chi riceve rilegge dal proprio
+endpoint. Per questo esistono due canali — `/api/v1/events/stream` per l'area operatore e
+`/api/v1/public/events/stream` per gli schermi pubblici, che ricevono solo il tipo dell'evento e
+nessun identificativo.
+
 ## Fine giornata e coda verso il CRM
 
 **Chiusura giornata.** A officina chiusa il responsabile preme *Esegui chiusura giornata* nel
@@ -257,6 +270,11 @@ lead da ricontattare (con l'evento verso il CRM); le accettazioni rimaste **in c
 annullate, perché non sono state concluse e non possono restare aperte fino al giorno dopo. Le
 pratiche già completate non si toccano. Monitor e tabellone tornano vuoti da soli: le loro viste
 derivano dalle pratiche aperte, non da uno stato salvato a parte.
+
+**Chiusura automatica.** Se nessuno preme il pulsante, ci pensa il sistema: dopo
+`BUSINESS_DAY_END_TIME` (default `19:00`) lo scheduler della giornata chiude quello che è rimasto
+aperto, una volta sola e solo se serve. Nel registro degli eventi la chiusura automatica risulta
+come azione di sistema, non di un operatore.
 
 **Coda di uscita verso il CRM.** Ogni evento (assenza, accettazione conclusa) viene prima scritto
 in coda e poi inviato: se il CRM non risponde l'informazione non si perde. I rinvii sono automatici
@@ -274,6 +292,19 @@ curl -s -X POST -H "x-cron-secret: $CRON_SECRET" http://localhost:3000/api/v1/sy
 
 Le due strade possono convivere: ogni evento porta la propria chiave di idempotenza e il CRM la
 riconosce, quindi un doppio invio non genera un doppio lead.
+
+## Statistiche ed esportazione
+
+Il cruscotto responsabile apre con il riquadro **Statistiche del giorno**: attesa media (dal
+momento in cui il cliente era atteso alla presa in carico), durata media dell'accettazione (dalla
+presa in carico alla chiusura) ed esito della giornata in percentuale — completate, assenti,
+annullate. Accanto a ogni media c'è su quante pratiche è calcolata: una media su tre pratiche non
+è un indicatore.
+
+**Esporta report CSV** scarica il dettaglio di tutte le pratiche della giornata (codice, orari,
+targa, veicolo, cliente, sportello, accettazione, stato, operatore, minuti di attesa e di
+lavorazione, foto, note). Il file usa il punto e virgola e la virgola decimale: Excel italiano lo
+apre con un doppio clic.
 
 ## Script disponibili
 

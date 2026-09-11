@@ -15,6 +15,7 @@ import { ApiError, postCloseDay, postLeadContacted } from '@/lib/api-client/clie
 import { queueKeys } from '@/lib/api-client/query-keys';
 import { bdcKeys, useBdcLeads, BDC_POLLING_MS } from '@/hooks/useBdcLeads';
 import { BdcLeadsTable } from './BdcLeadsTable';
+import { DailyReportPanel } from './DailyReportPanel';
 
 export interface BdcDashboardProps {
   readonly session: Session;
@@ -130,6 +131,10 @@ export function BdcDashboard({ session, businessDate, timeZone }: BdcDashboardPr
           </Badge>
         </div>
       </header>
+
+      {/* Statistiche della giornata operativa del server: il riquadro guarda sempre oggi, anche
+          quando l'elenco dei lead è impostato su tutte le giornate. */}
+      <DailyReportPanel businessDate={businessDate} />
 
       <div className="flex flex-wrap items-center gap-2">
         <Button

@@ -5,6 +5,7 @@ import type { SyncRun } from '@/domain/entities/sync-run';
 import type { Session } from '@/application/auth/IAuthService';
 import type { BdcLeadsView, BdcLeadView, CrmOutboxView } from '@/domain/read-models';
 import type { CrmOutboxEvent, CrmOutboxStatus } from '@/domain/entities/crm-outbox-event';
+import type { DailyReportView } from '@/application/reporting/DailyReportService';
 import type { MediaCategory } from '@/domain/entities/media-asset';
 import type { BoardStatus, DisplayStatus } from '@/modules/bay-displays/types';
 import type { PublicStatus } from '@/modules/customer-portal/types';
@@ -284,6 +285,11 @@ export function postOutboxRetry(eventId: string): Promise<{
   readonly event: CrmOutboxEvent;
 }> {
   return apiFetch(`/api/v1/crm/outbox/${encodeURIComponent(eventId)}/retry`, { method: 'POST' });
+}
+
+/** GET /api/v1/reports/daily: indicatori della giornata (responsabile e amministratore). */
+export function fetchDailyReport(businessDate: string): Promise<DailyReportView> {
+  return apiFetch(`/api/v1/reports/daily?giornata=${encodeURIComponent(businessDate)}`);
 }
 
 /** POST /api/v1/auth/login. */

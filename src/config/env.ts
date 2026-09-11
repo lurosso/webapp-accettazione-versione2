@@ -16,6 +16,7 @@ import type {
   RepositoryProvider,
 } from '@/services/interfaces/provider-kinds';
 import {
+  DEFAULT_BUSINESS_DAY_END,
   DEFAULT_CODE_PREFIX,
   DEFAULT_MEDIA_DIR,
   DEFAULT_SYNC_HOUR_LOCAL,
@@ -52,6 +53,8 @@ export interface AppEnv {
   readonly timeZone: string;
   /** Ora locale "HH:mm" della sync giornaliera. */
   readonly syncHourLocal: string;
+  /** Ora locale di fine turno: dopo, la giornata si chiude da sola. */
+  readonly businessDayEndLocal: string;
   readonly codePrefix: string;
   readonly codeSequenceScope: 'SITE' | 'BRAND';
   readonly mockSeed: string;
@@ -241,6 +244,12 @@ export function parseEnv(
         : pickString(source, 'CRON_SECRET', ''),
     timeZone: pickTimeZone(source, 'APP_TIMEZONE', TIMEZONE, warn),
     syncHourLocal: pickHourLocal(source, 'SYNC_HOUR_LOCAL', DEFAULT_SYNC_HOUR_LOCAL, warn),
+    businessDayEndLocal: pickHourLocal(
+      source,
+      'BUSINESS_DAY_END_TIME',
+      DEFAULT_BUSINESS_DAY_END,
+      warn,
+    ),
     codePrefix: pickString(source, 'CODE_PREFIX', DEFAULT_CODE_PREFIX).toUpperCase(),
     codeSequenceScope: pickEnum(source, 'CODE_SEQUENCE_SCOPE', SEQUENCE_SCOPES, 'SITE', warn),
     mockSeed: pickString(source, 'MOCK_SEED', 'autoclub-demo'),

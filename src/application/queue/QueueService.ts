@@ -77,7 +77,16 @@ export interface ActionContext {
   readonly operatorId: OperatorId;
   readonly workstationId: WorkstationId | null;
   readonly correlationId: string | null;
+  /**
+   * Chi ha deciso l'azione. `SYSTEM` è per le automazioni (chiusura di giornata a fine turno):
+   * nel registro degli eventi deve restare scritto che non è stata una persona, altrimenti
+   * domani qualcuno cercherà il collega che ha segnato quaranta assenti alle 19:00.
+   */
+  readonly actorKind?: 'OPERATOR' | 'SYSTEM';
 }
+
+/** Operatore fittizio usato dalle automazioni quando nessuna persona ha premuto un pulsante. */
+export const SYSTEM_ACTOR_ID = 'system' as OperatorId;
 
 export interface TransitionInput {
   readonly appointmentId: AppointmentId;
@@ -443,7 +452,7 @@ export class QueueService {
     businessDate: IsoDate,
     ctx: ActionContext,
   ): Promise<Result<CloseBusinessDayResult, DomainError>> {
-    const tutte = await this.deps.appointments.listByDate(businessDate, {});
+    const tutte = await this.deps.appointments.listByDate(businessDate, { includeCancelled: true });
     const daChiudere = tutte.filter((a) => isInQueue(a.status) || a.status === 'IN_PROGRESS');
 
     const noShow: string[] = [];
@@ -481,7 +490,10 @@ export class QueueService {
       id: this.deps.ids.next(),
       occurredAt: this.deps.clock.nowIso(),
       correlationId: ctx.correlationId ?? this.deps.ids.next(),
-      actor: { kind: 'OPERATOR', id: ctx.operatorId },
+      actor:
+        ctx.actorKind === 'SYSTEM'
+          ? { kind: 'SYSTEM', id: null }
+          : { kind: 'OPERATOR', id: ctx.operatorId },
       type: 'BUSINESS_DAY_CLOSED',
       businessDate,
       noShowCount: noShow.length,
@@ -686,7 +698,10 @@ export class QueueService {
       id: this.deps.ids.next(),
       occurredAt: this.deps.clock.nowIso(),
       correlationId: ctx.correlationId ?? this.deps.ids.next(),
-      actor: { kind: 'OPERATOR', id: ctx.operatorId },
+      actor:
+        ctx.actorKind === 'SYSTEM'
+          ? { kind: 'SYSTEM', id: null }
+          : { kind: 'OPERATOR', id: ctx.operatorId },
       type: 'APPOINTMENT_STATUS_CHANGED',
       appointmentId: saved.id,
       from: a.status,
