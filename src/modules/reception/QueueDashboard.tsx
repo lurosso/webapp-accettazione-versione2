@@ -275,6 +275,7 @@ export function QueueDashboard({
             homeDeskId={homeDeskId}
             showDesk={view === 'global' || currentDesk?.id !== homeDeskId}
             timeZone={data.timeZone}
+            serverTime={data.serverTime}
             pendingId={actions.pendingId}
             currentOperatorName={session.displayName}
             onAction={onAction}

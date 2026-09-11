@@ -9,7 +9,6 @@ import type { IReferenceDataRepository } from './IReferenceDataRepository';
 import type { ISyncRunRepository } from './ISyncRunRepository';
 
 export type {
-  AheadScope,
   AppointmentFilter,
   IAppointmentRepository,
   UpsertSummary,

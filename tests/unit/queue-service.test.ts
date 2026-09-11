@@ -11,11 +11,11 @@ function setup() {
     referenceData: env.referenceData,
     operators: env.operators,
     notifications: env.notifications,
+    crmOutbox: env.crmOutbox,
     eventBus: env.eventBus,
     clock: env.clock,
     ids: env.ids,
     logger: env.logger,
-    queueAheadScope: 'SITE',
   });
   const ctx: ActionContext = {
     operatorId: asOperatorId('op-advisor-1'),

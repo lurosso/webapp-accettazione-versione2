@@ -276,6 +276,7 @@ export class SyncService {
       source: 'INFINITY',
       businessDate: draft.businessDate,
       scheduledAt: draft.scheduledAt,
+      rescheduledAt: null,
       code: assigned.code,
       sequence: assigned.sequence,
       brandId: draft.brand.id,
@@ -345,6 +346,8 @@ export class SyncService {
 
   private hasChanges(current: Appointment, draft: AppointmentDraft): boolean {
     return (
+      // L'orario dell'agenda si aggiorna liberamente: `rescheduledAt`, deciso in officina per un
+      // cliente arrivato in ritardo, resta comunque valido e continua a prevalere.
       current.scheduledAt !== draft.scheduledAt ||
       current.customer.firstName !== draft.customer.firstName ||
       current.customer.lastName !== draft.customer.lastName ||

@@ -197,7 +197,7 @@ webapp-accettazione-versione2/
     │       ├── events/route.ts                       # (M6) SSE
     │       └── health/route.ts                       # [BOOTSTRAP] liveness (sempre 200) + HealthStatus aggregato delle quattro porte esterne; ?probe=dependencies → 503 se DOWN; x-correlation-id
     ├── modules/                       # feature module (componenti + hook + query) rispecchiano i moduli A–F
-    │   ├── reception/                 # A – [M1/M3 fatti] LoginForm, QueueDashboard, QueueTable, AppointmentRow, AppointmentDetailPanel, StatusBadge, NotificationBadge, ActionButtons, SyncBanner
+    │   ├── reception/                 # A – [M1/M3 fatti] LoginForm, QueueDashboard, QueueTable (con blocco ritardi), AppointmentRow, AppointmentDetailPanel (esito promemoria), StatusBadge, NotificationBadge, ActionButtons, SyncBanner
     │   ├── customer-portal/           # B – [M2 fatti] PlateSearchForm, PublicStatusView, QueuePositionCard, ServiceUnavailableCard, status-messages.ts, plate-input.ts
     │   ├── notifications/             # C – NotificationStatusList, ManualConfirmDialog
     │   ├── bay-displays/              # D – [M4 fatti] BayDisplayBoard (in servizio, libera, scollegato), WaitingBoardScreen (tabellone sala d'attesa) e types.ts
@@ -240,7 +240,7 @@ webapp-accettazione-versione2/
     ├── application/                   # casi d'uso: logica reale, mai mockata, nessun import di adapter
     │   ├── notifications/             # C – [M3 fatti] NotificationOrchestrator (WhatsApp → SMS → contatto manuale; sendMorningReminders agganciato alla sync), templates.ts
     │   ├── health/                    # check-health.ts: aggregateHealth(), checkExternalHealth(ports, { clock, kinds, correlationId? }) con timeout locale 2000 ms; tipo locale ExternalHealthPorts (solo interfacce, nessun import dal factory); isStartupError()   [BOOTSTRAP]
-    │   ├── queue/                     # [M1/M2/M4] QueueService (coda, transizioni, campate, getPublicPositionByPlate, getBayDisplay, getWaitingBoard) e CodeGenerator
+    │   ├── queue/                     # [M1/M2/M4] QueueService (coda, transizioni, campate, no-show con outbox CRM, rimessa in coda, conteggio per sportello, display, tabellone) e CodeGenerator
     │   ├── sync/                      # [M1 fatto] SyncService (idempotente, non distruttivo, lock per giornata) e SyncScheduler (tick 60 s, catch-up al riavvio)
     │   ├── auth/                      # [M1 fatto] IAuthService, LocalAuthService (account locali + JWT HS256 con jose, riverifica operatore), session-token.ts
     │   ├── crm/                       # (M6) AnomalyReporter
@@ -248,7 +248,7 @@ webapp-accettazione-versione2/
     ├── config/                        # composition root   [SCAFFOLD]
     │   ├── env.ts                     # EnvSource da process.env (@types/node; fallback {} senza `process`), parseEnv() con default sicuri, APP_TIMEZONE validato
     │   ├── auth.ts                    # [M1 fatto] SESSION_COOKIE_NAME, SESSION_TTL_HOURS (8 h), resolveSessionSecret(): default solo tutto-mock e non production, altrimenti ConfigurationError
-    │   ├── constants.ts               # TIMEZONE, DEFAULT_SYNC_HOUR_LOCAL, DEFAULT_CODE_PREFIX, BAY_COUNT, POLLING_MS, STALE_WARNING_MS, PUBLIC_STATUS_RATE_LIMIT (coerente col polling), RELEASING_DISPLAY_MS, MAX_SKIPS_BEFORE_ANOMALY
+    │   ├── constants.ts               # TIMEZONE, SYNC_HOUR_LOCAL, CODE_PREFIX, BAY_COUNT, POLLING_MS, STALE_WARNING_MS, PUBLIC_STATUS_RATE_LIMIT, RELEASING_DISPLAY_MS, LATE_GRACE_MINUTES, MAX_SKIPS_BEFORE_ANOMALY
     │   ├── seed.ts                    # brand, sportelli, postazioni, campate, operatori demo (+ hasDemoCredentials per il guard)
     │   └── container.ts               # getContainer(): singolo composition root, singleton su globalThis; guard credenziali demo ↔ provider reali
     ├── lib/                           # utilità senza dipendenze di dominio
@@ -332,6 +332,20 @@ stateDiagram-v2
 | **COMPLETED** / **CANCELLED** | terminali | | | | | |
 
 La tabella vive in `src/domain/appointment-state-machine.ts` (`ALLOWED_TRANSITIONS`, `canTransition`, `assertTransition` → `INVALID_TRANSITION`). Ogni transizione ha un'azione del `QueueService` e un valore `action` dell'API (§6.4): `takeInCharge`/`take`, `skip`/`skip`, `restore`/`restore` (SKIPPED → WAITING, "Ripristina"), `complete`/`complete`, `release`/`release`, `markNoShow`/`no-show`, `reopenNoShow`/`reopen` (NO_SHOW → WAITING, solo SUPERVISOR/ADMIN); `CANCELLED` è impostato solo dalla sync. I vincoli di ruolo sono verificati nel `QueueService`. Ogni mutazione richiede `expectedVersion`: un conflitto produce `VERSION_CONFLICT` → HTTP 409 → `ConflictDialog` ("Presa in carico da Mario allo sportello 2"), mai "l'ultimo che scrive vince".
+
+### 5.3bis Clienti in attesa e clienti in ritardo
+
+Il portale cliente conta come "davanti a te" solo le pratiche in coda dello **stesso sportello**:
+ogni sportello serve la propria fila, quindi i clienti degli altri marchi non fanno attendere chi
+aspetta qui. Lo sportello è quello indicato da Infinity oppure, quando manca, quello che serve il
+marchio della vettura, con la stessa regola usata dalla dashboard: il numero mostrato al cliente
+coincide così con quello che vede l'accettatore. La regola non è configurabile.
+
+Una pratica è **in ritardo** quando era attesa da più di `LATE_GRACE_MINUTES` (10 minuti) e nessuno
+l'ha presa in carico: la dashboard la sposta nel blocco "In ritardo / assenti", dove l'accettatore
+decide se rimetterla in coda (l'orario atteso diventa adesso, in `rescheduledAt`, mentre
+`scheduledAt` resta il dato dell'agenda) o segnalarla assente (`NO_SHOW` più evento per il CRM).
+L'orario di riferimento è sempre quello del server: l'orologio di una postazione può essere sbagliato.
 
 ### 5.3 Regola del codice progressivo (F001)
 

@@ -16,9 +16,10 @@ import {
 export const dynamic = 'force-dynamic';
 
 const ActionBody = z.object({
-  action: z.enum(['take', 'skip', 'complete', 'release', 'restore']),
+  action: z.enum(['take', 'skip', 'complete', 'release', 'restore', 'reschedule', 'no-show']),
   expectedVersion: z.number().int().nonnegative(),
   bayId: z.string().trim().min(1).nullable().optional(),
+  reason: z.string().trim().max(500).nullable().optional(),
 });
 
 interface RouteContext {
@@ -65,6 +66,10 @@ export async function POST(request: NextRequest, context: RouteContext): Promise
         return queue.release(input, ctx);
       case 'restore':
         return queue.restore(input, ctx);
+      case 'reschedule':
+        return queue.rescheduleToNow(input, ctx);
+      case 'no-show':
+        return queue.markNoShow({ ...input, reason: parsed.data.reason ?? undefined }, ctx);
     }
   })();
 

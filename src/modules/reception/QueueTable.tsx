@@ -3,7 +3,10 @@
 // Tabella della coda con tre sezioni: In carico (in alto), In coda (attesa + saltate per orario) e
 // Chiuse oggi (completate, no-show, annullate; collassabile).
 import { useState } from 'react';
+import { effectiveScheduleTime, isLate } from '@/domain/entities/appointment';
 import type { Brand } from '@/domain/entities/brand';
+import { LATE_GRACE_MINUTES } from '@/config/constants';
+import { cn } from '@/lib/utils/cn';
 import type { Desk } from '@/domain/entities/desk';
 import type { QueueRowView } from '@/domain/read-models';
 import { compareByScheduleThenSequence } from '@/domain/value-objects/queue-code';
@@ -20,6 +23,8 @@ export interface QueueTableProps {
   readonly homeDeskId: string | null;
   readonly showDesk: boolean;
   readonly timeZone: string;
+  /** Istante del server: decide chi è in ritardo, senza fidarsi dell'orologio del client. */
+  readonly serverTime: string;
   readonly pendingId: string | null;
   readonly currentOperatorName: string;
   readonly onAction: (
@@ -35,6 +40,12 @@ interface Section {
   readonly title: string;
   readonly rows: readonly QueueRowView[];
   readonly collapsible: boolean;
+  /** Testo mostrato quando la sezione è vuota. */
+  readonly emptyLabel: string;
+  /** Nota sotto il titolo: spiega cosa fare con le pratiche di questo blocco. */
+  readonly hint?: string;
+  /** Sezione dei clienti in ritardo: righe evidenziate e azioni dedicate. */
+  readonly late?: boolean;
 }
 
 /** Sportello di appartenenza: esplicito oppure dedotto dal marchio. */
@@ -53,6 +64,7 @@ export function QueueTable({
   homeDeskId,
   showDesk,
   timeZone,
+  serverTime,
   pendingId,
   currentOperatorName,
   onAction,
@@ -60,12 +72,35 @@ export function QueueTable({
 }: QueueTableProps) {
   const [closedOpen, setClosedOpen] = useState(false);
 
+  /** Ordina per orario effettivo: una pratica rimessa in coda si ricolloca al nuovo orario. */
   const byTime = (list: readonly QueueRowView[]): QueueRowView[] =>
-    [...list].sort((x, y) => compareByScheduleThenSequence(x.appointment, y.appointment));
+    [...list].sort((x, y) =>
+      compareByScheduleThenSequence(
+        { scheduledAt: effectiveScheduleTime(x.appointment), sequence: x.appointment.sequence },
+        { scheduledAt: effectiveScheduleTime(y.appointment), sequence: y.appointment.sequence },
+      ),
+    );
+
+  /** Minuti trascorsi dall'orario in cui la pratica era attesa. */
+  const lateBy = (row: QueueRowView): number =>
+    Math.max(
+      0,
+      Math.floor(
+        (new Date(serverTime).getTime() -
+          new Date(effectiveScheduleTime(row.appointment)).getTime()) /
+          60_000,
+      ),
+    );
 
   const inProgress = byTime(rows.filter((r) => r.appointment.status === 'IN_PROGRESS'));
+  const inQueue = rows.filter(
+    (r) => r.appointment.status === 'WAITING' || r.appointment.status === 'SKIPPED',
+  );
+  // Chi era atteso prima di adesso e non è stato preso in carico finisce nel blocco dei ritardi:
+  // sono le pratiche su cui l'accettatore deve decidere qualcosa, non quelle che stanno aspettando.
+  const late = byTime(inQueue.filter((r) => isLate(r.appointment, serverTime, LATE_GRACE_MINUTES)));
   const queued = byTime(
-    rows.filter((r) => r.appointment.status === 'WAITING' || r.appointment.status === 'SKIPPED'),
+    inQueue.filter((r) => !isLate(r.appointment, serverTime, LATE_GRACE_MINUTES)),
   );
   const closed = byTime(
     rows.filter((r) => ['COMPLETED', 'NO_SHOW', 'CANCELLED'].includes(r.appointment.status)),
@@ -77,9 +112,31 @@ export function QueueTable({
       title: `In carico (${inProgress.length})`,
       rows: inProgress,
       collapsible: false,
+      emptyLabel: 'Nessuna pratica in lavorazione.',
     },
-    { key: 'queued', title: `In coda (${queued.length})`, rows: queued, collapsible: false },
-    { key: 'closed', title: `Chiuse oggi (${closed.length})`, rows: closed, collapsible: true },
+    {
+      key: 'queued',
+      title: `In coda (${queued.length})`,
+      rows: queued,
+      collapsible: false,
+      emptyLabel: 'Nessuna pratica in coda.',
+    },
+    {
+      key: 'late',
+      title: `In ritardo / assenti (${late.length})`,
+      rows: late,
+      collapsible: false,
+      late: true,
+      hint: `Attesi da oltre ${LATE_GRACE_MINUTES} minuti e non ancora presi in carico: rimettili in coda quando arrivano, oppure segnalali assenti per il ricontatto.`,
+      emptyLabel: 'Nessun cliente in ritardo.',
+    },
+    {
+      key: 'closed',
+      title: `Chiuse oggi (${closed.length})`,
+      rows: closed,
+      collapsible: true,
+      emptyLabel: 'Nessuna pratica chiusa.',
+    },
   ];
 
   const brandName = (brandId: string): string =>
@@ -91,13 +148,21 @@ export function QueueTable({
         const hidden = section.collapsible && !closedOpen;
         return (
           <section key={section.key} aria-labelledby={`section-${section.key}`}>
-            <div className="mb-2 flex items-center justify-between">
-              <h2
-                id={`section-${section.key}`}
-                className="text-sm font-semibold tracking-wide text-slate-600 uppercase"
-              >
-                {section.title}
-              </h2>
+            <div className="mb-2 flex items-start justify-between gap-4">
+              <div>
+                <h2
+                  id={`section-${section.key}`}
+                  className={cn(
+                    'text-sm font-semibold tracking-wide uppercase',
+                    section.late === true ? 'text-red-700' : 'text-slate-600',
+                  )}
+                >
+                  {section.title}
+                </h2>
+                {section.hint !== undefined && section.rows.length > 0 ? (
+                  <p className="mt-0.5 text-xs text-slate-500">{section.hint}</p>
+                ) : null}
+              </div>
               {section.collapsible ? (
                 <Button
                   variant="ghost"
@@ -111,10 +176,15 @@ export function QueueTable({
             </div>
             {hidden ? null : section.rows.length === 0 ? (
               <p className="rounded-md border border-dashed border-slate-300 px-4 py-3 text-sm text-slate-500">
-                {section.key === 'queued' ? 'Nessuna pratica in coda.' : 'Nessuna pratica.'}
+                {section.emptyLabel}
               </p>
             ) : (
-              <div className="rounded-xl border border-slate-200 bg-white shadow-sm">
+              <div
+                className={cn(
+                  'rounded-xl border bg-white shadow-sm',
+                  section.late === true ? 'border-red-300 ring-1 ring-red-200' : 'border-slate-200',
+                )}
+              >
                 <Table>
                   <TableHeader>
                     <TableRow>
@@ -146,6 +216,8 @@ export function QueueTable({
                           timeZone={timeZone}
                           pending={pendingId === row.appointment.id}
                           currentOperatorName={currentOperatorName}
+                          late={section.late === true}
+                          lateByMinutes={section.late === true ? lateBy(row) : 0}
                           onAction={(action) =>
                             onAction(row.appointment.id, action, row.appointment.version)
                           }

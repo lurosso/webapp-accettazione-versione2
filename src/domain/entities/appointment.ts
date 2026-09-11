@@ -33,8 +33,14 @@ export interface Appointment {
   readonly source: AppointmentSource;
   /** Giornata operativa (Europe/Rome). */
   readonly businessDate: IsoDate;
-  /** Orario di prenotazione (UTC): chiave di ordinamento della coda. */
+  /** Orario di prenotazione (UTC) come arriva da Infinity: chiave di ordinamento della coda. */
   readonly scheduledAt: IsoDateTime;
+  /**
+   * Nuovo orario deciso in officina quando un cliente si presenta in ritardo ("rimetti in coda").
+   * Resta separato da `scheduledAt`, che è il dato dell'agenda esterna: così una sincronizzazione
+   * successiva non annulla la decisione dell'accettatore e resta visibile l'orario originale.
+   */
+  readonly rescheduledAt: IsoDateTime | null;
   /** Codice progressivo comunicato al cliente (F001). Mai rinumerato né riutilizzato. */
   readonly code: QueueCode;
   /** Sequenza numerica del codice (1 per F001). */
@@ -79,4 +85,31 @@ export function isTerminalStatus(s: AppointmentStatus): boolean {
 /** Indica se la pratica è ancora in coda (WAITING o SKIPPED). */
 export function isInQueue(s: AppointmentStatus): boolean {
   return ACTIVE_QUEUE_STATUSES.includes(s);
+}
+
+/**
+ * Orario a cui la pratica è attesa adesso: quello riprogrammato in officina se c'è, altrimenti
+ * quello dell'agenda. È l'orario da usare per ordinare la coda e per capire chi è in ritardo.
+ */
+export function effectiveScheduleTime(
+  a: Pick<Appointment, 'scheduledAt' | 'rescheduledAt'>,
+): IsoDateTime {
+  return a.rescheduledAt ?? a.scheduledAt;
+}
+
+/**
+ * Pratica in ritardo: attesa da prima di adesso (oltre i minuti di tolleranza) e ancora in coda,
+ * cioè nessuno l'ha presa in carico. È la definizione usata dalla dashboard per raccogliere in un
+ * blocco a parte i clienti che non si sono presentati.
+ */
+export function isLate(
+  a: Pick<Appointment, 'scheduledAt' | 'rescheduledAt' | 'status'>,
+  nowIso: string,
+  graceMinutes: number,
+): boolean {
+  if (!isInQueue(a.status)) {
+    return false;
+  }
+  const attesa = new Date(effectiveScheduleTime(a)).getTime() + graceMinutes * 60_000;
+  return attesa < new Date(nowIso).getTime();
 }

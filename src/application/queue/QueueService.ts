@@ -1,13 +1,20 @@
 // Caso d'uso della coda di accettazione (modulo A): letture arricchite e transizioni di stato
 // con state machine, concorrenza ottimistica (version) e invariante "una pratica in carico per
 // campata". Dipende solo da interfacce: identico con repository in-memory o Prisma.
-import { isInQueue, type Appointment, type AppointmentStatus } from '@/domain/entities/appointment';
+import {
+  ACTIVE_QUEUE_STATUSES,
+  effectiveScheduleTime,
+  isInQueue,
+  type Appointment,
+  type AppointmentStatus,
+} from '@/domain/entities/appointment';
 import type { Bay } from '@/domain/entities/bay';
 import type { Desk } from '@/domain/entities/desk';
 import { RELEASING_DISPLAY_MS } from '@/config/constants';
 import { assertTransition } from '@/domain/appointment-state-machine';
 import { domainError, type DomainError } from '@/domain/errors';
 import type { AppointmentId, BayId, DeskId, OperatorId, WorkstationId } from '@/domain/ids';
+import { asCrmOutboxEventId } from '@/domain/ids';
 import type {
   BayDisplayView,
   QueuePositionView,
@@ -18,8 +25,8 @@ import { err, ok, type Result } from '@/domain/result';
 import type { IsoDate } from '@/domain/value-objects/iso-date';
 import { parsePlate, type PlateNumber } from '@/domain/value-objects/plate';
 import type {
-  AheadScope,
   IAppointmentRepository,
+  ICrmOutboxRepository,
   INotificationRepository,
   IOperatorRepository,
   IReferenceDataRepository,
@@ -35,15 +42,12 @@ export interface QueueServiceDeps {
   readonly operators: IOperatorRepository;
   /** Serve solo a mostrare nella coda se il cliente è già stato avvisato. */
   readonly notifications: INotificationRepository;
+  /** Coda degli eventi per il CRM/BDC: qui vi finiscono i no-show da ricontattare. */
+  readonly crmOutbox: ICrmOutboxRepository;
   readonly eventBus: IEventBus;
   readonly clock: IClock;
   readonly ids: IIdGenerator;
   readonly logger: ILogger;
-  /**
-   * Ambito del conteggio "clienti prima di te" del portale (`QUEUE_AHEAD_SCOPE`):
-   * `SITE` conta tutta l'accettazione, `DESK` solo lo sportello della pratica.
-   */
-  readonly queueAheadScope: AheadScope;
 }
 
 /** Filtro della dashboard: sportello proprio oppure vista globale di tutta l'accettazione. */
@@ -130,9 +134,7 @@ export class QueueService {
       );
     }
     const [aheadCount, brand, bay] = await Promise.all([
-      isInQueue(appointment.status)
-        ? this.deps.appointments.countAhead(appointment, this.deps.queueAheadScope)
-        : Promise.resolve(0),
+      isInQueue(appointment.status) ? this.countAheadSameDesk(appointment) : Promise.resolve(0),
       this.deps.referenceData.listBrands(),
       appointment.bayId === null
         ? Promise.resolve(null)
@@ -349,6 +351,61 @@ export class QueueService {
     return this.transition(input, ctx, 'WAITING', () => ({ skippedAt: null }));
   }
 
+  /**
+   * Rimette in coda un cliente arrivato in ritardo: la pratica torna WAITING e l'orario atteso
+   * diventa adesso, così esce dal blocco "in ritardo" e si ricolloca nella coda del momento.
+   * `scheduledAt` non viene toccato: resta l'orario dell'agenda, e una sincronizzazione successiva
+   * non annulla questa decisione.
+   */
+  async rescheduleToNow(
+    input: TransitionInput,
+    ctx: ActionContext,
+  ): Promise<Result<Appointment, DomainError>> {
+    const current = await this.load(input.appointmentId);
+    if (!current.ok) {
+      return current;
+    }
+    const a = current.value;
+    // Il caso normale è una pratica già WAITING: non c'è un cambio di stato da validare, si
+    // aggiorna solo l'orario atteso. Da SKIPPED invece si torna in attesa, e quella transizione
+    // va verificata come tutte le altre.
+    if (!isInQueue(a.status)) {
+      return err(
+        domainError(
+          'INVALID_TRANSITION',
+          `Solo una pratica in coda può essere rimessa in coda: questa è ${a.status}.`,
+          { from: a.status },
+        ),
+      );
+    }
+    return this.apply(
+      a,
+      'WAITING',
+      { rescheduledAt: this.deps.clock.nowIso(), skippedAt: null },
+      input.expectedVersion,
+      ctx,
+    );
+  }
+
+  /**
+   * Segna il cliente come assente (WAITING|SKIPPED → NO_SHOW) e deposita l'evento per il CRM
+   * nella outbox: il BDC potrà ricontattarlo. L'invio effettivo al CRM avviene altrove (M6),
+   * qui si registra soltanto, con una chiave che impedisce doppioni sulla stessa giornata.
+   */
+  async markNoShow(
+    input: TransitionInput & { readonly reason?: string | undefined },
+    ctx: ActionContext,
+  ): Promise<Result<Appointment, DomainError>> {
+    const updated = await this.transition(input, ctx, 'NO_SHOW', () => ({
+      noShowAt: this.deps.clock.nowIso(),
+    }));
+    if (!updated.ok) {
+      return updated;
+    }
+    await this.recordNoShowForCrm(updated.value, input.reason ?? null, ctx);
+    return updated;
+  }
+
   // --- interni ---------------------------------------------------------------------------
 
   /**
@@ -362,6 +419,94 @@ export class QueueService {
     const found = await this.deps.appointments.findByPlate(plate, businessDate);
     const open = found.find((a) => isInQueue(a.status) || a.status === 'IN_PROGRESS');
     return open ?? found.at(-1) ?? null;
+  }
+
+  /**
+   * "Clienti prima di te" per il portale: conta solo le pratiche in coda dello STESSO sportello,
+   * perché ogni sportello serve la propria fila e i clienti degli altri marchi non fanno attendere
+   * chi aspetta qui. Lo sportello è quello indicato da Infinity oppure, quando manca, quello che
+   * serve il marchio della vettura: la stessa regola con cui la dashboard raggruppa la coda, così
+   * il numero mostrato al cliente coincide con quello che vede l'accettatore.
+   * Il confronto usa l'orario effettivo, quindi un cliente rimesso in coda dopo un ritardo non
+   * risulta più davanti a chi era arrivato puntuale.
+   */
+  private async countAheadSameDesk(appointment: Appointment): Promise<number> {
+    const [inQueue, desks] = await Promise.all([
+      this.deps.appointments.listByDate(appointment.businessDate, {
+        statuses: [...ACTIVE_QUEUE_STATUSES],
+      }),
+      this.deps.referenceData.listDesks(),
+    ]);
+    const deskKey = (a: Appointment): string => {
+      if (a.deskId !== null) {
+        return a.deskId;
+      }
+      const desk = desks.find((d) => d.brandIds.includes(a.brandId));
+      // Senza sportello né marchio riconosciuto la pratica fa fila a sé: meglio un conteggio
+      // prudente che sommare clienti di sportelli diversi.
+      return desk?.id ?? `brand:${a.brandId}`;
+    };
+
+    const mioSportello = deskKey(appointment);
+    const mioOrario = effectiveScheduleTime(appointment);
+    return inQueue.filter(
+      (other) =>
+        other.id !== appointment.id &&
+        deskKey(other) === mioSportello &&
+        // A pari orario decide la sequenza del codice: l'ordine è quello della coda.
+        (effectiveScheduleTime(other) < mioOrario ||
+          (effectiveScheduleTime(other) === mioOrario && other.sequence < appointment.sequence)),
+    ).length;
+  }
+
+  /**
+   * Registra il no-show nella outbox CRM. Un fallimento qui non annulla il no-show: la pratica è
+   * già chiusa e l'officina deve poter andare avanti. L'anomalia viene però segnalata nei log.
+   */
+  private async recordNoShowForCrm(
+    a: Appointment,
+    reason: string | null,
+    ctx: ActionContext,
+  ): Promise<void> {
+    const idempotencyKey = `${a.id}:NO_SHOW:${a.businessDate}`;
+    try {
+      const esistente = await this.deps.crmOutbox.findByIdempotencyKey(idempotencyKey);
+      if (esistente !== null) {
+        return;
+      }
+      const now = this.deps.clock.nowIso();
+      await this.deps.crmOutbox.insert({
+        id: this.deps.ids.nextAs(asCrmOutboxEventId),
+        type: 'NO_SHOW',
+        anomalyKind: null,
+        appointmentId: a.id,
+        idempotencyKey,
+        payload: {
+          code: a.code,
+          businessDate: a.businessDate,
+          scheduledAt: a.scheduledAt,
+          plate: a.vehicle.plate,
+          externalRef: a.externalRef,
+          reason,
+          markedByOperatorId: ctx.operatorId,
+        },
+        status: 'PENDING',
+        attemptCount: 0,
+        nextAttemptAt: now,
+        lastError: null,
+        crmAckId: null,
+        createdAt: now,
+        sentAt: null,
+      });
+      this.logger.info(`no-show ${a.code}: evento per il CRM in coda di invio`, {
+        appointmentId: a.id,
+      });
+    } catch (cause) {
+      this.logger.error('no-show registrato ma evento CRM non salvato', {
+        appointmentId: a.id,
+        message: cause instanceof Error ? cause.message : String(cause),
+      });
+    }
   }
 
   private belongsToDesk(a: Appointment, desk: Desk): boolean {

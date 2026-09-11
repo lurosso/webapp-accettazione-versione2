@@ -29,14 +29,21 @@ export interface QueueResponse {
   readonly workstations: readonly Workstation[];
 }
 
-/** Azioni rapide sulla pratica (POST /api/v1/appointments/[id]/actions). */
-export type AppointmentAction = 'take' | 'skip' | 'complete' | 'release' | 'restore';
+/**
+ * Azioni rapide sulla pratica (POST /api/v1/appointments/[id]/actions).
+ * `reschedule` rimette in coda un cliente arrivato in ritardo; `no-show` lo segna assente e
+ * deposita l'evento per il CRM.
+ */
+export type AppointmentAction =
+  'take' | 'skip' | 'complete' | 'release' | 'restore' | 'reschedule' | 'no-show';
 
 export interface AppointmentActionRequest {
   readonly action: AppointmentAction;
   readonly expectedVersion: number;
   /** Solo per `take`: campata richiesta esplicitamente. */
   readonly bayId?: string | null;
+  /** Solo per `no-show`: motivo annotato per il BDC. */
+  readonly reason?: string | null;
 }
 
 /** Sessione serializzata per i componenti client (identica a `Session`, senza brand nominali). */

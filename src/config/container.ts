@@ -146,11 +146,11 @@ export function createContainer(overrides: ContainerOverrides = {}): Container {
     referenceData: repos.referenceData,
     operators: repos.operators,
     notifications: repos.notifications,
+    crmOutbox: repos.crmOutbox,
     eventBus,
     clock,
     ids,
     logger,
-    queueAheadScope: env.queueAheadScope,
   });
 
   const syncService = new SyncService({

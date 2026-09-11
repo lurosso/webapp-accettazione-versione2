@@ -26,8 +26,6 @@ export interface UpsertSummary {
 }
 
 /** Ambito del conteggio "clienti prima di te". */
-export type AheadScope = 'DESK' | 'SITE';
-
 /** Repository delle pratiche. Restituisce sempre copie immutabili. */
 export interface IAppointmentRepository {
   findById(id: AppointmentId): Promise<Appointment | null>;
@@ -56,7 +54,6 @@ export interface IAppointmentRepository {
   /** Contatore atomico per (giornata, prefisso): il numero restituito non viene mai riutilizzato. */
   reserveNextSequence(businessDate: IsoDate, prefix: string): Promise<number>;
   /** Pratiche WAITING/SKIPPED con (scheduledAt, sequence) precedente, nell'ambito indicato. */
-  countAhead(appointment: Appointment, scope: AheadScope): Promise<number>;
   /** Svuota le pratiche (solo test); senza argomento svuota tutto. */
   clear(businessDate?: IsoDate): Promise<void>;
 }

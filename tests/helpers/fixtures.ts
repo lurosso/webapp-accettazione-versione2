@@ -16,6 +16,7 @@ import type { PlateNumber } from '@/domain/value-objects/plate';
 import { formatQueueCode } from '@/domain/value-objects/queue-code';
 import { NotificationOrchestrator } from '@/application/notifications/NotificationOrchestrator';
 import { InMemoryAppointmentRepository } from '@/repositories/in-memory/InMemoryAppointmentRepository';
+import { InMemoryCrmOutboxRepository } from '@/repositories/in-memory/InMemoryCrmOutboxRepository';
 import { InMemoryNotificationRepository } from '@/repositories/in-memory/InMemoryNotificationRepository';
 import { InMemoryOperatorRepository } from '@/repositories/in-memory/InMemoryOperatorRepository';
 import { InMemoryReferenceDataRepository } from '@/repositories/in-memory/InMemoryReferenceDataRepository';
@@ -113,6 +114,7 @@ export function buildTestEnv(clock = new TestClock()) {
     referenceData: new InMemoryReferenceDataRepository(store),
     operators: new InMemoryOperatorRepository(store),
     syncRuns: new InMemorySyncRunRepository(store),
+    crmOutbox: new InMemoryCrmOutboxRepository(store),
     notifications,
     spoki,
     smsHosting,
@@ -136,6 +138,7 @@ export function makeAppointment(overrides: Partial<Appointment> = {}): Appointme
     source: 'INFINITY',
     businessDate: TEST_DATE,
     scheduledAt: `2026-09-10T0${6 + (counter % 3)}:00:00.000Z` as IsoDateTime,
+    rescheduledAt: null,
     code: formatQueueCode('F', counter),
     sequence: counter,
     brandId: asBrandId('brand-fiat'),

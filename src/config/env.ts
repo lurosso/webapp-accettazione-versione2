@@ -43,7 +43,6 @@ export interface AppEnv {
   readonly syncHourLocal: string;
   readonly codePrefix: string;
   readonly codeSequenceScope: 'SITE' | 'BRAND';
-  readonly queueAheadScope: 'DESK' | 'SITE';
   readonly mockSeed: string;
   readonly mockLatencyMs: number;
   readonly mockInfinityMode: InfinityMockMode;
@@ -79,7 +78,6 @@ const INFINITY_MODES: readonly InfinityMockMode[] = [
 const UP_DOWN: readonly ProviderMockMode[] = ['ok', 'down'];
 const CRM_MODES: readonly CrmMockMode[] = ['ok', 'error', 'timeout', 'flaky'];
 const SEQUENCE_SCOPES: readonly AppEnv['codeSequenceScope'][] = ['SITE', 'BRAND'];
-const AHEAD_SCOPES: readonly AppEnv['queueAheadScope'][] = ['DESK', 'SITE'];
 const NODE_ENVS: readonly AppEnv['nodeEnv'][] = ['development', 'test', 'production'];
 
 function defaultWarning(message: string): void {
@@ -189,7 +187,7 @@ function pickTimeZone(source: EnvSource, key: string, fallback: string, warn: En
  *
  * Variabili lette: SERVICES_PROVIDER, INFINITY_PROVIDER, SPOKI_PROVIDER, SMS_PROVIDER,
  * CRM_PROVIDER, REPOSITORY_PROVIDER, MEDIA_STORAGE_PROVIDER, APP_TIMEZONE, SYNC_HOUR_LOCAL,
- * CODE_PREFIX, CODE_SEQUENCE_SCOPE, QUEUE_AHEAD_SCOPE, MOCK_SEED, MOCK_LATENCY_MS,
+ * CODE_PREFIX, CODE_SEQUENCE_SCOPE, MOCK_SEED, MOCK_LATENCY_MS,
  * MOCK_INFINITY_MODE, MOCK_INFINITY_FLAKY_FAILURES, MOCK_INFINITY_CANCEL_ON_SECOND_CALL,
  * MOCK_SPOKI_FAIL_SUFFIX, MOCK_SPOKI_FAILURE_RATE, MOCK_SPOKI_MODE, MOCK_SMS_FAIL_SUFFIX,
  * MOCK_SMS_FAILURE_RATE, MOCK_SMS_MODE, MOCK_SMS_CREDITS, MOCK_CRM_MODE, MOCK_DELIVERY_DELAY_MS, NODE_ENV.
@@ -226,7 +224,6 @@ export function parseEnv(
     syncHourLocal: pickHourLocal(source, 'SYNC_HOUR_LOCAL', DEFAULT_SYNC_HOUR_LOCAL, warn),
     codePrefix: pickString(source, 'CODE_PREFIX', DEFAULT_CODE_PREFIX).toUpperCase(),
     codeSequenceScope: pickEnum(source, 'CODE_SEQUENCE_SCOPE', SEQUENCE_SCOPES, 'SITE', warn),
-    queueAheadScope: pickEnum(source, 'QUEUE_AHEAD_SCOPE', AHEAD_SCOPES, 'SITE', warn),
     mockSeed: pickString(source, 'MOCK_SEED', 'autoclub-demo'),
     mockLatencyMs: pickInt(source, 'MOCK_LATENCY_MS', 150, warn),
     mockInfinityMode: pickEnum(source, 'MOCK_INFINITY_MODE', INFINITY_MODES, 'ok', warn),

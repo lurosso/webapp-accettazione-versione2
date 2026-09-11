@@ -12,15 +12,27 @@ export interface ActionButtonsProps {
   readonly pending: boolean;
   /** True quando la pratica appartiene a un altro sportello (vista globale). */
   readonly foreignDesk: boolean;
+  /**
+   * Riga del blocco "in ritardo": aggiunge le due decisioni che l'accettatore deve prendere su
+   * chi non si è presentato in orario. Fuori da quel blocco non compaiono, per non affollare la
+   * riga di un cliente che sta semplicemente aspettando il suo turno.
+   */
+  readonly late?: boolean;
   readonly onAction: (action: AppointmentAction) => void;
 }
 
-export function ActionButtons({ appointment, pending, foreignDesk, onAction }: ActionButtonsProps) {
+export function ActionButtons({
+  appointment,
+  pending,
+  foreignDesk,
+  late = false,
+  onAction,
+}: ActionButtonsProps) {
   const { status } = appointment;
   const buttons: {
     readonly action: AppointmentAction;
     readonly label: string;
-    readonly variant: 'warning' | 'success' | 'outline' | 'ghost';
+    readonly variant: 'warning' | 'success' | 'outline' | 'ghost' | 'destructive';
   }[] = [];
 
   if (canTransition(status, 'IN_PROGRESS')) {
@@ -30,11 +42,18 @@ export function ActionButtons({ appointment, pending, foreignDesk, onAction }: A
       variant: 'warning',
     });
   }
-  if (status === 'WAITING' && canTransition(status, 'SKIPPED')) {
-    buttons.push({ action: 'skip', label: 'Salta', variant: 'outline' });
-  }
-  if (status === 'SKIPPED' && canTransition(status, 'WAITING')) {
-    buttons.push({ action: 'restore', label: 'Ripristina', variant: 'ghost' });
+  if (late) {
+    // Le due decisioni sul cliente in ritardo: è arrivato e lo rimettiamo in coda, oppure è
+    // assente e il BDC lo ricontatterà.
+    buttons.push({ action: 'reschedule', label: 'Rimetti in coda', variant: 'outline' });
+    buttons.push({ action: 'no-show', label: 'Segna assente', variant: 'destructive' });
+  } else {
+    if (status === 'WAITING' && canTransition(status, 'SKIPPED')) {
+      buttons.push({ action: 'skip', label: 'Salta', variant: 'outline' });
+    }
+    if (status === 'SKIPPED' && canTransition(status, 'WAITING')) {
+      buttons.push({ action: 'restore', label: 'Ripristina', variant: 'ghost' });
+    }
   }
   if (status === 'IN_PROGRESS') {
     if (canTransition(status, 'COMPLETED')) {

@@ -43,5 +43,12 @@ export const RELEASING_DISPLAY_MS = 20000;
 /** Salti oltre i quali si genera un'anomalia EXCESSIVE_SKIPS verso il CRM (usata da M6, `AnomalyReporter`). */
 export const MAX_SKIPS_BEFORE_ANOMALY = 3;
 
+/**
+ * Minuti di tolleranza prima di considerare un cliente in ritardo nella dashboard.
+ * Un cliente che arriva pochi minuti dopo l'orario non è un assente: sotto questa soglia la
+ * pratica resta nella coda normale. Alzare il valore se il blocco "in ritardo" si riempie troppo.
+ */
+export const LATE_GRACE_MINUTES = 10;
+
 /** Dopo quanti ms un job di notifica IN_FLIGHT è considerato orfano (crash) e riprocessabile. */
 export const NOTIFICATION_IN_FLIGHT_STALE_MS = 5 * 60_000;

@@ -2,7 +2,6 @@
 // contatore codici atomico nel singolo processo.
 
 import type { Appointment } from '@/domain/entities/appointment';
-import { ACTIVE_QUEUE_STATUSES } from '@/domain/entities/appointment';
 import type { DomainError } from '@/domain/errors';
 import { domainError } from '@/domain/errors';
 import type { AppointmentId } from '@/domain/ids';
@@ -14,7 +13,6 @@ import type { QueueCode } from '@/domain/value-objects/queue-code';
 import { compareByScheduleThenSequence } from '@/domain/value-objects/queue-code';
 import type { IClock } from '@/services/interfaces/IClock';
 import type {
-  AheadScope,
   AppointmentFilter,
   IAppointmentRepository,
 } from '../interfaces/IAppointmentRepository';
@@ -174,25 +172,6 @@ export class InMemoryAppointmentRepository implements IAppointmentRepository {
     const next = (this.store.state.sequences.get(key) ?? 0) + 1;
     this.store.state.sequences.set(key, next);
     return next;
-  }
-
-  async countAhead(appointment: Appointment, scope: AheadScope): Promise<number> {
-    let count = 0;
-    for (const other of this.map.values()) {
-      if (other.id === appointment.id || other.businessDate !== appointment.businessDate) {
-        continue;
-      }
-      if (!ACTIVE_QUEUE_STATUSES.includes(other.status)) {
-        continue;
-      }
-      if (scope === 'DESK' && other.deskId !== appointment.deskId) {
-        continue;
-      }
-      if (compareByScheduleThenSequence(other, appointment) < 0) {
-        count += 1;
-      }
-    }
-    return count;
   }
 
   async clear(businessDate?: IsoDate): Promise<void> {

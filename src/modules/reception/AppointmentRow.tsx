@@ -4,7 +4,7 @@
 // stato, campata, operatore e azioni. Evidenze: In carico giallo, Completata verde, Saltata arancio.
 // L'intera riga apre il dettaglio della pratica; il codice è anche un pulsante, così il pannello
 // si raggiunge da tastiera e con gli screen reader, non solo col mouse.
-import type { AppointmentStatus } from '@/domain/entities/appointment';
+import { effectiveScheduleTime, type AppointmentStatus } from '@/domain/entities/appointment';
 import type { QueueRowView } from '@/domain/read-models';
 import { Badge } from '@/components/ui/badge';
 import { OperatorChip } from '@/components/shared/OperatorChip';
@@ -12,7 +12,6 @@ import { TableCell, TableRow } from '@/components/ui/table';
 import { localTimeHHmm } from '@/lib/dates';
 import { cn } from '@/lib/utils/cn';
 import { ActionButtons } from './ActionButtons';
-import { NotificationBadge } from './NotificationBadge';
 import { StatusBadge } from './StatusBadge';
 import type { AppointmentAction } from './types';
 
@@ -26,6 +25,10 @@ export interface AppointmentRowProps {
   readonly pending: boolean;
   /** Nome dell'operatore collegato: marca con "(tu)" le pratiche prese in carico da lui. */
   readonly currentOperatorName: string;
+  /** Riga del blocco "in ritardo": aggiunge le azioni per gestire il ritardo. */
+  readonly late?: boolean;
+  /** Minuti di ritardo accumulati, mostrati accanto all'orario. */
+  readonly lateByMinutes?: number;
   readonly onAction: (action: AppointmentAction) => void;
   readonly onSelect: () => void;
 }
@@ -47,6 +50,8 @@ export function AppointmentRow({
   timeZone,
   pending,
   currentOperatorName,
+  late = false,
+  lateByMinutes = 0,
   onAction,
   onSelect,
 }: AppointmentRowProps) {
@@ -80,21 +85,32 @@ export function AppointmentRow({
         ) : null}
       </TableCell>
       <TableCell className="font-mono tabular-nums">
-        {localTimeHHmm(new Date(a.scheduledAt), timeZone)}
+        {localTimeHHmm(new Date(effectiveScheduleTime(a)), timeZone)}
+        {a.rescheduledAt !== null ? (
+          <span
+            className="block text-xs font-normal text-slate-500"
+            title={`Orario in agenda: ${localTimeHHmm(new Date(a.scheduledAt), timeZone)}`}
+          >
+            rimessa in coda
+          </span>
+        ) : null}
+        {late && lateByMinutes > 0 ? (
+          <span className="block text-xs font-semibold text-red-700">
+            {lateByMinutes < 60
+              ? `+${lateByMinutes} min`
+              : `+${Math.floor(lateByMinutes / 60)} h ${lateByMinutes % 60} min`}
+          </span>
+        ) : null}
       </TableCell>
       <TableCell className="font-mono font-semibold">{a.vehicle.plate}</TableCell>
       <TableCell>
         <span className="font-medium">{brandName}</span>
         <span className="text-slate-500"> {a.vehicle.model}</span>
       </TableCell>
+      {/* Colonna volutamente essenziale: l'esito del contatto sta nel pannello di dettaglio,
+          dove l'accettatore lo cerca quando deve chiamare il cliente. */}
       <TableCell>
-        <span className="flex flex-wrap items-center gap-1.5">
-          <span>
-            {a.customer.lastName} {a.customer.firstName}
-          </span>
-          {/* Se il cliente è già stato avvisato, e con quale canale. */}
-          <NotificationBadge status={row.notificationStatus} channel={row.notificationChannel} />
-        </span>
+        {a.customer.lastName} {a.customer.firstName}
         {a.serviceDescription !== null ? (
           <span className="block text-xs text-slate-500">{a.serviceDescription}</span>
         ) : null}
@@ -133,6 +149,7 @@ export function AppointmentRow({
             appointment={a}
             pending={pending}
             foreignDesk={foreignDesk}
+            late={late}
             onAction={onAction}
           />
         </div>

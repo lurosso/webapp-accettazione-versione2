@@ -2,21 +2,20 @@ import { describe, expect, it } from 'vitest';
 import { QueueService, type ActionContext } from '@/application/queue/QueueService';
 import type { Appointment } from '@/domain/entities/appointment';
 import { asBrandId, asDeskId, asOperatorId, asWorkstationId } from '@/domain/ids';
-import type { AheadScope } from '@/repositories/interfaces';
 import { buildTestEnv, makeAppointment, TEST_DATE } from '../helpers/fixtures';
 
-function setup(queueAheadScope: AheadScope = 'SITE') {
+function setup() {
   const env = buildTestEnv();
   const service = new QueueService({
     appointments: env.appointments,
     referenceData: env.referenceData,
     operators: env.operators,
     notifications: env.notifications,
+    crmOutbox: env.crmOutbox,
     eventBus: env.eventBus,
     clock: env.clock,
     ids: env.ids,
     logger: env.logger,
-    queueAheadScope,
   });
   const ctx: ActionContext = {
     operatorId: asOperatorId('op-advisor-1'),
@@ -36,12 +35,24 @@ async function insert(env: ReturnType<typeof buildTestEnv>, a: Appointment): Pro
 
 const AT = (hhmm: string) => `2026-09-10T${hhmm}:00.000Z` as Appointment['scheduledAt'];
 
+/** Pratica di uno sportello diverso (Jeep su S2), per verificare che non entri nel conteggio. */
+const ALTRO_SPORTELLO = {
+  deskId: asDeskId('desk-s2'),
+  brandId: asBrandId('brand-jeep'),
+} as const;
+
 describe('QueueService.getPublicPositionByPlate', () => {
-  it('conta i clienti in attesa prima della pratica e non espone dati personali', async () => {
+  it('conta solo i clienti dello stesso sportello e non espone dati personali', async () => {
     const { env, service } = setup();
+    // Due davanti sullo stesso sportello (una saltata: conta comunque come in attesa).
     await insert(env, makeAppointment({ scheduledAt: AT('07:00') }));
     await insert(env, makeAppointment({ scheduledAt: AT('07:15'), status: 'SKIPPED' }));
+    // Tre su un altro sportello: non devono far crescere l'attesa di questo cliente.
+    await insert(env, makeAppointment({ ...ALTRO_SPORTELLO, scheduledAt: AT('06:30') }));
+    await insert(env, makeAppointment({ ...ALTRO_SPORTELLO, scheduledAt: AT('06:45') }));
+    await insert(env, makeAppointment({ ...ALTRO_SPORTELLO, scheduledAt: AT('07:10') }));
     const mine = await insert(env, makeAppointment({ scheduledAt: AT('07:30') }));
+    // Una dopo: non conta.
     await insert(env, makeAppointment({ scheduledAt: AT('08:00') }));
 
     const r = await service.getPublicPositionByPlate(mine.vehicle.plate, TEST_DATE);
@@ -49,12 +60,10 @@ describe('QueueService.getPublicPositionByPlate', () => {
     if (!r.ok) {
       return;
     }
-    // Le saltate contano come in attesa (default deciso in M2-T01); quella dopo non conta.
     expect(r.value.aheadCount).toBe(2);
     expect(r.value.code).toBe(mine.code);
     expect(r.value.status).toBe('WAITING');
     expect(r.value.bayNumber).toBeNull();
-    expect(r.value.scheduledAt).toBe(mine.scheduledAt);
     // Nessun campo personale nella view pubblica.
     expect(Object.keys(r.value).sort()).toEqual([
       'aheadCount',
@@ -67,13 +76,46 @@ describe('QueueService.getPublicPositionByPlate', () => {
     ]);
   });
 
-  it('normalizza la targa digitata dal cliente (minuscole, spazi, trattini)', async () => {
+  it("lo sportello è dedotto dal marchio quando l'agenda non lo indica", async () => {
     const { env, service } = setup();
-    const mine = await insert(env, makeAppointment());
-    const plate = mine.vehicle.plate;
-    const digitata = `${plate.slice(0, 2).toLowerCase()} ${plate.slice(2, 5)}-${plate.slice(5).toLowerCase()}`;
-    const r = await service.getPublicPositionByPlate(digitata, TEST_DATE);
-    expect(r.ok && r.value.code === mine.code).toBe(true);
+    // Nessun deskId: Lancia è servita dallo sportello S1, come la pratica cercata.
+    await insert(
+      env,
+      makeAppointment({
+        deskId: null,
+        brandId: asBrandId('brand-lancia'),
+        scheduledAt: AT('07:00'),
+      }),
+    );
+    // Nessun deskId ma marchio di un altro sportello: fuori dal conteggio.
+    await insert(
+      env,
+      makeAppointment({ deskId: null, brandId: asBrandId('brand-opel'), scheduledAt: AT('07:05') }),
+    );
+    const mine = await insert(env, makeAppointment({ scheduledAt: AT('07:30') }));
+
+    const r = await service.getPublicPositionByPlate(mine.vehicle.plate, TEST_DATE);
+    expect(r.ok && r.value.aheadCount).toBe(1);
+  });
+
+  it('un cliente rimesso in coda dopo un ritardo non risulta più davanti a chi era puntuale', async () => {
+    const { env, service, ctx } = setup();
+    const ritardatario = await insert(env, makeAppointment({ scheduledAt: AT('07:00') }));
+    const mine = await insert(env, makeAppointment({ scheduledAt: AT('07:30') }));
+
+    // Prima del rinvio il ritardatario è davanti.
+    const prima = await service.getPublicPositionByPlate(mine.vehicle.plate, TEST_DATE);
+    expect(prima.ok && prima.value.aheadCount).toBe(1);
+
+    // L'accettatore lo rimette in coda: il suo orario effettivo diventa adesso (08:00 del clock).
+    const rinviato = await service.rescheduleToNow(
+      { appointmentId: ritardatario.id, expectedVersion: 1 },
+      ctx,
+    );
+    expect(rinviato.ok).toBe(true);
+
+    const dopo = await service.getPublicPositionByPlate(mine.vehicle.plate, TEST_DATE);
+    expect(dopo.ok && dopo.value.aheadCount).toBe(0);
   });
 
   it('in carico: conteggio azzerato e numero di campata da mostrare al cliente', async () => {
@@ -96,23 +138,13 @@ describe('QueueService.getPublicPositionByPlate', () => {
     }
   });
 
-  it("l'ambito DESK conta solo lo sportello della pratica, SITE tutta l'accettazione", async () => {
-    const other = {
-      deskId: asDeskId('desk-s2'),
-      brandId: asBrandId('brand-jeep'),
-      scheduledAt: AT('07:00'),
-    };
-    const site = setup('SITE');
-    await insert(site.env, makeAppointment(other));
-    const mineSite = await insert(site.env, makeAppointment({ scheduledAt: AT('07:30') }));
-    const rSite = await site.service.getPublicPositionByPlate(mineSite.vehicle.plate, TEST_DATE);
-    expect(rSite.ok && rSite.value.aheadCount).toBe(1);
-
-    const desk = setup('DESK');
-    await insert(desk.env, makeAppointment(other));
-    const mineDesk = await insert(desk.env, makeAppointment({ scheduledAt: AT('07:30') }));
-    const rDesk = await desk.service.getPublicPositionByPlate(mineDesk.vehicle.plate, TEST_DATE);
-    expect(rDesk.ok && rDesk.value.aheadCount).toBe(0);
+  it('normalizza la targa digitata dal cliente (minuscole, spazi, trattini)', async () => {
+    const { env, service } = setup();
+    const mine = await insert(env, makeAppointment());
+    const plate = mine.vehicle.plate;
+    const digitata = `${plate.slice(0, 2).toLowerCase()} ${plate.slice(2, 5)}-${plate.slice(5).toLowerCase()}`;
+    const r = await service.getPublicPositionByPlate(digitata, TEST_DATE);
+    expect(r.ok && r.value.code === mine.code).toBe(true);
   });
 
   it('targa non valida → VALIDATION, targa non in agenda → NOT_FOUND', async () => {

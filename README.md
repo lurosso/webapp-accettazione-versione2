@@ -32,6 +32,10 @@ la mette in coda. Gli accettatori lavorano su una dashboard monopagina con tre a
 | **Salta**             | Saltata                     | Pospone la pratica lasciandola al proprio orario     |
 | **Completato**        | Completata (evidenza verde) | Libera la campata; la pratica esce dalla vista attiva |
 
+Chi era atteso da più di dieci minuti e non è ancora stato preso in carico finisce nel blocco
+**In ritardo / assenti**, dove l'accettatore lo rimette in coda quando arriva, oppure lo segnala
+assente perché il BDC lo ricontatti.
+
 Il **portale cliente** completa il quadro: chi entra in officina inquadra il QR code della corsia,
 digita la targa e vede il proprio codice, quanti clienti ha davanti e cosa deve fare, con la pagina
 che si aggiorna da sola mentre l'operatore lavora. Sopra ogni campata un **monitor** mostra il
@@ -115,7 +119,7 @@ predefinita): determinano il filtro iniziale della coda e la campata proposta al
 | Percorso              | Destinatario   | Stato          | Contenuto                                                                                 |
 | --------------------- | -------------- | -------------- | ----------------------------------------------------------------------------------------- |
 | `/login`              | Accettatore    | disponibile    | Credenziali, scelta sportello/brand e postazione                                          |
-| `/accettazione`       | Accettatore    | disponibile    | Coda ordinata per orario con codici F001…, azioni rapide, banner sync, **vista globale** per prendere in carico pratiche di altri sportelli, aggiornamento ogni 3 s |
+| `/accettazione`       | Accettatore    | disponibile    | Coda ordinata per orario con codici F001…, azioni rapide, blocco **In ritardo / assenti**, banner sync, **vista globale** per prendere in carico pratiche di altri sportelli, aggiornamento ogni 3 s; il clic su una riga apre i dati del cliente |
 | `/sistema`            | Responsabile   | disponibile    | Stato delle porte esterne (Infinity, Spoki, SMS Hosting, CRM)                              |
 | `/cliente` (`/qr`)    | Cliente (QR)   | disponibile    | Ricerca per targa e stato del turno in tempo reale: codice, clienti in attesa, messaggio per stato; nessuna autenticazione e nessun dato personale |
 | `/display/sala-attesa` | Sala d'attesa | disponibile    | Tabellone stile ufficio pubblico: codici chiamati con la campata a cui presentarsi e prossimi turni |

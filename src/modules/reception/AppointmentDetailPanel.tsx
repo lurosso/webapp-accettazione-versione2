@@ -8,11 +8,13 @@
 import { useEffect } from 'react';
 import type { Appointment } from '@/domain/entities/appointment';
 import { customerFullName } from '@/domain/entities/customer';
+import type { NotificationJobStatus } from '@/domain/entities/notification';
 import type { QueueRowView } from '@/domain/read-models';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { OperatorChip } from '@/components/shared/OperatorChip';
 import { formatDateTimeIt, localTimeHHmm } from '@/lib/dates';
+import { NotificationBadge } from './NotificationBadge';
 import { StatusBadge } from './StatusBadge';
 
 export interface AppointmentDetailPanelProps {
@@ -43,6 +45,28 @@ function Field({
       </dd>
     </div>
   );
+}
+
+/** Cosa deve fare l'accettatore in base all'esito del promemoria. */
+function notificationHint(status: NotificationJobStatus): string {
+  switch (status) {
+    case 'SENT':
+    case 'DELIVERED':
+      return 'Il cliente è stato avvisato: nessuna azione necessaria.';
+    case 'PENDING':
+    case 'IN_FLIGHT':
+      return 'Invio in corso.';
+    case 'FAILED':
+      return 'Invio non riuscito per un problema temporaneo: se il cliente non arriva, telefonagli.';
+    case 'MANUAL_REQUIRED':
+      return 'WhatsApp e SMS non sono riusciti: il cliente va chiamato al telefono.';
+    case 'MANUAL_CONFIRMED':
+      return 'Un operatore ha già contattato il cliente a voce.';
+    case 'NO_RECIPIENT':
+      return "In agenda non c'è un numero di telefono: il cliente non ha ricevuto avvisi.";
+    case 'SUPPRESSED':
+      return 'Invio sospeso dalla configurazione.';
+  }
 }
 
 /** Elenco degli istanti registrati sulla pratica, in ordine di accadimento. */
@@ -144,6 +168,24 @@ export function AppointmentDetailPanel({
                   <Badge tone="success">Sì, promemoria via WhatsApp</Badge>
                 ) : (
                   <Badge tone="neutral">No, solo SMS o telefono</Badge>
+                )}
+              </Field>
+              {/* Esito del promemoria: qui e non nella tabella, perché è l'informazione che
+                  serve proprio quando si sta decidendo se telefonare al cliente. */}
+              <Field label="Promemoria di oggi">
+                {row.notificationStatus === null ? (
+                  <span className="text-slate-500">Nessun promemoria inviato</span>
+                ) : (
+                  <span className="flex flex-col gap-1">
+                    <NotificationBadge
+                      status={row.notificationStatus}
+                      channel={row.notificationChannel}
+                      className="self-start"
+                    />
+                    <span className="text-xs text-slate-500">
+                      {notificationHint(row.notificationStatus)}
+                    </span>
+                  </span>
                 )}
               </Field>
             </dl>
