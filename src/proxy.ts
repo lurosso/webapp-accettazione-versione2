@@ -69,6 +69,7 @@ export async function proxy(request: NextRequest): Promise<NextResponse> {
 export const config = {
   matcher: [
     '/accettazione/:path*',
+    '/tablet/:path*',
     '/sistema/:path*',
     '/manager/:path*',
     '/admin/:path*',

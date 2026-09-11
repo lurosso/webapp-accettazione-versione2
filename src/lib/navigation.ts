@@ -16,11 +16,12 @@ export function homePathForRole(role: OperatorRole): string {
 }
 
 /** Aree protette dell'applicazione. */
-export type ProtectedArea = 'accettazione' | 'manager' | 'admin' | 'sistema';
+export type ProtectedArea = 'accettazione' | 'tablet' | 'manager' | 'admin' | 'sistema';
 
 /** Ruoli ammessi su ciascuna area; un solo elenco, usato dalle pagine e dalla navigazione. */
 export const AREA_ROLES: Record<ProtectedArea, readonly OperatorRole[]> = {
   accettazione: ['ADVISOR', 'SUPERVISOR', 'ADMIN'],
+  tablet: ['ADVISOR', 'SUPERVISOR', 'ADMIN'],
   manager: ['SUPERVISOR', 'ADMIN'],
   admin: ['ADMIN'],
   sistema: ['ADVISOR', 'SUPERVISOR', 'ADMIN'],

@@ -58,6 +58,8 @@ export interface AppEnv {
   readonly mockSmsCredits: number;
   readonly mockCrmMode: CrmMockMode;
   readonly mockDeliveryDelayMs: number;
+  /** Latenza simulata del salvataggio delle foto (tablet): fa vedere il caricamento in corso. */
+  readonly mockMediaLatencyMs: number;
   readonly nodeEnv: 'development' | 'test' | 'production';
 }
 
@@ -251,6 +253,7 @@ export function parseEnv(
     mockSmsCredits: pickInt(source, 'MOCK_SMS_CREDITS', 500, warn),
     mockCrmMode: pickEnum(source, 'MOCK_CRM_MODE', CRM_MODES, 'ok', warn),
     mockDeliveryDelayMs: pickInt(source, 'MOCK_DELIVERY_DELAY_MS', 3000, warn),
+    mockMediaLatencyMs: pickInt(source, 'MOCK_MEDIA_LATENCY_MS', 1200, warn),
     nodeEnv: pickEnum(source, 'NODE_ENV', NODE_ENVS, 'development', warn),
   };
 }

@@ -12,7 +12,7 @@ function setup() {
     referenceData: env.referenceData,
     operators: env.operators,
     notifications: env.notifications,
-    crmOutbox: env.crmOutbox,
+    crmNotifier: env.crmNotifier,
     eventBus: env.eventBus,
     clock: env.clock,
     ids: env.ids,
@@ -98,7 +98,7 @@ describe('QueueService: gestione dei clienti in ritardo', () => {
     expect(r.ok && r.value.status === 'WAITING' && r.value.skippedAt === null).toBe(true);
   });
 
-  it('markNoShow chiude la pratica e deposita un evento per il CRM', async () => {
+  it('markNoShow chiude la pratica e informa il CRM', async () => {
     const { env, service, ctx } = setup();
     const a = await insert(env, makeAppointment({ scheduledAt: AT('06:00') }));
 
@@ -112,12 +112,16 @@ describe('QueueService: gestione dei clienti in ritardo', () => {
       expect(r.value.noShowAt).toBe(ORA);
     }
 
-    const eventi = await env.crmOutbox.listByStatus(['PENDING']);
+    // Con il CRM raggiungibile l'evento non resta in coda: parte subito e la riga passa a SENT.
+    const eventi = await env.crmOutbox.listByStatus(['SENT']);
     expect(eventi).toHaveLength(1);
     expect(eventi[0]?.type).toBe('NO_SHOW');
     expect(eventi[0]?.appointmentId).toBe(a.id);
+    expect(eventi[0]?.crmAckId).toMatch(/^crm-mock-/);
     expect(eventi[0]?.payload['code']).toBe(a.code);
     expect(eventi[0]?.payload['reason']).toBe('Non si è presentato');
+    expect(env.crm.received).toHaveLength(1);
+    expect(env.crm.received[0]).toMatchObject({ code: a.code, reason: 'MARKED_BY_OPERATOR' });
   });
 
   it('segnare due volte lo stesso no-show non duplica l’evento per il CRM', async () => {
@@ -127,7 +131,8 @@ describe('QueueService: gestione dei clienti in ritardo', () => {
     // Il secondo tentativo è rifiutato dalla state machine (NO_SHOW non torna a NO_SHOW).
     const secondo = await service.markNoShow({ appointmentId: a.id, expectedVersion: 2 }, ctx);
     expect(secondo.ok).toBe(false);
-    expect(await env.crmOutbox.listByStatus(['PENDING'])).toHaveLength(1);
+    expect(await env.crmOutbox.listByStatus(['PENDING', 'SENT', 'FAILED'])).toHaveLength(1);
+    expect(env.crm.received).toHaveLength(1);
   });
 
   it('una pratica in lavorazione non può essere segnata assente', async () => {

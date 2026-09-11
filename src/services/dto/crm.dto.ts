@@ -32,6 +32,25 @@ export interface CrmAnomalyPayloadDto {
 }
 
 /** Ricevuta del CRM. */
+/**
+ * Accettazione conclusa al veicolo: quello che il BDC deve sapere per il seguito della pratica.
+ * Le foto viaggiano come riferimenti (URL), non come binari: il CRM le scarica se gli servono.
+ */
+export interface CrmCheckInPayloadDto {
+  readonly schemaVersion: 1;
+  readonly idempotencyKey: string;
+  readonly appointmentExternalRef: string | null;
+  readonly code: string;
+  readonly businessDate: string;
+  readonly customer: { readonly fullName: string; readonly phone: string | null };
+  readonly vehicle: { readonly plate: string; readonly brandCode: string; readonly model: string };
+  /** Note e danni rilevati dall'accettatore durante il giro del veicolo. */
+  readonly inspectionNotes: string | null;
+  readonly photos: readonly { readonly url: string; readonly capturedAt: string }[];
+  readonly completedAt: string;
+  readonly operatorId: string;
+}
+
 export interface CrmAckDto {
   readonly ackId: string;
   readonly receivedAt: string;

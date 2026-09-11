@@ -159,6 +159,63 @@ export function fetchWaitingBoard(nextCount?: number): Promise<BoardStatus> {
   return apiFetch<BoardStatus>(`/api/v1/public/board${query}`, { publicEndpoint: true });
 }
 
+/** Foto dell'ispezione con l'indirizzo per rileggerla. */
+export interface InspectionPhoto {
+  readonly id: string;
+  readonly url: string;
+  readonly capturedAt: string;
+  readonly sizeBytes: number;
+}
+
+/**
+ * POST /api/v1/appointments/{id}/media: invia una foto scattata al tablet.
+ * Il caricamento di un file non usa `apiFetch` perché il corpo è multipart, non JSON, e il
+ * timeout dev'essere più generoso: una foto da qualche megabyte su rete lenta richiede tempo.
+ */
+export async function uploadInspectionPhoto(
+  appointmentId: string,
+  file: File,
+): Promise<InspectionPhoto> {
+  const body = new FormData();
+  body.set('foto', file);
+  const response = await fetch(`/api/v1/appointments/${encodeURIComponent(appointmentId)}/media`, {
+    method: 'POST',
+    body,
+    signal: AbortSignal.timeout(30_000),
+  });
+  if (!response.ok) {
+    const error = await toApiError(response);
+    if (response.status === 401) {
+      redirectToLogin();
+    }
+    throw error;
+  }
+  const payload = (await response.json()) as { readonly photo: InspectionPhoto };
+  return payload.photo;
+}
+
+/** GET /api/v1/appointments/{id}/media: foto già acquisite per la pratica. */
+export function fetchInspectionPhotos(
+  appointmentId: string,
+): Promise<{ readonly photos: readonly InspectionPhoto[] }> {
+  return apiFetch(`/api/v1/appointments/${encodeURIComponent(appointmentId)}/media`);
+}
+
+/** POST /api/v1/appointments/{id}/check-in: conclude l'accettazione al veicolo. */
+export function postCheckIn(
+  appointmentId: string,
+  body: { readonly expectedVersion: number; readonly inspectionNotes: string | null },
+): Promise<{
+  readonly appointment: Appointment;
+  readonly photoCount: number;
+  readonly crmNotified: boolean;
+}> {
+  return apiFetch(`/api/v1/appointments/${encodeURIComponent(appointmentId)}/check-in`, {
+    method: 'POST',
+    json: body,
+  });
+}
+
 /** POST /api/v1/auth/login. */
 export function postLogin(body: {
   readonly username: string;

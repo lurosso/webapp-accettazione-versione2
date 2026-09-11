@@ -3,6 +3,8 @@
 // Memoizzato su globalThis: sopravvive all'HMR di Next e viene condiviso da tutte le richieste.
 import { LocalAuthService } from '@/application/auth/LocalAuthService';
 import type { IAuthService } from '@/application/auth/IAuthService';
+import { CrmNotifier } from '@/application/crm/CrmNotifier';
+import { InspectionService } from '@/application/media/InspectionService';
 import { NotificationOrchestrator } from '@/application/notifications/NotificationOrchestrator';
 import { CodeGenerator } from '@/application/queue/CodeGenerator';
 import { QueueService } from '@/application/queue/QueueService';
@@ -41,6 +43,8 @@ export interface Container {
   readonly authService: IAuthService;
   readonly codeGenerator: CodeGenerator;
   readonly queueService: QueueService;
+  readonly crmNotifier: CrmNotifier;
+  readonly inspectionService: InspectionService;
   readonly syncService: SyncService;
   readonly syncScheduler: SyncScheduler;
 }
@@ -141,13 +145,33 @@ export function createContainer(overrides: ContainerOverrides = {}): Container {
     scope: env.codeSequenceScope,
   });
 
+  const crmNotifier = new CrmNotifier({
+    crm: external.crm,
+    outbox: repos.crmOutbox,
+    referenceData: repos.referenceData,
+    clock,
+    ids,
+    logger,
+  });
+
   const queueService = new QueueService({
     appointments: repos.appointments,
     referenceData: repos.referenceData,
     operators: repos.operators,
     notifications: repos.notifications,
-    crmOutbox: repos.crmOutbox,
+    crmNotifier,
     eventBus,
+    clock,
+    ids,
+    logger,
+  });
+
+  const inspectionService = new InspectionService({
+    appointments: repos.appointments,
+    media: repos.media,
+    mediaStorage: external.mediaStorage,
+    queueService,
+    crmNotifier,
     clock,
     ids,
     logger,
@@ -199,6 +223,8 @@ export function createContainer(overrides: ContainerOverrides = {}): Container {
     authService,
     codeGenerator,
     queueService,
+    crmNotifier,
+    inspectionService,
     syncService,
     syncScheduler,
   };

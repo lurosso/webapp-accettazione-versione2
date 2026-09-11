@@ -5,7 +5,12 @@ import type { Brand } from '@/domain/entities/brand';
 import type { CrmAnomalyKind, CrmOutboxEvent } from '@/domain/entities/crm-outbox-event';
 import { customerFullName } from '@/domain/entities/customer';
 import type { IsoDateTime } from '@/domain/value-objects/iso-date';
-import type { CrmAnomalyPayloadDto, CrmNoShowPayloadDto, CrmNoShowReason } from '../dto/crm.dto';
+import type {
+  CrmAnomalyPayloadDto,
+  CrmCheckInPayloadDto,
+  CrmNoShowPayloadDto,
+  CrmNoShowReason,
+} from '../dto/crm.dto';
 
 /** Descrizioni in italiano delle anomalie per il BDC. */
 const ANOMALY_DESCRIPTIONS: Readonly<Record<CrmAnomalyKind, string>> = {
@@ -53,6 +58,44 @@ export function toCrmNoShowPayload(
  * Se `anomalyKind` è null (evento malformato) si usa MANUAL_APPOINTMENT come tipo neutro
  * e la descrizione lo segnala: la consegna non deve bloccarsi.
  */
+/** Chiave dell'evento di accettazione conclusa: una per pratica e giornata. */
+export function buildCheckInIdempotencyKey(appointment: Appointment): string {
+  return `${appointment.id}:CHECK_IN:${appointment.businessDate}`;
+}
+
+/** Accettazione conclusa al veicolo: note e riferimenti alle foto, mai i binari. */
+export function toCrmCheckInPayload(
+  appointment: Appointment,
+  brand: Brand,
+  input: {
+    readonly inspectionNotes: string | null;
+    readonly photos: readonly { readonly url: string; readonly capturedAt: string }[];
+    readonly completedAt: IsoDateTime;
+    readonly operatorId: string;
+  },
+): CrmCheckInPayloadDto {
+  return {
+    schemaVersion: 1,
+    idempotencyKey: buildCheckInIdempotencyKey(appointment),
+    appointmentExternalRef: appointment.externalRef,
+    code: appointment.code,
+    businessDate: appointment.businessDate,
+    customer: {
+      fullName: customerFullName(appointment.customer),
+      phone: appointment.customer.phone,
+    },
+    vehicle: {
+      plate: appointment.vehicle.plate,
+      brandCode: brand.code,
+      model: appointment.vehicle.model,
+    },
+    inspectionNotes: input.inspectionNotes,
+    photos: input.photos,
+    completedAt: input.completedAt,
+    operatorId: input.operatorId,
+  };
+}
+
 export function toCrmAnomalyPayload(
   event: CrmOutboxEvent,
   appointment: Appointment,

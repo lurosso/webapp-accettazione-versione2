@@ -24,6 +24,7 @@ export interface HeaderProps {
 /** Voci di navigazione: i permessi arrivano da `AREA_ROLES`, non duplicati qui. */
 const NAV: readonly { href: string; label: string; area: ProtectedArea }[] = [
   { href: '/accettazione', label: 'Accettazione', area: 'accettazione' },
+  { href: '/tablet', label: 'Tablet', area: 'tablet' },
   { href: '/manager', label: 'Responsabile', area: 'manager' },
   { href: '/admin', label: 'Admin', area: 'admin' },
   { href: '/sistema', label: 'Sistema', area: 'sistema' },

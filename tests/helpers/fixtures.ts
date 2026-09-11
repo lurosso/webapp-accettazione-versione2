@@ -14,9 +14,11 @@ import { isoDateTime } from '@/domain/value-objects/iso-date';
 import type { PhoneE164 } from '@/domain/value-objects/phone';
 import type { PlateNumber } from '@/domain/value-objects/plate';
 import { formatQueueCode } from '@/domain/value-objects/queue-code';
+import { CrmNotifier } from '@/application/crm/CrmNotifier';
 import { NotificationOrchestrator } from '@/application/notifications/NotificationOrchestrator';
 import { InMemoryAppointmentRepository } from '@/repositories/in-memory/InMemoryAppointmentRepository';
 import { InMemoryCrmOutboxRepository } from '@/repositories/in-memory/InMemoryCrmOutboxRepository';
+import { InMemoryMediaRepository } from '@/repositories/in-memory/InMemoryMediaRepository';
 import { InMemoryNotificationRepository } from '@/repositories/in-memory/InMemoryNotificationRepository';
 import { InMemoryOperatorRepository } from '@/repositories/in-memory/InMemoryOperatorRepository';
 import { InMemoryReferenceDataRepository } from '@/repositories/in-memory/InMemoryReferenceDataRepository';
@@ -28,6 +30,8 @@ import { NoopLogger } from '@/services/mocks/ConsoleLogger';
 import { InProcessEventBus } from '@/services/mocks/InProcessEventBus';
 import { SequentialIdGenerator } from '@/services/mocks/SequentialIdGenerator';
 import { SmsHostingServiceMock } from '@/services/mocks/SmsHostingServiceMock';
+import { CrmServiceMock } from '@/services/mocks/CrmServiceMock';
+import { MediaStorageMock } from '@/services/mocks/MediaStorageMock';
 import { SpokiServiceMock } from '@/services/mocks/SpokiServiceMock';
 
 /** Giornata operativa usata da tutti i test. */
@@ -106,15 +110,33 @@ export function buildTestEnv(clock = new TestClock()) {
     timeZone: 'Europe/Rome',
   });
 
+  // CRM e storage media: nessuna latenza nei test, esiti verificabili da `crm.received`.
+  const crm = new CrmServiceMock({ mode: 'ok', latencyMs: 0 }, { clock, logger });
+  const mediaStorage = new MediaStorageMock({ latencyMs: 0 }, { logger });
+  const crmOutbox = new InMemoryCrmOutboxRepository(store);
+  const referenceData = new InMemoryReferenceDataRepository(store);
+  const crmNotifier = new CrmNotifier({
+    crm,
+    outbox: crmOutbox,
+    referenceData,
+    clock,
+    ids,
+    logger,
+  });
+
   return {
     clock,
     store,
     seed,
     appointments: new InMemoryAppointmentRepository(store, clock),
-    referenceData: new InMemoryReferenceDataRepository(store),
+    referenceData,
     operators: new InMemoryOperatorRepository(store),
+    media: new InMemoryMediaRepository(store),
     syncRuns: new InMemorySyncRunRepository(store),
-    crmOutbox: new InMemoryCrmOutboxRepository(store),
+    crmOutbox,
+    crm,
+    crmNotifier,
+    mediaStorage,
     notifications,
     spoki,
     smsHosting,

@@ -109,7 +109,7 @@ export function createExternalServices(env: AppEnv, deps: ExternalServiceDeps): 
   // Storage media: `memory` → MediaStorageMock; `local` → MediaStorageLocalDisk (M5); `blob` → futuro.
   const mediaStorage: IMediaStorage =
     env.mediaStorageProvider === 'memory'
-      ? new MediaStorageMock()
+      ? new MediaStorageMock({ latencyMs: env.mockMediaLatencyMs }, { logger: deps.logger })
       : notImplemented(`storage media "${env.mediaStorageProvider}"`, 'MEDIA_STORAGE_PROVIDER');
 
   return { infinity, spoki, smsHosting, crm, mediaStorage };

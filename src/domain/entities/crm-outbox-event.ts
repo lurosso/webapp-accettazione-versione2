@@ -5,7 +5,12 @@ import type { AppointmentId, CrmOutboxEventId } from '../ids';
 import type { IsoDateTime } from '../value-objects/iso-date';
 
 /** Tipo di evento verso il CRM. */
-export type CrmEventType = 'NO_SHOW' | 'ANOMALY';
+/**
+ * Eventi che il CRM/BDC riceve dall'officina.
+ * `CHECK_IN` è l'accettazione conclusa al veicolo: note e foto raccolte al tablet finiscono nel
+ * fascicolo del cliente, così chi lo richiama sa cosa è stato rilevato sulla vettura.
+ */
+export type CrmEventType = 'NO_SHOW' | 'ANOMALY' | 'CHECK_IN';
 
 /** Anomalie di flusso segnalate al BDC. */
 export type CrmAnomalyKind =

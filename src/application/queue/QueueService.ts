@@ -14,7 +14,6 @@ import { RELEASING_DISPLAY_MS } from '@/config/constants';
 import { assertTransition } from '@/domain/appointment-state-machine';
 import { domainError, type DomainError } from '@/domain/errors';
 import type { AppointmentId, BayId, DeskId, OperatorId, WorkstationId } from '@/domain/ids';
-import { asCrmOutboxEventId } from '@/domain/ids';
 import type {
   BayDisplayView,
   QueuePositionView,
@@ -26,11 +25,11 @@ import type { IsoDate } from '@/domain/value-objects/iso-date';
 import { parsePlate, type PlateNumber } from '@/domain/value-objects/plate';
 import type {
   IAppointmentRepository,
-  ICrmOutboxRepository,
   INotificationRepository,
   IOperatorRepository,
   IReferenceDataRepository,
 } from '@/repositories/interfaces';
+import type { CrmNotifier } from '../crm/CrmNotifier';
 import type { IClock } from '@/services/interfaces/IClock';
 import type { IEventBus } from '@/services/interfaces/IEventBus';
 import type { IIdGenerator } from '@/services/interfaces/IIdGenerator';
@@ -42,8 +41,8 @@ export interface QueueServiceDeps {
   readonly operators: IOperatorRepository;
   /** Serve solo a mostrare nella coda se il cliente è già stato avvisato. */
   readonly notifications: INotificationRepository;
-  /** Coda degli eventi per il CRM/BDC: qui vi finiscono i no-show da ricontattare. */
-  readonly crmOutbox: ICrmOutboxRepository;
+  /** Invio degli eventi al CRM/BDC (no-show da ricontattare), tramite coda di uscita. */
+  readonly crmNotifier: CrmNotifier;
   readonly eventBus: IEventBus;
   readonly clock: IClock;
   readonly ids: IIdGenerator;
@@ -402,7 +401,13 @@ export class QueueService {
     if (!updated.ok) {
       return updated;
     }
-    await this.recordNoShowForCrm(updated.value, input.reason ?? null, ctx);
+    // La consegna al CRM è affidata al notificatore, che scrive in coda di uscita e prova a
+    // inviare: un CRM irraggiungibile non deve impedire di segnare un cliente assente.
+    await this.deps.crmNotifier.notifyNoShow(
+      updated.value,
+      input.reason ?? null,
+      ctx.correlationId ?? this.deps.ids.next(),
+    );
     return updated;
   }
 
@@ -457,56 +462,6 @@ export class QueueService {
         (effectiveScheduleTime(other) < mioOrario ||
           (effectiveScheduleTime(other) === mioOrario && other.sequence < appointment.sequence)),
     ).length;
-  }
-
-  /**
-   * Registra il no-show nella outbox CRM. Un fallimento qui non annulla il no-show: la pratica è
-   * già chiusa e l'officina deve poter andare avanti. L'anomalia viene però segnalata nei log.
-   */
-  private async recordNoShowForCrm(
-    a: Appointment,
-    reason: string | null,
-    ctx: ActionContext,
-  ): Promise<void> {
-    const idempotencyKey = `${a.id}:NO_SHOW:${a.businessDate}`;
-    try {
-      const esistente = await this.deps.crmOutbox.findByIdempotencyKey(idempotencyKey);
-      if (esistente !== null) {
-        return;
-      }
-      const now = this.deps.clock.nowIso();
-      await this.deps.crmOutbox.insert({
-        id: this.deps.ids.nextAs(asCrmOutboxEventId),
-        type: 'NO_SHOW',
-        anomalyKind: null,
-        appointmentId: a.id,
-        idempotencyKey,
-        payload: {
-          code: a.code,
-          businessDate: a.businessDate,
-          scheduledAt: a.scheduledAt,
-          plate: a.vehicle.plate,
-          externalRef: a.externalRef,
-          reason,
-          markedByOperatorId: ctx.operatorId,
-        },
-        status: 'PENDING',
-        attemptCount: 0,
-        nextAttemptAt: now,
-        lastError: null,
-        crmAckId: null,
-        createdAt: now,
-        sentAt: null,
-      });
-      this.logger.info(`no-show ${a.code}: evento per il CRM in coda di invio`, {
-        appointmentId: a.id,
-      });
-    } catch (cause) {
-      this.logger.error('no-show registrato ma evento CRM non salvato', {
-        appointmentId: a.id,
-        message: cause instanceof Error ? cause.message : String(cause),
-      });
-    }
   }
 
   private belongsToDesk(a: Appointment, desk: Desk): boolean {

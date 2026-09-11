@@ -11,7 +11,7 @@ function setup() {
     referenceData: env.referenceData,
     operators: env.operators,
     notifications: env.notifications,
-    crmOutbox: env.crmOutbox,
+    crmNotifier: env.crmNotifier,
     eventBus: env.eventBus,
     clock: env.clock,
     ids: env.ids,

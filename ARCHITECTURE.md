@@ -52,7 +52,7 @@ flowchart TB
 - **`IInfinityService`** (DMS Infinity): `fetchDailyAgenda(businessDate)`, `fetchAppointmentByPlate(plate, businessDate)`, `healthCheck()`. Restituisce DTO "wire" (`InfinityAgendaDto`), mai tipi di dominio: il mapping vive in `services/mappers/infinity.mapper.ts`, condiviso da mock e adapter reale, così gli errori di mapping emergono subito. `InfinityServiceMock` genera 28–40 appuntamenti per giornata con `SeededRandom(seedFrom(MOCK_SEED, businessDate))`: l'agenda è **deterministica dato (seed, businessDate, numero di chiamata)**. La prima chiamata di una giornata restituisce sempre la stessa agenda (requisito per l'idempotenza della sync e per i test); con `MOCK_INFINITY_CANCEL_ON_SECOND_CALL=true` (default) dalla seconda chiamata dello stesso giorno ~5 % degli appuntamenti risulta `cancelled` (esercita la reconciliation) e la terza è identica alla seconda; con `false` tutte le chiamate sono identiche. Il contatore di chiamate vive in memoria e si azzera al riavvio: dopo un ripristino da snapshot la prima chiamata torna a essere "la prima", ma la sync non regredisce mai una `CANCELLED`. Slot di 15 minuti dalle 07:30 alle 12:00, ~10 % senza telefono, ~15 % senza opt-in WhatsApp, ~5 % con cifre finali forzate per esercitare i fallback; modalità `ok | error | timeout | flaky | partial | empty`.
 - **`ISpokiService`** (WhatsApp): `sendTemplateMessage`, `getDeliveryStatus`, `parseWebhook`, `healthCheck`. `SpokiServiceMock` decide l'esito dall'ultima cifra del telefono, è idempotente per `idempotencyKey`, restituisce subito `UNDELIVERABLE` per la cifra 7 (così il fallback SMS si vede anche in demo con `SystemClock`) e passa a `DELIVERED` dopo `MOCK_DELIVERY_DELAY_MS` negli altri casi.
 - **`ISmsHostingService`** (SMS di fallback): `sendSms`, `getDeliveryStatus`, `getCredits`, `healthCheck`. `SmsHostingServiceMock` simula il credito (`MOCK_SMS_CREDITS`, decrementato per segmento), calcola codifica (GSM-7 o UCS-2) e numero di segmenti del testo come farebbe il gateway (warning oltre il singolo segmento, nessun troncamento) e fallisce sul suffisso `99`.
-- **`ICrmService`** (CRM/BDC, modulo F): `notifyNoShow`, `notifyAnomaly`, `healthCheck`. `CrmServiceMock` logga il payload JSON e conserva `received` per i test.
+- **`ICrmService`** (CRM/BDC, modulo F): `notifyNoShow`, `notifyAnomaly`, `notifyCheckIn`, `healthCheck`. `CrmServiceMock` logga il payload JSON con prefisso `[MOCK][Crm]`, è idempotente per `idempotencyKey` (stesso ack, nessun doppione) e conserva `received` per i test. Gli eventi passano sempre da `CrmNotifier` (`application/crm`), mai direttamente dai casi d'uso.
 - **`IAppointmentRepository`** e gli altri `I*Repository`: persistenza interna, oggi `InMemory*` su `InMemoryStore`, domani Prisma.
 - Porte trasversali iniettate ovunque e relative implementazioni: `IClock` → `SystemClock` (runtime) / `FixedClock` (test e demo); `IIdGenerator` → `UuidIdGenerator` / `SequentialIdGenerator` (test); `ILogger` → `ConsoleLogger` / `NoopLogger` (test); `IEventBus` → `InProcessEventBus`; `IMediaStorage` → `MediaStorageMock` (memoria, oggi) / `MediaStorageLocalDisk` (M5). Fuori dalle implementazioni non esistono `Date.now()`, `Math.random()` o `crypto` diretti. I tipi condivisi fra `config/env.ts` e i mock (`ProviderKind`, `RepositoryProvider`, `InfinityMockMode`, `CrmMockMode`, `MOCK_PHONE_RULES`) vivono in `services/interfaces/provider-kinds.ts` e `services/interfaces/mock-config.ts`, così la configurazione non importa mai una classe mock.
 
@@ -147,7 +147,7 @@ webapp-accettazione-versione2/
 │   └── e2e/                           # Playwright: login → prendi in carico → completato; portale targa
 └── src/
     ├── README.md                      # nota breve in italiano su layering e Regola d'Oro   [SCAFFOLD]
-    ├── proxy.ts                       # [M1 fatto] guard JWT (firma e scadenza) su /accettazione, /sistema, /api/v1 (esclusi auth/, health, public/, webhooks/); redirect /login?next=; x-correlation-id. Rate limit e SYNC_SECRET rinviati
+    ├── proxy.ts                       # [M1/M5 fatto] guard JWT (firma e scadenza) su /accettazione, /tablet, /sistema, /manager, /admin, /api/v1 (esclusi auth/, health, public/, webhooks/); redirect /login?next=; x-correlation-id. Rate limit e SYNC_SECRET rinviati
     ├── instrumentation.ts             # [BOOTSTRAP + M1] register() su runtime nodejs: getContainer() (fail-fast) e avvio di SyncScheduler (06:00 con catch-up), un solo timer per processo
     ├── app/                           # SOLO routing e composizione pagine, nessuna logica: layout, error, page (redirect), providers, _server/,
     │   │                              # (auth)/login, (operator)/{accettazione,sistema} e api/v1 (auth, queue, appointments/[id]/actions, sync, health); il resto arriva con le milestone indicate
@@ -164,7 +164,7 @@ webapp-accettazione-versione2/
     │   │   ├── accettazione/nuova/page.tsx        # P1 fallback: inserimento pratica manuale
     │   │   ├── accettazione/pratiche/[id]/page.tsx # dettaglio pratica, storico, notifiche, media
     │   │   ├── comunicazioni/page.tsx # P3 stato invii, reinvio, conferma contatto manuale
-    │   │   ├── ispezione/[appointmentId]/page.tsx # P5 tablet foto/video
+    │   │   ├── tablet/page.tsx        # [M5 fatto] accettazione al veicolo: solo le pratiche del proprio sportello, due schede grandi, check-in a tutto schermo
     │   │   └── sistema/page.tsx       # [M1 parziale] stato delle porte esterne (healthCheck); SyncRun, modalità mock, outbox CRM in M1-T15 / M6
     │   ├── (public)/cliente/page.tsx  # [M2 fatto] portale QR: ricerca targa mobile-first (formattazione live, validazione, nota privacy)
     │   ├── (public)/layout.tsx        # [M2 fatto] intestazione neutra, nessuna navigazione operatore, piè di pagina con rimando allo sportello
@@ -192,7 +192,9 @@ webapp-accettazione-versione2/
     │       ├── notifications/[id]/manual-confirm/route.ts, notifications/[id]/retry/route.ts, notifications/send/route.ts   # (M3)
     │       ├── crm/outbox/route.ts                   # (M6) GET coda eventi CRM
     │       ├── crm/outbox/[id]/retry/route.ts, crm/outbox/[id]/manual/route.ts   # (M6) retry manuale, segna inviato al BDC
-    │       ├── media/route.ts, media/[id]/route.ts   # (M5) POST upload, GET lettura, DELETE
+    │       ├── appointments/[id]/media/route.ts      # [M5 fatto] POST foto (multipart, campo `foto`) e GET elenco foto della pratica; DELETE in M5-T02-S02c
+    │       ├── appointments/[id]/check-in/route.ts   # [M5 fatto] POST chiusura dell'accettazione al veicolo (expectedVersion, note) → pratica completata, foto e note al CRM
+    │       ├── media/[key]/route.ts                  # [M5 fatto] GET rilettura del file con sessione attiva (cache privata 5 min); `media/route.ts` non serve: la foto nasce dentro una pratica
     │       ├── webhooks/spoki/route.ts               # (M3 stub, M7 reale) esiti consegna
     │       ├── events/route.ts                       # (M6) SSE
     │       └── health/route.ts                       # [BOOTSTRAP] liveness (sempre 200) + HealthStatus aggregato delle quattro porte esterne; ?probe=dependencies → 503 se DOWN; x-correlation-id
@@ -201,7 +203,7 @@ webapp-accettazione-versione2/
     │   ├── customer-portal/           # B – [M2 fatti] PlateSearchForm, PublicStatusView, QueuePositionCard, ServiceUnavailableCard, status-messages.ts, plate-input.ts
     │   ├── notifications/             # C – NotificationStatusList, ManualConfirmDialog
     │   ├── bay-displays/              # D – [M4 fatti] BayDisplayBoard (in servizio, libera, scollegato), WaitingBoardScreen (tabellone sala d'attesa) e types.ts
-    │   ├── inspection-media/          # E – MediaCapture, MediaGallery, UploadQueue
+    │   ├── inspection-media/          # E – [M5 fatti] TabletQueue (due schede, pulsanti grandi), CheckInScreen (scheda a tutto schermo, note danni), PhotoCapture (fotocamera + anteprima in caricamento); MediaGallery e UploadQueue da fare
     │   └── crm/                       # F – CrmOutboxTable, AnomalyLog
     ├── components/
     │   ├── ui/                        # primitive scritte a mano stile shadcn (nessuna dipendenza): Button, Badge, Card, Input, Label, Select, Table, Alert, Dialog
@@ -243,8 +245,8 @@ webapp-accettazione-versione2/
     │   ├── queue/                     # [M1/M2/M4] QueueService (coda, transizioni, campate, no-show con outbox CRM, rimessa in coda, conteggio per sportello, display, tabellone) e CodeGenerator
     │   ├── sync/                      # [M1 fatto] SyncService (idempotente, non distruttivo, lock per giornata) e SyncScheduler (tick 60 s, catch-up al riavvio)
     │   ├── auth/                      # [M1 fatto] IAuthService, LocalAuthService (account locali + JWT HS256 con jose, riverifica operatore), session-token.ts
-    │   ├── crm/                       # (M6) AnomalyReporter
-    │   └── media/                     # (M5) MediaService
+    │   ├── crm/                       # [M5 fatto, anticipo del modulo F] CrmNotifier: scrive l'evento nella coda di uscita e tenta subito la consegna (SENT con ack, altrimenti PENDING con tentativo e ultimo errore); AnomalyReporter e svuotamento periodico in M6
+    │   └── media/                     # [M5 fatto] InspectionService: addPhoto (validazione tipo/dimensione, IMediaStorage, MediaAsset), listPhotos, completeCheckIn (note salvate prima della chiusura, poi CRM)
     ├── config/                        # composition root   [SCAFFOLD]
     │   ├── env.ts                     # EnvSource da process.env (@types/node; fallback {} senza `process`), parseEnv() con default sicuri, APP_TIMEZONE validato
     │   ├── auth.ts                    # [M1 fatto] SESSION_COOKIE_NAME, SESSION_TTL_HOURS (8 h), resolveSessionSecret(): default solo tutto-mock e non production, altrimenti ConfigurationError
@@ -257,7 +259,7 @@ webapp-accettazione-versione2/
     │   ├── hash-password.ts           # [M1 fatto] scrypt (node:crypto) hashPassword/verifyPassword a tempo costante; prefisso demo `plain:` solo sviluppo
     │   ├── utils/cn.ts                # [M1 fatto] concatenazione classi CSS (sostituisce clsx/tailwind-merge)
     │   ├── http/                      # [M1/M2] api-error.ts (DomainError → HTTP), rate-limit.ts (finestra scorrevole per IP e targa); with-logging.ts e idempotency.ts rinviati
-    │   ├── api-client/                # [M1 fatto] client.ts (apiFetch con timeout 8 s e ApiError, fetchQueue, postAppointmentAction, postSync, postLogin/postLogout) e query-keys.ts
+    │   ├── api-client/                # [M1/M5 fatto] client.ts (apiFetch con timeout 8 s e ApiError, fetchQueue, postAppointmentAction, postSync, postLogin/postLogout, uploadInspectionPhoto con FormData e timeout 30 s, fetchInspectionPhotos, postCheckIn) e query-keys.ts
     │   └── realtime/                  # (M6) sse-server.ts, use-sse.ts
     └── types/                         # .gitkeep: dichiarazioni globali future (nessun `declare var process`)
 ```
@@ -527,7 +529,7 @@ Elenco unico delle domande per il committente (in `TASKS.md` c'è solo il rimand
 | **M2** P2 Portale Web Cliente | P2 | `QueueService.getPublicPositionByPlate` (regola `countAhead`), `GET /api/v1/public/status`, `modules/customer-portal`, pagine `/cliente`, QR stampabili, `QUEUE_AHEAD_SCOPE`, accessibilità mobile (axe, contrasto, target 48 px) | Da smartphone, targa dell'agenda mock → codice e clienti in attesa aggiornati entro 5 s; nessun dato personale; nessuna violazione critica axe a 375×812 |
 | **M3** P3 Modulo Comunicazioni | P3 | `sendMorningReminders`, retry con backoff, `services/resilience`, svuotamento outbox notifiche, `/comunicazioni`, pannello modalità mock a runtime | Numeri in 9 (ma non 99) → SMS; in 99 → "Da contattare a mano" chiuso con "Conferma contatto manuale"; `MOCK_SPOKI_MODE=down` → tutti su SMS entro 5 s |
 | **M4** P4 Display Campate | P4 (Fase 2) | `QueueService.getBayDisplay` (`BayDisplayView` SERVING/RELEASING/FREE), `GET /api/v1/public/bays/[bayCode]`, `modules/bay-displays`, `/display/[bayCode]` kiosk | Quattro browser kiosk mostrano il codice in servizio entro 2 s, il libero dopo Completato e l'overlay OFFLINE |
-| **M5** P5 Tablet Ispezione | P5 (Fase 2) | `MediaStorageLocalDisk` (in `services/real`), `MediaService`, upload multipart, `modules/inspection-media`, `/ispezione/[appointmentId]` | Foto/video dal tablet compaiono nel fascicolo su ogni postazione; upload fallito resta in coda e si riprova |
+| **M5** P5 Tablet Ispezione | P5 (Fase 2) | **[parte centrale fatta]** `InspectionService`, `CrmNotifier`, upload multipart `appointments/[id]/media`, chiusura `appointments/[id]/check-in`, `modules/inspection-media`, `/tablet`; restano `MediaStorageLocalDisk` (in `services/real`), coda di caricamento e galleria | Foto/video dal tablet compaiono nel fascicolo su ogni postazione; upload fallito resta in coda e si riprova |
 | **M6** Modulo F CRM/BDC + hardening | Modulo F | `AnomalyReporter`, svuotamento outbox CRM, `/api/v1/crm/outbox`, SSE `/api/v1/events`, log JSON, `RUNBOOK_OPERATIVO.md`, Dockerfile standalone | No-show → evento outbox consegnato al `CrmServiceMock`; con `MOCK_CRM_MODE=error` resta PENDING/FAILED, ritentato, chiudibile a mano; nessuna azione operatore bloccata dal CRM |
 | **M7** Swap Mock→Real | Fase reale | Adapter HTTP per Infinity, Spoki, SMS Hosting, CRM; `repositories/prisma`; attivazione graduale per porta | Con `<X>_PROVIDER=real` l'app funziona con dati reali senza modifiche in `app/`, `modules/`, `hooks/`, `application/`; ogni adapter supera la stessa suite di contratto del mock |
 

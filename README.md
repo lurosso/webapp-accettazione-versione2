@@ -40,8 +40,11 @@ Il **portale cliente** completa il quadro: chi entra in officina inquadra il QR 
 digita la targa e vede il proprio codice, quanti clienti ha davanti e cosa deve fare, con la pagina
 che si aggiorna da sola mentre l'operatore lavora. Sopra ogni campata un **monitor** mostra il
 codice in lavorazione e, appena l'accettatore chiude la pratica, invita il cliente successivo ad
-avanzare. Restano da sviluppare le **comunicazioni** WhatsApp con fallback SMS e l'acquisizione
-**foto/video** da tablet. La priorità di sviluppo è definita in [`CLAUDE.md`](CLAUDE.md); i
+avanzare. Le **comunicazioni** partono da sole dopo la sincronizzazione dell'agenda, con WhatsApp
+via Spoki e ripiego automatico su SMS. Dal **tablet** l'accettatore fa il giro della vettura,
+scatta le foto, annota i danni e chiude il check-in: note e foto finiscono nel fascicolo della
+pratica e al CRM. Restano da sviluppare il registro degli invii, i video e la galleria delle foto
+nel dettaglio pratica. La priorità di sviluppo è definita in [`CLAUDE.md`](CLAUDE.md); i
 requisiti completi sono in [`docs/ANALISI_REQUISITI.md`](docs/ANALISI_REQUISITI.md).
 
 ## Architettura Mock-First
@@ -125,10 +128,11 @@ predefinita): determinano il filtro iniziale della coda e la campata proposta al
 | `/display/sala-attesa` | Sala d'attesa | disponibile    | Tabellone stile ufficio pubblico: codici chiamati con la campata a cui presentarsi e prossimi turni |
 | `/comunicazioni`      | Responsabile   | pianificato    | Registro degli invii WhatsApp e SMS con conferma manuale (l'invio automatico funziona già) |
 | `/display/1` … `/4`   | Monitor        | disponibile    | Schermo a tutto campo per i monitor sopra le campate: codice e targa in servizio, oppure invito verde ad avanzare; si aggiorna ogni 2 secondi |
-| `/ispezione`          | Tablet         | pianificato M5 | Foto e video associati alla pratica                                                       |
+| `/tablet`             | Tablet         | disponibile    | Accettazione al veicolo: le pratiche del proprio sportello in due schede grandi, check-in a tutto schermo con fotocamera e note sui danni rilevati |
 
 API principali (JSON, autenticate via cookie di sessione): `GET /api/v1/queue`,
-`POST /api/v1/appointments/{id}/actions`, `POST /api/v1/sync`, `POST /api/v1/auth/login`.
+`POST /api/v1/appointments/{id}/actions`, `POST /api/v1/appointments/{id}/media` (foto, multipart),
+`POST /api/v1/appointments/{id}/check-in`, `POST /api/v1/sync`, `POST /api/v1/auth/login`.
 Pubbliche, senza sessione: `GET /api/v1/public/status?targa=AB123CD` (stato del turno, protetta da
 limiti di frequenza) e `GET /api/v1/health`.
 
@@ -152,6 +156,27 @@ lasciare a video un codice non più valido.
 Ogni campata ha un token nel seed (`display-demo-token-c1`…). Passandolo come `?token=` viene
 verificato e un token errato riceve 403; senza token l'accesso resta consentito, perché i monitor
 sono su rete interna. L'obbligatorietà è prevista con l'hardening.
+
+### Provare l'accettazione al veicolo dal tablet
+
+La vista per il tablet è su <http://localhost:3000/tablet>: mostra solo le pratiche dello
+sportello dell'operatore collegato, con due schede, **In attesa** e **Le mie prese in carico**, e
+pulsanti grandi da usare in piedi accanto alla vettura.
+
+1. **Inizia check-in** prende in carico la pratica e apre a tutto schermo la scheda di ispezione.
+2. **Scatta foto** apre la fotocamera posteriore del tablet (su un computer si sceglie un file).
+   L'anteprima compare subito con la rotella di attesa e resta nella griglia a caricamento
+   concluso; il file finisce dietro `IMediaStorage` (oggi in memoria) e si rilegge da
+   `GET /api/v1/media/<chiave>` con la sessione attiva.
+3. In **Note veicolo / danni rilevati** si annota quanto visto durante il giro dell'auto.
+4. **Completa check-in** chiude la pratica, libera la campata e invia al CRM note e indirizzi delle
+   foto. Nel terminale del server compaiono le righe `[MOCK][Media] foto salvata: ...` e
+   `[MOCK][Crm] notifyCheckIn {...}`; allo stesso modo, segnando un cliente assente dalla
+   dashboard, compare `[MOCK][Crm] notifyNoShow {...}`.
+
+Il CRM non può bloccare l'officina: se non risponde (`MOCK_CRM_MODE=error`) l'accettazione si
+chiude lo stesso e l'evento resta nella coda di uscita, pronto per il rinvio. Con
+`MOCK_MEDIA_LATENCY_MS` si regola quanto dura il finto caricamento della foto (default 1200 ms).
 
 ### Provare il portale cliente
 

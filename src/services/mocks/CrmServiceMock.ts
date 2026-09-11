@@ -2,7 +2,12 @@
 // idempotencyKey ed espone `received` per le asserzioni nei test. Mai throw.
 
 import { err, ok } from '@/domain/result';
-import type { CrmAckDto, CrmAnomalyPayloadDto, CrmNoShowPayloadDto } from '../dto/crm.dto';
+import type {
+  CrmAckDto,
+  CrmAnomalyPayloadDto,
+  CrmCheckInPayloadDto,
+  CrmNoShowPayloadDto,
+} from '../dto/crm.dto';
 import type {
   CallOptions,
   HealthStatus,
@@ -11,13 +16,14 @@ import type {
 } from '../interfaces/common';
 import { providerError } from '../interfaces/common';
 import type { IClock } from '../interfaces/IClock';
-import type { ICrmService } from '../interfaces/ICrmService';
+import type { CrmPayload, ICrmService } from '../interfaces/ICrmService';
 import type { ILogger } from '../interfaces/ILogger';
 import type { CrmMockMode } from '../interfaces/mock-config';
 import { isAborted, simulateLatency } from './simulate';
 
 /** Modalità del mock CRM (env MOCK_CRM_MODE); definita in interfaces/mock-config. */
 export type { CrmMockMode } from '../interfaces/mock-config';
+export type { CrmPayload } from '../interfaces/ICrmService';
 
 /** Opzioni del mock CRM. */
 export interface CrmMockOptions {
@@ -39,7 +45,7 @@ export class CrmServiceMock implements ICrmService {
 
   private readonly logger: ILogger;
   private readonly acks = new Map<string, CrmAckDto>();
-  private readonly receivedPayloads: (CrmNoShowPayloadDto | CrmAnomalyPayloadDto)[] = [];
+  private readonly receivedPayloads: CrmPayload[] = [];
   private callCount = 0;
   private ackCounter = 0;
 
@@ -51,7 +57,7 @@ export class CrmServiceMock implements ICrmService {
   }
 
   /** Payload ricevuti con successo, nell'ordine (per i test). */
-  get received(): readonly (CrmNoShowPayloadDto | CrmAnomalyPayloadDto)[] {
+  get received(): readonly CrmPayload[] {
     return this.receivedPayloads;
   }
 
@@ -67,6 +73,14 @@ export class CrmServiceMock implements ICrmService {
     options?: CallOptions,
   ): Promise<ProviderResult<CrmAckDto>> {
     return this.deliver('notifyAnomaly', payload, options);
+  }
+
+  /** Accettazione conclusa al veicolo: note e foto raccolte al tablet. */
+  async notifyCheckIn(
+    payload: CrmCheckInPayloadDto,
+    options?: CallOptions,
+  ): Promise<ProviderResult<CrmAckDto>> {
+    return this.deliver('notifyCheckIn', payload, options);
   }
 
   async healthCheck(): Promise<HealthStatus> {
@@ -85,7 +99,7 @@ export class CrmServiceMock implements ICrmService {
 
   private async deliver(
     operation: string,
-    payload: CrmNoShowPayloadDto | CrmAnomalyPayloadDto,
+    payload: CrmPayload,
     options: CallOptions | undefined,
   ): Promise<ProviderResult<CrmAckDto>> {
     const signal = options?.signal;
