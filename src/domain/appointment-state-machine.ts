@@ -4,7 +4,10 @@
 // servizio applicativo (QueueService), non qui. COMPLETED e CANCELLED sono terminali.
 // Azioni corrispondenti alle transizioni: take (→ IN_PROGRESS), skip (→ SKIPPED),
 // restore (SKIPPED → WAITING), complete (→ COMPLETED), release (IN_PROGRESS → WAITING),
-// no-show (→ NO_SHOW), reopen (NO_SHOW → WAITING); CANCELLED è impostato solo dalla sync.
+// no-show (→ NO_SHOW), reopen (NO_SHOW → WAITING); CANCELLED arriva dalla sincronizzazione
+// (pratica sparita dall'agenda) e dalla chiusura di giornata (pratica rimasta aperta a fine
+// turno): IN_PROGRESS → CANCELLED esiste per questo secondo caso, perché a officina chiusa una
+// presa in carico non completata non può restare aperta fino al giorno dopo.
 
 import type { AppointmentStatus } from './entities/appointment';
 import type { DomainError } from './errors';
@@ -18,7 +21,7 @@ export const ALLOWED_TRANSITIONS: Readonly<
 > = {
   WAITING: ['IN_PROGRESS', 'SKIPPED', 'NO_SHOW', 'CANCELLED'],
   SKIPPED: ['IN_PROGRESS', 'WAITING', 'NO_SHOW', 'CANCELLED'],
-  IN_PROGRESS: ['COMPLETED', 'WAITING'],
+  IN_PROGRESS: ['COMPLETED', 'WAITING', 'CANCELLED'],
   COMPLETED: [],
   NO_SHOW: ['WAITING'],
   CANCELLED: [],

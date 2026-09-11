@@ -1,5 +1,7 @@
-// Pagina Sistema (area autenticata): stato delle quattro porte esterne tramite il container.
-// Erede della pagina di verifica del bootstrap; da M6 ospiterà anche outbox CRM e log delle sync.
+// Pagina Sistema (area autenticata): stato delle porte esterne e, per chi amministra, la coda di
+// uscita verso il CRM. È la pagina di chi tiene in piedi il sistema: la coda mostra messaggi
+// d'errore e chiavi tecniche, quindi resta agli ADMIN, mentre lo stato delle porte serve anche a
+// un accettatore che vuole sapere perché i promemoria non partono.
 import type { Metadata } from 'next';
 import Link from 'next/link';
 import {
@@ -11,7 +13,10 @@ import {
 } from '@/application/health/check-health';
 import { Badge, type BadgeTone } from '@/components/ui/badge';
 import { getContainer } from '@/config/container';
+import { requireSession } from '@/app/_server/session';
 import { formatDateTimeIt } from '@/lib/dates';
+import { canAccess } from '@/lib/navigation';
+import { CrmOutboxTable } from '@/modules/crm/CrmOutboxTable';
 import type { HealthStatus } from '@/services/interfaces/common';
 
 export const dynamic = 'force-dynamic';
@@ -70,10 +75,11 @@ async function loadPageData(): Promise<PageData> {
 }
 
 export default async function SistemaPage() {
-  const data = await loadPageData();
+  const [session, data] = await Promise.all([requireSession('/sistema'), loadPageData()]);
+  const timeZone = data.kind === 'ok' ? data.timeZone : 'Europe/Rome';
 
   return (
-    <div className="mx-auto flex max-w-3xl flex-col gap-6">
+    <div className="mx-auto flex max-w-5xl flex-col gap-6">
       <header>
         <h1 className="text-2xl font-bold tracking-tight">Sistema</h1>
         <p className="text-sm text-slate-600">
@@ -136,6 +142,14 @@ export default async function SistemaPage() {
             </Link>
           </p>
         </section>
+      )}
+
+      {canAccess('admin', session.role) ? (
+        <CrmOutboxTable timeZone={timeZone} />
+      ) : (
+        <p className="text-sm text-slate-500">
+          La coda di uscita verso il CRM è visibile agli amministratori.
+        </p>
       )}
     </div>
   );

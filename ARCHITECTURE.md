@@ -166,7 +166,7 @@ webapp-accettazione-versione2/
     │   │   ├── comunicazioni/page.tsx # P3 stato invii, reinvio, conferma contatto manuale
     │   │   ├── manager/page.tsx      # [M6 fatto] cruscotto BDC: lead da ricontattare (clienti assenti), chiusura con esito
     │   │   ├── tablet/page.tsx        # [M5 fatto] accettazione al veicolo: due schede grandi, check-in a tutto schermo; `?pratica=<id>` apre subito l'ispezione (arrivo dalla dashboard)
-    │   │   └── sistema/page.tsx       # [M1 parziale] stato delle porte esterne (healthCheck); SyncRun, modalità mock, outbox CRM in M1-T15 / M6
+    │   │   └── sistema/page.tsx       # [M1/M6] stato delle porte esterne (healthCheck) per tutti + coda di uscita CRM per gli ADMIN; SyncRun e modalità mock in M1-T15 / M6
     │   ├── (public)/cliente/page.tsx  # [M2 fatto] portale QR: ricerca targa mobile-first (formattazione live, validazione, nota privacy)
     │   ├── (public)/layout.tsx        # [M2 fatto] intestazione neutra, nessuna navigazione operatore, piè di pagina con rimando allo sportello
     │   ├── (public)/error.tsx         # [M2 fatto] error boundary del portale: messaggio comprensibile e pulsante Riprova
@@ -193,8 +193,10 @@ webapp-accettazione-versione2/
     │       ├── notifications/[id]/manual-confirm/route.ts, notifications/[id]/retry/route.ts, notifications/send/route.ts   # (M3)
     │       ├── crm/leads/route.ts                   # [M6 fatto] GET lead del BDC (?giornata=, ?gestiti=1); SUPERVISOR/ADMIN
     │       ├── crm/leads/[id]/contacted/route.ts     # [M6 fatto] POST "ricontattato": chiude il lead con operatore, ora ed esito
-    │       ├── crm/outbox/route.ts                   # (M6) GET coda eventi CRM (vista tecnica con riprova)
-    │       ├── crm/outbox/[id]/retry/route.ts, crm/outbox/[id]/manual/route.ts   # (M6) retry manuale, segna inviato al BDC
+    │       ├── crm/outbox/route.ts                   # [M6 fatto] GET coda eventi CRM, vista tecnica (ADMIN; ?stato=PENDING,FAILED&limite=)
+    │       ├── crm/outbox/[id]/retry/route.ts        # [M6 fatto] POST "Forza riprova" (ADMIN); la chiusura a mano è crm/leads/[id]/contacted
+    │       ├── system/close-day/route.ts             # [M6 fatto] POST chiusura giornata (SUPERVISOR/ADMIN): assenti + annullate, monitor e tabellone vuoti
+    │       ├── system/cron/crm-retry/route.ts        # [M6 fatto] POST svuotamento coda CRM per cron esterno (sessione ADMIN o x-cron-secret)
     │       ├── appointments/[id]/media/route.ts      # [M5 fatto] POST foto (multipart, campo `foto`) e GET elenco foto della pratica; DELETE in M5-T02-S02c
     │       ├── appointments/[id]/check-in/route.ts   # [M5 fatto] POST chiusura dell'accettazione al veicolo (expectedVersion, note) → pratica completata, foto e note al CRM
     │       ├── media/[key]/route.ts                  # [M5 fatto] GET rilettura del file con sessione attiva (cache privata 5 min); `media/route.ts` non serve: la foto nasce dentro una pratica
@@ -207,7 +209,7 @@ webapp-accettazione-versione2/
     │   ├── notifications/             # C – NotificationStatusList, ManualConfirmDialog
     │   ├── bay-displays/              # D – [M4 fatti] BayDisplayBoard (in servizio, libera, scollegato), WaitingBoardScreen (tabellone sala d'attesa) e types.ts
     │   ├── inspection-media/          # E – [M5 fatti] TabletQueue (due schede, pulsanti grandi), CheckInScreen (scheda a tutto schermo, note danni, chiusura bloccata senza le 4 foto), PhotoCapture (slot per parte del veicolo, fotocamera + anteprima in caricamento), MediaGallery (note e foto raggruppate per categoria, ingrandimento a tutto schermo); UploadQueue da fare
-    │   └── crm/                       # F – [M6 fatti] BdcDashboard (cruscotto del back office) e BdcLeadsTable; CrmOutboxTable e AnomalyLog da fare
+    │   └── crm/                       # F – [M6 fatti] BdcDashboard (cruscotto del back office, con chiusura di giornata), BdcLeadsTable e CrmOutboxTable (coda di uscita nel pannello Sistema); AnomalyLog da fare
     ├── components/
     │   ├── ui/                        # primitive scritte a mano stile shadcn (nessuna dipendenza): Button, Badge, Card, Input, Label, Select, Table, Alert, Dialog
     │   ├── layout/                    # [M1 fatti] AppShell, Header (identità, ruolo, postazione, orologio Europe/Rome, logout), BrandMark (marchio Autoclub Group in CSS, senza file immagine); SystemStatusBanner rinviato; indicatore dati non aggiornati inline in QueueDashboard
@@ -248,7 +250,7 @@ webapp-accettazione-versione2/
     │   ├── queue/                     # [M1/M2/M4] QueueService (coda, transizioni, campate, no-show con outbox CRM, rimessa in coda, conteggio per sportello, display, tabellone) e CodeGenerator
     │   ├── sync/                      # [M1 fatto] SyncService (idempotente, non distruttivo, lock per giornata) e SyncScheduler (tick 60 s, catch-up al riavvio)
     │   ├── auth/                      # [M1 fatto] IAuthService, LocalAuthService (account locali + JWT HS256 con jose, riverifica operatore), session-token.ts
-    │   ├── crm/                       # [M5/M6 fatti] CrmNotifier (scrive l'evento nella coda di uscita e tenta subito la consegna: SENT con ack, altrimenti PENDING con tentativo e ultimo errore) e BdcLeadService (evento + pratica → lead del BDC, chiusura "ricontattato" con stato MANUAL); AnomalyReporter e svuotamento periodico in M6-T02
+    │   ├── crm/                       # [M5/M6 fatti] CrmNotifier (coda di uscita + consegna + rinvii con attesa progressiva), BdcLeadService (lead del BDC), CrmOutboxService (vista tecnica e riprova forzata), CrmRetryScheduler (passata ogni minuto); AnomalyReporter in M6-T02
     │   └── media/                     # [M5 fatto] InspectionService: addPhoto (validazione tipo/dimensione, IMediaStorage, MediaAsset), listPhotos, completeCheckIn (note salvate prima della chiusura, poi CRM)
     ├── config/                        # composition root   [SCAFFOLD]
     │   ├── env.ts                     # EnvSource da process.env (@types/node; fallback {} senza `process`), parseEnv() con default sicuri, APP_TIMEZONE validato
@@ -480,6 +482,7 @@ Glossario tecnico (termini inglesi ammessi nella prosa perché identificatori o 
 | **015** Terminologia a schermo: "Accettazione N" al posto di "campata", dominio invariato | Testi di coda, tabellone, monitor, portale e messaggi d'errore dicono "Accettazione"; `Bay`, `bayId`, `/display/[campata]` e `?campata=` restano; scelta annotata in `domain/glossary.ts` | Rename completo fino al dominio (tocca state machine, API dei monitor, documentazione e dati, senza vantaggi per il cliente); lasciare "campata" a schermo (gergo che il cliente non capisce) | Il cliente legge una parola che conosce, il codice resta quello descritto in analisi e nei documenti |
 | **016** Le quattro riprese del giro veicolo sono un invariante del caso d'uso, non solo una regola della UI | `MediaAsset.category`; `InspectionService.completeCheckIn` rifiuta con `VALIDATION` e l'elenco delle mancanti; il tablet disabilita il pulsante e dice cosa manca | Solo controllo nella UI (una seconda scheda aperta, un tablet vecchio o una chiamata diretta chiuderebbero la pratica a metà); nessun obbligo | Al ritiro, se il cliente contesta un danno, il fascicolo ha sempre le quattro fiancate: è la ragione per cui l'obbligo esiste |
 | **017** Un'unica applicazione che cambia comportamento con la larghezza dello schermo, non due app | `useIsTouchLayout()` (≤ 1024 px): "Prendi in carico" porta all'ispezione su tablet e apre il pannello di dettaglio su schermo grande; la destinazione è decisa nell'`onSuccess` dell'azione; vie d'uscita in entrambe le direzioni ("Passa al check-in", "Salta foto per ora") | Applicazione tablet separata (due basi di codice, due sessioni, due volte i bug); stesso identico flusso ovunque (al banco porterebbe fuori dalla coda senza motivo) | Una sola coda, una sola sessione, un solo insieme di regole; il dispositivo cambia solo la scorciatoia, mai quello che il sistema permette di fare |
+| **018** Nella coda di uscita si archivia il payload esatto inviato al CRM, e i rinvii si fermano | `CrmOutboxEvent.payload` = DTO consegnato (le parole dell'operatore in `operatorNote`); attesa progressiva 1-5-15-60-240 min, `CRM_MAX_ATTEMPTS` = 6, poi `FAILED` con `nextAttemptAt = null` (= non riprovare più) | Ricostruire il payload dalla pratica a ogni rinvio (la pratica intanto cambia: il CRM riceverebbe un fatto diverso da quello accaduto); riprovare all'infinito (un CRM giù terrebbe il processo a girare a vuoto) | Il CRM riceve quello che è successo quando è successo; un guasto lungo si ferma da solo e diventa una riga nel pannello Sistema, dove una persona decide |
 
 ## 9. Rischi e domande aperte per il committente
 

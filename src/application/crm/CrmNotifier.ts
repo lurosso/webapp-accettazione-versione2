@@ -3,15 +3,34 @@
 // coda e nessuna informazione va persa; se riesce, la riga passa a SENT con l'identificativo
 // restituito dal CRM. Nulla di tutto questo può bloccare l'officina: un CRM irraggiungibile non
 // deve impedire di segnare un assente o di chiudere un'accettazione.
+//
+// Nella coda finisce il payload ESATTO consegnato al CRM: ogni rinvio rispedisce quello, senza
+// ricostruirlo dalla pratica, che nel frattempo può essere cambiata. I tentativi automatici
+// seguono un'attesa progressiva e a un certo punto si fermano: un CRM irrimediabilmente giù non
+// deve far girare a vuoto il processo per giorni.
+import {
+  CRM_CALL_TIMEOUT_MS,
+  CRM_DRAIN_BATCH,
+  CRM_MAX_ATTEMPTS,
+  CRM_RETRY_BACKOFF_MINUTES,
+} from '@/config/constants';
 import type { Appointment } from '@/domain/entities/appointment';
 import type { Brand } from '@/domain/entities/brand';
 import type { CrmEventType, CrmOutboxEvent } from '@/domain/entities/crm-outbox-event';
 import { asCrmOutboxEventId } from '@/domain/ids';
-import type { OperatorId } from '@/domain/ids';
+import type { CrmOutboxEventId, OperatorId } from '@/domain/ids';
+import type { IsoDateTime } from '@/domain/value-objects/iso-date';
 import type { ICrmOutboxRepository, IReferenceDataRepository } from '@/repositories/interfaces';
-import type { CrmPayload } from '@/services/interfaces/ICrmService';
-import type { ICrmService } from '@/services/interfaces/ICrmService';
+import type {
+  CrmAckDto,
+  CrmAnomalyPayloadDto,
+  CrmCheckInPayloadDto,
+  CrmNoShowPayloadDto,
+} from '@/services/dto/crm.dto';
+import type { CallOptions, ProviderResult } from '@/services/interfaces/common';
+import type { CrmPayload, ICrmService } from '@/services/interfaces/ICrmService';
 import type { IClock } from '@/services/interfaces/IClock';
+import type { IEventBus } from '@/services/interfaces/IEventBus';
 import type { IIdGenerator } from '@/services/interfaces/IIdGenerator';
 import type { ILogger } from '@/services/interfaces/ILogger';
 import {
@@ -28,14 +47,30 @@ export interface CrmNotifierDeps {
   readonly clock: IClock;
   readonly ids: IIdGenerator;
   readonly logger: ILogger;
+  /** Opzionale: pubblica `CRM_EVENT_CHANGED` a ogni cambio di stato della coda di uscita. */
+  readonly eventBus?: IEventBus | undefined;
+  /** Tempo massimo per una chiamata al CRM (default `CRM_CALL_TIMEOUT_MS`). */
+  readonly callTimeoutMs?: number | undefined;
 }
 
-/** Esito della consegna, per i log e per i test. */
-export type CrmDeliveryOutcome = 'SENT' | 'QUEUED' | 'ALREADY_SENT' | 'SKIPPED';
+/**
+ * Esito della consegna, per i log e per i test.
+ * `QUEUED` = si riproverà più tardi; `GIVEN_UP` = tentativi esauriti o rifiuto definitivo del CRM,
+ * la riga resta `FAILED` e la riprova diventa una decisione di una persona.
+ */
+export type CrmDeliveryOutcome = 'SENT' | 'QUEUED' | 'GIVEN_UP' | 'ALREADY_SENT' | 'SKIPPED';
 
 export interface CrmDelivery {
   readonly outcome: CrmDeliveryOutcome;
   readonly event: CrmOutboxEvent | null;
+}
+
+/** Riepilogo di una passata di svuotamento della coda (temporizzatore interno o cron esterno). */
+export interface CrmDrainSummary {
+  readonly attempted: number;
+  readonly sent: number;
+  readonly queued: number;
+  readonly givenUp: number;
 }
 
 /** Dati raccolti al tablet durante l'accettazione al veicolo. */
@@ -73,10 +108,10 @@ export class CrmNotifier {
       idempotencyKey: buildNoShowIdempotencyKey(appointment),
       appointment,
       payload,
-      // Il motivo scritto dall'accettatore resta nella outbox anche se il DTO non lo prevede.
-      extraPayload: { code: appointment.code, reason },
+      // Il motivo scritto dall'accettatore non fa parte del DTO, ma è quello che il BDC legge nel
+      // cruscotto prima di telefonare: resta accanto al payload, non dentro.
+      operatorNote: reason,
       correlationId,
-      send: (options) => this.deps.crm.notifyNoShow(payload, options),
     });
   }
 
@@ -102,14 +137,54 @@ export class CrmNotifier {
       idempotencyKey: buildCheckInIdempotencyKey(appointment),
       appointment,
       payload,
-      extraPayload: {
-        code: appointment.code,
-        photoCount: report.photos.length,
-        hasNotes: report.inspectionNotes !== null,
-      },
+      operatorNote: null,
       correlationId,
-      send: (options) => this.deps.crm.notifyCheckIn(payload, options),
     });
+  }
+
+  /**
+   * Riprova a mano un evento della coda (pannello Sistema): riparte anche da `FAILED`, perché chi
+   * preme il pulsante sa che il CRM è tornato su e non deve aspettare il prossimo giro automatico.
+   */
+  async retry(eventId: CrmOutboxEventId, correlationId: string): Promise<CrmDelivery> {
+    const evento = await this.deps.outbox.findById(eventId);
+    if (evento === null) {
+      return { outcome: 'SKIPPED', event: null };
+    }
+    if (evento.status === 'SENT') {
+      return { outcome: 'ALREADY_SENT', event: evento };
+    }
+    return this.attempt(evento, correlationId, { manuale: true });
+  }
+
+  /**
+   * Svuota la coda di uscita: prende gli eventi la cui attesa è scaduta e prova a consegnarli.
+   * La chiamano sia il temporizzatore interno sia l'endpoint per un cron esterno; girare due
+   * volte non fa danni, perché ogni evento porta la propria `idempotencyKey` e il CRM la riconosce.
+   */
+  async drainDue(limit = CRM_DRAIN_BATCH): Promise<CrmDrainSummary> {
+    const now = this.deps.clock.nowIso();
+    const dovuti = await this.deps.outbox.listDue(now, limit);
+    let attempted = 0;
+    let sent = 0;
+    let queued = 0;
+    let givenUp = 0;
+    for (const evento of dovuti) {
+      const esito = await this.attempt(evento, this.deps.ids.next());
+      attempted += 1;
+      if (esito.outcome === 'SENT') {
+        sent += 1;
+      } else if (esito.outcome === 'GIVEN_UP') {
+        givenUp += 1;
+      } else {
+        queued += 1;
+      }
+    }
+    const riepilogo: CrmDrainSummary = { attempted, sent, queued, givenUp };
+    if (attempted > 0) {
+      this.logger.info('coda di uscita: passata completata', { ...riepilogo });
+    }
+    return riepilogo;
   }
 
   private async findBrand(appointment: Appointment): Promise<Brand | null> {
@@ -125,19 +200,16 @@ export class CrmNotifier {
   }
 
   /**
-   * Scrive l'evento nella coda di uscita e tenta la consegna. Non lancia mai: qualunque guasto
-   * lascia la riga in coda, pronta per il rinvio, e viene solo segnalato nei log.
+   * Scrive l'evento nella coda di uscita e tenta subito la consegna. Non lancia mai: qualunque
+   * guasto lascia la riga in coda, pronta per il rinvio, e viene solo segnalato nei log.
    */
   private async deliver(input: {
     readonly type: CrmEventType;
     readonly idempotencyKey: string;
     readonly appointment: Appointment;
     readonly payload: CrmPayload;
-    readonly extraPayload: Readonly<Record<string, unknown>>;
+    readonly operatorNote: string | null;
     readonly correlationId: string;
-    readonly send: (options: {
-      readonly correlationId: string;
-    }) => ReturnType<ICrmService['notifyNoShow']>;
   }): Promise<CrmDelivery> {
     const now = this.deps.clock.nowIso();
     try {
@@ -154,7 +226,8 @@ export class CrmNotifier {
           anomalyKind: null,
           appointmentId: input.appointment.id,
           idempotencyKey: input.idempotencyKey,
-          payload: { ...input.extraPayload, appointmentId: input.appointment.id },
+          payload: { ...input.payload },
+          operatorNote: input.operatorNote,
           status: 'PENDING',
           attemptCount: 0,
           nextAttemptAt: now,
@@ -167,40 +240,105 @@ export class CrmNotifier {
           handledNote: null,
         }));
 
-      const risultato = await input.send({ correlationId: input.correlationId });
-      if (!risultato.ok) {
-        const aggiornato = await this.deps.outbox.update({
-          ...evento,
-          status: 'PENDING',
-          attemptCount: evento.attemptCount + 1,
-          lastError: `${risultato.error.code}: ${risultato.error.message}`,
-          nextAttemptAt: this.deps.clock.nowIso(),
-        });
-        this.logger.warn(
-          `${input.type} ${input.appointment.code}: CRM non raggiungibile, evento in coda di rinvio`,
-          { errore: risultato.error.code, tentativi: aggiornato.attemptCount },
-        );
-        return { outcome: 'QUEUED', event: aggiornato };
-      }
-
-      const inviato = await this.deps.outbox.update({
-        ...evento,
-        status: 'SENT',
-        attemptCount: evento.attemptCount + 1,
-        crmAckId: risultato.value.ackId,
-        sentAt: this.deps.clock.nowIso(),
-        nextAttemptAt: null,
-        lastError: null,
-      });
-      this.logger.info(`${input.type} ${input.appointment.code}: inviato al CRM`, {
-        ackId: risultato.value.ackId,
-      });
-      return { outcome: 'SENT', event: inviato };
+      return await this.attempt(evento, input.correlationId);
     } catch (cause) {
       this.logger.error(`${input.type} ${input.appointment.code}: consegna al CRM interrotta`, {
         message: cause instanceof Error ? cause.message : String(cause),
       });
       return { outcome: 'QUEUED', event: null };
     }
+  }
+
+  /** Un tentativo di consegna su un evento già in coda, con aggiornamento dello stato. */
+  private async attempt(
+    evento: CrmOutboxEvent,
+    correlationId: string,
+    options: { readonly manuale?: boolean } = {},
+  ): Promise<CrmDelivery> {
+    const etichetta =
+      typeof evento.payload['code'] === 'string' ? evento.payload['code'] : evento.id;
+    let risultato: ProviderResult<CrmAckDto>;
+    try {
+      risultato = await this.send(evento, {
+        correlationId,
+        timeoutMs: this.deps.callTimeoutMs ?? CRM_CALL_TIMEOUT_MS,
+      });
+    } catch (cause) {
+      this.logger.error(`${evento.type} ${etichetta}: consegna al CRM interrotta`, {
+        message: cause instanceof Error ? cause.message : String(cause),
+      });
+      return { outcome: 'QUEUED', event: evento };
+    }
+
+    const tentativi = evento.attemptCount + 1;
+    if (!risultato.ok) {
+      // Tentativi esauriti o rifiuto definitivo: si smette di riprovare da soli. La riga resta
+      // FAILED e visibile nel pannello Sistema, dove una persona decide se insistere.
+      const definitivo = !risultato.error.retryable || tentativi >= CRM_MAX_ATTEMPTS;
+      const aggiornato = await this.deps.outbox.update({
+        ...evento,
+        status: definitivo ? 'FAILED' : 'PENDING',
+        attemptCount: tentativi,
+        lastError: `${risultato.error.code}: ${risultato.error.message}`,
+        nextAttemptAt: definitivo ? null : this.nextAttemptAt(tentativi),
+      });
+      this.publishChanged(aggiornato, correlationId);
+      this.logger.warn(
+        `${evento.type} ${etichetta}: ${definitivo ? 'consegna abbandonata' : 'CRM non raggiungibile, evento in coda di rinvio'}`,
+        { errore: risultato.error.code, tentativi, manuale: options.manuale === true },
+      );
+      return { outcome: definitivo ? 'GIVEN_UP' : 'QUEUED', event: aggiornato };
+    }
+
+    const inviato = await this.deps.outbox.update({
+      ...evento,
+      status: 'SENT',
+      attemptCount: tentativi,
+      crmAckId: risultato.value.ackId,
+      sentAt: this.deps.clock.nowIso(),
+      nextAttemptAt: null,
+      lastError: null,
+    });
+    this.publishChanged(inviato, correlationId);
+    this.logger.info(`${evento.type} ${etichetta}: inviato al CRM`, {
+      ackId: risultato.value.ackId,
+      tentativi,
+    });
+    return { outcome: 'SENT', event: inviato };
+  }
+
+  /**
+   * Rispedisce il payload salvato, scegliendo il metodo dal tipo di evento. Il payload è quello
+   * archiviato al momento del fatto: una pratica modificata dopo non cambia ciò che il CRM riceve.
+   */
+  private send(evento: CrmOutboxEvent, options: CallOptions): Promise<ProviderResult<CrmAckDto>> {
+    const payload = evento.payload as unknown;
+    switch (evento.type) {
+      case 'NO_SHOW':
+        return this.deps.crm.notifyNoShow(payload as CrmNoShowPayloadDto, options);
+      case 'CHECK_IN':
+        return this.deps.crm.notifyCheckIn(payload as CrmCheckInPayloadDto, options);
+      case 'ANOMALY':
+        return this.deps.crm.notifyAnomaly(payload as CrmAnomalyPayloadDto, options);
+    }
+  }
+
+  /** Momento del prossimo tentativo: attesa progressiva 1, 5, 15, 60, 240 minuti. */
+  private nextAttemptAt(tentativi: number): IsoDateTime {
+    const indice = Math.min(Math.max(0, tentativi - 1), CRM_RETRY_BACKOFF_MINUTES.length - 1);
+    const minuti = CRM_RETRY_BACKOFF_MINUTES[indice] ?? 1;
+    return new Date(this.deps.clock.now().getTime() + minuti * 60_000).toISOString() as IsoDateTime;
+  }
+
+  private publishChanged(evento: CrmOutboxEvent, correlationId: string): void {
+    this.deps.eventBus?.publish({
+      id: this.deps.ids.next(),
+      occurredAt: this.deps.clock.nowIso(),
+      correlationId,
+      actor: { kind: 'SYSTEM', id: null },
+      type: 'CRM_EVENT_CHANGED',
+      eventId: evento.id,
+      status: evento.status,
+    });
   }
 }

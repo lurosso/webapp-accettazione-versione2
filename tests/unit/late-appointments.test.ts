@@ -118,8 +118,11 @@ describe('QueueService: gestione dei clienti in ritardo', () => {
     expect(eventi[0]?.type).toBe('NO_SHOW');
     expect(eventi[0]?.appointmentId).toBe(a.id);
     expect(eventi[0]?.crmAckId).toMatch(/^crm-mock-/);
+    // Nella coda finisce il payload esatto inviato al CRM (motivo come codice del DTO); le parole
+    // dell'accettatore stanno accanto, in `operatorNote`, dove le legge il cruscotto BDC.
     expect(eventi[0]?.payload['code']).toBe(a.code);
-    expect(eventi[0]?.payload['reason']).toBe('Non si è presentato');
+    expect(eventi[0]?.payload['reason']).toBe('MARKED_BY_OPERATOR');
+    expect(eventi[0]?.operatorNote).toBe('Non si è presentato');
     expect(env.crm.received).toHaveLength(1);
     expect(env.crm.received[0]).toMatchObject({ code: a.code, reason: 'MARKED_BY_OPERATOR' });
   });

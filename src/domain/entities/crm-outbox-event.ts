@@ -30,7 +30,14 @@ export interface CrmOutboxEvent {
   readonly anomalyKind: CrmAnomalyKind | null;
   readonly appointmentId: AppointmentId;
   readonly idempotencyKey: string;
+  /**
+   * Payload esatto consegnato al CRM: è quello che verrà rispedito a ogni tentativo, senza
+   * ricostruirlo dalla pratica (che nel frattempo può essere cambiata). È il patto della coda di
+   * uscita: si invia quello che è stato deciso al momento del fatto.
+   */
   readonly payload: Readonly<Record<string, unknown>>;
+  /** Parole dell'operatore (es. il motivo scritto segnando un assente); non fanno parte del DTO. */
+  readonly operatorNote: string | null;
   readonly status: CrmOutboxStatus;
   readonly attemptCount: number;
   readonly nextAttemptAt: IsoDateTime | null;

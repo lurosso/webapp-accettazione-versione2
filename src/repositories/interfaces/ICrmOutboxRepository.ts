@@ -10,7 +10,12 @@ export interface ICrmOutboxRepository {
   update(event: CrmOutboxEvent): Promise<CrmOutboxEvent>;
   findById(id: CrmOutboxEventId): Promise<CrmOutboxEvent | null>;
   findByIdempotencyKey(key: string): Promise<CrmOutboxEvent | null>;
-  /** Eventi PENDING/FAILED con `nextAttemptAt` nullo o ≤ `now`, i più vecchi per primi. */
+  /**
+   * Eventi PENDING/FAILED con un `nextAttemptAt` già scaduto, i più vecchi per primi.
+   * `nextAttemptAt === null` significa "non riprovare più" (consegna abbandonata dopo i tentativi
+   * previsti, oppure lead chiuso a mano dal BDC): quelle righe restano fuori, altrimenti un CRM
+   * irrimediabilmente giù terrebbe il temporizzatore a riprovare in eterno.
+   */
   listDue(now: IsoDateTime, limit: number): Promise<readonly CrmOutboxEvent[]>;
   listByStatus(statuses: readonly CrmOutboxStatus[]): Promise<readonly CrmOutboxEvent[]>;
 }

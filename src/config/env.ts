@@ -41,6 +41,10 @@ export interface AppEnv {
   readonly mediaStorageProvider: MediaStorageProvider;
   /** Cartella dei file quando lo storage media è `local`. */
   readonly mediaStorageDir: string;
+  /** Rinvii automatici al CRM dal processo dell'app (false quando li fa un cron esterno). */
+  readonly crmRetryEnabled: boolean;
+  /** Segreto per il cron esterno dei rinvii CRM (null = solo sessione amministratore). */
+  readonly cronSecret: string | null;
   /**
    * Fuso dell'officina (`APP_TIMEZONE`, zona IANA validata). Volutamente NON letto da `TZ`:
    * nei container Docker `TZ` è spesso UTC e farebbe scivolare giornata operativa e sync.
@@ -230,6 +234,11 @@ export function parseEnv(
       warn,
     ),
     mediaStorageDir: pickString(source, 'MEDIA_STORAGE_DIR', DEFAULT_MEDIA_DIR),
+    crmRetryEnabled: pickBool(source, 'CRM_RETRY_ENABLED', true, warn),
+    cronSecret:
+      pickString(source, 'CRON_SECRET', '').trim() === ''
+        ? null
+        : pickString(source, 'CRON_SECRET', ''),
     timeZone: pickTimeZone(source, 'APP_TIMEZONE', TIMEZONE, warn),
     syncHourLocal: pickHourLocal(source, 'SYNC_HOUR_LOCAL', DEFAULT_SYNC_HOUR_LOCAL, warn),
     codePrefix: pickString(source, 'CODE_PREFIX', DEFAULT_CODE_PREFIX).toUpperCase(),

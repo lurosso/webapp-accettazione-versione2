@@ -53,7 +53,9 @@ export class InMemoryCrmOutboxRepository implements ICrmOutboxRepository {
       .filter(
         (e) =>
           (e.status === 'PENDING' || e.status === 'FAILED') &&
-          (e.nextAttemptAt === null || e.nextAttemptAt <= now),
+          // null = consegna abbandonata o chiusa a mano: non si riprova più.
+          e.nextAttemptAt !== null &&
+          e.nextAttemptAt <= now,
       )
       .sort(byCreatedAtAsc)
       .slice(0, Math.max(0, limit))

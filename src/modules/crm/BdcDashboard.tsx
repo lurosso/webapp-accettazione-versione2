@@ -10,7 +10,9 @@ import type { Session } from '@/application/auth/IAuthService';
 import type { BdcLeadView } from '@/domain/read-models';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { ApiError, postLeadContacted } from '@/lib/api-client/client';
+import { Dialog } from '@/components/ui/dialog';
+import { ApiError, postCloseDay, postLeadContacted } from '@/lib/api-client/client';
+import { queueKeys } from '@/lib/api-client/query-keys';
 import { bdcKeys, useBdcLeads, BDC_POLLING_MS } from '@/hooks/useBdcLeads';
 import { BdcLeadsTable } from './BdcLeadsTable';
 
@@ -26,6 +28,10 @@ export function BdcDashboard({ session, businessDate, timeZone }: BdcDashboardPr
   const [mostraChiusi, setMostraChiusi] = useState(false);
   const [inCorso, setInCorso] = useState<string | null>(null);
   const [errore, setErrore] = useState<string | null>(null);
+  // Chiusura di giornata: azione di fine turno, quindi conferma esplicita prima di eseguirla.
+  const [confermaChiusura, setConfermaChiusura] = useState(false);
+  const [chiusuraInCorso, setChiusuraInCorso] = useState(false);
+  const [esitoChiusura, setEsitoChiusura] = useState<string | null>(null);
 
   const params = {
     businessDate: giornataCorrente ? businessDate : null,
@@ -51,6 +57,42 @@ export function BdcDashboard({ session, businessDate, timeZone }: BdcDashboardPr
     }
   };
 
+  const chiudiGiornata = async (): Promise<void> => {
+    setChiusuraInCorso(true);
+    setErrore(null);
+    try {
+      const esito = await postCloseDay();
+      const parti = [
+        esito.noShow.length === 1
+          ? '1 cliente segnato assente'
+          : `${esito.noShow.length} clienti segnati assenti`,
+        esito.cancelled.length === 1
+          ? '1 accettazione non conclusa annullata'
+          : `${esito.cancelled.length} accettazioni non concluse annullate`,
+      ];
+      if (esito.failed.length > 0) {
+        parti.push(
+          `${esito.failed.length} pratiche non chiuse (${esito.failed.join(', ')}): riprova`,
+        );
+      }
+      setEsitoChiusura(`Giornata ${esito.businessDate} chiusa: ${parti.join(', ')}.`);
+      setConfermaChiusura(false);
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: bdcKeys.all }),
+        queryClient.invalidateQueries({ queryKey: queueKeys.all }),
+      ]);
+    } catch (cause) {
+      setErrore(
+        cause instanceof ApiError
+          ? cause.message
+          : 'Non è stato possibile chiudere la giornata: riprova.',
+      );
+      setConfermaChiusura(false);
+    } finally {
+      setChiusuraInCorso(false);
+    }
+  };
+
   const data = query.data;
 
   return (
@@ -63,7 +105,15 @@ export function BdcDashboard({ session, businessDate, timeZone }: BdcDashboardPr
             aggiorna da solo ogni {Math.round(BDC_POLLING_MS / 1000)} secondi.
           </p>
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2">
+          <Button
+            variant="destructive"
+            size="touch"
+            onClick={() => setConfermaChiusura(true)}
+            disabled={chiusuraInCorso}
+          >
+            {chiusuraInCorso ? 'Chiusura in corso…' : 'Esegui chiusura giornata'}
+          </Button>
           <Badge tone={data !== undefined && data.openCount > 0 ? 'warning' : 'success'}>
             {data === undefined
               ? '—'
@@ -108,6 +158,14 @@ export function BdcDashboard({ session, businessDate, timeZone }: BdcDashboardPr
         <span className="ml-auto text-xs text-slate-500">Operatore BDC: {session.displayName}</span>
       </div>
 
+      {esitoChiusura !== null ? (
+        <p
+          role="status"
+          className="bg-status-completed-soft rounded-md px-3 py-2 text-sm text-emerald-900"
+        >
+          {esitoChiusura}
+        </p>
+      ) : null}
       {errore !== null ? (
         <p role="alert" className="rounded-md bg-red-50 px-3 py-2 text-sm text-red-800">
           {errore}
@@ -131,6 +189,40 @@ export function BdcDashboard({ session, businessDate, timeZone }: BdcDashboardPr
           }}
         />
       )}
+
+      <Dialog
+        open={confermaChiusura}
+        title="Chiudere la giornata?"
+        description="Operazione di fine turno: non si annulla."
+        onClose={() => setConfermaChiusura(false)}
+        footer={
+          <>
+            <Button variant="outline" onClick={() => setConfermaChiusura(false)}>
+              Annulla
+            </Button>
+            <Button
+              variant="destructive"
+              onClick={() => void chiudiGiornata()}
+              disabled={chiusuraInCorso}
+            >
+              {chiusuraInCorso ? 'Chiusura in corso…' : 'Sì, chiudi la giornata'}
+            </Button>
+          </>
+        }
+      >
+        <ul className="flex list-disc flex-col gap-1 pl-5 text-sm text-slate-700">
+          <li>
+            I clienti ancora <strong>in coda</strong> vengono segnati <strong>assenti</strong> e
+            compaiono qui come lead da ricontattare, con l&apos;evento verso il CRM.
+          </li>
+          <li>
+            Le accettazioni ancora <strong>in carico</strong> vengono <strong>annullate</strong>:
+            non sono state concluse e non possono restare aperte fino a domani.
+          </li>
+          <li>Monitor e tabellone si svuotano: nessun codice chiamato, accettazioni libere.</li>
+          <li>Le pratiche già completate o già chiuse non vengono toccate.</li>
+        </ul>
+      </Dialog>
 
       <p className="text-xs text-slate-400">
         I lead nascono dagli eventi inviati al CRM quando un accettatore segna un cliente assente.

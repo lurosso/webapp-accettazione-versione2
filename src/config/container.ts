@@ -5,6 +5,8 @@ import { LocalAuthService } from '@/application/auth/LocalAuthService';
 import type { IAuthService } from '@/application/auth/IAuthService';
 import { BdcLeadService } from '@/application/crm/BdcLeadService';
 import { CrmNotifier } from '@/application/crm/CrmNotifier';
+import { CrmOutboxService } from '@/application/crm/CrmOutboxService';
+import { CrmRetryScheduler } from '@/application/crm/CrmRetryScheduler';
 import { InspectionService } from '@/application/media/InspectionService';
 import { NotificationOrchestrator } from '@/application/notifications/NotificationOrchestrator';
 import { CodeGenerator } from '@/application/queue/CodeGenerator';
@@ -46,6 +48,8 @@ export interface Container {
   readonly queueService: QueueService;
   readonly crmNotifier: CrmNotifier;
   readonly bdcLeadService: BdcLeadService;
+  readonly crmOutboxService: CrmOutboxService;
+  readonly crmRetryScheduler: CrmRetryScheduler;
   readonly inspectionService: InspectionService;
   readonly syncService: SyncService;
   readonly syncScheduler: SyncScheduler;
@@ -154,7 +158,18 @@ export function createContainer(overrides: ContainerOverrides = {}): Container {
     clock,
     ids,
     logger,
+    eventBus,
   });
+
+  const crmOutboxService = new CrmOutboxService({
+    outbox: repos.crmOutbox,
+    notifier: crmNotifier,
+    logger,
+  });
+
+  // Rinvii automatici verso il CRM: un temporizzatore nel processo, spegnibile da env quando i
+  // rinvii li fa un cron esterno sull'endpoint dedicato.
+  const crmRetryScheduler = new CrmRetryScheduler({ notifier: crmNotifier, logger });
 
   const bdcLeadService = new BdcLeadService({
     outbox: repos.crmOutbox,
@@ -236,6 +251,8 @@ export function createContainer(overrides: ContainerOverrides = {}): Container {
     queueService,
     crmNotifier,
     bdcLeadService,
+    crmOutboxService,
+    crmRetryScheduler,
     inspectionService,
     syncService,
     syncScheduler,
@@ -260,12 +277,16 @@ export function getContainer(): Container {
     if (existing.queueService instanceof QueueService) {
       return existing;
     }
-    // Codice ricaricato: si sostituisce il cablaggio e si sposta il timer sul nuovo scheduler.
+    // Codice ricaricato: si sostituisce il cablaggio e si spostano i timer sui nuovi scheduler.
     existing.syncScheduler.stop();
+    existing.crmRetryScheduler.stop();
     const rebuilt = createContainer();
     g[GLOBAL_KEY] = rebuilt;
     if (g[SCHEDULER_STARTED_KEY] === true) {
       rebuilt.syncScheduler.start();
+      if (rebuilt.env.crmRetryEnabled) {
+        rebuilt.crmRetryScheduler.start();
+      }
     }
     rebuilt.logger.info('[Container] ricostruito dopo una ricompilazione (solo sviluppo)');
     return rebuilt;
@@ -281,6 +302,7 @@ export function resetContainerForTests(): void {
   const existing = g[GLOBAL_KEY];
   if (isContainer(existing)) {
     existing.syncScheduler.stop();
+    existing.crmRetryScheduler.stop();
   }
   delete g[GLOBAL_KEY];
   InMemoryStore.getGlobal().reset();

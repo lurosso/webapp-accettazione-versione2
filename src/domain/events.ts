@@ -16,7 +16,8 @@ export type DomainEventType =
   | 'APPOINTMENT_CODE_ASSIGNED'
   | 'SYNC_RUN_FINISHED'
   | 'NOTIFICATION_JOB_CHANGED'
-  | 'CRM_EVENT_CHANGED';
+  | 'CRM_EVENT_CHANGED'
+  | 'BUSINESS_DAY_CLOSED';
 
 /** Chi ha causato l'evento. */
 export interface DomainEventActor {
@@ -66,6 +67,17 @@ export type DomainEventPayload =
       readonly type: 'CRM_EVENT_CHANGED';
       readonly eventId: CrmOutboxEventId;
       readonly status: CrmOutboxStatus;
+    }
+  | {
+      /**
+       * Giornata chiusa: nessuna pratica resta in coda o in carico. I monitor e il tabellone si
+       * svuotano da soli perché le loro viste derivano dalle pratiche aperte, ma l'evento serve
+       * a chi ascolta il bus (SSE di M6, futuri riepiloghi) per sapere quando è successo.
+       */
+      readonly type: 'BUSINESS_DAY_CLOSED';
+      readonly businessDate: string;
+      readonly noShowCount: number;
+      readonly cancelledCount: number;
     };
 
 /** Evento di dominio completo, come restituito dal bus. */

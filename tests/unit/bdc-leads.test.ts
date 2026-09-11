@@ -188,7 +188,10 @@ describe('BdcLeadService: lead da ricontattare', () => {
     await queueService.markNoShow({ appointmentId: a.id, expectedVersion: 1 }, ctx);
 
     const view = await bdc.listLeads({ businessDate: TEST_DATE });
-    expect(view.leads[0]?.deliveryStatus).toBe('PENDING');
+    // Il finto CRM rifiuta con un errore definitivo: la consegna è abbandonata, non in attesa.
+    // Al BDC non cambia nulla: il lead resta da lavorare.
+    expect(view.leads[0]?.deliveryStatus).toBe('FAILED');
+    expect(view.leads[0]?.handled).toBe(false);
 
     const chiuso = await bdc.markContacted(
       { eventId: view.leads[0]?.eventId as CrmOutboxEventId, note: null },

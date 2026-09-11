@@ -349,9 +349,12 @@ describe('InspectionService: chiusura del check-in', () => {
       expect(r.value.appointment.status).toBe('COMPLETED');
       expect(r.value.crmNotified).toBe(false);
     }
-    const inCoda = await env.crmOutbox.listByStatus(['PENDING']);
+    // Il finto CRM rifiuta con un errore definitivo: l'evento resta tracciato come non riuscito e
+    // la riprova diventa una decisione del tecnico (pannello Sistema), non un ciclo infinito.
+    const inCoda = await env.crmOutbox.listByStatus(['PENDING', 'FAILED']);
     const evento = inCoda.find((e) => e.type === 'CHECK_IN');
     expect(evento).toBeDefined();
+    expect(evento?.status).toBe('FAILED');
     expect(evento?.attemptCount).toBe(1);
     expect(evento?.lastError).toContain('PROVIDER_ERROR');
   });

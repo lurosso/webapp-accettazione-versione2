@@ -35,6 +35,22 @@ import type { IEventBus } from '@/services/interfaces/IEventBus';
 import type { IIdGenerator } from '@/services/interfaces/IIdGenerator';
 import type { ILogger } from '@/services/interfaces/ILogger';
 
+/** Motivo registrato sui no-show generati dalla chiusura di giornata. */
+export const CLOSE_DAY_NO_SHOW_REASON = 'Chiusura giornata: cliente non presentatosi';
+
+/** Esito della chiusura di giornata, per il messaggio al responsabile e per i log. */
+export interface CloseBusinessDayResult {
+  readonly businessDate: IsoDate;
+  /** Codici passati a NO_SHOW (clienti mai presentati: diventano lead per il BDC). */
+  readonly noShow: readonly string[];
+  /** Codici passati a CANCELLED (prese in carico non concluse). */
+  readonly cancelled: readonly string[];
+  /** Codici che non è stato possibile chiudere (conflitto con un'altra postazione). */
+  readonly failed: readonly string[];
+  /** Pratiche già chiuse prima della chiusura di giornata. */
+  readonly alreadyClosed: number;
+}
+
 export interface QueueServiceDeps {
   readonly appointments: IAppointmentRepository;
   readonly referenceData: IReferenceDataRepository;
@@ -409,6 +425,81 @@ export class QueueService {
       ctx.correlationId ?? this.deps.ids.next(),
     );
     return updated;
+  }
+
+  /**
+   * Chiusura della giornata: a officina chiusa non deve restare nulla di aperto.
+   * - chi era ancora in coda (in attesa o saltato) diventa `NO_SHOW` e finisce nel cruscotto BDC
+   *   con l'evento verso il CRM: non si è presentato, e domani qualcuno deve richiamarlo;
+   * - chi era ancora in carico diventa `CANCELLED`: l'accettazione non è stata conclusa e non
+   *   può restare aperta fino al giorno dopo, ma non è un cliente da ricontattare.
+   * Le pratiche già chiuse (completate, assenti, annullate) non vengono toccate.
+   *
+   * L'operazione non si ferma al primo errore: se una pratica viene modificata da una postazione
+   * proprio in quel momento, quella riga resta indietro e viene contata, il resto della giornata
+   * si chiude comunque. Chiudere a metà è meglio che non chiudere.
+   */
+  async closeBusinessDay(
+    businessDate: IsoDate,
+    ctx: ActionContext,
+  ): Promise<Result<CloseBusinessDayResult, DomainError>> {
+    const tutte = await this.deps.appointments.listByDate(businessDate, {});
+    const daChiudere = tutte.filter((a) => isInQueue(a.status) || a.status === 'IN_PROGRESS');
+
+    const noShow: string[] = [];
+    const cancelled: string[] = [];
+    const nonRiuscite: string[] = [];
+
+    for (const a of daChiudere) {
+      const to: AppointmentStatus = a.status === 'IN_PROGRESS' ? 'CANCELLED' : 'NO_SHOW';
+      const now = this.deps.clock.nowIso();
+      const patch: Partial<Appointment> =
+        to === 'CANCELLED' ? { cancelledAt: now } : { noShowAt: now };
+      const aggiornata = await this.apply(a, to, patch, a.version, ctx);
+      if (!aggiornata.ok) {
+        nonRiuscite.push(a.code);
+        this.logger.warn(`chiusura giornata: pratica ${a.code} non chiusa`, {
+          appointmentId: a.id,
+          errore: aggiornata.error.code,
+        });
+        continue;
+      }
+      if (to === 'NO_SHOW') {
+        noShow.push(a.code);
+        // Stesso percorso del no-show segnato a mano: coda di uscita e tentativo di invio.
+        await this.deps.crmNotifier.notifyNoShow(
+          aggiornata.value,
+          CLOSE_DAY_NO_SHOW_REASON,
+          ctx.correlationId ?? this.deps.ids.next(),
+        );
+      } else {
+        cancelled.push(a.code);
+      }
+    }
+
+    this.deps.eventBus.publish({
+      id: this.deps.ids.next(),
+      occurredAt: this.deps.clock.nowIso(),
+      correlationId: ctx.correlationId ?? this.deps.ids.next(),
+      actor: { kind: 'OPERATOR', id: ctx.operatorId },
+      type: 'BUSINESS_DAY_CLOSED',
+      businessDate,
+      noShowCount: noShow.length,
+      cancelledCount: cancelled.length,
+    });
+    this.logger.info(`giornata ${businessDate} chiusa`, {
+      assenti: noShow.length,
+      annullate: cancelled.length,
+      nonRiuscite: nonRiuscite.length,
+    });
+
+    return ok({
+      businessDate,
+      noShow,
+      cancelled,
+      failed: nonRiuscite,
+      alreadyClosed: tutte.length - daChiudere.length,
+    });
   }
 
   // --- interni ---------------------------------------------------------------------------

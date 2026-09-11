@@ -3,7 +3,8 @@
 import type { Appointment } from '@/domain/entities/appointment';
 import type { SyncRun } from '@/domain/entities/sync-run';
 import type { Session } from '@/application/auth/IAuthService';
-import type { BdcLeadsView, BdcLeadView } from '@/domain/read-models';
+import type { BdcLeadsView, BdcLeadView, CrmOutboxView } from '@/domain/read-models';
+import type { CrmOutboxEvent, CrmOutboxStatus } from '@/domain/entities/crm-outbox-event';
 import type { MediaCategory } from '@/domain/entities/media-asset';
 import type { BoardStatus, DisplayStatus } from '@/modules/bay-displays/types';
 import type { PublicStatus } from '@/modules/customer-portal/types';
@@ -251,6 +252,38 @@ export function postLeadContacted(
     method: 'POST',
     json: { note },
   });
+}
+
+/** POST /api/v1/system/close-day: chiude la giornata (responsabile e amministratore). */
+export function postCloseDay(businessDate?: string): Promise<{
+  readonly businessDate: string;
+  readonly noShow: readonly string[];
+  readonly cancelled: readonly string[];
+  readonly failed: readonly string[];
+  readonly alreadyClosed: number;
+}> {
+  return apiFetch('/api/v1/system/close-day', {
+    method: 'POST',
+    json: businessDate === undefined ? {} : { businessDate },
+  });
+}
+
+/** GET /api/v1/crm/outbox: coda di uscita verso il CRM (solo amministratori). */
+export function fetchCrmOutbox(statuses: readonly CrmOutboxStatus[] = []): Promise<CrmOutboxView> {
+  const search = new URLSearchParams();
+  if (statuses.length > 0) {
+    search.set('stato', statuses.join(','));
+  }
+  const query = search.toString();
+  return apiFetch(`/api/v1/crm/outbox${query === '' ? '' : `?${query}`}`);
+}
+
+/** POST /api/v1/crm/outbox/{id}/retry: forza un nuovo tentativo di consegna. */
+export function postOutboxRetry(eventId: string): Promise<{
+  readonly outcome: string;
+  readonly event: CrmOutboxEvent;
+}> {
+  return apiFetch(`/api/v1/crm/outbox/${encodeURIComponent(eventId)}/retry`, { method: 'POST' });
 }
 
 /** POST /api/v1/auth/login. */

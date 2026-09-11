@@ -117,3 +117,34 @@ export interface BdcLeadsView {
   readonly openCount: number;
   readonly handledCount: number;
 }
+
+/**
+ * Riga della coda di uscita verso il CRM come la vede il tecnico: stato tecnico della consegna,
+ * non il lavoro del BDC. Serve a rispondere a "il CRM sta ricevendo?" senza aprire i log.
+ */
+export interface CrmOutboxRowView {
+  readonly eventId: string;
+  readonly type: CrmEventType;
+  readonly status: CrmOutboxStatus;
+  readonly appointmentId: string;
+  /** Codice della pratica (dal payload salvato: resta leggibile anche a pratica archiviata). */
+  readonly code: string | null;
+  readonly createdAt: IsoDateTime;
+  readonly sentAt: IsoDateTime | null;
+  readonly nextAttemptAt: IsoDateTime | null;
+  readonly attemptCount: number;
+  readonly lastError: string | null;
+  readonly crmAckId: string | null;
+  readonly idempotencyKey: string;
+}
+
+/** Coda di uscita con i conteggi per stato, per l'intestazione del pannello Sistema. */
+export interface CrmOutboxView {
+  readonly rows: readonly CrmOutboxRowView[];
+  readonly counts: {
+    readonly pending: number;
+    readonly sent: number;
+    readonly failed: number;
+    readonly manual: number;
+  };
+}

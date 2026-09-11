@@ -137,10 +137,10 @@ predefinita): determinano il filtro iniziale della coda e l'accettazione propost
 | --------------------- | -------------- | -------------- | ----------------------------------------------------------------------------------------- |
 | `/login`              | Accettatore    | disponibile    | Credenziali, scelta sportello/brand e postazione                                          |
 | `/accettazione`       | Accettatore    | disponibile    | Coda ordinata per orario con codici F001…, azioni rapide, blocco **In ritardo / assenti**, banner sync, **vista globale** per prendere in carico pratiche di altri sportelli, aggiornamento ogni 3 s; il clic su una riga apre i dati del cliente |
-| `/sistema`            | Responsabile   | disponibile    | Stato delle porte esterne (Infinity, Spoki, SMS Hosting, CRM)                              |
+| `/sistema`            | Responsabile / IT | disponibile | Stato delle porte esterne (Infinity, Spoki, SMS Hosting, CRM) e, per gli amministratori, la coda di uscita verso il CRM con "Forza riprova" |
 | `/cliente` (`/qr`)    | Cliente (QR)   | disponibile    | Ricerca per targa e stato del turno in tempo reale: codice, clienti in attesa, messaggio per stato; nessuna autenticazione e nessun dato personale |
 | `/display/sala-attesa` | Sala d'attesa | disponibile    | Tabellone stile ufficio pubblico: codici chiamati con l'accettazione a cui presentarsi e prossimi turni |
-| `/manager`            | BDC / Responsabile | disponibile | Cruscotto del back office: clienti segnati assenti da ricontattare, con telefono richiamabile e chiusura del lead con esito; si aggiorna ogni 10 secondi |
+| `/manager`            | BDC / Responsabile | disponibile | Cruscotto del back office: clienti segnati assenti da ricontattare, con telefono richiamabile e chiusura del lead con esito; da qui si esegue anche la chiusura di giornata |
 | `/comunicazioni`      | Responsabile   | pianificato    | Registro degli invii WhatsApp e SMS con conferma manuale (l'invio automatico funziona già) |
 | `/display/1` … `/4`   | Monitor        | disponibile    | Schermo a tutto campo per i monitor sopra le postazioni: codice e targa in servizio, oppure invito verde ad avanzare; si aggiorna ogni 2 secondi |
 | `/tablet`             | Tablet         | disponibile    | Accettazione al veicolo: le pratiche del proprio sportello in due schede grandi, check-in a tutto schermo con fotocamera e note sui danni rilevati |
@@ -148,7 +148,9 @@ predefinita): determinano il filtro iniziale della coda e l'accettazione propost
 API principali (JSON, autenticate via cookie di sessione): `GET /api/v1/queue`,
 `POST /api/v1/appointments/{id}/actions`, `POST /api/v1/appointments/{id}/media` (foto, multipart),
 `POST /api/v1/appointments/{id}/check-in`, `POST /api/v1/sync`, `POST /api/v1/auth/login`,
-`GET /api/v1/crm/leads` e `POST /api/v1/crm/leads/{id}/contacted` (responsabile e amministratore).
+`GET /api/v1/crm/leads` e `POST /api/v1/crm/leads/{id}/contacted` (responsabile e amministratore),
+`POST /api/v1/system/close-day` (chiusura giornata), `GET /api/v1/crm/outbox` e
+`POST /api/v1/crm/outbox/{id}/retry` (amministratore).
 Pubbliche, senza sessione: `GET /api/v1/public/status?targa=AB123CD` (stato del turno, protetta da
 limiti di frequenza) e `GET /api/v1/health`.
 
@@ -246,6 +248,32 @@ curl -s -c /tmp/c.txt -H 'content-type: application/json' -d '{"username":"mario
 
 Con la dashboard aperta su una postazione e il portale su un'altra scheda, ogni azione
 dell'operatore si riflette sulla schermata del cliente entro cinque secondi.
+
+## Fine giornata e coda verso il CRM
+
+**Chiusura giornata.** A officina chiusa il responsabile preme *Esegui chiusura giornata* nel
+cruscotto BDC e conferma. Chi era ancora in coda viene segnato **assente** e compare subito fra i
+lead da ricontattare (con l'evento verso il CRM); le accettazioni rimaste **in carico** vengono
+annullate, perché non sono state concluse e non possono restare aperte fino al giorno dopo. Le
+pratiche già completate non si toccano. Monitor e tabellone tornano vuoti da soli: le loro viste
+derivano dalle pratiche aperte, non da uno stato salvato a parte.
+
+**Coda di uscita verso il CRM.** Ogni evento (assenza, accettazione conclusa) viene prima scritto
+in coda e poi inviato: se il CRM non risponde l'informazione non si perde. I rinvii sono automatici
+con attesa progressiva — 1, 5, 15, 60 e 240 minuti, sei tentativi in tutto — e poi si fermano: un
+CRM irrimediabilmente giù non deve far girare a vuoto il server. Da quel momento la riga resta nel
+pannello **Sistema** (visibile agli amministratori) con stato, tentativi e ultimo errore, e il
+pulsante **Forza riprova** la rispedisce quando il CRM è tornato su.
+
+In produzione i rinvii possono essere affidati a un cron esterno: si spegne il temporizzatore
+interno con `CRM_RETRY_ENABLED=false` e si chiama ogni N minuti
+
+```bash
+curl -s -X POST -H "x-cron-secret: $CRON_SECRET" http://localhost:3000/api/v1/system/cron/crm-retry
+```
+
+Le due strade possono convivere: ogni evento porta la propria chiave di idempotenza e il CRM la
+riconosce, quindi un doppio invio non genera un doppio lead.
 
 ## Script disponibili
 

@@ -148,7 +148,7 @@ export class BdcLeadService {
       type: evento.type,
       deliveryStatus: evento.status,
       appointmentId: evento.appointmentId,
-      reason: textOf(evento.payload, 'reason'),
+      reason: evento.operatorNote,
       detectedAt: evento.createdAt,
       handled: evento.status === 'MANUAL',
       handledAt: evento.handledAt,

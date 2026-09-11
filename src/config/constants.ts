@@ -27,6 +27,26 @@ export const POLLING_MS = {
   portal: 5000,
 } as const;
 
+/**
+ * Rinvio degli eventi al CRM (modulo F): attesa progressiva fra un tentativo e il successivo.
+ * Un CRM che non risponde non va martellato ogni minuto; allo stesso tempo un guasto di pochi
+ * minuti non deve far aspettare il BDC fino al giorno dopo. Dopo l'ultimo intervallo l'evento è
+ * dichiarato FAILED e resta al tecnico (pannello Sistema) o al BDC, che comunque ha il lead.
+ */
+export const CRM_RETRY_BACKOFF_MINUTES = [1, 5, 15, 60, 240] as const;
+
+/** Tentativi massimi di consegna automatica (il primo invio incluso). */
+export const CRM_MAX_ATTEMPTS = CRM_RETRY_BACKOFF_MINUTES.length + 1;
+
+/** Tempo massimo concesso a una chiamata verso il CRM prima di considerarla non risposta. */
+export const CRM_CALL_TIMEOUT_MS = 5_000;
+
+/** Ogni quanto il processo prova a svuotare la coda di uscita verso il CRM. */
+export const CRM_DRAIN_INTERVAL_MS = 60_000;
+
+/** Quanti eventi al massimo per passata: la coda si svuota a ondate, senza bloccare il processo. */
+export const CRM_DRAIN_BATCH = 20;
+
 /** Dopo quanti ms senza aggiornamenti la UI mostra "Dati non aggiornati" (usata da M1, `useStaleIndicator`). */
 export const STALE_WARNING_MS = 15000;
 
