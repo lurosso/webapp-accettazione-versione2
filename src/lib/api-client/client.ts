@@ -3,7 +3,7 @@
 import type { Appointment } from '@/domain/entities/appointment';
 import type { SyncRun } from '@/domain/entities/sync-run';
 import type { Session } from '@/application/auth/IAuthService';
-import type { DisplayStatus } from '@/modules/bay-displays/types';
+import type { BoardStatus, DisplayStatus } from '@/modules/bay-displays/types';
 import type { PublicStatus } from '@/modules/customer-portal/types';
 import type {
   AppointmentActionRequest,
@@ -147,6 +147,16 @@ export function fetchDisplayStatus(bayRef: string, token?: string | null): Promi
   return apiFetch<DisplayStatus>(`/api/v1/public/display?${search.toString()}`, {
     publicEndpoint: true,
   });
+}
+
+/** GET /api/v1/public/board: tabellone della sala d'attesa (kiosk senza sessione). */
+export function fetchWaitingBoard(nextCount?: number): Promise<BoardStatus> {
+  const search = new URLSearchParams();
+  if (nextCount !== undefined) {
+    search.set('prossimi', String(nextCount));
+  }
+  const query = search.size > 0 ? `?${search.toString()}` : '';
+  return apiFetch<BoardStatus>(`/api/v1/public/board${query}`, { publicEndpoint: true });
 }
 
 /** POST /api/v1/auth/login. */

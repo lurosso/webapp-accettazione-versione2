@@ -17,6 +17,11 @@ export interface INotificationRepository {
   findJobById(id: NotificationJobId): Promise<NotificationJob | null>;
   findJobByIdempotencyKey(key: string): Promise<NotificationJob | null>;
   listByAppointment(appointmentId: AppointmentId): Promise<readonly NotificationJob[]>;
+  /**
+   * Tutti i job della giornata. Serve alla dashboard per mostrare in una sola lettura se il
+   * cliente è stato avvisato, senza interrogare il repository una volta per pratica.
+   */
+  listByDate(businessDate: IsoDate): Promise<readonly NotificationJob[]>;
   listByStatus(
     statuses: readonly NotificationJobStatus[],
     businessDate?: IsoDate,

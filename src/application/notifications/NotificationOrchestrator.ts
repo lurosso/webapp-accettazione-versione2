@@ -156,6 +156,50 @@ export class NotificationOrchestrator {
     }
   }
 
+  /**
+   * Promemoria del mattino per un elenco di pratiche, subito dopo la sincronizzazione dell'agenda
+   * (requisito: "messaggio WhatsApp automatico inviato la mattina post-sync").
+   *
+   * Gli invii sono in sequenza, non in parallelo: un provider reale limita la frequenza e
+   * l'officina non ha fretta di svuotare la coda dei messaggi. Un errore su una pratica non
+   * interrompe le altre: ogni esito è registrato sul proprio job e confermabile a mano.
+   */
+  async sendMorningReminders(input: {
+    readonly appointments: readonly Appointment[];
+    readonly brands: readonly Brand[];
+    readonly correlationId: string;
+  }): Promise<readonly NotificationRun[]> {
+    const runs: NotificationRun[] = [];
+    for (const appointment of input.appointments) {
+      const brand = input.brands.find((b) => b.id === appointment.brandId);
+      if (brand === undefined) {
+        this.logger.warn('promemoria non inviato: marchio sconosciuto', {
+          code: appointment.code,
+          brandId: appointment.brandId,
+        });
+        continue;
+      }
+      runs.push(
+        await this.sendReminder({
+          appointment,
+          brand,
+          kind: 'REMINDER_MORNING',
+          correlationId: input.correlationId,
+        }),
+      );
+    }
+
+    const conteggio = (kind: NotificationOutcome['kind']): number =>
+      runs.filter((r) => r.outcome.kind === kind).length;
+    this.logger.info(
+      `promemoria del mattino: ${runs.length} pratiche elaborate ` +
+        `(WhatsApp ${conteggio('WHATSAPP_SENT')}, SMS di ripiego ${conteggio('SMS_FALLBACK_SENT')}, ` +
+        `da ritentare ${conteggio('FAILED_RETRYABLE')}, da contattare a mano ${conteggio('MANUAL_REQUIRED')}, ` +
+        `senza recapito ${conteggio('NO_RECIPIENT')}, già inviate ${conteggio('ALREADY_PROCESSED')})`,
+    );
+    return runs;
+  }
+
   /** Il supervisor conferma di aver contattato il cliente a mano. */
   async confirmManual(
     jobId: NotificationJobId,
@@ -319,6 +363,11 @@ export class NotificationOrchestrator {
             correlationId,
             true,
           );
+          // Riga di esito leggibile nei log dell'officina, con il codice della pratica.
+          this.logger.info(`[Spoki] WhatsApp inviato per ${current.code}`, {
+            jobId: current.id,
+            stato: current.status,
+          });
           return { job: current, outcome: { kind: 'WHATSAPP_SENT' } };
         }
         this.logger.warn('WhatsApp non consegnabile: fallback su SMS', {
@@ -369,6 +418,14 @@ export class NotificationOrchestrator {
         },
         correlationId,
         true,
+      );
+      // `tryWhatsApp` distingue il ripiego dopo un errore dall'SMS usato come canale unico
+      // (cliente senza consenso WhatsApp): nei log si legge cosa è realmente accaduto.
+      this.logger.info(
+        tryWhatsApp
+          ? `[Spoki fallito] → [SMS] inviato per ${current.code}`
+          : `[SMS] inviato per ${current.code} (cliente senza consenso WhatsApp)`,
+        { jobId: current.id },
       );
       return { job: current, outcome: { kind: 'SMS_FALLBACK_SENT' } };
     }

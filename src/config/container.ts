@@ -145,6 +145,7 @@ export function createContainer(overrides: ContainerOverrides = {}): Container {
     appointments: repos.appointments,
     referenceData: repos.referenceData,
     operators: repos.operators,
+    notifications: repos.notifications,
     eventBus,
     clock,
     ids,
@@ -163,6 +164,7 @@ export function createContainer(overrides: ContainerOverrides = {}): Container {
     ids,
     logger,
     timeZone: env.timeZone,
+    notifications: notificationOrchestrator,
   });
 
   const syncScheduler = new SyncScheduler({

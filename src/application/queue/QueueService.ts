@@ -8,13 +8,19 @@ import { RELEASING_DISPLAY_MS } from '@/config/constants';
 import { assertTransition } from '@/domain/appointment-state-machine';
 import { domainError, type DomainError } from '@/domain/errors';
 import type { AppointmentId, BayId, DeskId, OperatorId, WorkstationId } from '@/domain/ids';
-import type { BayDisplayView, QueuePositionView, QueueRowView } from '@/domain/read-models';
+import type {
+  BayDisplayView,
+  QueuePositionView,
+  QueueRowView,
+  WaitingBoardView,
+} from '@/domain/read-models';
 import { err, ok, type Result } from '@/domain/result';
 import type { IsoDate } from '@/domain/value-objects/iso-date';
 import { parsePlate, type PlateNumber } from '@/domain/value-objects/plate';
 import type {
   AheadScope,
   IAppointmentRepository,
+  INotificationRepository,
   IOperatorRepository,
   IReferenceDataRepository,
 } from '@/repositories/interfaces';
@@ -27,6 +33,8 @@ export interface QueueServiceDeps {
   readonly appointments: IAppointmentRepository;
   readonly referenceData: IReferenceDataRepository;
   readonly operators: IOperatorRepository;
+  /** Serve solo a mostrare nella coda se il cliente è già stato avvisato. */
+  readonly notifications: INotificationRepository;
   readonly eventBus: IEventBus;
   readonly clock: IClock;
   readonly ids: IIdGenerator;
@@ -210,6 +218,46 @@ export class QueueService {
     });
   }
 
+  /**
+   * Tabellone della sala d'attesa (modulo D): codici chiamati ora con la loro destinazione e i
+   * prossimi in attesa. Espone solo codici: lo schermo è visibile a tutta la sala, quindi né
+   * targhe né nomi.
+   */
+  async getWaitingBoard(businessDate: IsoDate, nextCount = 4): Promise<WaitingBoardView> {
+    const [all, bays, desks] = await Promise.all([
+      this.deps.appointments.listByDate(businessDate),
+      this.deps.referenceData.listBays(),
+      this.deps.referenceData.listDesks(),
+    ]);
+    const bayById = new Map(bays.map((b) => [b.id, b] as const));
+    const deskById = new Map(desks.map((d) => [d.id, d] as const));
+
+    const serving = all
+      .filter((a) => a.status === 'IN_PROGRESS')
+      .map((a) => {
+        const bay = a.bayId === null ? undefined : bayById.get(a.bayId);
+        const desk = a.deskId === null ? undefined : deskById.get(a.deskId);
+        return {
+          code: a.code,
+          bayCode: bay?.code ?? null,
+          bayNumber: bay?.number ?? null,
+          deskCode: desk?.code ?? null,
+          since: a.takenAt,
+        };
+      })
+      // Chi è stato chiamato per ultimo va in cima: è la riga che la sala deve notare.
+      .sort((x, y) => (y.since ?? '').localeCompare(x.since ?? ''));
+
+    const inQueue = all.filter((a) => isInQueue(a.status));
+    return {
+      serving,
+      next: inQueue
+        .slice(0, Math.max(0, nextCount))
+        .map((a) => ({ code: a.code, scheduledAt: a.scheduledAt })),
+      waitingCount: inQueue.length,
+    };
+  }
+
   /** Occupazione di tutte le campate attive, derivata da `status` + `bayId` delle pratiche. */
   async getBayOccupancy(businessDate: IsoDate): Promise<readonly BayOccupancyView[]> {
     const [bays, inProgress] = await Promise.all([
@@ -324,7 +372,13 @@ export class QueueService {
   }
 
   private async enrich(appointments: readonly Appointment[]): Promise<readonly QueueRowView[]> {
-    const bays = await this.deps.referenceData.listBays();
+    const businessDate = appointments[0]?.businessDate ?? null;
+    const [bays, jobs] = await Promise.all([
+      this.deps.referenceData.listBays(),
+      businessDate === null
+        ? Promise.resolve([])
+        : this.deps.notifications.listByDate(businessDate),
+    ]);
     const operatorIds = [
       ...new Set(appointments.flatMap((a) => (a.operatorId === null ? [] : [a.operatorId]))),
     ];
@@ -333,13 +387,23 @@ export class QueueService {
       operators.flatMap((o) => (o === null ? [] : [[o.id, o.displayName] as const])),
     );
     const bayCode = new Map(bays.map((b) => [b.id, b.code] as const));
-    return appointments.map((appointment) => ({
-      appointment,
-      operatorName:
-        appointment.operatorId === null ? null : (operatorName.get(appointment.operatorId) ?? null),
-      bayCode: appointment.bayId === null ? null : (bayCode.get(appointment.bayId) ?? null),
-      notificationStatus: null,
-    }));
+    // Una pratica può avere più notifiche (promemoria, "è il tuo turno"): all'accettatore interessa
+    // l'ultima, cioè l'esito del contatto più recente. I job arrivano ordinati per creazione.
+    const lastJob = new Map(jobs.map((j) => [j.appointmentId, j] as const));
+
+    return appointments.map((appointment) => {
+      const job = lastJob.get(appointment.id) ?? null;
+      return {
+        appointment,
+        operatorName:
+          appointment.operatorId === null
+            ? null
+            : (operatorName.get(appointment.operatorId) ?? null),
+        bayCode: appointment.bayId === null ? null : (bayCode.get(appointment.bayId) ?? null),
+        notificationStatus: job?.status ?? null,
+        notificationChannel: job?.currentChannel ?? null,
+      };
+    });
   }
 
   private async load(id: AppointmentId): Promise<Result<Appointment, DomainError>> {

@@ -60,8 +60,9 @@ export function BayDisplayBoard({ bayRef, token }: BayDisplayBoardProps) {
           </>
         ) : state === 'SERVING' ? (
           <>
-            <p className="text-[2.6vw] font-semibold tracking-[0.3em] uppercase opacity-70">
-              In servizio
+            {/* Frase rivolta al cliente, non allo stato interno: chi legge deve capire che tocca a lui. */}
+            <p className="text-[3vw] font-semibold tracking-[0.15em] uppercase opacity-80">
+              Serviamo il codice
             </p>
             <p className="font-mono text-[26vw] leading-[0.9] font-black tracking-tight">
               {data?.display.currentCode}

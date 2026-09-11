@@ -57,9 +57,12 @@ UI / Dashboard ─► Casi d'uso ─► Interfacce (porte) ◄─ Mock (oggi)   
 
 - **Infinity** (agenda del DMS): `IInfinityService` → `InfinityServiceMock` produce ogni giorno la
   stessa agenda a partire da un seme, con targhe, nomi e orari italiani realistici.
-- **Spoki** (WhatsApp) e **SMS Hosting** (SMS di fallback): `ISpokiService` / `ISmsHostingService` →
-  i mock simulano successi e fallimenti in base all'ultima cifra del telefono, così il fallback
-  WhatsApp → SMS → contatto manuale è verificabile senza inviare nulla.
+- **Spoki** (WhatsApp) e **SMS Hosting** (SMS di ripiego): `ISpokiService` / `ISmsHostingService` →
+  i mock decidono l'esito dall'ultima cifra del telefono, così la catena WhatsApp → SMS → contatto
+  manuale è verificabile senza inviare nulla a nessuno. Le cifre: da 0 a 6 WhatsApp consegnato,
+  7 non consegnabile e 9 rifiutato (in entrambi i casi parte l'SMS), 8 errore temporaneo su
+  entrambi i canali, 99 nessun canale disponibile e serve una telefonata. Dopo la sincronizzazione
+  dell'agenda i promemoria partono da soli e l'esito compare in dashboard accanto al cliente.
 - **CRM / BDC**: `ICrmService` → `CrmServiceMock` registra i webhook di no-show.
 - **Persistenza**: repository in memoria condivisi da tutte le postazioni (un solo processo Node),
   sostituibili da Prisma senza toccare i casi d'uso.
@@ -115,7 +118,8 @@ predefinita): determinano il filtro iniziale della coda e la campata proposta al
 | `/accettazione`       | Accettatore    | disponibile    | Coda ordinata per orario con codici F001…, azioni rapide, banner sync, **vista globale** per prendere in carico pratiche di altri sportelli, aggiornamento ogni 3 s |
 | `/sistema`            | Responsabile   | disponibile    | Stato delle porte esterne (Infinity, Spoki, SMS Hosting, CRM)                              |
 | `/cliente` (`/qr`)    | Cliente (QR)   | disponibile    | Ricerca per targa e stato del turno in tempo reale: codice, clienti in attesa, messaggio per stato; nessuna autenticazione e nessun dato personale |
-| `/comunicazioni`      | Responsabile   | pianificato M3 | Registro invii WhatsApp/SMS e fallback manuale                                            |
+| `/display/sala-attesa` | Sala d'attesa | disponibile    | Tabellone stile ufficio pubblico: codici chiamati con la campata a cui presentarsi e prossimi turni |
+| `/comunicazioni`      | Responsabile   | pianificato    | Registro degli invii WhatsApp e SMS con conferma manuale (l'invio automatico funziona già) |
 | `/display/1` … `/4`   | Monitor        | disponibile    | Schermo a tutto campo per i monitor sopra le campate: codice e targa in servizio, oppure invito verde ad avanzare; si aggiorna ogni 2 secondi |
 | `/ispezione`          | Tablet         | pianificato M5 | Foto e video associati alla pratica                                                       |
 
@@ -123,6 +127,14 @@ API principali (JSON, autenticate via cookie di sessione): `GET /api/v1/queue`,
 `POST /api/v1/appointments/{id}/actions`, `POST /api/v1/sync`, `POST /api/v1/auth/login`.
 Pubbliche, senza sessione: `GET /api/v1/public/status?targa=AB123CD` (stato del turno, protetta da
 limiti di frequenza) e `GET /api/v1/health`.
+
+### Provare il tabellone della sala d'attesa
+
+Il monitor grande della sala è su <http://localhost:3000/display/sala-attesa>, impostato come i
+tabelloni degli uffici pubblici: in alto i codici chiamati con la campata a cui presentarsi (la
+chiamata più recente in verde), in basso i prossimi turni. Con `?prossimi=6` si cambia quanti
+turni elencare. Mostra solo codici, senza targhe né nomi, perché lo schermo è visibile a tutte le
+persone presenti.
 
 ### Provare i monitor delle campate
 

@@ -25,6 +25,8 @@ Il 2026-09-11 è stata sviluppata la parte centrale di M2 (Portale Web Cliente):
 
 Sempre l'11 settembre 2026, dopo una revisione della dashboard: l'intestazione mostra chi è collegato con nome, ruolo e iniziali e la coda indica chi ha preso in carico ogni pratica; il clic sulla riga apre un pannello con i dati completi del cliente (telefono chiamabile con un tocco), del veicolo e della lavorazione; le aree Responsabile (`/manager`) e Amministratore (`/admin`) esistono come pagine segnaposto con i permessi già attivi, e la radice del sito porta ciascun ruolo nella propria area invece di mandare tutti in accettazione. È stata poi sviluppata M4 (Display Campate): endpoint pubblico `GET /api/v1/public/display?campata=` e pagina `/display/[campata]` per i monitor appesi in officina, con polling ogni 2 s e i tre stati in servizio, libera e scollegato. Restano di M4: pannello display in `/sistema`, error boundary dedicato, test del componente ed end-to-end, prova sui monitor reali.
 
+A seguire, nella stessa giornata: il tabellone della sala d'attesa (`/display/sala-attesa`) mostra i codici chiamati con la campata e i prossimi turni, e il monitor di campata annuncia "SERVIAMO IL CODICE". È stato completato il modulo comunicazioni (M3): i promemoria partono automaticamente dopo la sincronizzazione dell'agenda, con WhatsApp via Spoki e ripiego automatico su SMS, e l'esito del contatto è visibile in dashboard accanto al nome del cliente. Restano di M3: pagina `/comunicazioni` con il registro degli invii, nuovi tentativi con attesa progressiva, aggiornamento delle conferme di consegna e messaggi diversi dal promemoria del mattino.
+
 - [x] **M0-T01** Documenti di setup: `CLAUDE.md` (regole, Regola d'Oro Mock-First, priorità P1..P5) e `docs/ANALISI_REQUISITI.md` (moduli A–F) (commit `68c07e1`).
 - [x] **M0-T02** `ARCHITECTURE.md`: stack, albero cartelle, modello di dominio, porte/adapter, strategia mock, flusso dati e stato server-side, regola dei codici, tabella sintetica ADR-001..014 (§8; i file in `docs/adr/` arrivano con M0-T12).
 - [x] **M0-T03** `TASKS.md` (questo file): milestone M0..M7 con task granulari.
@@ -337,7 +339,7 @@ Cuore del modulo A; dipende solo da interfacce.
 - **Dipendenze**: M1 (SyncService, scheduler), `NotificationOrchestrator` dello scaffold.
 
 ### M3-T01 — Pianificazione modulo C
-- [ ] M3-T01-S01 Annotare qui le decisioni sulla domanda aperta n. 9 (default: invio subito dopo la sync riuscita, template placeholder, mittente SMS "Autoclub"); `YOUR_TURN`/`VEHICLE_READY` restano nel backlog.
+- [ ] M3-T01-S01 Annotare qui le decisioni sulla domanda aperta n. 9 (default: invio subito dopo la sync riuscita, template placeholder, mittente SMS "Autoclub"); `YOUR_TURN`/`VEHICLE_READY` restano nel backlog. *(nota 2026-09-11: testi dei template già presenti in `application/notifications/templates.ts` (promemoria, è il tuo turno, vettura pronta); da far validare al committente prima dei template reali Meta)*
 - [ ] M3-T01-S02 Branch `feature/M3-comunicazioni`; commit `docs(M3-T01): pianificazione modulo C`.
 
 ### M3-T02 — Template messaggi
@@ -346,7 +348,7 @@ Cuore del modulo A; dipende solo da interfacce.
 - [ ] M3-T02-S03 Commit `feat(M3-T02): template promemoria WhatsApp e SMS`.
 
 ### M3-T03 — Estensione NotificationOrchestrator
-- [ ] M3-T03-S01 `sendMorningReminders(businessDate, correlationId)`: per ogni pratica `WAITING` con telefono crea/riprende il job (`idempotencyKey`), chiamata da `SyncService` su `SyncRun SUCCESS|PARTIAL` (solo prima sync riuscita del giorno; le re-sync creano job solo per pratiche nuove).
+- [x] M3-T03-S01 `sendMorningReminders(businessDate, correlationId)`: per ogni pratica `WAITING` con telefono crea/riprende il job (`idempotencyKey`), chiamata da `SyncService` su `SyncRun SUCCESS|PARTIAL` (solo prima sync riuscita del giorno; le re-sync creano job solo per pratiche nuove). **Fatto 2026-09-11**: `NotificationOrchestrator.sendMorningReminders({ appointments, brands, correlationId })`: invii in sequenza (un provider reale limita la frequenza), un errore su una pratica non ferma le altre, log riassuntivo con i conteggi per esito.
 - [ ] M3-T03-S02 Politica retry (evoluzione del comportamento dello scaffold descritto in `ARCHITECTURE.md` §3.3): errori `retryable` (TIMEOUT, NETWORK, RATE_LIMIT, UNAVAILABLE) → job `FAILED` con `nextAttemptAt` a backoff esponenziale (30 s, 2 min, 10 min), max 3 tentativi WhatsApp e 2 SMS prima di passare al canale successivo o a `MANUAL_REQUIRED`; errori non retryable → passaggio immediato al canale successivo (come oggi).
 - [ ] M3-T03-S03 `refreshDeliveryStatuses(businessDate)`: per job `SENT` interroga `getDeliveryStatus`; `DELIVERED/READ` → `DELIVERED`; `UNDELIVERABLE/FAILED` → fallback SMS.
 - [ ] M3-T03-S04 `SUPPRESSED` per pratiche `CANCELLED` prima dell'invio (sottoscrizione a `APPOINTMENT_STATUS_CHANGED`).
@@ -361,6 +363,7 @@ Cuore del modulo A; dipende solo da interfacce.
 - [ ] M3-T04-S04 Commit `feat(M3-T04): decoratori withTimeout e retry sulle porte esterne`.
 
 ### M3-T05 — Scheduler: svuotamento dell'outbox notifiche
+- [x] M3-T05-S00 Aggancio dell'invio alla sincronizzazione: `SyncService` chiama `sendMorningReminders` per le pratiche appena create, senza attenderne l'esito (con decine di clienti l'invio dura secondi e la coda deve essere subito utilizzabile). Gli esiti finiscono nei log e sul job di ogni notifica. **Fatto 2026-09-11.**
 - [ ] M3-T05-S01a Creare `src/application/scheduler/Scheduler.ts` generico con job registrabili (`register(name, everyMs, run)`, lock per job, `start()`/`stop()`, guard su `globalThis`); test `tests/unit/scheduler.test.ts` con `FixedClock`.
 - [ ] M3-T05-S01b Refactor deciso: `SyncScheduler` (M1) diventa il job `syncJob` registrato sullo `Scheduler` generico; il file `SyncScheduler.ts` viene rimosso e i suoi test migrano in `tests/unit/sync-job.test.ts` (nessun comportamento cambia).
 - [ ] M3-T05-S01c Job `notificationDrainJob` (ogni 30 s): job `FAILED` con `nextAttemptAt <= now` → `retry`, poi `refreshDeliveryStatuses`.
@@ -376,7 +379,7 @@ Cuore del modulo A; dipende solo da interfacce.
 - [ ] M3-T06-S05 Commit `feat(M3-T06): Route Handler notifiche e webhook Spoki stub`.
 
 ### M3-T07 — UI Comunicazioni
-- [ ] M3-T07-S01 `src/app/(operator)/comunicazioni/page.tsx` + `modules/notifications/NotificationStatusList.tsx`: tabella job (codice, cliente, canale, stato, tentativi, ultimo errore), filtri "Da contattare a mano", "Falliti", "Consegnati"; polling 5 s.
+- [ ] M3-T07-S01 `src/app/(operator)/comunicazioni/page.tsx` + `modules/notifications/NotificationStatusList.tsx`: tabella job (codice, cliente, canale, stato, tentativi, ultimo errore), filtri "Da contattare a mano", "Falliti", "Consegnati"; polling 5 s. *(nota 2026-09-11: in dashboard l'esito del contatto è visibile accanto al nome del cliente (`NotificationBadge`), con distinzione fra WhatsApp, SMS di ripiego, da ritentare, da chiamare e senza recapito. La pagina `/comunicazioni` con il registro completo resta da fare)*
 - [ ] M3-T07-S02 `ManualConfirmDialog.tsx`: nota obbligatoria ("Contattato telefonicamente alle 08:10"), esito `MANUAL_CONFIRMED` con operatore; pulsante "Riprova invio".
 - [ ] M3-T07-S03 Badge stato invio nella riga della coda (`QueueRowView.notificationStatus`) con tooltip e link alla pagina Comunicazioni.
 - [ ] M3-T07-S03b Avvolgere la pagina `/comunicazioni` in `ErrorBoundary` (messaggio e azione "Ricarica"); test che un errore di render della lista non spegne l'header della shell.
@@ -416,6 +419,8 @@ Cuore del modulo A; dipende solo da interfacce.
 - [x] M4-T02-S05 Commit `feat(M4-T02): endpoint display campata con token`. **Fatto 2026-09-11**: commit unico `fix(accettazione): dettagli cliente e operatori + feat(display): monitor campate M4`.
 
 ### M4-T03 — UI kiosk
+- [x] M4-T03-S07 Tabellone della sala d'attesa `/display/sala-attesa` (richiesta del committente, stile tabellone degli uffici pubblici): `QueueService.getWaitingBoard`, `GET /api/v1/public/board?prossimi=`, `WaitingBoardScreen` con i codici chiamati e la campata in evidenza più i prossimi turni; polling ogni 2 s. Solo codici: né targhe né nomi, perché lo schermo è visibile a tutta la sala. **Fatto 2026-09-11.**
+- [x] M4-T03-S08 Display di campata: la dicitura in servizio è ora rivolta al cliente ("SERVIAMO IL CODICE" sopra il codice, targa sotto). **Fatto 2026-09-11.**
 - [x] M4-T03-S01 `src/hooks/useBayDisplay.ts`: polling `POLLING_MS.display`, contatore poll falliti consecutivi → stato `OFFLINE` dopo 3, conserva ultimo dato. **Fatto 2026-09-11**: `src/hooks/useBayDisplay.ts`: polling `POLLING_MS.display` (2 s), `refetchIntervalInBackground`, stato scollegato dopo 3 tentativi falliti.
 - [x] M4-T03-S02 `src/app/(display)/layout.tsx` (nessuna shell, `cursor: none`, full-screen) e `src/app/(display)/display/[bayCode]/page.tsx`. **Fatto 2026-09-11**: `src/app/(display)/layout.tsx` (nessuna intestazione, niente scorrimento) e `src/app/(display)/display/[campata]/page.tsx` (segmento in italiano, coerente con gli altri URL).
 - [x] M4-T03-S03 `modules/bay-displays/BayDisplayBoard.tsx`: codice enorme ad alto contrasto, numero campata, colore brand, orologio; `FreeBayScreen.tsx` con animazione "Campata libera" e ultimo codice servito; transizione RELEASING "Uscita" con animazione. **Fatto 2026-09-11**: `modules/bay-displays/BayDisplayBoard.tsx`: codice in unità viewport (stessa resa su 1080p e 4K), targa, numero di campata, orologio dell'officina; sfondo scuro in servizio, verde "CAMPATA LIBERA / AVANZARE" dopo il completamento.

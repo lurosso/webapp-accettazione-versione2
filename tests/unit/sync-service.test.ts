@@ -31,6 +31,7 @@ function setup(mode: InfinityMockMode = 'ok') {
     ids: env.ids,
     logger: env.logger,
     timeZone: 'Europe/Rome',
+    notifications: env.orchestrator,
   });
   return { env, service };
 }

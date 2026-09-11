@@ -12,6 +12,7 @@ import { TableCell, TableRow } from '@/components/ui/table';
 import { localTimeHHmm } from '@/lib/dates';
 import { cn } from '@/lib/utils/cn';
 import { ActionButtons } from './ActionButtons';
+import { NotificationBadge } from './NotificationBadge';
 import { StatusBadge } from './StatusBadge';
 import type { AppointmentAction } from './types';
 
@@ -87,7 +88,13 @@ export function AppointmentRow({
         <span className="text-slate-500"> {a.vehicle.model}</span>
       </TableCell>
       <TableCell>
-        {a.customer.lastName} {a.customer.firstName}
+        <span className="flex flex-wrap items-center gap-1.5">
+          <span>
+            {a.customer.lastName} {a.customer.firstName}
+          </span>
+          {/* Se il cliente è già stato avvisato, e con quale canale. */}
+          <NotificationBadge status={row.notificationStatus} channel={row.notificationChannel} />
+        </span>
         {a.serviceDescription !== null ? (
           <span className="block text-xs text-slate-500">{a.serviceDescription}</span>
         ) : null}

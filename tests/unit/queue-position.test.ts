@@ -11,6 +11,7 @@ function setup(queueAheadScope: AheadScope = 'SITE') {
     appointments: env.appointments,
     referenceData: env.referenceData,
     operators: env.operators,
+    notifications: env.notifications,
     eventBus: env.eventBus,
     clock: env.clock,
     ids: env.ids,

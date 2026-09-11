@@ -52,6 +52,13 @@ export class InMemoryNotificationRepository implements INotificationRepository {
       .map(clone);
   }
 
+  async listByDate(businessDate: IsoDate): Promise<readonly NotificationJob[]> {
+    return [...this.map.values()]
+      .filter((j) => j.businessDate === businessDate)
+      .sort((a, b) => (a.createdAt < b.createdAt ? -1 : a.createdAt > b.createdAt ? 1 : 0))
+      .map(clone);
+  }
+
   async listByStatus(
     statuses: readonly NotificationJobStatus[],
     businessDate?: IsoDate,

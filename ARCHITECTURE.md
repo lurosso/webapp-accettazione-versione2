@@ -172,6 +172,7 @@ webapp-accettazione-versione2/
     │   ├── qr/page.tsx                # [M2 fatto] alias breve stampato sui cartelli: /qr?src=corsiaN → /cliente
     │   ├── (public)/cliente/stato/page.tsx        # [M2 fatto] esito: codice grande, clienti prima di te, messaggio per stato; polling 5 s lato client
     │   ├── (display)/display/[campata]/page.tsx   # [M4 fatto] monitor di campata a tutto schermo: /display/1 … /display/4 (anche C1), ?token= opzionale
+    │   ├── (display)/display/sala-attesa/page.tsx  # [M4 fatto] tabellone della sala d'attesa: chiamati ora + prossimi turni
     │   └── api/v1/                    # Route Handlers: unica superficie HTTP per letture in polling e mutazioni
     │       ├── auth/login/route.ts, auth/logout/route.ts      # [M1 fatto] login (Zod, cookie HttpOnly SameSite=Lax, Secure in produzione, 8 h) e logout; rate limit rinviato (M1-T07-S04b)
     │       ├── auth/me/route.ts, auth/workstation/route.ts    # me [M1 fatto]; cambio postazione senza logout rinviato (M1-T11-S02)
@@ -183,6 +184,7 @@ webapp-accettazione-versione2/
     │       ├── appointments/[id]/actions/route.ts    # [M1 fatto] POST take|skip|complete|release|restore (expectedVersion, bayId?) → 409 con details.current; no-show/reopen e Idempotency-Key rinviati
     │       ├── public/status/route.ts                # [M2 fatto] GET ?targa= (alias ?plate=) → QueuePositionView, nessun dato personale, no-store, 404/400/429/503
     │       ├── public/display/route.ts               # [M4 fatto] GET ?campata=1|C1 → BayDisplayView (stato, codice, targa); token verificato se fornito
+    │       ├── public/board/route.ts                 # [M4 fatto] GET ?prossimi=N → WaitingBoardView (solo codici: nessuna targa)
     │       ├── sync/route.ts                         # [M1 fatto] POST sync manuale (SUPERVISOR/ADMIN sempre, ADVISOR solo con sync assente o FAILED); GET ultime SyncRun e SYNC_SECRET rinviati
     │       ├── system/mock-settings/route.ts         # (M3) PATCH modalità mock a runtime (ADMIN, solo non-production)
     │       ├── system/bays/route.ts                  # (M4) GET stato di tutti i display (ADMIN: sotto system/, non public/)
@@ -195,17 +197,17 @@ webapp-accettazione-versione2/
     │       ├── events/route.ts                       # (M6) SSE
     │       └── health/route.ts                       # [BOOTSTRAP] liveness (sempre 200) + HealthStatus aggregato delle quattro porte esterne; ?probe=dependencies → 503 se DOWN; x-correlation-id
     ├── modules/                       # feature module (componenti + hook + query) rispecchiano i moduli A–F
-    │   ├── reception/                 # A – [M1 fatti] LoginForm, QueueDashboard, QueueTable, AppointmentRow, AppointmentDetailPanel, StatusBadge, ActionButtons, SyncBanner
+    │   ├── reception/                 # A – [M1/M3 fatti] LoginForm, QueueDashboard, QueueTable, AppointmentRow, AppointmentDetailPanel, StatusBadge, NotificationBadge, ActionButtons, SyncBanner
     │   ├── customer-portal/           # B – [M2 fatti] PlateSearchForm, PublicStatusView, QueuePositionCard, ServiceUnavailableCard, status-messages.ts, plate-input.ts
     │   ├── notifications/             # C – NotificationStatusList, ManualConfirmDialog
-    │   ├── bay-displays/              # D – [M4 fatti] BayDisplayBoard (in servizio, libera, scollegato) e types.ts
+    │   ├── bay-displays/              # D – [M4 fatti] BayDisplayBoard (in servizio, libera, scollegato), WaitingBoardScreen (tabellone sala d'attesa) e types.ts
     │   ├── inspection-media/          # E – MediaCapture, MediaGallery, UploadQueue
     │   └── crm/                       # F – CrmOutboxTable, AnomalyLog
     ├── components/
     │   ├── ui/                        # primitive scritte a mano stile shadcn (nessuna dipendenza): Button, Badge, Card, Input, Label, Select, Table, Alert, Dialog
     │   ├── layout/                    # [M1 fatti] AppShell, Header (identità, ruolo, postazione, orologio Europe/Rome, logout); SystemStatusBanner rinviato; indicatore dati non aggiornati inline in QueueDashboard
     │   └── shared/                    # [fatti] OperatorChip, PlaceholderPage, AccessDenied; ErrorBoundary, EmptyState e OfflineBanner da fare
-    ├── hooks/                         # [M1/M2/M4 fatti] useQueue (3 s), useAppointmentActions, usePublicStatus (5 s), useBayDisplay (2 s, scollegato dopo 3 tentativi)
+    ├── hooks/                         # [fatti] useQueue (3 s), useAppointmentActions, usePublicStatus (5 s), useBayDisplay e useWaitingBoard (2 s, scollegato dopo 3 tentativi)
     ├── store/                         # (rinviato) ui-store zustand: oggi vista e sportello vivono nei search param dell'URL (?view=&deskId=)
     ├── domain/                        # PURO: entità, value object, state machine, eventi, errori, read model   [SCAFFOLD]
     │   ├── ids.ts                     # branded id (AppointmentId, OperatorId, BayId, ...)
@@ -236,9 +238,9 @@ webapp-accettazione-versione2/
     │   ├── prisma/                    # .gitkeep: implementazione DB futura
     │   └── factory.ts                 # createRepositories(env, deps: { clock, store? }): memory | prisma (prisma → NotImplemented)
     ├── application/                   # casi d'uso: logica reale, mai mockata, nessun import di adapter
-    │   ├── notifications/             # NotificationOrchestrator (WhatsApp → SMS → MANUAL_REQUIRED), templates.ts   [SCAFFOLD]
+    │   ├── notifications/             # C – [M3 fatti] NotificationOrchestrator (WhatsApp → SMS → contatto manuale; sendMorningReminders agganciato alla sync), templates.ts
     │   ├── health/                    # check-health.ts: aggregateHealth(), checkExternalHealth(ports, { clock, kinds, correlationId? }) con timeout locale 2000 ms; tipo locale ExternalHealthPorts (solo interfacce, nessun import dal factory); isStartupError()   [BOOTSTRAP]
-    │   ├── queue/                     # [M1/M2/M4] QueueService (coda, transizioni, campate, getPublicPositionByPlate, getBayDisplay) e CodeGenerator
+    │   ├── queue/                     # [M1/M2/M4] QueueService (coda, transizioni, campate, getPublicPositionByPlate, getBayDisplay, getWaitingBoard) e CodeGenerator
     │   ├── sync/                      # [M1 fatto] SyncService (idempotente, non distruttivo, lock per giornata) e SyncScheduler (tick 60 s, catch-up al riavvio)
     │   ├── auth/                      # [M1 fatto] IAuthService, LocalAuthService (account locali + JWT HS256 con jose, riverifica operatore), session-token.ts
     │   ├── crm/                       # (M6) AnomalyReporter
@@ -362,6 +364,7 @@ I Server Component fanno il primo render chiamando direttamente `getContainer().
 | Dashboard accettazione | `GET /api/v1/queue?date=&deskId=&view=desk\|global` | 3 s | Filtri nei search param, postazione nel cookie di sessione. |
 | Portale cliente | `GET /api/v1/public/status?plate=` | 5 s | Solo `QueuePositionView`, rate limit in memoria per IP. |
 | Display campata | `GET /api/v1/public/display?campata=1` | 2 s | `BayDisplayView`; OFFLINE dopo 3 poll falliti con `ConnectionLostOverlay` che conserva l'ultimo stato noto; reload automatico ogni `DISPLAY_RELOAD_HOURS` (default 6). |
+| Tabellone sala d'attesa | `GET /api/v1/public/board?prossimi=N` | 2 s | `WaitingBoardView`: codici chiamati con campata e prossimi turni; nessuna targa |
 
 `StaleDataIndicator` avvisa ("Dati non aggiornati da N s") ma non blocca mai le azioni. In M6 `useLiveUpdates` apre l'SSE `/api/v1/events?since=<seq>` che invalida le query; se cade, il polling resta e cambia solo il badge live/polling.
 

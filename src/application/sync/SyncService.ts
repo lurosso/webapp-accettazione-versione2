@@ -19,6 +19,7 @@ import type { IEventBus } from '@/services/interfaces/IEventBus';
 import type { IIdGenerator } from '@/services/interfaces/IIdGenerator';
 import type { ILogger } from '@/services/interfaces/ILogger';
 import { mapInfinityAgenda, type AppointmentDraft } from '@/services/mappers/infinity.mapper';
+import type { NotificationOrchestrator } from '../notifications/NotificationOrchestrator';
 import type { CodeGenerator } from '../queue/CodeGenerator';
 
 export interface SyncServiceDeps {
@@ -32,6 +33,11 @@ export interface SyncServiceDeps {
   readonly ids: IIdGenerator;
   readonly logger: ILogger;
   readonly timeZone: string;
+  /**
+   * Orchestratore dei promemoria (modulo C): dopo la sincronizzazione dell'agenda i clienti
+   * appena inseriti in coda ricevono il messaggio del mattino.
+   */
+  readonly notifications: NotificationOrchestrator;
 }
 
 /** Timeout della chiamata a Infinity: oltre, la sync fallisce e la dashboard mostra il banner. */
@@ -132,7 +138,12 @@ export class SyncService {
           mapped.error.message,
         );
       }
-      const counters = await this.reconcile(businessDate, run, mapped.value.drafts, agenda.partial);
+      const { counters, created } = await this.reconcile(
+        businessDate,
+        run,
+        mapped.value.drafts,
+        agenda.partial,
+      );
       const rejected = counters.rejected + mapped.value.rejected.length;
       const finalCounters: SyncCounters = {
         ...counters,
@@ -147,6 +158,20 @@ export class SyncService {
             : `${rejected} appuntamenti scartati per dati non validi.`
           : null;
       run = await this.finish(run, status, finalCounters, null, message);
+
+      // Promemoria del mattino alle pratiche appena entrate in coda. NON si attende l'esito:
+      // con decine di clienti l'invio dura secondi e la coda è già utilizzabile. Gli esiti
+      // finiscono nei log e sul job di ogni notifica, visibili poi dalla dashboard.
+      if (created.length > 0) {
+        void this.deps.notifications
+          .sendMorningReminders({ appointments: created, brands, correlationId })
+          .catch((cause: unknown) => {
+            this.logger.error('invio dei promemoria interrotto', {
+              correlationId,
+              message: cause instanceof Error ? cause.message : String(cause),
+            });
+          });
+      }
       return run;
     } catch (error) {
       // Rete di sicurezza: qualunque eccezione inattesa diventa una SyncRun FAILED, mai un crash.
@@ -161,8 +186,10 @@ export class SyncService {
     run: SyncRun,
     drafts: readonly AppointmentDraft[],
     partial: boolean,
-  ): Promise<SyncCounters> {
+  ): Promise<{ readonly counters: SyncCounters; readonly created: readonly Appointment[] }> {
     const counters: MutableCounters = { ...EMPTY_SYNC_COUNTERS };
+    // Le pratiche appena create servono a chi invia i promemoria: solo a loro va il messaggio.
+    const created: Appointment[] = [];
     const existing = await this.deps.appointments.listByDate(businessDate, {
       includeCancelled: true,
     });
@@ -187,8 +214,10 @@ export class SyncService {
         if (draft.cancelled) {
           continue; // annullata prima ancora di entrare in coda: non si crea
         }
-        if (await this.create(draft, run)) {
+        const inserita = await this.create(draft, run);
+        if (inserita !== null) {
           counters.created += 1;
+          created.push(inserita);
         } else {
           counters.rejected += 1;
         }
@@ -235,10 +264,10 @@ export class SyncService {
         }
       }
     }
-    return counters;
+    return { counters, created };
   }
 
-  private async create(draft: AppointmentDraft, run: SyncRun): Promise<boolean> {
+  private async create(draft: AppointmentDraft, run: SyncRun): Promise<Appointment | null> {
     const assigned = await this.deps.codeGenerator.next(draft.businessDate, draft.brand);
     const now = this.deps.clock.nowIso();
     const appointment: Appointment = {
@@ -275,7 +304,7 @@ export class SyncService {
         externalRef: draft.externalRef,
         error: inserted.error.message,
       });
-      return false;
+      return null;
     }
     this.deps.eventBus.publish({
       id: this.deps.ids.next(),
@@ -286,7 +315,7 @@ export class SyncService {
       appointmentId: appointment.id,
       source: 'INFINITY',
     });
-    return true;
+    return inserted.value;
   }
 
   /** CANCELLED solo da WAITING/SKIPPED: una pratica in carico o completata non si tocca. */

@@ -2,7 +2,7 @@
 // Nessun nome, telefono o modello: solo codice, stato e posizione.
 
 import type { Appointment, AppointmentStatus } from './entities/appointment';
-import type { NotificationJobStatus } from './entities/notification';
+import type { NotificationChannel, NotificationJobStatus } from './entities/notification';
 import type { IsoDateTime } from './value-objects/iso-date';
 import type { QueueCode } from './value-objects/queue-code';
 
@@ -40,10 +40,42 @@ export interface BayDisplayView {
   readonly lastCompletedAt: IsoDateTime | null;
 }
 
+/** Riga del tabellone della sala d'attesa: codice chiamato e dove presentarsi. */
+export interface BoardServingEntry {
+  readonly code: QueueCode;
+  /** Campata assegnata (dove il cliente deve andare); null se la presa in carico non l'ha indicata. */
+  readonly bayCode: string | null;
+  readonly bayNumber: number | null;
+  /** Sportello, usato come indicazione di ripiego quando la campata manca. */
+  readonly deskCode: string | null;
+  readonly since: IsoDateTime | null;
+}
+
+/** Codice in attesa mostrato fra i prossimi turni. */
+export interface BoardNextEntry {
+  readonly code: QueueCode;
+  readonly scheduledAt: IsoDateTime;
+}
+
+/**
+ * Tabellone della sala d'attesa: chi è chiamato ora e chi sono i prossimi.
+ * Come i tabelloni degli uffici pubblici, mostra SOLO codici: nessuna targa e nessun nome,
+ * perché lo schermo è visibile a tutte le persone presenti in sala.
+ */
+export interface WaitingBoardView {
+  readonly serving: readonly BoardServingEntry[];
+  readonly next: readonly BoardNextEntry[];
+  /** Quante pratiche sono ancora in coda oggi (attesa e saltate). */
+  readonly waitingCount: number;
+}
+
 /** Riga della tabella coda per la dashboard operatore (area autenticata). */
 export interface QueueRowView {
   readonly appointment: Appointment;
   readonly operatorName: string | null;
   readonly bayCode: string | null;
+  /** Esito del contatto con il cliente; null se nessuna notifica è stata creata. */
   readonly notificationStatus: NotificationJobStatus | null;
+  /** Canale dell'ultimo tentativo: distingue il WhatsApp riuscito dall'SMS di ripiego. */
+  readonly notificationChannel: NotificationChannel | null;
 }
