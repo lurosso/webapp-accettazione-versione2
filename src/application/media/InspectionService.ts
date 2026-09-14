@@ -64,6 +64,11 @@ export interface CompleteCheckInInput {
   readonly expectedVersion: number;
   /** Note e danni rilevati durante il giro del veicolo. */
   readonly inspectionNotes: string | null;
+  /**
+   * L'accettatore ha confermato di voler chiudere senza le foto obbligatorie (doppia conferma a
+   * schermo). La pratica si completa comunque e la mancanza resta scritta nelle note.
+   */
+  readonly allowMissingPhotos?: boolean | undefined;
 }
 
 export interface CheckInResult {
@@ -180,7 +185,7 @@ export class InspectionService {
     }
 
     const mancanti = await this.missingRequiredCategories(input.appointmentId);
-    if (mancanti.length > 0) {
+    if (mancanti.length > 0 && input.allowMissingPhotos !== true) {
       return err(
         domainError(
           'VALIDATION',
@@ -191,7 +196,25 @@ export class InspectionService {
     }
 
     const note = input.inspectionNotes?.trim();
-    const noteFinali = note === undefined || note.length === 0 ? corrente.notes : note;
+    let noteFinali = note === undefined || note.length === 0 ? corrente.notes : note;
+    if (mancanti.length > 0) {
+      // Chiusura senza giro completo, confermata: deve restare leggibile nel fascicolo e al CRM.
+      const avviso = `Check-in concluso senza le foto obbligatorie: ${mancanti
+        .map((c) => PHOTO_CATEGORY_LABELS[c])
+        .join(', ')}.`;
+      noteFinali =
+        noteFinali === null || noteFinali.includes(avviso)
+          ? (noteFinali ?? avviso)
+          : `${noteFinali}\n${avviso}`;
+      if (noteFinali === avviso && corrente.notes !== null && !corrente.notes.includes(avviso)) {
+        noteFinali = `${corrente.notes}\n${avviso}`;
+      }
+      this.logger.warn(`check-in senza foto obbligatorie per ${corrente.code}`, {
+        appointmentId: corrente.id,
+        mancanti,
+        operatorId: ctx.operatorId,
+      });
+    }
 
     // Le note vanno salvate prima della chiusura: se il completamento fallisce per un conflitto
     // fra postazioni, il lavoro dell'accettatore al veicolo non è andato perso.
@@ -237,6 +260,39 @@ export class InspectionService {
     });
     return ok({
       appointment: completata.value,
+      photoCount: foto.length,
+      crmNotified: consegna.outcome === 'SENT' || consegna.outcome === 'ALREADY_SENT',
+    });
+  }
+  /**
+   * Conferma di una chiusura d'ufficio (pratica ancora in carico alle 19:00, completata dal
+   * sistema): il responsabile dichiara che il veicolo era stato accettato davvero. Il flag si
+   * spegne e il CRM riceve il check-in con le foto e le note che c'erano.
+   */
+  async confirmAutoClosed(
+    input: { readonly appointmentId: AppointmentId; readonly expectedVersion: number },
+    ctx: ActionContext,
+  ): Promise<Result<CheckInResult, DomainError>> {
+    const confermata = await this.deps.queueService.confirmAutoClose(input, ctx);
+    if (!confermata.ok) {
+      return confermata;
+    }
+    const foto = await this.listPhotos(input.appointmentId);
+    const consegna = await this.deps.crmNotifier.notifyCheckIn(
+      confermata.value,
+      {
+        inspectionNotes: confermata.value.notes,
+        photos: foto.map((f) => ({
+          url: f.url,
+          capturedAt: f.asset.capturedAt,
+          category: f.asset.category,
+        })),
+        operatorId: ctx.operatorId,
+      },
+      ctx.correlationId ?? this.deps.ids.next(),
+    );
+    return ok({
+      appointment: confermata.value,
       photoCount: foto.length,
       crmNotified: consegna.outcome === 'SENT' || consegna.outcome === 'ALREADY_SENT',
     });

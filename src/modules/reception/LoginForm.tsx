@@ -1,12 +1,13 @@
 'use client';
 
-// Form di login: nome utente, password, Sportello (con i marchi serviti) e Accettazione.
-// Le accettazioni proposte sono solo quelle libere; quelle occupate compaiono come nota, così chi
-// arriva capisce perché "la sua" non c'è e a chi chiedere.
-// Invio a POST /api/v1/auth/login; in caso di successo redirect alla dashboard (o a `next`).
+// Form di login: nome utente, password e UN solo menu, l'accettazione. Ogni accettazione porta
+// con sé il proprio sportello e i marchi che serve (badge sotto al menu), quindi non c'è più
+// niente da scegliere prima. Le accettazioni occupate restano in elenco ma non selezionabili,
+// con il motivo accanto: chi arriva capisce perché "la sua" non c'è e a chi chiedere.
 import { useRouter } from 'next/navigation';
-import { useMemo, useState, type FormEvent } from 'react';
+import { useState, type FormEvent } from 'react';
 import type { OperatorRole } from '@/domain/entities/operator';
+import { defaultLoginOption, type LoginWorkstationOption } from '@/application/auth/login-options';
 import { Badge } from '@/components/ui/badge';
 import { ROLE_LABELS } from '@/components/shared/OperatorChip';
 import { Button } from '@/components/ui/button';
@@ -16,28 +17,6 @@ import { Label } from '@/components/ui/label';
 import { Select } from '@/components/ui/select';
 import { ApiError, postLogin } from '@/lib/api-client/client';
 
-export interface DeskOption {
-  readonly id: string;
-  readonly code: string;
-  readonly name: string;
-  readonly brands: readonly string[];
-}
-
-export interface WorkstationOption {
-  readonly id: string;
-  readonly code: string;
-  readonly name: string;
-  readonly deskId: string;
-}
-
-/** Accettazione non selezionabile, con il motivo ("in uso da Mario Rossi"). */
-export interface OccupiedWorkstationOption {
-  readonly id: string;
-  readonly name: string;
-  readonly deskId: string;
-  readonly reason: string;
-}
-
 export interface DemoAccount {
   readonly username: string;
   readonly role: OperatorRole;
@@ -45,50 +24,26 @@ export interface DemoAccount {
 }
 
 export interface LoginFormProps {
-  readonly desks: readonly DeskOption[];
-  readonly workstations: readonly WorkstationOption[];
-  readonly occupied?: readonly OccupiedWorkstationOption[];
+  readonly options: readonly LoginWorkstationOption[];
   readonly nextPath: string;
   readonly demoAccounts: readonly DemoAccount[];
 }
 
-export function LoginForm({
-  desks,
-  workstations,
-  occupied = [],
-  nextPath,
-  demoAccounts,
-}: LoginFormProps) {
+export function LoginForm({ options, nextPath, demoAccounts }: LoginFormProps) {
   const router = useRouter();
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
-  const [deskId, setDeskId] = useState(desks[0]?.id ?? '');
-  const [workstationId, setWorkstationId] = useState(
-    workstations.find((w) => w.deskId === (desks[0]?.id ?? ''))?.id ?? '',
-  );
+  const [workstationId, setWorkstationId] = useState(() => defaultLoginOption(options));
   const [error, setError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
 
-  const desk = desks.find((d) => d.id === deskId) ?? null;
-  const deskWorkstations = useMemo(
-    () => workstations.filter((w) => w.deskId === deskId),
-    [workstations, deskId],
-  );
-  const deskOccupied = useMemo(
-    () => occupied.filter((w) => w.deskId === deskId),
-    [occupied, deskId],
-  );
-
-  const onDeskChange = (nextDeskId: string): void => {
-    setDeskId(nextDeskId);
-    const first = workstations.find((w) => w.deskId === nextDeskId);
-    setWorkstationId(first?.id ?? '');
-  };
+  const selected = options.find((o) => o.id === workstationId) ?? null;
+  const occupied = options.filter((o) => o.disabled);
 
   const onSubmit = async (event: FormEvent<HTMLFormElement>): Promise<void> => {
     event.preventDefault();
     setError(null);
-    if (workstationId === '') {
+    if (selected === null || selected.disabled) {
       setError("Selezionare un'accettazione libera.");
       return;
     }
@@ -134,52 +89,41 @@ export function LoginForm({
             />
           </div>
           <div className="flex flex-col gap-1.5">
-            <Label htmlFor="desk">Sportello / Brand</Label>
-            <Select
-              id="desk"
-              name="desk"
-              value={deskId}
-              onChange={(event) => onDeskChange(event.target.value)}
-            >
-              {desks.map((d) => (
-                <option key={d.id} value={d.id}>
-                  {d.code} · {d.name}
-                </option>
-              ))}
-            </Select>
-            {desk !== null ? (
-              <div className="flex flex-wrap gap-1.5" aria-label="Marchi serviti dallo sportello">
-                {desk.brands.map((b) => (
-                  <Badge key={b} tone="info">
-                    {b}
-                  </Badge>
-                ))}
-              </div>
-            ) : null}
-          </div>
-          <div className="flex flex-col gap-1.5">
             <Label htmlFor="workstation">Accettazione</Label>
             <Select
               id="workstation"
               name="workstation"
               value={workstationId}
               onChange={(event) => setWorkstationId(event.target.value)}
-              disabled={deskWorkstations.length === 0}
+              disabled={options.length === 0}
             >
-              {deskWorkstations.length === 0 ? (
-                <option value="">Nessuna accettazione libera per questo sportello</option>
+              {options.length === 0 ? (
+                <option value="">Nessuna accettazione configurata</option>
               ) : null}
-              {deskWorkstations.map((w) => (
-                <option key={w.id} value={w.id}>
-                  {w.name}
+              {workstationId === '' && options.length > 0 ? (
+                <option value="">Tutte le accettazioni sono occupate</option>
+              ) : null}
+              {options.map((o) => (
+                <option key={o.id} value={o.id} disabled={o.disabled}>
+                  {o.label}
+                  {o.reason !== null ? ` — ${o.reason}` : ''}
                 </option>
               ))}
             </Select>
-            {deskOccupied.length > 0 ? (
+            {selected !== null && selected.brands.length > 0 ? (
+              <div className="flex flex-wrap gap-1.5" aria-label="Marchi serviti dall'accettazione">
+                {selected.brands.map((b) => (
+                  <Badge key={b} tone="info">
+                    {b}
+                  </Badge>
+                ))}
+              </div>
+            ) : null}
+            {occupied.length > 0 ? (
               <ul className="flex flex-col gap-0.5 text-xs text-slate-500" aria-live="polite">
-                {deskOccupied.map((w) => (
-                  <li key={w.id}>
-                    <span className="font-medium text-slate-600">{w.name}</span>: {w.reason}
+                {occupied.map((o) => (
+                  <li key={o.id}>
+                    <span className="font-medium text-slate-600">{o.label}</span>: {o.reason}
                   </li>
                 ))}
               </ul>

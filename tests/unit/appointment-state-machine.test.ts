@@ -17,10 +17,10 @@ describe('appointment-state-machine', () => {
     expect(canTransition('NO_SHOW', 'WAITING')).toBe(true);
   });
 
-  it('COMPLETED e CANCELLED sono terminali', () => {
+  it('CANCELLED è terminale; COMPLETED si riapre solo in carico', () => {
     for (const to of APPOINTMENT_STATUSES) {
-      expect(canTransition('COMPLETED', to)).toBe(false);
       expect(canTransition('CANCELLED', to)).toBe(false);
+      expect(canTransition('COMPLETED', to)).toBe(to === 'IN_PROGRESS');
     }
   });
 

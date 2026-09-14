@@ -68,9 +68,9 @@ export function BdcDashboard({ session, businessDate, timeZone }: BdcDashboardPr
         esito.noShow.length === 1
           ? '1 cliente segnato assente'
           : `${esito.noShow.length} clienti segnati assenti`,
-        esito.cancelled.length === 1
-          ? '1 accettazione non conclusa annullata'
-          : `${esito.cancelled.length} accettazioni non concluse annullate`,
+        esito.autoClosed.length === 1
+          ? "1 accettazione ancora in carico chiusa d'ufficio (da confermare)"
+          : `${esito.autoClosed.length} accettazioni ancora in carico chiuse d'ufficio (da confermare)`,
       ];
       if (esito.failed.length > 0) {
         parti.push(

@@ -139,11 +139,12 @@ Gli account si gestiscono da `/admin` (vedi sotto): l'amministratore ne crea di 
 li disattiva e azzera le password senza toccare il seed. Esiste anche il ruolo **Kiosk** per gli
 account dei dispositivi, che atterrano sul tabellone e non entrano nell'area operatore.
 
-Al login si scelgono **Sportello / Brand** e **Accettazione** (da 1 a 4, la postazione fisica con
-la sua campata): determinano il filtro iniziale della coda e l'accettazione proposta alla presa in
-carico. Vengono proposte **solo le accettazioni libere**: se un collega è già collegato
-all'Accettazione 1, o ha un veicolo in carico lì, agli altri non compare finché non esce (o la sua
-sessione scade) e la pagina lo dice ("Accettazione 1: in uso da Mario Rossi"). Il controllo lo fa
+Al login si sceglie una sola cosa, l'**Accettazione** (da 1 a 4): ogni voce porta con sé il proprio
+sportello e i marchi serviti ("Accettazione 1 · Stellantis Italia", con i badge Fiat e Lancia
+sotto), e determina il filtro iniziale della coda e la campata proposta alla presa in carico. Le
+accettazioni occupate restano in elenco ma **non si possono scegliere**: se un collega è già
+collegato all'Accettazione 1, o ha un veicolo in carico lì, la voce è disabilitata con il motivo
+accanto ("in uso da Mario Rossi") finché non esce o la sua sessione scade. Il controllo lo fa
 anche il server, quindi due login sullo stesso posto non passano nemmeno chiamando l'API.
 
 ## Le dashboard
@@ -151,7 +152,7 @@ anche il server, quindi due login sullo stesso posto non passano nemmeno chiaman
 | Percorso              | Destinatario   | Stato          | Contenuto                                                                                 |
 | --------------------- | -------------- | -------------- | ----------------------------------------------------------------------------------------- |
 | `/login`              | Accettatore    | disponibile    | Credenziali, scelta sportello/brand e postazione                                          |
-| `/accettazione`       | Accettatore    | disponibile    | Coda ordinata per orario con codici F001…, azioni rapide, blocco **In ritardo / assenti**, banner sync, **vista globale** per prendere in carico pratiche di altri sportelli, aggiornamento ogni 3 s; il clic su una riga apre i dati del cliente |
+| `/accettazione`       | Accettatore    | disponibile    | Coda ordinata per orario con codici F001…, azioni rapide, blocco **In ritardo / assenti**, banner sync, **vista globale** per prendere in carico pratiche di altri sportelli, aggiornamento ogni 3 s; il clic su una riga apre i dati del cliente; **Nuovo cliente (senza appuntamento)** mette in coda un walk-in con targa, nome, telefono, marca e lavorazione; dal dettaglio di una pratica completata si può **riaprirla** |
 | `/sistema`            | Responsabile / IT | disponibile | Stato delle porte esterne (Infinity, Spoki, SMS Hosting, CRM) e, per gli amministratori, la coda di uscita verso il CRM con "Forza riprova" |
 | `/cliente` (`/qr`)    | Cliente (QR)   | disponibile    | Ricerca per targa e stato del turno in tempo reale: codice, clienti in attesa, messaggio per stato; nessuna autenticazione e nessun dato personale |
 | `/display/sala-attesa` | Sala d'attesa | disponibile    | Tabellone stile ufficio pubblico: codici chiamati con l'accettazione a cui presentarsi e prossimi turni |
@@ -212,7 +213,11 @@ pulsanti grandi da usare in piedi accanto alla vettura.
    `.data/uploads/<giornata>/<codice>/<parte>-<id>.<estensione>`, e si rilegge da
    `GET /api/v1/media/<chiave>` con la sessione attiva. Le foto restano lì anche dopo un riavvio.
 3. In **Note veicolo / danni rilevati** si annota quanto visto durante il giro dell'auto.
-4. **Completa check-in** resta disabilitato finché mancano le quattro foto obbligatorie (sotto al
+4. **Completa check-in** si può premere sempre; se mancano le quattro foto obbligatorie chiede una
+   doppia conferma ("Nessuna foto inserita. Sei sicuro di voler completare l'accettazione senza
+   il check-in fotografico?") e, confermando, chiude la pratica scrivendo la mancanza nelle note.
+   Una pratica completata per errore si riapre dal dettaglio ("Riapri pratica / Modifica
+   check-in") e torna in carico a chi la riapre. Il conteggio delle foto resta visibile (sotto al
    pulsante c'è l'elenco di cosa manca); lo stesso controllo è ripetuto dal server, quindi non si
    aggira da un'altra scheda. Una volta completo chiude la pratica, libera l'accettazione e invia al CRM note e indirizzi delle
    foto. Nel terminale del server compaiono le righe `[Media] file salvato: ...` e
@@ -321,8 +326,11 @@ tipo, niente inclusione in pagine esterne, fotocamera solo per la stessa origine
 **Chiusura giornata.** A officina chiusa il responsabile preme *Esegui chiusura giornata* nel
 cruscotto BDC e conferma. Chi era ancora in coda viene segnato **assente** e compare subito fra i
 lead da ricontattare (con l'evento verso il CRM); le accettazioni rimaste **in carico** vengono
-annullate, perché non sono state concluse e non possono restare aperte fino al giorno dopo. Le
-pratiche già completate non si toccano. Monitor e tabellone tornano vuoti da soli: le loro viste
+chiuse **d'ufficio**: risultano completate ma "da confermare", perché a quell'ora un veicolo in
+carico è quasi sempre stato accettato senza il tocco finale. La mattina dopo il responsabile le
+trova segnate in coda, nel dettaglio e nel CSV; le conferma ("Conferma chiusura", e il CRM riceve
+il check-in) oppure un operatore le riapre e conclude il giro. Le pratiche già completate non si
+toccano. Monitor e tabellone tornano vuoti da soli: le loro viste
 derivano dalle pratiche aperte, non da uno stato salvato a parte.
 
 **Chiusura automatica.** Se nessuno preme il pulsante, ci pensa il sistema: dopo

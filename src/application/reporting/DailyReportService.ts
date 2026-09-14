@@ -9,7 +9,11 @@
 // mai presa in carico non ha un tempo di attesa "infinito", semplicemente non entra nella media,
 // e il conteggio di quante ne sono entrate viaggia insieme al numero perché una media su tre
 // pratiche non vale come una media su trenta.
-import { effectiveScheduleTime, type AppointmentStatus } from '@/domain/entities/appointment';
+import {
+  effectiveScheduleTime,
+  isAutoClosedPending,
+  type AppointmentStatus,
+} from '@/domain/entities/appointment';
 import { customerFullName } from '@/domain/entities/customer';
 import type { IsoDate } from '@/domain/value-objects/iso-date';
 import type {
@@ -213,7 +217,9 @@ export class DailyReportService {
           a.customer.phone,
           desks.find((d) => d.id === a.deskId)?.code ?? '',
           bays.find((b) => b.id === a.bayId)?.code ?? '',
-          STATO_IT[a.status],
+          isAutoClosedPending(a)
+            ? "Completata (chiusa d'ufficio, da confermare)"
+            : STATO_IT[a.status],
           operatore,
           this.time(a.takenAt),
           this.time(chiusa),

@@ -19,11 +19,12 @@ import { useAppointmentActions } from '@/hooks/useAppointmentActions';
 import { useLiveUpdates } from '@/hooks/useLiveUpdates';
 import { useIsTouchLayout } from '@/hooks/useMediaQuery';
 import { useQueue } from '@/hooks/useQueue';
-import { checkInPath } from '@/lib/navigation';
+import { canAccess, checkInPath } from '@/lib/navigation';
 import { ApiError, postSync } from '@/lib/api-client/client';
 import { queueKeys } from '@/lib/api-client/query-keys';
 import { formatDateTimeIt } from '@/lib/dates';
 import { AppointmentDetailPanel } from './AppointmentDetailPanel';
+import { NewWalkInDialog } from './NewWalkInDialog';
 import { deskOf, QueueTable } from './QueueTable';
 import { StatusBadge } from './StatusBadge';
 import { SyncBanner } from './SyncBanner';
@@ -87,6 +88,9 @@ export function QueueDashboard({
   // Si memorizza l'id, non la riga: così il pannello aperto segue gli aggiornamenti del polling
   // (se un collega prende in carico la pratica, il dettaglio lo mostra senza riaprirlo).
   const [selectedId, setSelectedId] = useState<string | null>(null);
+  // Inserimento manuale: il cliente senza appuntamento entra in coda da qui.
+  const [nuovoCliente, setNuovoCliente] = useState(false);
+  const [messaggioCoda, setMessaggioCoda] = useState<string | null>(null);
   const [now, setNow] = useState(() => Date.now());
   useEffect(() => {
     const timer = setInterval(() => setNow(Date.now()), 5_000);
@@ -126,7 +130,10 @@ export function QueueDashboard({
       actions.run(
         appointmentId,
         { action, expectedVersion },
-        action === 'take' ? { onSuccess: () => dopoPresaInCarico(appointmentId) } : undefined,
+        // Anche la riapertura rimette la pratica in carico: stesso seguito della presa in carico.
+        action === 'take' || action === 'reopen-completed'
+          ? { onSuccess: () => dopoPresaInCarico(appointmentId) }
+          : undefined,
       );
     },
     [actions, dopoPresaInCarico],
@@ -210,6 +217,9 @@ export function QueueDashboard({
           ) : (
             <Badge tone="info">Vista globale: tutti gli sportelli</Badge>
           )}
+          <Button variant="outline" onClick={() => setNuovoCliente(true)}>
+            Nuovo cliente (senza appuntamento)
+          </Button>
           <Button
             variant={view === 'global' ? 'default' : 'outline'}
             onClick={() =>
@@ -270,6 +280,21 @@ export function QueueDashboard({
           onSync={() => void onSync()}
           message={syncMessage}
         />
+      ) : null}
+
+      {messaggioCoda !== null ? (
+        <Alert
+          tone="info"
+          title={messaggioCoda}
+          actions={
+            <Button size="sm" variant="outline" onClick={() => setMessaggioCoda(null)}>
+              Chiudi
+            </Button>
+          }
+        >
+          La pratica è in coda con il prossimo codice; il cliente riceve la conferma se ha lasciato
+          un telefono.
+        </Alert>
       ) : null}
 
       {outcome !== null && outcome.kind === 'error' ? (
@@ -358,7 +383,36 @@ export function QueueDashboard({
         timeZone={data?.timeZone ?? 'Europe/Rome'}
         currentOperatorName={session.displayName}
         onClose={() => setSelectedId(null)}
+        actionPending={selectedRow !== null && actions.pendingId === selectedRow.appointment.id}
+        canConfirmAutoClose={canAccess('manager', session.role)}
+        onAction={(action) => {
+          if (selectedRow !== null) {
+            onAction(selectedRow.appointment.id, action, selectedRow.appointment.version);
+          }
+        }}
       />
+
+      {nuovoCliente && data !== undefined ? (
+        <NewWalkInDialog
+          open={nuovoCliente}
+          brands={data.brands}
+          defaultBrandId={
+            desks.find((d) => d.id === homeDeskId)?.brandIds[0] ?? data.brands[0]?.id ?? null
+          }
+          deskId={homeDeskId}
+          onClose={() => setNuovoCliente(false)}
+          onCreated={(appointment) => {
+            setNuovoCliente(false);
+            setMessaggioCoda(
+              `${appointment.customer.lastName} ${appointment.customer.firstName} (${appointment.vehicle.plate}) è in coda con il codice ${appointment.code}.`,
+            );
+            void queryClient.invalidateQueries({ queryKey: queueKeys.all });
+            if (!touchLayout) {
+              setSelectedId(appointment.id);
+            }
+          }}
+        />
+      ) : null}
 
       <Dialog
         open={outcome !== null && outcome.kind === 'version-conflict'}

@@ -22,7 +22,8 @@ export const ALLOWED_TRANSITIONS: Readonly<
   WAITING: ['IN_PROGRESS', 'SKIPPED', 'NO_SHOW', 'CANCELLED'],
   SKIPPED: ['IN_PROGRESS', 'WAITING', 'NO_SHOW', 'CANCELLED'],
   IN_PROGRESS: ['COMPLETED', 'WAITING', 'CANCELLED'],
-  COMPLETED: [],
+  // "Completato" premuto per errore, o check-in da rifare: si riapre in carico, mai in coda.
+  COMPLETED: ['IN_PROGRESS'],
   NO_SHOW: ['WAITING'],
   CANCELLED: [],
 };

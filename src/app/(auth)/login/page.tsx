@@ -3,18 +3,13 @@
 import type { Metadata } from 'next';
 import { redirect } from 'next/navigation';
 import { readSession } from '@/app/_server/session';
+import { buildLoginOptions } from '@/application/auth/login-options';
 import { workstationAvailability, type BusyBay } from '@/application/auth/workstation-availability';
 import { getContainer } from '@/config/container';
 import { BrandMark } from '@/components/layout/BrandMark';
 import { isDemoPasswordHash } from '@/lib/hash-password';
 import { homePathForRole, safeInternalPath } from '@/lib/navigation';
-import {
-  LoginForm,
-  type DemoAccount,
-  type DeskOption,
-  type OccupiedWorkstationOption,
-  type WorkstationOption,
-} from '@/modules/reception/LoginForm';
+import { LoginForm, type DemoAccount } from '@/modules/reception/LoginForm';
 
 export const dynamic = 'force-dynamic';
 
@@ -60,26 +55,13 @@ export default async function LoginPage({ searchParams }: LoginPageProps) {
     }));
   const disponibilita = workstationAvailability({ workstations, claims, busyBays, now });
 
-  const deskOptions: DeskOption[] = desks
-    .filter((d) => d.isActive)
-    .map((d) => ({
-      id: d.id,
-      code: d.code,
-      name: d.name,
-      brands: d.brandIds.map((id) => brands.find((b) => b.id === id)?.name ?? id),
-    }));
-  const workstationOptions: WorkstationOption[] = disponibilita.free.map((w) => ({
-    id: w.id,
-    code: w.code,
-    name: w.name,
-    deskId: w.deskId,
-  }));
-  const occupiedOptions: OccupiedWorkstationOption[] = disponibilita.occupied.map((o) => ({
-    id: o.workstation.id,
-    name: o.workstation.name,
-    deskId: o.workstation.deskId,
-    reason: o.reason,
-  }));
+  // Un solo menu: ogni accettazione porta con sé sportello e marchi; le occupate non si scelgono.
+  const options = buildLoginOptions({
+    workstations,
+    desks: desks.filter((d) => d.isActive),
+    brands,
+    availability: disponibilita,
+  });
   // Suggerimenti visibili solo con il seed demo (mai in produzione: il container lo rifiuta).
   const demoAccounts: DemoAccount[] =
     container.env.nodeEnv === 'production'
@@ -97,13 +79,7 @@ export default async function LoginPage({ searchParams }: LoginPageProps) {
           Accedi con le tue credenziali e scegli l&apos;accettazione.
         </p>
       </header>
-      <LoginForm
-        desks={deskOptions}
-        workstations={workstationOptions}
-        occupied={occupiedOptions}
-        nextPath={nextPath}
-        demoAccounts={demoAccounts}
-      />
+      <LoginForm options={options} nextPath={nextPath} demoAccounts={demoAccounts} />
     </main>
   );
 }

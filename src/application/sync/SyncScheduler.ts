@@ -190,7 +190,7 @@ export class SyncScheduler {
     }
     this.logger.info('chiusura automatica completata', {
       assenti: esito.value.noShow.length,
-      annullate: esito.value.cancelled.length,
+      chiuseDUfficio: esito.value.autoClosed.length,
       nonRiuscite: esito.value.failed.length,
     });
   }

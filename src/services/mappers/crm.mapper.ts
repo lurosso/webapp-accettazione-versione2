@@ -60,7 +60,8 @@ export function toCrmNoShowPayload(
  */
 /** Chiave dell'evento di accettazione conclusa: una per pratica e giornata. */
 export function buildCheckInIdempotencyKey(appointment: Appointment): string {
-  return `${appointment.id}:CHECK_IN:${appointment.businessDate}`;
+  // L'istante di completamento distingue un secondo check-in dopo una riapertura dal primo.
+  return `${appointment.id}:CHECK_IN:${appointment.businessDate}:${appointment.completedAt ?? 'aperta'}`;
 }
 
 /** Accettazione conclusa al veicolo: note e riferimenti alle foto, mai i binari. */

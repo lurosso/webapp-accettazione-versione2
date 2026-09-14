@@ -43,7 +43,11 @@ export type AppointmentAction =
   | 'reschedule'
   | 'no-show'
   /** Annullamento deciso da un responsabile o amministratore (assistenza). */
-  | 'cancel';
+  | 'cancel'
+  /** "Completato" premuto per errore, o check-in da rifare: la pratica torna in carico. */
+  | 'reopen-completed'
+  /** Conferma di una chiusura d'ufficio (responsabile o amministratore). */
+  | 'confirm-auto-close';
 
 export interface AppointmentActionRequest {
   readonly action: AppointmentAction;

@@ -146,6 +146,18 @@ export function postAppointmentAction(
   });
 }
 
+/** POST /api/v1/appointments: pratica inserita a mano per un cliente senza appuntamento. */
+export function postManualAppointment(body: {
+  readonly plate: string;
+  readonly customerName: string;
+  readonly phone: string | null;
+  readonly brandId: string;
+  readonly deskId: string | null;
+  readonly serviceDescription: string | null;
+}): Promise<{ readonly appointment: Appointment }> {
+  return apiFetch('/api/v1/appointments', { method: 'POST', json: body });
+}
+
 /** POST /api/v1/sync (sincronizzazione manuale). */
 export function postSync(): Promise<{ readonly run: SyncRun }> {
   return apiFetch('/api/v1/sync', { method: 'POST' });
@@ -237,7 +249,12 @@ export function fetchInspectionPhotos(
 /** POST /api/v1/appointments/{id}/check-in: conclude l'accettazione al veicolo. */
 export function postCheckIn(
   appointmentId: string,
-  body: { readonly expectedVersion: number; readonly inspectionNotes: string | null },
+  body: {
+    readonly expectedVersion: number;
+    readonly inspectionNotes: string | null;
+    /** Dopo la doppia conferma: chiude anche senza le foto obbligatorie. */
+    readonly allowMissingPhotos?: boolean;
+  },
 ): Promise<{
   readonly appointment: Appointment;
   readonly photoCount: number;
@@ -284,7 +301,8 @@ export function postLeadContacted(
 export function postCloseDay(businessDate?: string): Promise<{
   readonly businessDate: string;
   readonly noShow: readonly string[];
-  readonly cancelled: readonly string[];
+  /** Pratiche ancora in carico chiuse d'ufficio (completate, da confermare). */
+  readonly autoClosed: readonly string[];
   readonly failed: readonly string[];
   readonly alreadyClosed: number;
 }> {

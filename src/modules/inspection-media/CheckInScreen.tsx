@@ -21,6 +21,8 @@ import {
   postCheckIn,
   type InspectionPhoto,
 } from '@/lib/api-client/client';
+import { Button } from '@/components/ui/button';
+import { Dialog } from '@/components/ui/dialog';
 import { queueKeys } from '@/lib/api-client/query-keys';
 import { localTimeHHmm } from '@/lib/dates';
 import { cn } from '@/lib/utils/cn';
@@ -65,6 +67,8 @@ export function CheckInScreen({
   const [note, setNote] = useState(a.notes ?? '');
   const [inChiusura, setInChiusura] = useState(false);
   const [errore, setErrore] = useState<string | null>(null);
+  // Doppia conferma quando si chiude senza le foto obbligatorie.
+  const [confermaSenzaFoto, setConfermaSenzaFoto] = useState(false);
 
   // Foto già acquisite: riaprendo il check-in si ritrova quanto fatto prima.
   useEffect(() => {
@@ -91,13 +95,15 @@ export function CheckInScreen({
   const fatte = REQUIRED_PHOTO_CATEGORIES.length - mancanti.length;
   const pronto = mancanti.length === 0;
 
-  const completa = async (): Promise<void> => {
+  const completa = async (senzaFoto: boolean): Promise<void> => {
     setErrore(null);
+    setConfermaSenzaFoto(false);
     setInChiusura(true);
     try {
       const esito = await postCheckIn(a.id, {
         expectedVersion: a.version,
         inspectionNotes: note.trim() === '' ? null : note.trim(),
+        allowMissingPhotos: senzaFoto,
       });
       await queryClient.invalidateQueries({ queryKey: queueKeys.all });
       onCompleted(esito.appointment.code, esito.photoCount);
@@ -251,15 +257,15 @@ export function CheckInScreen({
             </button>
             <button
               type="button"
-              onClick={() => void completa()}
-              disabled={inChiusura || !pronto}
+              onClick={() => (pronto ? void completa(false) : setConfermaSenzaFoto(true))}
+              disabled={inChiusura}
               aria-describedby="stato-check-in"
               className={cn(
                 'flex h-16 flex-[2] items-center justify-center rounded-2xl text-xl font-bold shadow-sm focus-visible:ring-4 focus-visible:outline-none',
                 pronto
                   ? 'bg-brand-primary focus-visible:ring-brand-lime-dark active:bg-brand-lime-dark text-slate-950 active:text-white'
-                  : 'bg-slate-200 text-slate-500',
-                'disabled:cursor-not-allowed',
+                  : 'bg-brand-primary/60 focus-visible:ring-brand-lime-dark active:bg-brand-primary text-slate-900',
+                'disabled:opacity-60',
               )}
             >
               {inChiusura ? 'Conclusione in corso…' : 'Completa check-in'}
@@ -274,10 +280,41 @@ export function CheckInScreen({
           >
             {pronto
               ? "Tutto pronto: la pratica si chiude e l'accettazione si libera."
-              : `Mancano: ${mancanti.map((c) => PHOTO_CATEGORY_LABELS[c]).join(', ')}.`}
+              : `Mancano: ${mancanti.map((c) => PHOTO_CATEGORY_LABELS[c]).join(', ')}. Puoi completare comunque: ti verrà chiesta conferma.`}
           </p>
         </div>
       </footer>
+
+      {/* Safety catch: chiudere senza le foto è ammesso, ma va detto due volte. */}
+      <Dialog
+        open={confermaSenzaFoto}
+        title={photos.length === 0 ? 'Nessuna foto inserita' : 'Foto obbligatorie mancanti'}
+        description={
+          photos.length === 0
+            ? "Nessuna foto inserita. Sei sicuro di voler completare l'accettazione senza il check-in fotografico?"
+            : `Mancano ${mancanti.length} foto obbligatorie (${mancanti
+                .map((c) => PHOTO_CATEGORY_LABELS[c])
+                .join(
+                  ', ',
+                )}). Sei sicuro di voler completare l'accettazione senza il giro completo?`
+        }
+        onClose={() => setConfermaSenzaFoto(false)}
+        footer={
+          <>
+            <Button variant="outline" size="touch" onClick={() => setConfermaSenzaFoto(false)}>
+              Torna alle foto
+            </Button>
+            <Button variant="destructive" size="touch" onClick={() => void completa(true)}>
+              Completa senza foto
+            </Button>
+          </>
+        }
+      >
+        <p className="text-sm text-slate-600">
+          La mancanza resta scritta nelle note della pratica e arriva al CRM. Potrai comunque
+          riaprire la pratica dal dettaglio e aggiungere le foto dopo.
+        </p>
+      </Dialog>
     </div>
   );
 }

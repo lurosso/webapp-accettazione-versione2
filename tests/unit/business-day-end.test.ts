@@ -117,7 +117,9 @@ describe('SyncScheduler: chiusura automatica di fine turno', () => {
     await scheduler.tick('SCHEDULED');
 
     expect((await env.appointments.findById(inAttesa.id))?.status).toBe('NO_SHOW');
-    expect((await env.appointments.findById(inCarico.id))?.status).toBe('CANCELLED');
+    const chiusaDUfficio = await env.appointments.findById(inCarico.id);
+    expect(chiusaDUfficio?.status).toBe('COMPLETED');
+    expect(chiusaDUfficio?.autoClosedAt).not.toBeNull();
     // L'assente della chiusura automatica arriva comunque al CRM: domani il BDC lo richiama.
     expect(env.crm.received).toHaveLength(1);
   });

@@ -19,6 +19,8 @@ const CheckInBody = z.object({
   expectedVersion: z.number().int().nonnegative(),
   /** Note e danni rilevati: testo libero, come lo scrive l'accettatore al veicolo. */
   inspectionNotes: z.string().trim().max(2000).nullable().optional(),
+  /** True solo dopo la doppia conferma a schermo: chiude anche senza le foto obbligatorie. */
+  allowMissingPhotos: z.boolean().optional(),
 });
 
 interface RouteContext {
@@ -50,6 +52,7 @@ export async function POST(request: NextRequest, context: RouteContext): Promise
       appointmentId: asAppointmentId(id),
       expectedVersion: parsed.data.expectedVersion,
       inspectionNotes: parsed.data.inspectionNotes ?? null,
+      allowMissingPhotos: parsed.data.allowMissingPhotos === true,
     },
     ctx,
   );

@@ -15,6 +15,7 @@ import { DailyReportService } from '@/application/reporting/DailyReportService';
 import { CustomerMessagingPolicy } from '@/application/notifications/CustomerMessagingPolicy';
 import { NotificationOrchestrator } from '@/application/notifications/NotificationOrchestrator';
 import { CodeGenerator } from '@/application/queue/CodeGenerator';
+import { ManualIntakeService } from '@/application/queue/ManualIntakeService';
 import { QueueService } from '@/application/queue/QueueService';
 import { SyncScheduler } from '@/application/sync/SyncScheduler';
 import { SyncService } from '@/application/sync/SyncService';
@@ -51,6 +52,7 @@ export interface Container {
   readonly authService: IAuthService;
   readonly codeGenerator: CodeGenerator;
   readonly queueService: QueueService;
+  readonly manualIntakeService: ManualIntakeService;
   readonly crmNotifier: CrmNotifier;
   readonly bdcLeadService: BdcLeadService;
   readonly crmOutboxService: CrmOutboxService;
@@ -204,6 +206,16 @@ export function createContainer(overrides: ContainerOverrides = {}): Container {
     logger,
   });
 
+  const manualIntakeService = new ManualIntakeService({
+    appointments: repos.appointments,
+    referenceData: repos.referenceData,
+    codeGenerator,
+    eventBus,
+    clock,
+    ids,
+    logger,
+  });
+
   const queueService = new QueueService({
     appointments: repos.appointments,
     referenceData: repos.referenceData,
@@ -310,6 +322,7 @@ export function createContainer(overrides: ContainerOverrides = {}): Container {
     authService,
     codeGenerator,
     queueService,
+    manualIntakeService,
     crmNotifier,
     bdcLeadService,
     crmOutboxService,

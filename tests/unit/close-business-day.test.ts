@@ -51,12 +51,15 @@ describe('QueueService: chiusura della giornata', () => {
       return;
     }
     expect(r.value.noShow).toEqual(expect.arrayContaining([inAttesa.code, saltata.code]));
-    expect(r.value.cancelled).toEqual([inCarico.code]);
+    expect(r.value.autoClosed).toEqual([inCarico.code]);
     expect(r.value.failed).toEqual([]);
 
     expect((await env.appointments.findById(inAttesa.id))?.status).toBe('NO_SHOW');
     expect((await env.appointments.findById(saltata.id))?.status).toBe('NO_SHOW');
-    expect((await env.appointments.findById(inCarico.id))?.status).toBe('CANCELLED');
+    const chiusaDUfficio = await env.appointments.findById(inCarico.id);
+    expect(chiusaDUfficio?.status).toBe('COMPLETED');
+    expect(chiusaDUfficio?.autoClosedAt).not.toBeNull();
+    expect(chiusaDUfficio?.autoCloseConfirmedAt).toBeNull();
   });
 
   it('le pratiche già chiuse non vengono toccate', async () => {
@@ -127,7 +130,11 @@ describe('QueueService: chiusura della giornata', () => {
 
     const eventi = env.eventBus.listSince(0).filter((e) => e.type === 'BUSINESS_DAY_CLOSED');
     expect(eventi).toHaveLength(1);
-    expect(eventi[0]).toMatchObject({ businessDate: TEST_DATE, noShowCount: 2, cancelledCount: 0 });
+    expect(eventi[0]).toMatchObject({
+      businessDate: TEST_DATE,
+      noShowCount: 2,
+      autoClosedCount: 0,
+    });
   });
 
   it('una giornata senza pratiche si chiude senza errori', async () => {
@@ -136,7 +143,7 @@ describe('QueueService: chiusura della giornata', () => {
     expect(r.ok).toBe(true);
     if (r.ok) {
       expect(r.value.noShow).toEqual([]);
-      expect(r.value.cancelled).toEqual([]);
+      expect(r.value.autoClosed).toEqual([]);
       expect(r.value.alreadyClosed).toBe(0);
     }
   });

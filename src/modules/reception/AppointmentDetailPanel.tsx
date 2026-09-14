@@ -11,7 +11,7 @@
 // continua ad aggiornarsi con il polling della coda, senza una richiesta dedicata.
 import Link from 'next/link';
 import { useEffect } from 'react';
-import type { Appointment } from '@/domain/entities/appointment';
+import { isAutoClosedPending, type Appointment } from '@/domain/entities/appointment';
 import { customerFullName } from '@/domain/entities/customer';
 import type { NotificationJobStatus } from '@/domain/entities/notification';
 import type { QueueRowView } from '@/domain/read-models';
@@ -24,6 +24,7 @@ import { cn } from '@/lib/utils/cn';
 import { MediaGallery } from '@/modules/inspection-media/MediaGallery';
 import { NotificationBadge } from './NotificationBadge';
 import { StatusBadge } from './StatusBadge';
+import type { AppointmentAction } from './types';
 
 export type DetailPresentation = 'side' | 'modal';
 
@@ -42,6 +43,11 @@ export interface AppointmentDetailPanelProps {
    * foto, e il pulsante porterebbe l'accettatore in una schermata che non può usare.
    */
   readonly allowCheckIn?: boolean;
+  /** Azioni sulla pratica dal dettaglio (riapertura, conferma chiusura d'ufficio). */
+  readonly onAction?: ((action: AppointmentAction) => void) | undefined;
+  /** True per responsabili e amministratori: possono confermare una chiusura d'ufficio. */
+  readonly canConfirmAutoClose?: boolean;
+  readonly actionPending?: boolean;
 }
 
 /** Riga etichetta/valore della scheda. */
@@ -140,6 +146,9 @@ export function AppointmentDetailPanel({
   onClose,
   presentation = 'side',
   allowCheckIn = false,
+  onAction,
+  canConfirmAutoClose = false,
+  actionPending = false,
 }: AppointmentDetailPanelProps) {
   // Chiusura con Esc: al banco l'accettatore lavora molto da tastiera.
   useEffect(() => {
@@ -231,6 +240,55 @@ export function AppointmentDetailPanel({
         </header>
 
         <div className={cn('flex flex-col', modal ? 'gap-4 px-6 py-5' : 'gap-6 px-5 py-4')}>
+          {/* Pratica completata: si può riaprire (Completato premuto per errore, foto da rifare) e,
+              se è una chiusura d'ufficio, un responsabile la conferma. */}
+          {a.status === 'COMPLETED' && onAction !== undefined ? (
+            <section
+              className={cn(
+                'flex flex-col gap-3 rounded-xl border-2 p-4',
+                isAutoClosedPending(a)
+                  ? 'border-amber-300 bg-amber-50'
+                  : 'border-slate-200 bg-slate-50',
+              )}
+            >
+              {isAutoClosedPending(a) ? (
+                <div className="flex flex-col gap-1">
+                  <Badge tone="warning" className="self-start">
+                    Chiusa d&apos;ufficio · da confermare
+                  </Badge>
+                  <p className="text-sm text-amber-900">
+                    Era ancora in carico alla chiusura automatica della giornata. Se il veicolo è
+                    stato accettato davvero, conferma; altrimenti riaprila e concludi il check-in.
+                  </p>
+                </div>
+              ) : (
+                <p className="text-sm text-slate-600">
+                  Completata per errore, o foto da rifare? Riaprendola torna in carico a te.
+                </p>
+              )}
+              <div className="flex flex-wrap gap-2">
+                <Button
+                  variant="outline"
+                  size="touch"
+                  disabled={actionPending}
+                  onClick={() => onAction('reopen-completed')}
+                >
+                  Riapri pratica / Modifica check-in
+                </Button>
+                {isAutoClosedPending(a) && canConfirmAutoClose ? (
+                  <Button
+                    variant="success"
+                    size="touch"
+                    disabled={actionPending}
+                    onClick={() => onAction('confirm-auto-close')}
+                  >
+                    Conferma chiusura
+                  </Button>
+                ) : null}
+              </div>
+            </section>
+          ) : null}
+
           {/* Passaggio manuale all'ispezione: solo dove si può fare, cioè sul tablet. */}
           {allowCheckIn && a.status === 'IN_PROGRESS' ? (
             <Link

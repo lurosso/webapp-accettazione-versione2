@@ -4,7 +4,11 @@
 // stato, campata, operatore e azioni. Evidenze: In carico giallo, Completata verde, Saltata arancio.
 // L'intera riga apre il dettaglio della pratica; il codice è anche un pulsante, così il pannello
 // si raggiunge da tastiera e con gli screen reader, non solo col mouse.
-import { effectiveScheduleTime, type AppointmentStatus } from '@/domain/entities/appointment';
+import {
+  effectiveScheduleTime,
+  isAutoClosedPending,
+  type AppointmentStatus,
+} from '@/domain/entities/appointment';
 import type { QueueRowView } from '@/domain/read-models';
 import { Badge } from '@/components/ui/badge';
 import { OperatorChip } from '@/components/shared/OperatorChip';
@@ -130,6 +134,11 @@ export function AppointmentRow({
       ) : null}
       <TableCell>
         <StatusBadge status={a.status} />
+        {isAutoClosedPending(a) ? (
+          <span className="mt-0.5 block text-xs font-semibold text-amber-800">
+            chiusa d&apos;ufficio · da confermare
+          </span>
+        ) : null}
         {a.skipCount > 0 ? (
           // "In attesa ×1" si leggeva come un conteggio dello stato: meglio dire cosa è successo.
           <span className="mt-0.5 block text-xs text-slate-500">

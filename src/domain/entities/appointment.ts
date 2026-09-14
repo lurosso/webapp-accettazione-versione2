@@ -63,6 +63,13 @@ export interface Appointment {
   readonly completedAt: IsoDateTime | null;
   readonly noShowAt: IsoDateTime | null;
   readonly cancelledAt: IsoDateTime | null;
+  /**
+   * Chiusura d'ufficio: la pratica era ancora in carico alla chiusura automatica della giornata
+   * ed è stata completata dal sistema, non da una persona. Resta "da confermare" finché un
+   * responsabile non la conferma (`autoCloseConfirmedAt`) o un operatore non la riapre.
+   */
+  readonly autoClosedAt: IsoDateTime | null;
+  readonly autoCloseConfirmedAt: IsoDateTime | null;
   /** Ultima sincronizzazione che ha toccato la pratica. */
   readonly lastSyncRunId: SyncRunId | null;
   /** Versione per la concorrenza ottimistica fra postazioni (409 → ConflictDialog). */
@@ -80,6 +87,13 @@ export const TERMINAL_STATUSES: readonly AppointmentStatus[] = ['COMPLETED', 'CA
 /** Indica se lo stato è terminale. */
 export function isTerminalStatus(s: AppointmentStatus): boolean {
   return TERMINAL_STATUSES.includes(s);
+}
+
+/** Completata d'ufficio a fine giornata e non ancora confermata da un responsabile. */
+export function isAutoClosedPending(
+  a: Pick<Appointment, 'status' | 'autoClosedAt' | 'autoCloseConfirmedAt'>,
+): boolean {
+  return a.status === 'COMPLETED' && a.autoClosedAt !== null && a.autoCloseConfirmedAt === null;
 }
 
 /** Indica se la pratica è ancora in coda (WAITING o SKIPPED). */

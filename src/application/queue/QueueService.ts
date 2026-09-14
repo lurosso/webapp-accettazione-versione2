@@ -3,6 +3,7 @@
 // campata". Dipende solo da interfacce: identico con repository in-memory o Prisma.
 import {
   ACTIVE_QUEUE_STATUSES,
+  isAutoClosedPending,
   isInQueue,
   type Appointment,
   type AppointmentStatus,
@@ -43,8 +44,8 @@ export interface CloseBusinessDayResult {
   readonly businessDate: IsoDate;
   /** Codici passati a NO_SHOW (clienti mai presentati: diventano lead per il BDC). */
   readonly noShow: readonly string[];
-  /** Codici passati a CANCELLED (prese in carico non concluse). */
-  readonly cancelled: readonly string[];
+  /** Codici chiusi d'ufficio: erano in carico, diventano COMPLETED "da confermare". */
+  readonly autoClosed: readonly string[];
   /** Codici che non è stato possibile chiudere (conflitto con un'altra postazione). */
   readonly failed: readonly string[];
   /** Pratiche già chiuse prima della chiusura di giornata. */
@@ -210,7 +211,9 @@ export class QueueService {
     const serving = onThisBay.find((a) => a.status === 'IN_PROGRESS') ?? null;
     const lastCompleted =
       onThisBay
-        .filter((a) => a.status === 'COMPLETED' && a.completedAt !== null)
+        .filter(
+          (a) => a.status === 'COMPLETED' && a.completedAt !== null && a.autoClosedAt === null,
+        )
         .sort((x, y) => (x.completedAt ?? '').localeCompare(y.completedAt ?? ''))
         .at(-1) ?? null;
 
@@ -455,8 +458,10 @@ export class QueueService {
    * Chiusura della giornata: a officina chiusa non deve restare nulla di aperto.
    * - chi era ancora in coda (in attesa o saltato) diventa `NO_SHOW` e finisce nel cruscotto BDC
    *   con l'evento verso il CRM: non si è presentato, e domani qualcuno deve richiamarlo;
-   * - chi era ancora in carico diventa `CANCELLED`: l'accettazione non è stata conclusa e non
-   *   può restare aperta fino al giorno dopo, ma non è un cliente da ricontattare.
+   * - chi era ancora in carico viene chiuso d'ufficio: `COMPLETED` con `autoClosedAt`, perché
+   *   quasi sempre il veicolo è stato accettato e qualcuno ha dimenticato di premere Completato.
+   *   Resta "da confermare": il responsabile conferma (e il CRM riceve il check-in) oppure
+   *   l'operatore riapre e rifà il giro. Non si annulla: annullare cancellerebbe lavoro fatto.
    * Le pratiche già chiuse (completate, assenti, annullate) non vengono toccate.
    *
    * L'operazione non si ferma al primo errore: se una pratica viene modificata da una postazione
@@ -471,14 +476,16 @@ export class QueueService {
     const daChiudere = tutte.filter((a) => isInQueue(a.status) || a.status === 'IN_PROGRESS');
 
     const noShow: string[] = [];
-    const cancelled: string[] = [];
+    const autoClosed: string[] = [];
     const nonRiuscite: string[] = [];
 
     for (const a of daChiudere) {
-      const to: AppointmentStatus = a.status === 'IN_PROGRESS' ? 'CANCELLED' : 'NO_SHOW';
+      const to: AppointmentStatus = a.status === 'IN_PROGRESS' ? 'COMPLETED' : 'NO_SHOW';
       const now = this.deps.clock.nowIso();
       const patch: Partial<Appointment> =
-        to === 'CANCELLED' ? { cancelledAt: now } : { noShowAt: now };
+        to === 'COMPLETED'
+          ? { completedAt: now, autoClosedAt: now, autoCloseConfirmedAt: null }
+          : { noShowAt: now };
       const aggiornata = await this.apply(a, to, patch, a.version, ctx);
       if (!aggiornata.ok) {
         nonRiuscite.push(a.code);
@@ -497,7 +504,7 @@ export class QueueService {
           ctx.correlationId ?? this.deps.ids.next(),
         );
       } else {
-        cancelled.push(a.code);
+        autoClosed.push(a.code);
       }
     }
 
@@ -512,21 +519,113 @@ export class QueueService {
       type: 'BUSINESS_DAY_CLOSED',
       businessDate,
       noShowCount: noShow.length,
-      cancelledCount: cancelled.length,
+      autoClosedCount: autoClosed.length,
     });
     this.logger.info(`giornata ${businessDate} chiusa`, {
       assenti: noShow.length,
-      annullate: cancelled.length,
+      chiuseDUfficio: autoClosed.length,
       nonRiuscite: nonRiuscite.length,
     });
 
     return ok({
       businessDate,
       noShow,
-      cancelled,
+      autoClosed,
       failed: nonRiuscite,
       alreadyClosed: tutte.length - daChiudere.length,
     });
+  }
+
+  /**
+   * Riapre una pratica completata per errore (o chiusa d'ufficio): COMPLETED → IN_PROGRESS in
+   * carico a chi la riapre, con una campata libera se c'è. La presa in carico originale resta
+   * scritta; la chiusura viene cancellata, così il flag "da confermare" sparisce e il check-in
+   * si può rifare. Solo nella giornata corrente: ieri non si riapre.
+   */
+  async reopenCompleted(
+    input: TransitionInput,
+    ctx: ActionContext,
+  ): Promise<Result<Appointment, DomainError>> {
+    const current = await this.load(input.appointmentId);
+    if (!current.ok) {
+      return current;
+    }
+    const a = current.value;
+    if (a.status !== 'COMPLETED') {
+      return err(
+        domainError('INVALID_TRANSITION', 'Si può riaprire solo una pratica completata.', {
+          from: a.status,
+        }),
+      );
+    }
+    const transition = assertTransition(a.status, 'IN_PROGRESS');
+    if (!transition.ok) {
+      return transition;
+    }
+    if (a.businessDate !== this.deps.clock.today()) {
+      return err(
+        domainError(
+          'INVALID_TRANSITION',
+          'Si può riaprire solo una pratica della giornata corrente.',
+          {
+            businessDate: a.businessDate,
+          },
+        ),
+      );
+    }
+    const bay = await this.chooseBay(a, null, ctx.workstationId);
+    if (!bay.ok) {
+      return bay;
+    }
+    return this.apply(
+      a,
+      'IN_PROGRESS',
+      {
+        bayId: bay.value,
+        operatorId: ctx.operatorId,
+        takenAt: a.takenAt ?? this.deps.clock.nowIso(),
+        completedAt: null,
+        autoClosedAt: null,
+        autoCloseConfirmedAt: null,
+      },
+      input.expectedVersion,
+      ctx,
+    );
+  }
+
+  /**
+   * Conferma una chiusura d'ufficio: il responsabile dice che il veicolo era stato accettato
+   * davvero. Nessun cambio di stato, solo il flag; la consegna al CRM la fa chi conosce le foto
+   * (`InspectionService.confirmAutoClosed`).
+   */
+  async confirmAutoClose(
+    input: TransitionInput,
+    ctx: ActionContext,
+  ): Promise<Result<Appointment, DomainError>> {
+    const current = await this.load(input.appointmentId);
+    if (!current.ok) {
+      return current;
+    }
+    const a = current.value;
+    if (!isAutoClosedPending(a)) {
+      return err(
+        domainError('VALIDATION', "La pratica non è una chiusura d'ufficio da confermare.", {
+          status: a.status,
+        }),
+      );
+    }
+    const updated = await this.deps.appointments.update(
+      { ...a, autoCloseConfirmedAt: this.deps.clock.nowIso() },
+      input.expectedVersion,
+    );
+    if (!updated.ok) {
+      return updated;
+    }
+    this.logger.info(`pratica ${a.code}: chiusura d'ufficio confermata`, {
+      appointmentId: a.id,
+      operatorId: ctx.operatorId,
+    });
+    return ok(updated.value);
   }
 
   // --- interni ---------------------------------------------------------------------------

@@ -77,7 +77,8 @@ export type DomainEventPayload =
       readonly type: 'BUSINESS_DAY_CLOSED';
       readonly businessDate: string;
       readonly noShowCount: number;
-      readonly cancelledCount: number;
+      /** Pratiche ancora in carico chiuse d'ufficio (completate, da confermare). */
+      readonly autoClosedCount: number;
     };
 
 /** Evento di dominio completo, come restituito dal bus. */

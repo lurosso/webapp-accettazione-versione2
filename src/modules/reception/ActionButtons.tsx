@@ -10,7 +10,7 @@
 // conferma in linea, non una finestra — che dopo pochi secondi torna da sola allo stato iniziale.
 import { useEffect, useState } from 'react';
 import { canTransition } from '@/domain/appointment-state-machine';
-import type { Appointment } from '@/domain/entities/appointment';
+import { isInQueue, type Appointment } from '@/domain/entities/appointment';
 import { Button, type ButtonVariant } from '@/components/ui/button';
 import type { AppointmentAction } from './types';
 
@@ -63,7 +63,9 @@ export function ActionButtons({
 
   const buttons: ActionSpec[] = [];
 
-  if (canTransition(status, 'IN_PROGRESS')) {
+  // Solo dalla coda: una pratica completata torna in carico dal dettaglio ("Riapri pratica"), non
+  // con un "Prendi in carico" che qui vorrebbe dire un'altra cosa.
+  if (isInQueue(status) && canTransition(status, 'IN_PROGRESS')) {
     buttons.push({
       action: 'take',
       label: foreignDesk ? 'Prendi in carico (altro sportello)' : 'Prendi in carico',

@@ -7,6 +7,7 @@ import { correlationIdFrom, readApiSession } from '@/app/_server/session';
 import type { ActionContext, TransitionInput } from '@/application/queue/QueueService';
 import { getContainer } from '@/config/container';
 import { asAppointmentId, asBayId } from '@/domain/ids';
+import { ok } from '@/domain/result';
 import {
   badRequestResponse,
   domainErrorResponse,
@@ -27,6 +28,8 @@ const ActionBody = z.object({
     'reschedule',
     'no-show',
     'cancel',
+    'reopen-completed',
+    'confirm-auto-close',
   ]),
   expectedVersion: z.number().int().nonnegative(),
   bayId: z.string().trim().min(1).nullable().optional(),
@@ -67,6 +70,12 @@ export async function POST(request: NextRequest, context: RouteContext): Promise
       "L'annullamento di una pratica è riservato a responsabili e amministratori.",
     );
   }
+  // Confermare una chiusura d'ufficio è dire "il veicolo era stato accettato": lo dice un responsabile.
+  if (action === 'confirm-auto-close' && !canAccess('manager', session.role)) {
+    return forbiddenResponse(
+      "La conferma di una chiusura d'ufficio è riservata a responsabili e amministratori.",
+    );
+  }
 
   const result = await (async () => {
     switch (action) {
@@ -89,6 +98,12 @@ export async function POST(request: NextRequest, context: RouteContext): Promise
         return queue.markNoShow({ ...input, reason: parsed.data.reason ?? undefined }, ctx);
       case 'cancel':
         return queue.cancel(input, ctx);
+      case 'reopen-completed':
+        return queue.reopenCompleted(input, ctx);
+      case 'confirm-auto-close': {
+        const esito = await container.inspectionService.confirmAutoClosed(input, ctx);
+        return esito.ok ? ok(esito.value.appointment) : esito;
+      }
     }
   })();
 
