@@ -92,6 +92,7 @@ export const config = {
   matcher: [
     '/accettazione/:path*',
     '/tablet/:path*',
+    '/check-in/:path*',
     '/sistema/:path*',
     '/manager/:path*',
     '/admin/:path*',

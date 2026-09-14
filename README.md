@@ -158,7 +158,7 @@ anche il server, quindi due login sullo stesso posto non passano nemmeno chiaman
 | `/manager`            | BDC / Responsabile | disponibile | Cruscotto del back office: clienti segnati assenti da ricontattare, con telefono richiamabile e chiusura del lead con esito; da qui si esegue anche la chiusura di giornata |
 | `/comunicazioni`      | Responsabile   | pianificato    | Registro degli invii WhatsApp e SMS con conferma manuale (l'invio automatico funziona già) |
 | `/display/1` … `/4`   | Monitor        | disponibile    | Schermo a tutto campo per i monitor sopra le postazioni: codice e targa in servizio, oppure invito verde ad avanzare; si aggiorna ogni 2 secondi |
-| `/tablet`             | Tablet         | disponibile    | Accettazione al veicolo: le pratiche del proprio sportello in due schede grandi, check-in a tutto schermo con fotocamera e note sui danni rilevati |
+| `/check-in`           | Tablet         | disponibile    | Check-in veicolo a tutto schermo, senza l'intestazione del sito: le pratiche del proprio sportello in due schede grandi, giro fotografico a slot, note con annotazioni rapide, comandi fissi in basso (il vecchio `/tablet` rimanda qui) |
 | `/accettazione/archivio` | Accettatore | disponibile    | Archivio delle ispezioni: ricerca per targa o codice, schede con le foto per categoria; i file oltre la retention risultano eliminati ma la scheda resta |
 | `/admin`              | Amministratore | disponibile    | Gestione operatori (crea, modifica, disattiva, reset password) e strumenti di assistenza: accettazioni occupate, pratiche in carico da troppo tempo, rimetti in coda o annulla |
 
@@ -195,9 +195,11 @@ Ogni accettazione ha un token nel seed (`display-demo-token-c1`…). Passandolo 
 verificato e un token errato riceve 403; senza token l'accesso resta consentito, perché i monitor
 sono su rete interna. L'obbligatorietà è prevista con l'hardening.
 
-### Provare l'accettazione al veicolo dal tablet
+### Provare il check-in veicolo dal tablet
 
-La vista per il tablet è su <http://localhost:3000/tablet>: mostra solo le pratiche dello
+La vista per il tablet è su <http://localhost:3000/check-in> (a tutto schermo, senza il menu del
+sito: una barra minima con "Coda" ed "Esci"; aggiunta alla schermata iniziale del tablet si apre
+senza la barra degli indirizzi grazie al manifest PWA): mostra solo le pratiche dello
 sportello dell'operatore collegato, con due schede, **In attesa** e **Le mie prese in carico**, e
 pulsanti grandi da usare in piedi accanto alla vettura.
 
@@ -237,7 +239,7 @@ L'applicazione è una sola: cambia il comportamento, non l'interfaccia. Il crite
   dettaglio di una pratica in carico si passa al check-in con **Passa al check-in fotografico**.
 - **Su PC** "Prendi in carico" cambia lo stato e apre il pannello laterale del cliente: si resta
   sulla coda e non compare nessun pulsante di check-in o fotocamera. La voce "Tablet" non c'è nel
-  menu e la pagina `/tablet`, se aperta a mano, spiega che il check-in si fa dal tablet.
+  menu e la pagina `/check-in`, se aperta a mano, spiega che il check-in si fa dal tablet.
 
 Dall'ispezione si esce con **Salta foto per ora**, che riporta alla coda lasciando la pratica in
 carico e le foto già scattate nel fascicolo: se piove o la vettura va spostata subito, il check-in

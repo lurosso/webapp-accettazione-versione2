@@ -27,7 +27,7 @@ export interface HeaderProps {
 const NAV: readonly { href: string; label: string; area: ProtectedArea }[] = [
   { href: '/accettazione', label: 'Accettazione', area: 'accettazione' },
   { href: '/accettazione/archivio', label: 'Archivio', area: 'accettazione' },
-  { href: '/tablet', label: 'Tablet', area: 'tablet' },
+  { href: '/check-in', label: 'Check-in', area: 'check-in' },
   { href: '/manager', label: 'BDC', area: 'manager' },
   { href: '/admin', label: 'Admin', area: 'admin' },
   { href: '/sistema', label: 'Sistema', area: 'sistema' },
@@ -58,7 +58,7 @@ export function Header({ displayName, role, workstationLabel, deskLabel, timeZon
   const router = useRouter();
   const pathname = usePathname();
   const [leaving, setLeaving] = useState(false);
-  // La voce "Tablet" ha senso solo dove si possono scattare foto.
+  // La voce "Check-in" ha senso solo dove si possono scattare foto.
   const touchLayout = useIsTouchLayout();
 
   const onLogout = async (): Promise<void> => {
@@ -83,7 +83,7 @@ export function Header({ displayName, role, workstationLabel, deskLabel, timeZon
           </span>
           <nav aria-label="Sezioni" className="flex items-center gap-1">
             {NAV.filter(
-              (item) => canAccess(item.area, role) && (item.href !== '/tablet' || touchLayout),
+              (item) => canAccess(item.area, role) && (item.href !== '/check-in' || touchLayout),
             ).map((item) => (
               <Link
                 key={item.href}

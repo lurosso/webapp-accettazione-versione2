@@ -19,6 +19,7 @@ describe('homePathForRole', () => {
 describe('canAccess', () => {
   it("l'accettatore entra solo in accettazione e sistema", () => {
     expect(canAccess('accettazione', 'ADVISOR')).toBe(true);
+    expect(canAccess('check-in', 'ADVISOR')).toBe(true);
     expect(canAccess('sistema', 'ADVISOR')).toBe(true);
     expect(canAccess('manager', 'ADVISOR')).toBe(false);
     expect(canAccess('admin', 'ADVISOR')).toBe(false);
@@ -51,12 +52,12 @@ describe('safeInternalPath', () => {
 
 describe('checkInPath', () => {
   it("porta all'ispezione della pratica indicata", () => {
-    expect(checkInPath('app-1')).toBe('/tablet?pratica=app-1');
+    expect(checkInPath('app-1')).toBe('/check-in?pratica=app-1');
     expect(checkInPath('app-1')).toContain(`${CHECK_IN_PARAM}=`);
   });
 
   it('codifica gli identificativi con caratteri speciali', () => {
-    expect(checkInPath('app/1 2')).toBe('/tablet?pratica=app%2F1%202');
+    expect(checkInPath('app/1 2')).toBe('/check-in?pratica=app%2F1%202');
   });
 });
 

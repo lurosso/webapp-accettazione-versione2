@@ -18,25 +18,28 @@ export function homePathForRole(role: OperatorRole): string {
   }
 }
 
+/** Vista del check-in veicolo (tablet, a tutto schermo); fino al 2026-09-14 si chiamava `/tablet`. */
+export const CHECK_IN_PATH = '/check-in';
+
 /**
- * Schermata di ispezione di una pratica. Vive dentro l'area tablet (`/tablet`), che è la stessa
- * vista usata sul piazzale: il parametro dice quale pratica aprire, così ci si arriva dalla
- * dashboard senza duplicare la schermata.
+ * Schermata di check-in di una pratica. Vive dentro la vista `/check-in`, che è la stessa usata
+ * sul piazzale: il parametro dice quale pratica aprire, così ci si arriva dalla dashboard senza
+ * duplicare la schermata.
  */
 export function checkInPath(appointmentId: string): string {
-  return `/tablet?pratica=${encodeURIComponent(appointmentId)}`;
+  return `${CHECK_IN_PATH}?pratica=${encodeURIComponent(appointmentId)}`;
 }
 
 /** Nome del parametro letto dalla pagina tablet. */
 export const CHECK_IN_PARAM = 'pratica';
 
 /** Aree protette dell'applicazione. */
-export type ProtectedArea = 'accettazione' | 'tablet' | 'manager' | 'admin' | 'sistema';
+export type ProtectedArea = 'accettazione' | 'check-in' | 'manager' | 'admin' | 'sistema';
 
 /** Ruoli ammessi su ciascuna area; un solo elenco, usato dalle pagine e dalla navigazione. */
 export const AREA_ROLES: Record<ProtectedArea, readonly OperatorRole[]> = {
   accettazione: ['ADVISOR', 'SUPERVISOR', 'ADMIN'],
-  tablet: ['ADVISOR', 'SUPERVISOR', 'ADMIN'],
+  'check-in': ['ADVISOR', 'SUPERVISOR', 'ADMIN'],
   manager: ['SUPERVISOR', 'ADMIN'],
   admin: ['ADMIN'],
   sistema: ['ADVISOR', 'SUPERVISOR', 'ADMIN'],
