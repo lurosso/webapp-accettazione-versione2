@@ -2,7 +2,8 @@
 
 // Form di cambio password: password attuale (quella provvisoria dettata dall'amministratore),
 // nuova password e conferma. Invio a POST /api/v1/auth/change-password; il server rinnova il
-// cookie e il browser prosegue verso la destinazione originaria.
+// cookie e il browser prosegue SUBITO verso la destinazione con una navigazione completa: il
+// proxy deve rileggere il nuovo cookie da zero e l'operatore non deve restare su questa pagina.
 import { useRouter } from 'next/navigation';
 import { useState, type FormEvent } from 'react';
 import { Button } from '@/components/ui/button';
@@ -41,9 +42,9 @@ export function ChangePasswordForm({ nextPath, forced, minLength }: ChangePasswo
     setSubmitting(true);
     try {
       await postChangePassword({ currentPassword, newPassword });
-      // Il cookie è cambiato: refresh dei Server Component perché il proxy rilegga la sessione.
-      router.push(nextPath);
-      router.refresh();
+      // Navigazione completa (URL assoluto), non client-side: il cookie è cambiato e la pagina
+      // di destinazione va richiesta al server con la nuova sessione.
+      window.location.href = new URL(nextPath, window.location.origin).toString();
     } catch (cause) {
       setError(
         cause instanceof ApiError ? cause.message : 'Impossibile contattare il server. Riprovare.',
@@ -56,8 +57,7 @@ export function ChangePasswordForm({ nextPath, forced, minLength }: ChangePasswo
     try {
       await postLogout();
     } finally {
-      router.push('/login');
-      router.refresh();
+      window.location.href = new URL('/login', window.location.origin).toString();
     }
   };
 

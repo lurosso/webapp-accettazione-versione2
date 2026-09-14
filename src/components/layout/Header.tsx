@@ -8,6 +8,7 @@ import { usePathname, useRouter } from 'next/navigation';
 import { useEffect, useState } from 'react';
 import type { OperatorRole } from '@/domain/entities/operator';
 import { Button } from '@/components/ui/button';
+import { useIsTouchLayout } from '@/hooks/useMediaQuery';
 import { BrandMark } from './BrandMark';
 import { OperatorChip } from '@/components/shared/OperatorChip';
 import { postLogout } from '@/lib/api-client/client';
@@ -57,6 +58,8 @@ export function Header({ displayName, role, workstationLabel, deskLabel, timeZon
   const router = useRouter();
   const pathname = usePathname();
   const [leaving, setLeaving] = useState(false);
+  // La voce "Tablet" ha senso solo dove si possono scattare foto.
+  const touchLayout = useIsTouchLayout();
 
   const onLogout = async (): Promise<void> => {
     setLeaving(true);
@@ -79,7 +82,9 @@ export function Header({ displayName, role, workstationLabel, deskLabel, timeZon
             </span>
           </span>
           <nav aria-label="Sezioni" className="flex items-center gap-1">
-            {NAV.filter((item) => canAccess(item.area, role)).map((item) => (
+            {NAV.filter(
+              (item) => canAccess(item.area, role) && (item.href !== '/tablet' || touchLayout),
+            ).map((item) => (
               <Link
                 key={item.href}
                 href={item.href}

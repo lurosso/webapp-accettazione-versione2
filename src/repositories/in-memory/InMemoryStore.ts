@@ -15,6 +15,7 @@ import type { NotificationJob } from '@/domain/entities/notification';
 import type { Operator } from '@/domain/entities/operator';
 import type { SyncRun } from '@/domain/entities/sync-run';
 import type { Workstation } from '@/domain/entities/workstation';
+import type { WorkstationClaim } from '@/domain/entities/workstation-claim';
 import type { SeedData } from '@/config/seed';
 
 /**
@@ -33,6 +34,8 @@ export interface InMemoryStoreState {
   readonly syncRuns: Map<string, SyncRun>;
   readonly crmOutbox: Map<string, CrmOutboxEvent>;
   readonly media: Map<string, MediaAsset>;
+  /** Accettazioni occupate dagli operatori collegati: vive quanto le sessioni, non va in snapshot. */
+  readonly workstationClaims: Map<string, WorkstationClaim>;
 }
 
 /** Forma serializzata dello snapshot. */
@@ -71,6 +74,7 @@ function emptyState(): InMemoryStoreState {
     syncRuns: new Map(),
     crmOutbox: new Map(),
     media: new Map(),
+    workstationClaims: new Map(),
   };
 }
 
@@ -101,6 +105,10 @@ export class InMemoryStore {
     const g = globalThis as unknown as Record<string, unknown>;
     const existing = g[GLOBAL_KEY];
     if (isStateHolder(existing)) {
+      // Stato creato da una versione precedente del modulo (HMR): si aggiungono le mappe nate dopo.
+      if (!(existing.state.workstationClaims instanceof Map)) {
+        existing.state = { ...existing.state, workstationClaims: new Map() };
+      }
       return new InMemoryStore(existing);
     }
     const holder: StateHolder = { state: emptyState() };
@@ -210,6 +218,7 @@ export class InMemoryStore {
       syncRuns: byId(snap.syncRuns),
       crmOutbox: byId(snap.crmOutbox),
       media: byId(snap.media),
+      workstationClaims: new Map(),
     };
     return true;
   }

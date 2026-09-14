@@ -29,7 +29,7 @@ export const dynamic = 'force-dynamic';
 const LoginBody = z.object({
   username: z.string().trim().min(1, 'Nome utente obbligatorio.').max(64),
   password: z.string().min(1, 'Password obbligatoria.').max(200),
-  workstationId: z.string().trim().min(1, 'Selezionare la postazione.'),
+  workstationId: z.string().trim().min(1, "Selezionare l'accettazione."),
 });
 
 export async function POST(request: NextRequest): Promise<NextResponse> {

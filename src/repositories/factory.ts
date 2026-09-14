@@ -14,6 +14,7 @@ import {
   InMemoryReferenceDataRepository,
   InMemoryStore,
   InMemorySyncRunRepository,
+  InMemoryWorkstationClaimRepository,
 } from './in-memory';
 import type { Repositories } from './interfaces';
 
@@ -39,6 +40,7 @@ export function createRepositories(env: AppEnv, deps: RepositoryDeps): Repositor
         syncRuns: new InMemorySyncRunRepository(store),
         crmOutbox: new InMemoryCrmOutboxRepository(store),
         media: new InMemoryMediaRepository(store),
+        workstationClaims: new InMemoryWorkstationClaimRepository(store),
       };
     }
     case 'prisma':

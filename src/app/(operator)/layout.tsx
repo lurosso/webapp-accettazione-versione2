@@ -29,9 +29,7 @@ export default async function OperatorLayout({ children }: { readonly children: 
   return (
     <AppShell
       session={session}
-      workstationLabel={
-        workstation === null ? 'Postazione n/d' : `${workstation.code} · ${workstation.name}`
-      }
+      workstationLabel={workstation === null ? 'Accettazione n/d' : workstation.name}
       deskLabel={desk === null ? 'Sportello n/d' : desk.name}
       timeZone={container.env.timeZone}
     >

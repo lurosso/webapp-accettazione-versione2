@@ -9,3 +9,4 @@ export * from './InMemoryNotificationRepository';
 export * from './InMemorySyncRunRepository';
 export * from './InMemoryCrmOutboxRepository';
 export * from './InMemoryMediaRepository';
+export * from './InMemoryWorkstationClaimRepository';

@@ -332,7 +332,7 @@ export function OperatorsPanel({ currentOperatorId }: OperatorsPanelProps) {
             </div>
           </fieldset>
           <div className="flex flex-col gap-1">
-            <Label htmlFor="op-postazione">Postazione predefinita</Label>
+            <Label htmlFor="op-postazione">Accettazione predefinita</Label>
             <Select
               id="op-postazione"
               value={form.defaultWorkstationId}
@@ -341,7 +341,7 @@ export function OperatorsPanel({ currentOperatorId }: OperatorsPanelProps) {
               <option value="">Nessuna (scelta al login)</option>
               {(data?.workstations ?? []).map((w) => (
                 <option key={w.id} value={w.id}>
-                  {w.code} · {w.name}
+                  {w.name}
                 </option>
               ))}
             </Select>

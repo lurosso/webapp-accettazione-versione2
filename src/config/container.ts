@@ -163,6 +163,7 @@ export function createContainer(overrides: ContainerOverrides = {}): Container {
   const authService = new LocalAuthService({
     operators: repos.operators,
     referenceData: repos.referenceData,
+    claims: repos.workstationClaims,
     clock,
     logger,
     secret: sessionSecret,

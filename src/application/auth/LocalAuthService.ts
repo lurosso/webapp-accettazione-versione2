@@ -4,10 +4,15 @@ import { MIN_PASSWORD_LENGTH } from '@/config/constants';
 import { domainError, type DomainError } from '@/domain/errors';
 import type { Operator } from '@/domain/entities/operator';
 import type { Workstation } from '@/domain/entities/workstation';
+import { isClaimActive, type WorkstationClaim } from '@/domain/entities/workstation-claim';
 import { err, ok, type Result } from '@/domain/result';
 import { isoDateTime } from '@/domain/value-objects/iso-date';
 import { hashPassword, verifyPassword } from '@/lib/hash-password';
-import type { IOperatorRepository, IReferenceDataRepository } from '@/repositories/interfaces';
+import type {
+  IOperatorRepository,
+  IReferenceDataRepository,
+  IWorkstationClaimRepository,
+} from '@/repositories/interfaces';
 import type { IClock } from '@/services/interfaces/IClock';
 import type { ILogger } from '@/services/interfaces/ILogger';
 import type {
@@ -22,6 +27,8 @@ import { signSessionToken, verifySessionToken } from './session-token';
 export interface LocalAuthServiceDeps {
   readonly operators: IOperatorRepository;
   readonly referenceData: IReferenceDataRepository;
+  /** Accettazioni occupate: una per operatore, liberata al logout o alla scadenza della sessione. */
+  readonly claims: IWorkstationClaimRepository;
   readonly clock: IClock;
   readonly logger: ILogger;
   readonly secret: string;
@@ -53,9 +60,22 @@ export class LocalAuthService implements IAuthService {
       input.workstationId as Workstation['id'],
     );
     if (workstation === null) {
-      return err(domainError('VALIDATION', "Postazione non valida: selezionarne una dall'elenco."));
+      return err(
+        domainError('VALIDATION', "Accettazione non valida: selezionarne una dall'elenco."),
+      );
+    }
+    const occupata = await this.occupiedByOther(workstation, operator.id);
+    if (occupata !== null) {
+      return err(
+        domainError(
+          'VALIDATION',
+          `${workstation.name} è già in uso da ${occupata.operatorName}: scegli un'altra accettazione.`,
+          { workstationId: workstation.id },
+        ),
+      );
     }
     const issued = await this.issue(operator, workstation);
+    await this.claim(issued.session);
     this.logger.info('login riuscito', {
       operatorId: operator.id,
       role: operator.role,
@@ -116,7 +136,7 @@ export class LocalAuthService implements IAuthService {
     }
     const workstation = await this.deps.referenceData.findWorkstationById(session.workstationId);
     if (workstation === null) {
-      return err(domainError('VALIDATION', 'Postazione della sessione non più valida.'));
+      return err(domainError('VALIDATION', 'Accettazione della sessione non più valida.'));
     }
     const aggiornato = await this.deps.operators.update({
       ...operator,
@@ -124,7 +144,10 @@ export class LocalAuthService implements IAuthService {
       mustChangePassword: false,
     });
     this.logger.info('password cambiata', { operatorId: aggiornato.id });
-    return ok(await this.issue(aggiornato, workstation));
+    const issued = await this.issue(aggiornato, workstation);
+    // Il nuovo token ha una nuova scadenza: l'occupazione del posto la segue.
+    await this.claim(issued.session);
+    return ok(issued);
   }
 
   async switchWorkstation(
@@ -139,9 +162,55 @@ export class LocalAuthService implements IAuthService {
       workstationId as Workstation['id'],
     );
     if (workstation === null) {
-      return err(domainError('VALIDATION', 'Postazione non valida.'));
+      return err(domainError('VALIDATION', 'Accettazione non valida.'));
     }
-    return ok(await this.issue(operator, workstation));
+    const occupata = await this.occupiedByOther(workstation, operator.id);
+    if (occupata !== null) {
+      return err(
+        domainError('VALIDATION', `${workstation.name} è già in uso da ${occupata.operatorName}.`, {
+          workstationId: workstation.id,
+        }),
+      );
+    }
+    const issued = await this.issue(operator, workstation);
+    await this.claim(issued.session);
+    return ok(issued);
+  }
+
+  async logout(session: Session): Promise<void> {
+    const claim = await this.deps.claims.findByWorkstation(session.workstationId);
+    // Si libera solo il proprio posto: un cookie vecchio non deve buttare fuori un collega.
+    if (claim !== null && claim.operatorId === session.operatorId) {
+      await this.deps.claims.deleteByWorkstation(session.workstationId);
+    }
+  }
+
+  /** Occupazione valida di un ALTRO operatore sulla postazione, altrimenti null. */
+  private async occupiedByOther(
+    workstation: Workstation,
+    operatorId: Operator['id'],
+  ): Promise<WorkstationClaim | null> {
+    const claim = await this.deps.claims.findByWorkstation(workstation.id);
+    if (
+      claim === null ||
+      claim.operatorId === operatorId ||
+      !isClaimActive(claim, this.deps.clock.nowIso())
+    ) {
+      return null;
+    }
+    return claim;
+  }
+
+  /** Registra il posto della sessione; l'operatore lascia quello che occupava prima. */
+  private async claim(session: Session): Promise<void> {
+    await this.deps.claims.deleteByOperator(session.operatorId);
+    await this.deps.claims.upsert({
+      workstationId: session.workstationId,
+      operatorId: session.operatorId,
+      operatorName: session.displayName,
+      claimedAt: session.issuedAt,
+      expiresAt: session.expiresAt,
+    });
   }
 
   private async issue(operator: Operator, workstation: Workstation): Promise<IssuedSession> {

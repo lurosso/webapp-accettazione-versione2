@@ -3,6 +3,7 @@
 // Vista tablet dell'accettazione (modulo E): si usa in piedi accanto alle vetture, quindi niente
 // tabella. Ogni pratica è una scheda alta con i dati che servono a riconoscere l'auto e un solo
 // comando grande. Due schede: chi aspetta sul mio sportello e cosa ho già preso in carico io.
+import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useEffect, useState } from 'react';
 import { effectiveScheduleTime } from '@/domain/entities/appointment';
@@ -10,6 +11,7 @@ import type { QueueRowView } from '@/domain/read-models';
 import { compareByScheduleThenSequence } from '@/domain/value-objects/queue-code';
 import type { Session } from '@/application/auth/IAuthService';
 import { useAppointmentActions } from '@/hooks/useAppointmentActions';
+import { useTouchLayoutKind } from '@/hooks/useMediaQuery';
 import { useQueue } from '@/hooks/useQueue';
 import { localTimeHHmm } from '@/lib/dates';
 import { cn } from '@/lib/utils/cn';
@@ -31,6 +33,8 @@ type Scheda = 'attesa' | 'mie';
 
 export function TabletQueue({ session, homeDeskId, openCheckInFor = null }: TabletQueueProps) {
   const router = useRouter();
+  // Da un PC il check-in fotografico non si fa: la pagina lo dice invece di mostrare la fotocamera.
+  const dispositivo = useTouchLayoutKind();
   const [scheda, setScheda] = useState<Scheda>('attesa');
   const [inCheckIn, setInCheckIn] = useState<string | null>(openCheckInFor);
   const [conferma, setConferma] = useState<string | null>(null);
@@ -103,6 +107,27 @@ export function TabletQueue({ session, homeDeskId, openCheckInFor = null }: Tabl
     setInCheckIn(row.appointment.id);
     setScheda('mie');
   };
+
+  if (dispositivo === 'unknown') {
+    return null;
+  }
+  if (dispositivo === 'desktop') {
+    return (
+      <EmptyState
+        size="page"
+        title="Il check-in fotografico si fa dal tablet"
+        description="Da un PC non si scattano foto. La presa in carico e i dettagli della pratica sono nella coda accettazione; il giro fotografico del veicolo si apre dal tablet sul piazzale."
+        actions={
+          <Link
+            href="/accettazione"
+            className="bg-brand-secondary hover:bg-brand-blue-dark inline-flex min-h-11 items-center rounded-md px-4 text-sm font-semibold text-white"
+          >
+            Vai alla coda accettazione
+          </Link>
+        }
+      />
+    );
+  }
 
   return (
     <div className="flex flex-col gap-5">

@@ -139,8 +139,12 @@ Gli account si gestiscono da `/admin` (vedi sotto): l'amministratore ne crea di 
 li disattiva e azzera le password senza toccare il seed. Esiste anche il ruolo **Kiosk** per gli
 account dei dispositivi, che atterrano sul tabellone e non entrano nell'area operatore.
 
-Al login si scelgono **Sportello / Brand** e **Postazione** (P1–P4, ognuna con un'accettazione
-predefinita): determinano il filtro iniziale della coda e l'accettazione proposta alla presa in carico.
+Al login si scelgono **Sportello / Brand** e **Accettazione** (da 1 a 4, la postazione fisica con
+la sua campata): determinano il filtro iniziale della coda e l'accettazione proposta alla presa in
+carico. Vengono proposte **solo le accettazioni libere**: se un collega è già collegato
+all'Accettazione 1, o ha un veicolo in carico lì, agli altri non compare finché non esce (o la sua
+sessione scade) e la pagina lo dice ("Accettazione 1: in uso da Mario Rossi"). Il controllo lo fa
+anche il server, quindi due login sullo stesso posto non passano nemmeno chiamando l'API.
 
 ## Le dashboard
 
@@ -223,18 +227,21 @@ allo storage in memoria delle prime demo (e `MOCK_MEDIA_LATENCY_MS` ne regola l'
 
 ### La stessa app al banco e sul piazzale
 
-L'applicazione è una sola: cambia il comportamento, non l'interfaccia. La soglia è **1024 px**.
+L'applicazione è una sola: cambia il comportamento, non l'interfaccia. Il criterio è il
+**dispositivo**, non la larghezza dello schermo: un tablet si riconosce dal puntatore touch
+(`pointer: coarse`), così un iPad in orizzontale resta un tablet anche se è più largo di un monitor.
 
-- **Su tablet o telefono** (≤ 1024 px) "Prendi in carico" porta subito alla schermata di ispezione
-  fotografica della pratica: è quello che l'accettatore farà comunque arrivato alla vettura.
-- **Su monitor** (> 1024 px) "Prendi in carico" apre il pannello di dettaglio del cliente e si
-  resta sulla coda.
+- **Su tablet o telefono** "Prendi in carico" porta subito alla schermata di ispezione fotografica
+  della pratica, e il tocco su una riga apre i dettagli in una **finestra centrale** ariosa (codice
+  e targa grandi, campi a due colonne, pulsante Chiudi a tutta larghezza) pensata per il dito. Dal
+  dettaglio di una pratica in carico si passa al check-in con **Passa al check-in fotografico**.
+- **Su PC** "Prendi in carico" cambia lo stato e apre il pannello laterale del cliente: si resta
+  sulla coda e non compare nessun pulsante di check-in o fotocamera. La voce "Tablet" non c'è nel
+  menu e la pagina `/tablet`, se aperta a mano, spiega che il check-in si fa dal tablet.
 
-In entrambi i casi c'è una via d'uscita: dal pannello di dettaglio di una pratica in carico si
-apre l'ispezione a mano con **Passa al check-in / Ispeziona** (utile quando le foto arrivano per
-email), e dall'ispezione si esce con **Salta foto per ora**, che riporta alla coda lasciando la
-pratica in carico e le foto già scattate nel fascicolo: se piove o la vettura va spostata subito,
-il check-in si riprende dopo dalla scheda "Le mie prese in carico".
+Dall'ispezione si esce con **Salta foto per ora**, che riporta alla coda lasciando la pratica in
+carico e le foto già scattate nel fascicolo: se piove o la vettura va spostata subito, il check-in
+si riprende dopo dalla scheda "Le mie prese in carico".
 
 La coda è tarata anche per il dito: righe alte, pulsanti di almeno 44 × 44 px e riga interamente
 toccabile per aprire il dettaglio.

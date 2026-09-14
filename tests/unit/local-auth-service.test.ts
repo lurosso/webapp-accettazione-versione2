@@ -12,6 +12,7 @@ function setup() {
   const service = new LocalAuthService({
     operators: env.operators,
     referenceData: env.referenceData,
+    claims: env.workstationClaims,
     clock: env.clock,
     logger: env.logger,
     secret: SECRET,
@@ -267,5 +268,59 @@ describe('LocalAuthService: password provvisoria e cambio password', () => {
       // Appena creato: deve ancora scegliere la password.
       expect(claims.ok && claims.value.mustChangePassword).toBe(true);
     }
+  });
+});
+
+describe('LocalAuthService: accettazioni occupate', () => {
+  const login = (service: LocalAuthService, username: string, workstationId: string) =>
+    service.login({ username, password: 'demo', workstationId });
+
+  it('la stessa accettazione non può essere scelta da due operatori', async () => {
+    const { service } = setup();
+    expect((await login(service, 'mario.rossi', 'ws-p1')).ok).toBe(true);
+    const laura = await login(service, 'laura.bianchi', 'ws-p1');
+    expect(laura.ok).toBe(false);
+    if (!laura.ok) {
+      expect(laura.error.code).toBe('VALIDATION');
+      expect(laura.error.message).toContain('Accettazione 1');
+      expect(laura.error.message).toContain('Mario Rossi');
+    }
+    expect((await login(service, 'laura.bianchi', 'ws-p2')).ok).toBe(true);
+  });
+
+  it('lo stesso operatore rientra sul suo posto e, spostandosi, libera il precedente', async () => {
+    const { service } = setup();
+    expect((await login(service, 'mario.rossi', 'ws-p1')).ok).toBe(true);
+    expect((await login(service, 'mario.rossi', 'ws-p1')).ok).toBe(true);
+    expect((await login(service, 'mario.rossi', 'ws-p2')).ok).toBe(true);
+    // Il posto 1 è libero: Mario ora siede al 2.
+    expect((await login(service, 'laura.bianchi', 'ws-p1')).ok).toBe(true);
+    expect((await login(service, 'andrea.conti', 'ws-p2')).ok).toBe(false);
+  });
+
+  it("il logout libera l'accettazione, ma solo per chi la occupava", async () => {
+    const { service } = setup();
+    const mario = await login(service, 'mario.rossi', 'ws-p1');
+    const laura = await login(service, 'laura.bianchi', 'ws-p2');
+    if (!mario.ok || !laura.ok) {
+      throw new Error('login falliti');
+    }
+    // Laura esce con una sessione che punta al posto 2: il posto 1 di Mario non si tocca.
+    await service.logout({
+      ...laura.value.session,
+      workstationId: mario.value.session.workstationId,
+    });
+    expect((await login(service, 'andrea.conti', 'ws-p1')).ok).toBe(false);
+    await service.logout(mario.value.session);
+    expect((await login(service, 'andrea.conti', 'ws-p1')).ok).toBe(true);
+  });
+
+  it("una sessione scaduta libera l'accettazione da sola", async () => {
+    const { env, service } = setup();
+    expect((await login(service, 'mario.rossi', 'ws-p1')).ok).toBe(true);
+    expect((await login(service, 'laura.bianchi', 'ws-p1')).ok).toBe(false);
+    env.clock.advance(9 * 3_600_000);
+    expect((await login(service, 'laura.bianchi', 'ws-p1')).ok).toBe(true);
+    expect(await env.workstationClaims.listActive(env.clock.nowIso())).toHaveLength(1);
   });
 });

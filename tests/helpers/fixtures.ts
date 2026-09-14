@@ -24,6 +24,7 @@ import { InMemoryOperatorRepository } from '@/repositories/in-memory/InMemoryOpe
 import { InMemoryReferenceDataRepository } from '@/repositories/in-memory/InMemoryReferenceDataRepository';
 import { InMemoryStore } from '@/repositories/in-memory/InMemoryStore';
 import { InMemorySyncRunRepository } from '@/repositories/in-memory/InMemorySyncRunRepository';
+import { InMemoryWorkstationClaimRepository } from '@/repositories/in-memory/InMemoryWorkstationClaimRepository';
 import type { IClock } from '@/services/interfaces/IClock';
 import { MOCK_PHONE_RULES } from '@/services/interfaces/mock-config';
 import { NoopLogger } from '@/services/mocks/ConsoleLogger';
@@ -133,6 +134,7 @@ export function buildTestEnv(clock = new TestClock()) {
     operators: new InMemoryOperatorRepository(store),
     media: new InMemoryMediaRepository(store),
     syncRuns: new InMemorySyncRunRepository(store),
+    workstationClaims: new InMemoryWorkstationClaimRepository(store),
     crmOutbox,
     crm,
     crmNotifier,

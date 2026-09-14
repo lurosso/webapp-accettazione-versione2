@@ -6,7 +6,7 @@ import { redirect } from 'next/navigation';
 import { readSession } from '@/app/_server/session';
 import { BrandMark } from '@/components/layout/BrandMark';
 import { MIN_PASSWORD_LENGTH } from '@/config/constants';
-import { homePathForRole, safeInternalPath } from '@/lib/navigation';
+import { destinationAfterPasswordChange } from '@/lib/navigation';
 import { ChangePasswordForm } from '@/modules/reception/ChangePasswordForm';
 
 export const dynamic = 'force-dynamic';
@@ -22,8 +22,7 @@ export default async function ChangePasswordPage({ searchParams }: ChangePasswor
   if (session === null) {
     redirect('/login?next=%2Fcambia-password');
   }
-  const nextPath = safeInternalPath(params.next, '/');
-  const destinazione = nextPath === '/' ? homePathForRole(session.role) : nextPath;
+  const destinazione = destinationAfterPasswordChange(params.next, session.role);
 
   return (
     <main className="mx-auto flex min-h-screen w-full max-w-md flex-col justify-center gap-6 px-6 py-12">

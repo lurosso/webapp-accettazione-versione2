@@ -3,6 +3,7 @@
 import type { Metadata } from 'next';
 import { redirect } from 'next/navigation';
 import { readSession } from '@/app/_server/session';
+import { workstationAvailability, type BusyBay } from '@/application/auth/workstation-availability';
 import { getContainer } from '@/config/container';
 import { BrandMark } from '@/components/layout/BrandMark';
 import { isDemoPasswordHash } from '@/lib/hash-password';
@@ -11,6 +12,7 @@ import {
   LoginForm,
   type DemoAccount,
   type DeskOption,
+  type OccupiedWorkstationOption,
   type WorkstationOption,
 } from '@/modules/reception/LoginForm';
 
@@ -32,12 +34,31 @@ export default async function LoginPage({ searchParams }: LoginPageProps) {
   }
 
   const container = getContainer();
-  const [desks, workstations, brands, operators] = await Promise.all([
+  const now = container.clock.nowIso();
+  const [desks, workstations, brands, operators, claims, inCarico] = await Promise.all([
     container.repos.referenceData.listDesks(),
     container.repos.referenceData.listWorkstations(),
     container.repos.referenceData.listBrands(),
     container.repos.operators.listActive(),
+    container.repos.workstationClaims.listActive(now),
+    container.repos.appointments.listByDate(container.clock.today(), {
+      statuses: ['IN_PROGRESS'],
+    }),
   ]);
+
+  // Si propongono solo le accettazioni libere: né un collega collegato, né un veicolo in carico.
+  const busyBays: BusyBay[] = inCarico
+    .filter((a) => a.bayId !== null)
+    .map((a) => ({
+      bayId: a.bayId as string,
+      code: a.code,
+      operatorId: a.operatorId,
+      operatorName:
+        a.operatorId === null
+          ? null
+          : (operators.find((o) => o.id === a.operatorId)?.displayName ?? null),
+    }));
+  const disponibilita = workstationAvailability({ workstations, claims, busyBays, now });
 
   const deskOptions: DeskOption[] = desks
     .filter((d) => d.isActive)
@@ -47,11 +68,17 @@ export default async function LoginPage({ searchParams }: LoginPageProps) {
       name: d.name,
       brands: d.brandIds.map((id) => brands.find((b) => b.id === id)?.name ?? id),
     }));
-  const workstationOptions: WorkstationOption[] = workstations.map((w) => ({
+  const workstationOptions: WorkstationOption[] = disponibilita.free.map((w) => ({
     id: w.id,
     code: w.code,
     name: w.name,
     deskId: w.deskId,
+  }));
+  const occupiedOptions: OccupiedWorkstationOption[] = disponibilita.occupied.map((o) => ({
+    id: o.workstation.id,
+    name: o.workstation.name,
+    deskId: o.workstation.deskId,
+    reason: o.reason,
   }));
   // Suggerimenti visibili solo con il seed demo (mai in produzione: il container lo rifiuta).
   const demoAccounts: DemoAccount[] =
@@ -67,12 +94,13 @@ export default async function LoginPage({ searchParams }: LoginPageProps) {
         <BrandMark className="text-2xl" />
         <h1 className="text-2xl font-bold tracking-tight text-slate-900">Accettazione Officina</h1>
         <p className="text-sm text-slate-600">
-          Accedi con le tue credenziali e scegli la postazione.
+          Accedi con le tue credenziali e scegli l&apos;accettazione.
         </p>
       </header>
       <LoginForm
         desks={deskOptions}
         workstations={workstationOptions}
+        occupied={occupiedOptions}
         nextPath={nextPath}
         demoAccounts={demoAccounts}
       />

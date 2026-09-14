@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
   canAccess,
+  destinationAfterPasswordChange,
   homePathForRole,
   safeInternalPath,
   CHECK_IN_PARAM,
@@ -56,5 +57,29 @@ describe('checkInPath', () => {
 
   it('codifica gli identificativi con caratteri speciali', () => {
     expect(checkInPath('app/1 2')).toBe('/tablet?pratica=app%2F1%202');
+  });
+});
+
+describe('destinationAfterPasswordChange', () => {
+  it('torna alla pagina che si stava aprendo', () => {
+    expect(destinationAfterPasswordChange('/accettazione?view=global', 'ADVISOR')).toBe(
+      '/accettazione?view=global',
+    );
+    expect(destinationAfterPasswordChange(['/manager'], 'SUPERVISOR')).toBe('/manager');
+  });
+
+  it('senza destinazione va alla home del ruolo, mai restando sul cambio password o sul login', () => {
+    expect(destinationAfterPasswordChange(undefined, 'ADVISOR')).toBe('/accettazione');
+    expect(destinationAfterPasswordChange('/', 'ADMIN')).toBe('/admin');
+    expect(destinationAfterPasswordChange('/cambia-password', 'SUPERVISOR')).toBe('/manager');
+    expect(destinationAfterPasswordChange('/cambia-password?next=%2Fadmin', 'ADMIN')).toBe(
+      '/admin',
+    );
+    expect(destinationAfterPasswordChange('/login', 'ADVISOR')).toBe('/accettazione');
+  });
+
+  it('rifiuta destinazioni esterne', () => {
+    expect(destinationAfterPasswordChange('//evil.example.com', 'ADVISOR')).toBe('/accettazione');
+    expect(destinationAfterPasswordChange('https://evil.example.com', 'ADMIN')).toBe('/admin');
   });
 });

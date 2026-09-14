@@ -242,7 +242,7 @@ export class OperatorAdminService {
     if (workstationId !== null) {
       const ws = await this.deps.referenceData.findWorkstationById(asWorkstationId(workstationId));
       if (ws === null) {
-        return err(domainError('VALIDATION', 'Postazione sconosciuta.', { workstationId }));
+        return err(domainError('VALIDATION', 'Accettazione sconosciuta.', { workstationId }));
       }
     }
     return ok(undefined);

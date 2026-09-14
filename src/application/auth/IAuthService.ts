@@ -42,8 +42,13 @@ export interface IssuedSession {
 }
 
 export interface IAuthService {
-  /** Verifica credenziali e postazione; l'errore è sempre generico (nessuna enumerazione utenti). */
+  /**
+   * Verifica credenziali e accettazione; l'errore sulle credenziali è sempre generico (nessuna
+   * enumerazione utenti). Un'accettazione già in uso da un altro operatore viene rifiutata.
+   */
   login(input: LoginInput): Promise<Result<IssuedSession, DomainError>>;
+  /** Libera l'accettazione occupata dalla sessione (il cookie lo cancella il Route Handler). */
+  logout(session: Session): Promise<void>;
   /** Verifica firma e scadenza del token e RIVERIFICA l'operatore nel repository (ruolo, attivo). */
   verify(token: string): Promise<Result<Session, DomainError>>;
   /** Cambia postazione senza nuovo login: emette un nuovo token. */

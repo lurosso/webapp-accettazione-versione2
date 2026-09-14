@@ -69,10 +69,10 @@ export function QueueDashboard({
   );
   const queue = useQueue(params);
   const actions = useAppointmentActions();
-  // Flusso responsive: stessa applicazione, comportamento diverso secondo il dispositivo.
-  // Al banco la presa in carico apre il pannello di dettaglio e l'operatore resta sulla coda;
-  // sul piazzale, tablet in mano, porta direttamente all'ispezione fotografica, che è la cosa
-  // che l'accettatore farà comunque appena arrivato alla vettura.
+  // Separazione PC / tablet: stessa applicazione, comportamento diverso secondo il dispositivo.
+  // Al banco la presa in carico apre il pannello di dettaglio e l'operatore resta sulla coda,
+  // senza alcun passaggio alle foto (da un PC non si scattano); sul piazzale, tablet in mano,
+  // porta direttamente all'ispezione fotografica e il dettaglio si apre come finestra centrale.
   const touchLayout = useIsTouchLayout();
   // Aggiornamento immediato quando un collega tocca una pratica: il flusso porta il segnale, la
   // coda viene riletta. Il polling di 3 s resta attivo come rete di sicurezza.
@@ -347,7 +347,8 @@ export function QueueDashboard({
 
       <AppointmentDetailPanel
         row={selectedRow}
-        sheet={touchLayout}
+        presentation={touchLayout ? 'modal' : 'side'}
+        allowCheckIn={touchLayout}
         brandName={
           selectedRow === null
             ? ''

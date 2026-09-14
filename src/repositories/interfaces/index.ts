@@ -7,6 +7,7 @@ import type { INotificationRepository } from './INotificationRepository';
 import type { IOperatorRepository } from './IOperatorRepository';
 import type { IReferenceDataRepository } from './IReferenceDataRepository';
 import type { ISyncRunRepository } from './ISyncRunRepository';
+import type { IWorkstationClaimRepository } from './IWorkstationClaimRepository';
 
 export type {
   AppointmentFilter,
@@ -19,6 +20,7 @@ export type { INotificationRepository } from './INotificationRepository';
 export type { ISyncRunRepository } from './ISyncRunRepository';
 export type { ICrmOutboxRepository } from './ICrmOutboxRepository';
 export type { IMediaRepository } from './IMediaRepository';
+export type { IWorkstationClaimRepository } from './IWorkstationClaimRepository';
 
 /** Insieme dei repository esposto dal container. */
 export interface Repositories {
@@ -29,4 +31,5 @@ export interface Repositories {
   readonly syncRuns: ISyncRunRepository;
   readonly crmOutbox: ICrmOutboxRepository;
   readonly media: IMediaRepository;
+  readonly workstationClaims: IWorkstationClaimRepository;
 }

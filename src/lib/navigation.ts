@@ -47,6 +47,25 @@ export function canAccess(area: ProtectedArea, role: OperatorRole): boolean {
   return AREA_ROLES[area].includes(role);
 }
 
+/** Pagine da cui non ha senso "tornare" dopo il cambio password. */
+const NON_DESTINATIONS = ['/cambia-password', '/login'];
+
+/**
+ * Dove portare l'operatore dopo aver salvato la nuova password: la pagina che stava aprendo,
+ * oppure la home del suo ruolo se non c'era (o se era il login o il cambio password stesso).
+ * Non restituisce mai una pagina che lo lascerebbe dov'è.
+ */
+export function destinationAfterPasswordChange(
+  raw: string | string[] | undefined,
+  role: OperatorRole,
+): string {
+  const path = safeInternalPath(raw, '/');
+  if (path === '/' || NON_DESTINATIONS.some((p) => path.startsWith(p))) {
+    return homePathForRole(role);
+  }
+  return path;
+}
+
 /** Percorso interno sicuro per i redirect (mai verso un altro sito). */
 export function safeInternalPath(raw: string | string[] | undefined, fallback: string): string {
   const value = Array.isArray(raw) ? raw[0] : raw;

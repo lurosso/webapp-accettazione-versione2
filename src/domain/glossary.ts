@@ -33,7 +33,9 @@ export const GLOSSARY = [
   {
     it: 'postazione',
     en: 'Workstation',
-    note: "PC fisico dell'accettatore, scelto al login; Vista Multi-Postazione",
+    note:
+      "PC fisico dell'accettatore, scelto al login; Vista Multi-Postazione. A schermo si legge " +
+      '"Accettazione N", come la campata che le corrisponde (richiesta del committente, 2026-09-14).',
   },
   {
     it: 'targa',

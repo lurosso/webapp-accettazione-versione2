@@ -1,6 +1,8 @@
 'use client';
 
-// Form di login: nome utente, password, Sportello (con i marchi serviti) e Postazione.
+// Form di login: nome utente, password, Sportello (con i marchi serviti) e Accettazione.
+// Le accettazioni proposte sono solo quelle libere; quelle occupate compaiono come nota, così chi
+// arriva capisce perché "la sua" non c'è e a chi chiedere.
 // Invio a POST /api/v1/auth/login; in caso di successo redirect alla dashboard (o a `next`).
 import { useRouter } from 'next/navigation';
 import { useMemo, useState, type FormEvent } from 'react';
@@ -28,6 +30,14 @@ export interface WorkstationOption {
   readonly deskId: string;
 }
 
+/** Accettazione non selezionabile, con il motivo ("in uso da Mario Rossi"). */
+export interface OccupiedWorkstationOption {
+  readonly id: string;
+  readonly name: string;
+  readonly deskId: string;
+  readonly reason: string;
+}
+
 export interface DemoAccount {
   readonly username: string;
   readonly role: OperatorRole;
@@ -37,11 +47,18 @@ export interface DemoAccount {
 export interface LoginFormProps {
   readonly desks: readonly DeskOption[];
   readonly workstations: readonly WorkstationOption[];
+  readonly occupied?: readonly OccupiedWorkstationOption[];
   readonly nextPath: string;
   readonly demoAccounts: readonly DemoAccount[];
 }
 
-export function LoginForm({ desks, workstations, nextPath, demoAccounts }: LoginFormProps) {
+export function LoginForm({
+  desks,
+  workstations,
+  occupied = [],
+  nextPath,
+  demoAccounts,
+}: LoginFormProps) {
   const router = useRouter();
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
@@ -57,6 +74,10 @@ export function LoginForm({ desks, workstations, nextPath, demoAccounts }: Login
     () => workstations.filter((w) => w.deskId === deskId),
     [workstations, deskId],
   );
+  const deskOccupied = useMemo(
+    () => occupied.filter((w) => w.deskId === deskId),
+    [occupied, deskId],
+  );
 
   const onDeskChange = (nextDeskId: string): void => {
     setDeskId(nextDeskId);
@@ -68,7 +89,7 @@ export function LoginForm({ desks, workstations, nextPath, demoAccounts }: Login
     event.preventDefault();
     setError(null);
     if (workstationId === '') {
-      setError('Selezionare una postazione.');
+      setError("Selezionare un'accettazione libera.");
       return;
     }
     setSubmitting(true);
@@ -137,7 +158,7 @@ export function LoginForm({ desks, workstations, nextPath, demoAccounts }: Login
             ) : null}
           </div>
           <div className="flex flex-col gap-1.5">
-            <Label htmlFor="workstation">Postazione</Label>
+            <Label htmlFor="workstation">Accettazione</Label>
             <Select
               id="workstation"
               name="workstation"
@@ -146,14 +167,23 @@ export function LoginForm({ desks, workstations, nextPath, demoAccounts }: Login
               disabled={deskWorkstations.length === 0}
             >
               {deskWorkstations.length === 0 ? (
-                <option value="">Nessuna postazione per questo sportello</option>
+                <option value="">Nessuna accettazione libera per questo sportello</option>
               ) : null}
               {deskWorkstations.map((w) => (
                 <option key={w.id} value={w.id}>
-                  {w.code} · {w.name}
+                  {w.name}
                 </option>
               ))}
             </Select>
+            {deskOccupied.length > 0 ? (
+              <ul className="flex flex-col gap-0.5 text-xs text-slate-500" aria-live="polite">
+                {deskOccupied.map((w) => (
+                  <li key={w.id}>
+                    <span className="font-medium text-slate-600">{w.name}</span>: {w.reason}
+                  </li>
+                ))}
+              </ul>
+            ) : null}
           </div>
 
           {error !== null ? (
