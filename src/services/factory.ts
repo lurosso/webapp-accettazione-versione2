@@ -2,6 +2,7 @@
 // Per ogni porta legge <X>_PROVIDER con fallback su SERVICES_PROVIDER; il ramo "real"
 // lancia NotImplementedError all'avvio (fail-fast), mai a metà giornata.
 
+import { INFINITY_RESILIENCE } from '@/config/constants';
 import type { AppEnv } from '@/config/env';
 import type { Brand } from '@/domain/entities/brand';
 import type { Desk } from '@/domain/entities/desk';
@@ -22,6 +23,7 @@ import {
   SpokiServiceMock,
 } from './mocks';
 import { MediaStorageLocalDisk } from './real';
+import { InfinityServiceResilient } from './resilience';
 
 /** Tipo di implementazione selezionabile via env (definito in interfaces/provider-kinds). */
 export type { ProviderKind } from './interfaces/provider-kinds';
@@ -52,7 +54,7 @@ function notImplemented(portName: string, envKey: string): never {
 
 /** Costruisce le porte esterne in base all'ambiente. */
 export function createExternalServices(env: AppEnv, deps: ExternalServiceDeps): ExternalServices {
-  const infinity: IInfinityService =
+  const infinityAdapter: IInfinityService =
     env.infinityProvider === 'mock'
       ? new InfinityServiceMock(
           {
@@ -68,6 +70,15 @@ export function createExternalServices(env: AppEnv, deps: ExternalServiceDeps): 
           { clock: deps.clock, logger: deps.logger },
         )
       : notImplemented('Infinity', 'INFINITY_PROVIDER');
+
+  // Resilienza sulla porta Infinity: timeout, ripetizione sugli errori di rete e interruttore di
+  // circuito. Vale per il mock come per l'adapter reale, così il comportamento sotto guasto si
+  // prova oggi e non si scopre il giorno del passaggio in produzione.
+  const infinity: IInfinityService = new InfinityServiceResilient(
+    infinityAdapter,
+    { ...INFINITY_RESILIENCE, implementation: env.infinityProvider === 'mock' ? 'mock' : 'real' },
+    { clock: deps.clock, logger: deps.logger },
+  );
 
   const spoki: ISpokiService =
     env.spokiProvider === 'mock'

@@ -87,3 +87,46 @@ export const LATE_GRACE_MINUTES = 10;
 
 /** Dopo quanti ms un job di notifica IN_FLIGHT è considerato orfano (crash) e riprocessabile. */
 export const NOTIFICATION_IN_FLIGHT_STALE_MS = 5 * 60_000;
+
+/**
+ * Limiti di frequenza del login (per indirizzo e per nome utente, finestra di un minuto).
+ * Servono contro i tentativi a raffica sulla rete interna: otto errori al minuto sullo stesso
+ * utente sono un attacco o una tastiera rotta, in entrambi i casi meglio fermarsi un attimo.
+ */
+export const LOGIN_RATE_LIMIT = {
+  perIp: { limit: 30, windowMs: 60_000 },
+  perUser: { limit: 8, windowMs: 60_000 },
+} as const;
+
+/**
+ * Connessioni SSE aperte contemporaneamente. Un flusso tiene una connessione finché il client non
+ * chiude: sul server dell'officina il tetto evita che un solo indirizzo le esaurisca. Chi supera
+ * il limite riceve 503 e il client torna al polling.
+ */
+export const SSE_CONNECTION_LIMITS = {
+  public: { perClient: 6, total: 200 },
+  operator: { perClient: 12, total: 300 },
+} as const;
+
+/**
+ * Nuovi tentativi automatici della sincronizzazione dopo un fallimento (minuti dall'ultimo esito).
+ * Quattro tentativi in circa tre quarti d'ora coprono un DMS che riparte; oltre, resta il pulsante
+ * "Riprova" della dashboard, che è la via manuale prevista.
+ */
+export const SYNC_RETRY_BACKOFF_MINUTES = [2, 5, 10, 30] as const;
+
+/**
+ * Resilienza della porta Infinity: timeout per chiamata, ripetizioni sugli errori di rete e
+ * interruttore di circuito (dopo tre guasti consecutivi Infinity non viene chiamato per un
+ * minuto, poi una sola chiamata di prova).
+ */
+export const INFINITY_RESILIENCE = {
+  timeoutMs: 8_000,
+  retries: 2,
+  retryBaseDelayMs: 500,
+  failureThreshold: 3,
+  openForMs: 60_000,
+} as const;
+
+/** "Il turno si avvicina": quante pratiche del proprio sportello possono restare davanti. */
+export const TURN_APPROACHING_AHEAD = 2;

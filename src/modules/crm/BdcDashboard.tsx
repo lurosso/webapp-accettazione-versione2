@@ -16,6 +16,7 @@ import { queueKeys } from '@/lib/api-client/query-keys';
 import { bdcKeys, useBdcLeads, BDC_POLLING_MS } from '@/hooks/useBdcLeads';
 import { BdcLeadsTable } from './BdcLeadsTable';
 import { DailyReportPanel } from './DailyReportPanel';
+import { TableSkeleton } from '@/components/ui/skeleton';
 
 export interface BdcDashboardProps {
   readonly session: Session;
@@ -183,7 +184,7 @@ export function BdcDashboard({ session, businessDate, timeZone }: BdcDashboardPr
       ) : null}
 
       {query.isPending ? (
-        <p className="text-sm text-slate-500">Caricamento dei lead…</p>
+        <TableSkeleton rows={4} columns={7} label="Caricamento dei lead" />
       ) : (
         <BdcLeadsTable
           leads={data?.leads ?? []}

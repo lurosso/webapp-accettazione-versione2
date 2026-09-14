@@ -3,7 +3,6 @@
 // campata". Dipende solo da interfacce: identico con repository in-memory o Prisma.
 import {
   ACTIVE_QUEUE_STATUSES,
-  effectiveScheduleTime,
   isInQueue,
   type Appointment,
   type AppointmentStatus,
@@ -20,6 +19,7 @@ import type {
   QueueRowView,
   WaitingBoardView,
 } from '@/domain/read-models';
+import { countAheadInSameDesk } from '@/domain/queue-position';
 import { err, ok, type Result } from '@/domain/result';
 import type { IsoDate } from '@/domain/value-objects/iso-date';
 import { parsePlate, type PlateNumber } from '@/domain/value-objects/plate';
@@ -545,26 +545,9 @@ export class QueueService {
       }),
       this.deps.referenceData.listDesks(),
     ]);
-    const deskKey = (a: Appointment): string => {
-      if (a.deskId !== null) {
-        return a.deskId;
-      }
-      const desk = desks.find((d) => d.brandIds.includes(a.brandId));
-      // Senza sportello né marchio riconosciuto la pratica fa fila a sé: meglio un conteggio
-      // prudente che sommare clienti di sportelli diversi.
-      return desk?.id ?? `brand:${a.brandId}`;
-    };
-
-    const mioSportello = deskKey(appointment);
-    const mioOrario = effectiveScheduleTime(appointment);
-    return inQueue.filter(
-      (other) =>
-        other.id !== appointment.id &&
-        deskKey(other) === mioSportello &&
-        // A pari orario decide la sequenza del codice: l'ordine è quello della coda.
-        (effectiveScheduleTime(other) < mioOrario ||
-          (effectiveScheduleTime(other) === mioOrario && other.sequence < appointment.sequence)),
-    ).length;
+    // La regola vive nel dominio (`queue-position.ts`): la stessa che usa la policy dei
+    // messaggi per dire al cliente che il suo turno si avvicina.
+    return countAheadInSameDesk(appointment, inQueue, desks);
   }
 
   private belongsToDesk(a: Appointment, desk: Desk): boolean {

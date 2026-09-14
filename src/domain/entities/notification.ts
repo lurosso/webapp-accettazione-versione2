@@ -6,8 +6,24 @@ import type { IsoDate, IsoDateTime } from '../value-objects/iso-date';
 import type { PhoneE164 } from '../value-objects/phone';
 import type { QueueCode } from '../value-objects/queue-code';
 
-/** Tipo di messaggio. */
-export type NotificationKind = 'REMINDER_MORNING' | 'YOUR_TURN' | 'VEHICLE_READY' | 'CUSTOM';
+/**
+ * Tipo di messaggio.
+ * - REMINDER_MORNING: promemoria dopo la sincronizzazione dell'agenda;
+ * - BOOKING_CONFIRMED: pratica inserita a mano al banco (le pratiche dell'agenda hanno il promemoria);
+ * - TURN_APPROACHING: davanti al cliente restano poche pratiche del suo sportello;
+ * - YOUR_TURN: è il suo turno;
+ * - APPOINTMENT_CANCELLED: pratica annullata da una persona (non dalla chiusura automatica);
+ * - VEHICLE_READY: vettura pronta al ritiro;
+ * - CUSTOM: testo libero dell'operatore.
+ */
+export type NotificationKind =
+  | 'REMINDER_MORNING'
+  | 'BOOKING_CONFIRMED'
+  | 'TURN_APPROACHING'
+  | 'YOUR_TURN'
+  | 'APPOINTMENT_CANCELLED'
+  | 'VEHICLE_READY'
+  | 'CUSTOM';
 
 /** Canale di invio. */
 export type NotificationChannel = 'WHATSAPP' | 'SMS' | 'MANUAL';

@@ -2,9 +2,16 @@
 
 // Pulsanti d'azione rapida per riga, mostrati in base alle transizioni ammesse dalla state machine
 // (mai disabilitati da guasti esterni: solo dalle regole e dall'azione in corso sulla stessa riga).
+//
+// Le azioni di routine (prendi in carico, salta, completato) restano a un solo tocco: si fanno
+// decine di volte al giorno e una finestra di conferma le renderebbe insopportabili. "Segna
+// assente" è diverso: genera un lead per il BDC e un evento verso il CRM, e solo un responsabile
+// può riaprire la pratica. Per questo chiede un secondo tocco sullo stesso pulsante — una
+// conferma in linea, non una finestra — che dopo pochi secondi torna da sola allo stato iniziale.
+import { useEffect, useState } from 'react';
 import { canTransition } from '@/domain/appointment-state-machine';
 import type { Appointment } from '@/domain/entities/appointment';
-import { Button } from '@/components/ui/button';
+import { Button, type ButtonVariant } from '@/components/ui/button';
 import type { AppointmentAction } from './types';
 
 export interface ActionButtonsProps {
@@ -21,6 +28,20 @@ export interface ActionButtonsProps {
   readonly onAction: (action: AppointmentAction) => void;
 }
 
+/** Azioni che richiedono il secondo tocco, con il testo mostrato in attesa della conferma. */
+const CONFIRM_LABELS: Partial<Record<AppointmentAction, string>> = {
+  'no-show': 'Confermi assente?',
+};
+
+/** Dopo quanto la richiesta di conferma decade da sola. */
+const CONFIRM_TIMEOUT_MS = 6_000;
+
+interface ActionSpec {
+  readonly action: AppointmentAction;
+  readonly label: string;
+  readonly variant: ButtonVariant;
+}
+
 export function ActionButtons({
   appointment,
   pending,
@@ -29,11 +50,18 @@ export function ActionButtons({
   onAction,
 }: ActionButtonsProps) {
   const { status } = appointment;
-  const buttons: {
-    readonly action: AppointmentAction;
-    readonly label: string;
-    readonly variant: 'warning' | 'success' | 'outline' | 'ghost' | 'destructive';
-  }[] = [];
+  const [confirming, setConfirming] = useState<AppointmentAction | null>(null);
+
+  // La conferma non deve restare appesa: se l'accettatore si distrae, il pulsante torna normale.
+  useEffect(() => {
+    if (confirming === null) {
+      return undefined;
+    }
+    const timer = setTimeout(() => setConfirming(null), CONFIRM_TIMEOUT_MS);
+    return () => clearTimeout(timer);
+  }, [confirming]);
+
+  const buttons: ActionSpec[] = [];
 
   if (canTransition(status, 'IN_PROGRESS')) {
     buttons.push({
@@ -68,20 +96,43 @@ export function ActionButtons({
     return <span className="text-xs text-slate-400">—</span>;
   }
 
+  const onClick = (spec: ActionSpec): void => {
+    const richiedeConferma = CONFIRM_LABELS[spec.action] !== undefined;
+    if (richiedeConferma && confirming !== spec.action) {
+      setConfirming(spec.action);
+      return;
+    }
+    setConfirming(null);
+    onAction(spec.action);
+  };
+
   return (
     <div className="flex flex-wrap items-center gap-2">
-      {buttons.map((b) => (
-        <Button
-          key={b.action}
-          size="touch"
-          variant={b.variant}
-          disabled={pending}
-          onClick={() => onAction(b.action)}
-          aria-label={`${b.label} pratica ${appointment.code}`}
-        >
-          {b.label}
+      {buttons.map((b) => {
+        const inConferma = confirming === b.action;
+        return (
+          <Button
+            key={b.action}
+            size="touch"
+            variant={inConferma ? 'destructive' : b.variant}
+            disabled={pending}
+            onClick={() => onClick(b)}
+            aria-label={
+              inConferma
+                ? `Conferma: ${b.label.toLowerCase()} pratica ${appointment.code}`
+                : `${b.label} pratica ${appointment.code}`
+            }
+            className={inConferma ? 'ring-2 ring-red-300 ring-offset-1' : undefined}
+          >
+            {inConferma ? CONFIRM_LABELS[b.action] : b.label}
+          </Button>
+        );
+      })}
+      {confirming !== null ? (
+        <Button size="touch" variant="ghost" onClick={() => setConfirming(null)}>
+          Annulla
         </Button>
-      ))}
+      ) : null}
     </div>
   );
 }

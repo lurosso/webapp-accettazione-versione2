@@ -1,9 +1,28 @@
 // POST /api/v1/auth/login: verifica credenziali e postazione, imposta il cookie di sessione.
+// Limiti di frequenza per indirizzo e per nome utente: una raffica di tentativi sulla rete
+// interna viene fermata dopo pochi errori, con l'indicazione di quando riprovare.
 import { NextResponse, type NextRequest } from 'next/server';
 import { z } from 'zod';
+import { LOGIN_RATE_LIMIT } from '@/config/constants';
 import { getContainer } from '@/config/container';
 import { badRequestResponse, domainErrorResponse } from '@/lib/http/api-error';
+import { clientIpFrom, hitRateLimit } from '@/lib/http/rate-limit';
 import { setSessionCookie } from '@/app/_server/session';
+
+function tooManyAttempts(retryAfterSeconds: number): NextResponse {
+  return NextResponse.json(
+    {
+      error: {
+        code: 'RATE_LIMITED' as const,
+        message: `Troppi tentativi di accesso: riprova fra ${retryAfterSeconds} secondi.`,
+      },
+    },
+    {
+      status: 429,
+      headers: { 'retry-after': String(retryAfterSeconds), 'cache-control': 'no-store' },
+    },
+  );
+}
 
 export const dynamic = 'force-dynamic';
 
@@ -14,10 +33,23 @@ const LoginBody = z.object({
 });
 
 export async function POST(request: NextRequest): Promise<NextResponse> {
+  const perIp = hitRateLimit(`login-ip:${clientIpFrom(request.headers)}`, LOGIN_RATE_LIMIT.perIp);
+  if (!perIp.allowed) {
+    return tooManyAttempts(perIp.retryAfterSeconds);
+  }
   const raw: unknown = await request.json().catch(() => null);
   const parsed = LoginBody.safeParse(raw);
   if (!parsed.success) {
     return badRequestResponse('Dati di login non validi.', { issues: parsed.error.issues });
+  }
+  // Conta per utente solo i tentativi che arrivano a verificare la password: i più costosi e i
+  // soli utili a chi prova a indovinarla.
+  const perUser = hitRateLimit(
+    `login-user:${parsed.data.username.toLowerCase()}`,
+    LOGIN_RATE_LIMIT.perUser,
+  );
+  if (!perUser.allowed) {
+    return tooManyAttempts(perUser.retryAfterSeconds);
   }
   const result = await getContainer().authService.login(parsed.data);
   if (!result.ok) {

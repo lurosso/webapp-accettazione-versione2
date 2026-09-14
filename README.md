@@ -262,6 +262,35 @@ endpoint. Per questo esistono due canali — `/api/v1/events/stream` per l'area 
 `/api/v1/public/events/stream` per gli schermi pubblici, che ricevono solo il tipo dell'evento e
 nessun identificativo.
 
+## Quando qualcosa va storto
+
+**Infinity non risponde.** La porta verso il DMS è avvolta da un interruttore di circuito: dopo tre
+guasti di rete consecutivi il sistema smette di chiamarlo per un minuto (l'health check lo dice:
+"circuito aperto"), poi fa una sola chiamata di prova e, se risponde, riparte. Una sincronizzazione
+fallita viene ritentata da sola dopo 2, 5, 10 e 30 minuti; se anche l'ultimo tentativo fallisce
+resta il pulsante **Riprova sync** in dashboard. Nel frattempo l'officina lavora sulla coda che ha.
+
+**Un provider di messaggi non risponde.** I messaggi al cliente partono dagli eventi (pratica
+inserita a mano, turno che si avvicina, annullamento deciso da una persona) e sempre fuori dal
+percorso della richiesta che li ha generati: la presa in carico non aspetta WhatsApp. Il ripiego
+WhatsApp → SMS → contatto manuale resta quello del promemoria del mattino.
+
+**Una schermata va in errore.** L'area operatore mostra il problema dentro l'applicazione, con
+"Riprova" e "Torna alla coda"; un monitor mostra uno schermo giallo "MONITOR IN RIPRISTINO" e si
+riavvia da solo dopo venti secondi.
+
+## Perimetro pubblico
+
+Portale QR, tabellone e monitor sono pubblici e devono restarlo. Per questo il canale pubblico può
+solo **leggere**: nessuna rotta sotto `/api/v1/public/` accetta mutazioni, gli identificativi sono
+UUID non enumerabili, il portale cerca per targa e le risposte non contengono nomi né telefoni.
+Ogni rotta pubblica ha un limite di frequenza; il flusso eventi ha un tetto alle connessioni aperte
+per indirizzo (oltre, 503 e lo schermo resta sul polling). Il login ha un limite per indirizzo e
+per utente (429 con `Retry-After`). I segreti — token dei monitor, chiave del cron — si
+confrontano a tempo costante, e con `DISPLAY_TOKEN_REQUIRED=true` i monitor devono presentare il
+proprio token. Le risposte portano le intestazioni di sicurezza standard (niente sniffing del
+tipo, niente inclusione in pagine esterne, fotocamera solo per la stessa origine).
+
 ## Fine giornata e coda verso il CRM
 
 **Chiusura giornata.** A officina chiusa il responsabile preme *Esegui chiusura giornata* nel

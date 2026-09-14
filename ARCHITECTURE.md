@@ -214,9 +214,9 @@ webapp-accettazione-versione2/
     │   ├── inspection-media/          # E – [M5 fatti] TabletQueue (due schede, pulsanti grandi), CheckInScreen (scheda a tutto schermo, note danni, chiusura bloccata senza le 4 foto), PhotoCapture (slot per parte del veicolo, fotocamera + anteprima in caricamento), MediaGallery (note e foto raggruppate per categoria, ingrandimento a tutto schermo); UploadQueue da fare
     │   └── crm/                       # F – [M6/M7 fatti] BdcDashboard (cruscotto del back office, con chiusura di giornata), BdcLeadsTable, CrmOutboxTable (coda di uscita nel pannello Sistema) e DailyReportPanel (statistiche del giorno ed export CSV); AnomalyLog da fare
     ├── components/
-    │   ├── ui/                        # primitive scritte a mano stile shadcn (nessuna dipendenza): Button, Badge, Card, Input, Label, Select, Table, Alert, Dialog
+    │   ├── ui/                        # primitive scritte a mano stile shadcn (nessuna dipendenza): Button, Badge, Card, Input, Label, Select, Table, Alert, Dialog, Skeleton
     │   ├── layout/                    # [M1 fatti] AppShell, Header (identità, ruolo, postazione, orologio Europe/Rome, logout), BrandMark (marchio Autoclub Group in CSS, senza file immagine); SystemStatusBanner rinviato; indicatore dati non aggiornati inline in QueueDashboard
-    │   └── shared/                    # [fatti] OperatorChip, PlaceholderPage, AccessDenied; ErrorBoundary, EmptyState e OfflineBanner da fare
+    │   └── shared/                    # [fatti] OperatorChip, PlaceholderPage, AccessDenied, EmptyState; error boundary per area in app/(operator)/error.tsx e app/(display)/error.tsx; OfflineBanner da fare
     ├── hooks/                         # [fatti] useQueue (3 s), useAppointmentActions (con onSuccess per il flusso responsive), usePublicStatus (5 s), useBayDisplay e useWaitingBoard (2 s, scollegato dopo 3 tentativi), useBdcLeads (10 s), useMediaQuery/useIsTouchLayout (soglia 1024 px), useLiveUpdates (SSE + invalidazione query, polling come rete di sicurezza)
     ├── store/                         # (rinviato) ui-store zustand: oggi vista e sportello vivono nei search param dell'URL (?view=&deskId=)
     ├── domain/                        # PURO: entità, value object, state machine, eventi, errori, read model   [SCAFFOLD]
@@ -228,7 +228,8 @@ webapp-accettazione-versione2/
     │   ├── entities/                  # brand, desk, workstation, bay, operator, customer, vehicle, appointment, notification, media-asset, sync-run, crm-outbox-event
     │   ├── appointment-state-machine.ts   # tabella transizioni, canTransition(), assertTransition()
     │   ├── events.ts                  # DomainEvent (unione discriminata) con seq
-    │   ├── read-models.ts             # QueuePositionView, BayDisplayView, QueueRowView
+    │   ├── read-models.ts             # QueuePositionView, BayDisplayView, QueueRowView, BdcLeadView, CrmOutboxRowView
+    │   ├── queue-position.ts          # regola dei "clienti prima di te" per sportello: unica per portale, coda e messaggi al cliente
     │   └── index.ts
     ├── services/                      # PORTE verso sistemi esterni (ports & adapters)   [SCAFFOLD]
     │   ├── interfaces/                # common.ts, IInfinityService, ISpokiService, ISmsHostingService, ICrmService, IClock, IIdGenerator, ILogger, IEventBus, IMediaStorage,
@@ -240,7 +241,7 @@ webapp-accettazione-versione2/
     │   │   │                          # simulate.ts (latenza simulata e rispetto di AbortSignal, condiviso dai mock)
     │   │   └── data/                  # seeded-random.ts, italian-names.ts, brands-models.ts, plates.ts, phones.ts
     │   ├── real/                      # [M5 fatto] MediaStorageLocalDisk (file sotto .data/uploads, scrittura atomica, chiavi confinate); *ServiceHttp (M7) dietro le stesse interfacce
-    │   ├── resilience/                # .gitkeep: withTimeout, retry con jitter (M3)
+    │   ├── resilience/                # [fatto 2026-09-14] circuit-breaker.ts, retry.ts (jitter, solo errori retryable), InfinityServiceResilient (decoratore applicato dal factory)
     │   └── factory.ts                 # createExternalServices(env, deps): unico importatore di mocks/ e real/
     ├── repositories/                  # persistenza interna   [SCAFFOLD: interfacce + in-memory]
     │   ├── interfaces/                # IAppointmentRepository, IOperatorRepository, IReferenceDataRepository, INotificationRepository, ISyncRunRepository, ICrmOutboxRepository, IMediaRepository
@@ -248,7 +249,7 @@ webapp-accettazione-versione2/
     │   ├── prisma/                    # .gitkeep: implementazione DB futura
     │   └── factory.ts                 # createRepositories(env, deps: { clock, store? }): memory | prisma (prisma → NotImplemented)
     ├── application/                   # casi d'uso: logica reale, mai mockata, nessun import di adapter
-    │   ├── notifications/             # C – [M3 fatti] NotificationOrchestrator (WhatsApp → SMS → contatto manuale; sendMorningReminders agganciato alla sync), templates.ts
+    │   ├── notifications/             # C – [M3 fatti] NotificationOrchestrator (WhatsApp → SMS → contatto manuale; sendMorningReminders agganciato alla sync), templates.ts, CustomerMessagingPolicy (eventi del bus → conferma inserimento, turno vicino, annullamento; lavoro fuori dal chiamante)
     │   ├── health/                    # check-health.ts: aggregateHealth(), checkExternalHealth(ports, { clock, kinds, correlationId? }) con timeout locale 2000 ms; tipo locale ExternalHealthPorts (solo interfacce, nessun import dal factory); isStartupError()   [BOOTSTRAP]
     │   ├── queue/                     # [M1/M2/M4] QueueService (coda, transizioni, campate, no-show con outbox CRM, rimessa in coda, conteggio per sportello, display, tabellone) e CodeGenerator
     │   ├── sync/                      # [M1/M7] SyncService (idempotente, non distruttivo, lock per giornata) e SyncScheduler: apre la giornata (sync 06:00 con catch-up) e la chiude dopo BUSINESS_DAY_END_TIME (19:00), una volta sola e solo se resta qualcosa di aperto
@@ -267,9 +268,9 @@ webapp-accettazione-versione2/
     │   ├── hash.ts                    # fnv1a32 per seed deterministici   [SCAFFOLD]
     │   ├── hash-password.ts           # [M1 fatto] scrypt (node:crypto) hashPassword/verifyPassword a tempo costante; prefisso demo `plain:` solo sviluppo
     │   ├── utils/cn.ts                # [M1 fatto] concatenazione classi CSS (sostituisce clsx/tailwind-merge)
-    │   ├── http/                      # [M1/M2] api-error.ts (DomainError → HTTP), rate-limit.ts (finestra scorrevole per IP e targa); with-logging.ts e idempotency.ts rinviati
+    │   ├── http/                      # [M1/M2] api-error.ts (DomainError → HTTP), rate-limit.ts (finestra scorrevole per IP, targa, login), secrets.ts (confronto a tempo costante); with-logging.ts e idempotency.ts rinviati
     │   ├── api-client/                # [M1/M5 fatto] client.ts (apiFetch con timeout 8 s e ApiError, fetchQueue, postAppointmentAction, postSync, postLogin/postLogout, uploadInspectionPhoto con FormData e timeout 30 s, fetchInspectionPhotos, postCheckIn) e query-keys.ts
-    │   └── realtime/                  # [M7 fatto] sse.ts: costruzione del flusso SSE dal bus (id: seq, resume via Last-Event-ID, battito 15 s) e segnali senza dati personali
+    │   └── realtime/                  # [M7 fatto] sse.ts (flusso SSE dal bus: id: seq, resume via Last-Event-ID, battito 15 s, segnali senza dati personali) e connection-guard.ts (tetto alle connessioni per indirizzo e complessive)
     └── types/                         # .gitkeep: dichiarazioni globali future (nessun `declare var process`)
 ```
 
@@ -487,6 +488,9 @@ Glossario tecnico (termini inglesi ammessi nella prosa perché identificatori o 
 | **016** Le quattro riprese del giro veicolo sono un invariante del caso d'uso, non solo una regola della UI | `MediaAsset.category`; `InspectionService.completeCheckIn` rifiuta con `VALIDATION` e l'elenco delle mancanti; il tablet disabilita il pulsante e dice cosa manca | Solo controllo nella UI (una seconda scheda aperta, un tablet vecchio o una chiamata diretta chiuderebbero la pratica a metà); nessun obbligo | Al ritiro, se il cliente contesta un danno, il fascicolo ha sempre le quattro fiancate: è la ragione per cui l'obbligo esiste |
 | **017** Un'unica applicazione che cambia comportamento con la larghezza dello schermo, non due app | `useIsTouchLayout()` (≤ 1024 px): "Prendi in carico" porta all'ispezione su tablet e apre il pannello di dettaglio su schermo grande; la destinazione è decisa nell'`onSuccess` dell'azione; vie d'uscita in entrambe le direzioni ("Passa al check-in", "Salta foto per ora") | Applicazione tablet separata (due basi di codice, due sessioni, due volte i bug); stesso identico flusso ovunque (al banco porterebbe fuori dalla coda senza motivo) | Una sola coda, una sola sessione, un solo insieme di regole; il dispositivo cambia solo la scorciatoia, mai quello che il sistema permette di fare |
 | **018** Nella coda di uscita si archivia il payload esatto inviato al CRM, e i rinvii si fermano | `CrmOutboxEvent.payload` = DTO consegnato (le parole dell'operatore in `operatorNote`); attesa progressiva 1-5-15-60-240 min, `CRM_MAX_ATTEMPTS` = 6, poi `FAILED` con `nextAttemptAt = null` (= non riprovare più) | Ricostruire il payload dalla pratica a ogni rinvio (la pratica intanto cambia: il CRM riceverebbe un fatto diverso da quello accaduto); riprovare all'infinito (un CRM giù terrebbe il processo a girare a vuoto) | Il CRM riceve quello che è successo quando è successo; un guasto lungo si ferma da solo e diventa una riga nel pannello Sistema, dove una persona decide |
+| **019** Resilienza come decoratore della porta, non come codice nel caso d'uso | `InfinityServiceResilient` avvolge l'adapter scelto dal factory: timeout, ripetizione con jitter sui soli errori `retryable`, interruttore di circuito (3 guasti → 60 s senza chiamate → una prova). La sync fallita viene ritentata dallo scheduler con attesa crescente | Retry dentro `SyncService` (varrebbe solo per la sync, non per la ricerca per targa né per l'health); nessun interruttore (un DMS giù verrebbe chiamato a ogni tick, ogni chiamata aspettando il proprio timeout) | La regola "non martellare un sistema che non risponde" appartiene alla porta e vale per il mock come per l'adapter reale: il comportamento sotto guasto si prova oggi |
+| **020** Messaggi al cliente guidati dagli eventi e sempre fuori dal percorso della richiesta | `CustomerMessagingPolicy` ascolta il bus; il lavoro parte al giro successivo dell'event loop; regole: conferma solo per inserimenti manuali, "turno vicino" entro 2 pratiche dello stesso sportello (idempotente per giornata), annullamento solo se deciso da una persona | Chiamare Spoki dentro `QueueService` (la presa in carico aspetterebbe WhatsApp; l'officina si fermerebbe con il provider giù); messaggio a ogni cambio di stato (rumore) | Coda e sync non sanno nulla di WhatsApp; un provider lento o giù non rallenta chi lavora al banco; le regole sui momenti giusti stanno in un posto solo |
+| **021** Il canale pubblico si difende con tetti, non con segreti | Nessuna mutazione sotto `public/`; UUID; ricerca per targa; limiti di frequenza; tetto alle connessioni SSE (503 → il client resta sul polling); token dei monitor verificato a tempo costante e obbligatorio a scelta (`DISPLAY_TOKEN_REQUIRED`) | Autenticare i kiosk con credenziali (una password su uno schermo appeso al muro finisce su un post-it); nessun tetto (una postazione impazzita esaurisce le connessioni del server) | Il pubblico può solo leggere ciò che vedrebbe comunque dallo schermo, e non può consumare risorse oltre un limite noto |
 
 ## 9. Rischi e domande aperte per il committente
 

@@ -7,7 +7,9 @@
 // Un solo timer per processo. La chiusura automatica è deliberatamente prudente: una volta sola
 // al giorno e solo se c'è davvero qualcosa da chiudere, perché tocca decine di pratiche e in quel
 // momento non la sta guardando nessuno.
+import { SYNC_RETRY_BACKOFF_MINUTES } from '@/config/constants';
 import { ACTIVE_QUEUE_STATUSES } from '@/domain/entities/appointment';
+import type { SyncRun } from '@/domain/entities/sync-run';
 import type { IsoDate } from '@/domain/value-objects/iso-date';
 import { localTimeHHmm } from '@/lib/dates';
 import type { IAppointmentRepository, ISyncRunRepository } from '@/repositories/interfaces';
@@ -41,6 +43,8 @@ export class SyncScheduler {
   private ticking = false;
   /** Giornata per cui la chiusura automatica è già stata valutata: si fa una volta sola. */
   private lastClosedDate: IsoDate | null = null;
+  /** Nuovi tentativi automatici già fatti per una sync fallita, per giornata. */
+  private readonly syncRetries = new Map<IsoDate, number>();
 
   constructor(private readonly deps: SyncSchedulerDeps) {
     this.logger = deps.logger.child('[Scheduler]');
@@ -90,11 +94,12 @@ export class SyncScheduler {
         return;
       }
       const latest = await this.deps.syncRuns.findLatest(today);
-      if (latest !== null) {
+      if (latest === null) {
+        this.logger.info(`nessuna sync per ${today}: avvio ${trigger}`);
+        await this.deps.syncService.runDailySync(today, trigger);
         return;
       }
-      this.logger.info(`nessuna sync per ${today}: avvio ${trigger}`);
-      await this.deps.syncService.runDailySync(today, trigger);
+      await this.retryFailedSyncIfDue(today, latest, now);
     } catch (error) {
       this.logger.error('tick fallito', {
         message: error instanceof Error ? error.message : String(error),
@@ -102,6 +107,32 @@ export class SyncScheduler {
     } finally {
       this.ticking = false;
     }
+  }
+
+  /**
+   * Sync fallita (Infinity irraggiungibile): si riprova da soli con attesa crescente, per un
+   * numero finito di volte. Prima, una sync fallita alle 06:00 restava tale finché qualcuno non
+   * premeva "Riprova" in dashboard: se il DMS ripartiva alle 06:10, l'officina apriva senza agenda
+   * per pura distrazione. Esauriti i tentativi resta il pulsante, che è la via manuale prevista.
+   */
+  private async retryFailedSyncIfDue(today: IsoDate, latest: SyncRun, now: Date): Promise<void> {
+    if (latest.status !== 'FAILED' || latest.finishedAt === null) {
+      return;
+    }
+    const fatti = this.syncRetries.get(today) ?? 0;
+    const attesaMinuti = SYNC_RETRY_BACKOFF_MINUTES[fatti];
+    if (attesaMinuti === undefined) {
+      return;
+    }
+    const trascorsiMs = now.getTime() - new Date(latest.finishedAt).getTime();
+    if (trascorsiMs < attesaMinuti * 60_000) {
+      return;
+    }
+    this.syncRetries.set(today, fatti + 1);
+    this.logger.warn(
+      `sync fallita per ${today} (${latest.errorCode ?? 'errore'}): nuovo tentativo automatico ${fatti + 1}/${SYNC_RETRY_BACKOFF_MINUTES.length}`,
+    );
+    await this.deps.syncService.runDailySync(today, 'RETRY');
   }
 
   /**

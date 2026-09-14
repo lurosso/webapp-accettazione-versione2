@@ -9,6 +9,7 @@ import { CrmOutboxService } from '@/application/crm/CrmOutboxService';
 import { CrmRetryScheduler } from '@/application/crm/CrmRetryScheduler';
 import { InspectionService } from '@/application/media/InspectionService';
 import { DailyReportService } from '@/application/reporting/DailyReportService';
+import { CustomerMessagingPolicy } from '@/application/notifications/CustomerMessagingPolicy';
 import { NotificationOrchestrator } from '@/application/notifications/NotificationOrchestrator';
 import { CodeGenerator } from '@/application/queue/CodeGenerator';
 import { QueueService } from '@/application/queue/QueueService';
@@ -53,6 +54,7 @@ export interface Container {
   readonly crmRetryScheduler: CrmRetryScheduler;
   readonly inspectionService: InspectionService;
   readonly dailyReportService: DailyReportService;
+  readonly messagingPolicy: CustomerMessagingPolicy;
   readonly syncService: SyncService;
   readonly syncScheduler: SyncScheduler;
 }
@@ -138,6 +140,19 @@ export function createContainer(overrides: ContainerOverrides = {}): Container {
     eventBus,
     timeZone: env.timeZone,
   });
+
+  // Messaggi al cliente guidati dagli eventi: ascolta il bus e manda conferme, "turno vicino" e
+  // annullamenti senza che coda o sync sappiano nulla di WhatsApp.
+  const messagingPolicy = new CustomerMessagingPolicy({
+    eventBus,
+    appointments: repos.appointments,
+    referenceData: repos.referenceData,
+    orchestrator: notificationOrchestrator,
+    ids,
+    logger,
+    enabled: env.messagingTriggersEnabled,
+  });
+  messagingPolicy.start();
 
   const authService = new LocalAuthService({
     operators: repos.operators,
@@ -268,6 +283,7 @@ export function createContainer(overrides: ContainerOverrides = {}): Container {
     crmRetryScheduler,
     inspectionService,
     dailyReportService,
+    messagingPolicy,
     syncService,
     syncScheduler,
   };
@@ -294,6 +310,7 @@ export function getContainer(): Container {
     // Codice ricaricato: si sostituisce il cablaggio e si spostano i timer sui nuovi scheduler.
     existing.syncScheduler.stop();
     existing.crmRetryScheduler.stop();
+    existing.messagingPolicy.stop();
     const rebuilt = createContainer();
     g[GLOBAL_KEY] = rebuilt;
     if (g[SCHEDULER_STARTED_KEY] === true) {
@@ -317,6 +334,7 @@ export function resetContainerForTests(): void {
   if (isContainer(existing)) {
     existing.syncScheduler.stop();
     existing.crmRetryScheduler.stop();
+    existing.messagingPolicy.stop();
   }
   delete g[GLOBAL_KEY];
   InMemoryStore.getGlobal().reset();

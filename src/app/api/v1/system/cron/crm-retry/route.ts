@@ -12,6 +12,7 @@ import { NextResponse, type NextRequest } from 'next/server';
 import { correlationIdFrom, readApiSession } from '@/app/_server/session';
 import { getContainer } from '@/config/container';
 import { forbiddenResponse } from '@/lib/http/api-error';
+import { secretsMatch } from '@/lib/http/secrets';
 import { canAccess } from '@/lib/navigation';
 
 export const dynamic = 'force-dynamic';
@@ -21,7 +22,8 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
   const correlationId = correlationIdFrom(request);
   const segreto = container.env.cronSecret;
   const fornito = request.headers.get('x-cron-secret');
-  const daCron = segreto !== null && fornito !== null && fornito === segreto;
+  // Confronto a tempo costante: un `===` risponderebbe più in fretta ai prefissi giusti.
+  const daCron = secretsMatch(fornito, segreto);
 
   if (!daCron) {
     const session = await readApiSession(request);

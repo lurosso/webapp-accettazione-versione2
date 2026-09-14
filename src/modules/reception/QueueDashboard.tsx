@@ -12,6 +12,8 @@ import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Dialog } from '@/components/ui/dialog';
 import { Select } from '@/components/ui/select';
+import { TableSkeleton } from '@/components/ui/skeleton';
+import { EmptyState } from '@/components/shared/EmptyState';
 import { STALE_WARNING_MS } from '@/config/constants';
 import { useAppointmentActions } from '@/hooks/useAppointmentActions';
 import { useLiveUpdates } from '@/hooks/useLiveUpdates';
@@ -286,28 +288,31 @@ export function QueueDashboard({
 
       {data !== undefined ? (
         data.rows.length === 0 ? (
-          <div className="rounded-xl border border-dashed border-slate-300 bg-white px-6 py-12 text-center">
-            <p className="text-lg font-semibold">Nessuna pratica per oggi</p>
-            <p className="mt-1 text-sm text-slate-600">
-              {lastSync === null
+          <EmptyState
+            size="page"
+            title="Nessuna pratica per oggi"
+            description={
+              lastSync === null
                 ? "L'agenda non è ancora stata sincronizzata con Infinity."
                 : view === 'desk'
                   ? 'Nessun appuntamento per questo sportello: prova la vista globale.'
-                  : 'Nessun appuntamento in agenda.'}
-            </p>
-            <div className="mt-4 flex justify-center gap-2">
-              {canSync ? (
-                <Button onClick={() => void onSync()} disabled={syncing}>
-                  Sincronizza ora
-                </Button>
-              ) : null}
-              {view === 'desk' ? (
-                <Button variant="outline" onClick={() => updateUrl({ view: 'global' })}>
-                  Vista globale
-                </Button>
-              ) : null}
-            </div>
-          </div>
+                  : 'Nessun appuntamento in agenda.'
+            }
+            actions={
+              <>
+                {canSync ? (
+                  <Button onClick={() => void onSync()} disabled={syncing}>
+                    Sincronizza ora
+                  </Button>
+                ) : null}
+                {view === 'desk' ? (
+                  <Button variant="outline" onClick={() => updateUrl({ view: 'global' })}>
+                    Vista globale
+                  </Button>
+                ) : null}
+              </>
+            }
+          />
         ) : (
           <QueueTable
             rows={data.rows}
@@ -324,7 +329,7 @@ export function QueueDashboard({
           />
         )
       ) : queue.isLoading ? (
-        <p className="text-sm text-slate-500">Caricamento della coda…</p>
+        <TableSkeleton rows={6} columns={8} label="Caricamento della coda" />
       ) : null}
 
       {data !== undefined ? (

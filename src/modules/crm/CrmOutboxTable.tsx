@@ -20,6 +20,8 @@ import {
 } from '@/components/ui/table';
 import { ApiError, fetchCrmOutbox, postOutboxRetry } from '@/lib/api-client/client';
 import { formatDateTimeIt, localTimeHHmm } from '@/lib/dates';
+import { TableSkeleton } from '@/components/ui/skeleton';
+import { EmptyState } from '@/components/shared/EmptyState';
 
 export interface CrmOutboxTableProps {
   readonly timeZone: string;
@@ -135,11 +137,16 @@ export function CrmOutboxTable({ timeZone }: CrmOutboxTableProps) {
       ) : null}
 
       {query.isPending ? (
-        <p className="text-sm text-slate-500">Caricamento della coda…</p>
+        <TableSkeleton rows={4} columns={7} label="Caricamento della coda" />
       ) : rows.length === 0 ? (
-        <p className="rounded-lg border border-dashed border-slate-300 px-4 py-8 text-center text-sm text-slate-500">
-          Nessun evento in coda.
-        </p>
+        <EmptyState
+          title="Nessun evento in coda"
+          description={
+            soloDaRisolvere
+              ? 'Niente da risolvere: ogni evento è stato consegnato o chiuso a mano.'
+              : 'Il primo evento comparirà quando un cliente verrà segnato assente o un check-in verrà concluso.'
+          }
+        />
       ) : (
         <Table>
           <TableHeader>

@@ -20,6 +20,7 @@ import {
   forbiddenResponse,
   type ApiErrorBody,
 } from '@/lib/http/api-error';
+import { secretsMatch } from '@/lib/http/secrets';
 import { clientIpFrom, hitRateLimit, type RateLimitRule } from '@/lib/http/rate-limit';
 
 export const dynamic = 'force-dynamic';
@@ -70,11 +71,15 @@ export async function GET(request: NextRequest): Promise<NextResponse<DisplayBod
       return domainErrorResponse(result.error, { ...NO_STORE });
     }
 
-    // Verifica del token solo se il monitor lo fornisce (vedi nota in testa al file).
-    const token = searchParams.get('token');
-    if (token !== null && token.trim() !== '') {
+    // Token del monitor: verificato se fornito; obbligatorio con DISPLAY_TOKEN_REQUIRED=true
+    // (rete non fidata). Il confronto è a tempo costante come per ogni altro segreto.
+    const token = searchParams.get('token')?.trim() ?? '';
+    if (token === '' && container.env.displayTokenRequired) {
+      return forbiddenResponse('Questo monitor deve indicare il token della propria accettazione.');
+    }
+    if (token !== '') {
       const bay = await container.repos.referenceData.findBayByCode(result.value.bayCode);
-      if (bay === null || bay.displayToken !== token.trim()) {
+      if (bay === null || !secretsMatch(token, bay.displayToken)) {
         return forbiddenResponse('Token del display non valido per questa accettazione.');
       }
     }

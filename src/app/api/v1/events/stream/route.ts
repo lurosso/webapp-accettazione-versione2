@@ -2,10 +2,12 @@
 // Il client riceve un segnale ("è cambiato qualcosa, di questo tipo, su questa pratica") e rilegge
 // dai propri endpoint: i dati non passano mai da qui. Il polling resta attivo come rete di
 // sicurezza, quindi una connessione che cade rallenta gli aggiornamenti, non li ferma.
-import type { NextRequest } from 'next/server';
+import { NextResponse, type NextRequest } from 'next/server';
 import { readApiSession } from '@/app/_server/session';
+import { SSE_CONNECTION_LIMITS } from '@/config/constants';
 import { getContainer } from '@/config/container';
 import { unauthorizedResponse } from '@/lib/http/api-error';
+import { acquireConnection } from '@/lib/realtime/connection-guard';
 import { createEventStream, parseLastEventId, SSE_HEADERS } from '@/lib/realtime/sse';
 
 export const dynamic = 'force-dynamic';
@@ -17,6 +19,22 @@ export async function GET(request: NextRequest): Promise<Response> {
   if (session === null) {
     return unauthorizedResponse();
   }
+
+  // Una postazione apre una connessione per scheda: dodici per operatore bastano a chi tiene
+  // aperte coda, tablet e cruscotto insieme, e fermano una scheda impazzita.
+  const ticket = acquireConnection(`sse-op:${session.operatorId}`, SSE_CONNECTION_LIMITS.operator);
+  if (!ticket.allowed) {
+    return NextResponse.json(
+      {
+        error: {
+          code: 'UNAVAILABLE' as const,
+          message: 'Troppe connessioni aperte per questa sessione.',
+        },
+      },
+      { status: 503, headers: { 'retry-after': '30', 'cache-control': 'no-store' } },
+    );
+  }
+  request.signal.addEventListener('abort', ticket.release, { once: true });
 
   const stream = createEventStream({
     bus: getContainer().eventBus,

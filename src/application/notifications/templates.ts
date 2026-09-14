@@ -27,6 +27,21 @@ export const NOTIFICATION_TEMPLATES: Readonly<Record<NotificationKind, Notificat
     render: (v) =>
       `Buongiorno ${v.firstName}, le ricordiamo l'appuntamento di oggi alle ${v.scheduledTime} presso Autoclub Group per la vettura ${v.plate}. Il suo codice è ${v.code}.`,
   },
+  BOOKING_CONFIRMED: {
+    spokiTemplateKey: 'booking_confirmed_v1',
+    render: (v) =>
+      `${v.firstName}, la sua pratica per la vettura ${v.plate} è stata registrata presso Autoclub Group. Il suo codice è ${v.code}: lo troverà sui monitor dell'accettazione.`,
+  },
+  TURN_APPROACHING: {
+    spokiTemplateKey: 'turn_approaching_v1',
+    render: (v) =>
+      `${v.firstName}, il suo turno si avvicina: si prepari con il codice ${v.code} e si avvicini all'accettazione. Autoclub Group.`,
+  },
+  APPOINTMENT_CANCELLED: {
+    spokiTemplateKey: 'appointment_cancelled_v1',
+    render: (v) =>
+      `${v.firstName}, la pratica ${v.code} per la vettura ${v.plate} è stata annullata. Per un nuovo appuntamento contatti Autoclub Group.`,
+  },
   YOUR_TURN: {
     spokiTemplateKey: 'your_turn_v1',
     render: (v) =>

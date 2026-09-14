@@ -44,6 +44,10 @@ export interface AppEnv {
   readonly mediaStorageDir: string;
   /** Rinvii automatici al CRM dal processo dell'app (false quando li fa un cron esterno). */
   readonly crmRetryEnabled: boolean;
+  /** Se true i monitor devono passare il token della propria accettazione (?token=). */
+  readonly displayTokenRequired: boolean;
+  /** Messaggi al cliente guidati dagli eventi (conferma, turno vicino, annullamento). */
+  readonly messagingTriggersEnabled: boolean;
   /** Segreto per il cron esterno dei rinvii CRM (null = solo sessione amministratore). */
   readonly cronSecret: string | null;
   /**
@@ -238,6 +242,8 @@ export function parseEnv(
     ),
     mediaStorageDir: pickString(source, 'MEDIA_STORAGE_DIR', DEFAULT_MEDIA_DIR),
     crmRetryEnabled: pickBool(source, 'CRM_RETRY_ENABLED', true, warn),
+    displayTokenRequired: pickBool(source, 'DISPLAY_TOKEN_REQUIRED', false, warn),
+    messagingTriggersEnabled: pickBool(source, 'MESSAGING_TRIGGERS_ENABLED', true, warn),
     cronSecret:
       pickString(source, 'CRON_SECRET', '').trim() === ''
         ? null

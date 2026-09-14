@@ -13,6 +13,8 @@ import { useAppointmentActions } from '@/hooks/useAppointmentActions';
 import { useQueue } from '@/hooks/useQueue';
 import { localTimeHHmm } from '@/lib/dates';
 import { cn } from '@/lib/utils/cn';
+import { CardSkeleton } from '@/components/ui/skeleton';
+import { EmptyState } from '@/components/shared/EmptyState';
 import { CheckInScreen } from './CheckInScreen';
 
 export interface TabletQueueProps {
@@ -173,13 +175,21 @@ export function TabletQueue({ session, homeDeskId, openCheckInFor = null }: Tabl
       </div>
 
       {queue.isPending ? (
-        <p className="text-lg text-slate-500">Caricamento della coda…</p>
+        <CardSkeleton count={3} label="Caricamento della coda" />
       ) : elenco.length === 0 ? (
-        <p className="rounded-xl border-2 border-dashed border-slate-300 px-5 py-10 text-center text-lg text-slate-500">
-          {scheda === 'attesa'
-            ? 'Nessun cliente in attesa su questo sportello.'
-            : 'Non hai pratiche in lavorazione: aprine una dalla scheda "In attesa".'}
-        </p>
+        <EmptyState
+          size="page"
+          title={
+            scheda === 'attesa'
+              ? 'Nessun cliente in attesa su questo sportello'
+              : 'Nessuna pratica in lavorazione'
+          }
+          description={
+            scheda === 'attesa'
+              ? 'Quando arriva una nuova pratica compare qui da sola.'
+              : 'Aprine una dalla scheda "In attesa": la presa in carico apre subito il check-in.'
+          }
+        />
       ) : (
         <ul className="flex flex-col gap-3">
           {elenco.map((row) => {

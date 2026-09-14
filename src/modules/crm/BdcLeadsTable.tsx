@@ -17,6 +17,7 @@ import {
 } from '@/components/ui/table';
 import { formatDateTimeIt, localTimeHHmm } from '@/lib/dates';
 import { cn } from '@/lib/utils/cn';
+import { EmptyState } from '@/components/shared/EmptyState';
 
 export interface BdcLeadsTableProps {
   readonly leads: readonly BdcLeadView[];
@@ -48,9 +49,10 @@ export function BdcLeadsTable({ leads, timeZone, pendingId, onContacted }: BdcLe
 
   if (leads.length === 0) {
     return (
-      <p className="rounded-lg border border-dashed border-slate-300 px-4 py-8 text-center text-sm text-slate-500">
-        Nessun cliente da ricontattare: tutte le assenze di oggi sono state gestite.
-      </p>
+      <EmptyState
+        title="Nessun cliente da ricontattare"
+        description="Tutte le assenze della giornata sono state gestite. Un nuovo assente compare qui entro pochi secondi."
+      />
     );
   }
 
