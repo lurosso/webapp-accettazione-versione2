@@ -25,6 +25,7 @@ describe('OperatorAdminService: elenco e creazione', () => {
     expect(elenco.length).toBeGreaterThanOrEqual(5);
     const mario = elenco.find((o) => o.username === 'mario.rossi');
     expect(mario?.role).toBe('ADVISOR');
+    expect(mario?.mustChangePassword).toBe(false);
     expect(mario?.deskCodes).toEqual(['S1']);
     expect(Object.keys(mario ?? {})).not.toContain('passwordHash');
   });
@@ -48,6 +49,8 @@ describe('OperatorAdminService: elenco e creazione', () => {
       expect(r.value.username).toBe('anna.verdi');
       expect(r.value.deskCodes).toEqual(['S2']);
       expect(r.value.isActive).toBe(true);
+      // La password iniziale la conosce anche l'amministratore: va cambiata al primo accesso.
+      expect(r.value.mustChangePassword).toBe(true);
     }
     const salvato = await env.operators.findByUsername('anna.verdi');
     expect(salvato).not.toBeNull();
@@ -197,6 +200,8 @@ describe('OperatorAdminService: modifica e sicurezza', () => {
     const salvato = await env.operators.findById(asOperatorId('op-advisor-1'));
     expect(verifyPassword(r.value.temporaryPassword, salvato!.passwordHash)).toBe(true);
     expect(verifyPassword('demo', salvato!.passwordHash)).toBe(false);
+    expect(salvato?.mustChangePassword).toBe(true);
+    expect(r.value.operator.mustChangePassword).toBe(true);
   });
 
   it('un operatore inesistente restituisce NOT_FOUND', async () => {

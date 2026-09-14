@@ -142,6 +142,8 @@ export function OperatorsPanel({ currentOperatorId }: OperatorsPanelProps) {
     try {
       const esito = await postAdminResetPassword(op.id);
       setPasswordProvvisoria({ operatore: op.displayName, password: esito.temporaryPassword });
+      // La riga deve mostrare subito il segnale "Password provvisoria".
+      await queryClient.invalidateQueries({ queryKey: ['admin-operators'] });
     } catch (cause) {
       setErrore(cause instanceof ApiError ? cause.message : 'Azzeramento non riuscito.');
     }
@@ -207,11 +209,18 @@ export function OperatorsPanel({ currentOperatorId }: OperatorsPanelProps) {
                   )}
                 </TableCell>
                 <TableCell>
-                  {op.isActive ? (
-                    <Badge tone="success">Attivo</Badge>
-                  ) : (
-                    <Badge tone="neutral">Inattivo</Badge>
-                  )}
+                  <div className="flex flex-wrap gap-1">
+                    {op.isActive ? (
+                      <Badge tone="success">Attivo</Badge>
+                    ) : (
+                      <Badge tone="neutral">Inattivo</Badge>
+                    )}
+                    {op.mustChangePassword ? (
+                      <Badge tone="warning" title="Deve cambiare la password al prossimo accesso">
+                        Password provvisoria
+                      </Badge>
+                    ) : null}
+                  </div>
                 </TableCell>
                 <TableCell>
                   <div className="flex flex-wrap gap-2">

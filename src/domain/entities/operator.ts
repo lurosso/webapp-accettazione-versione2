@@ -11,6 +11,13 @@ import type { DeskId, OperatorId, WorkstationId } from '../ids';
  */
 export type OperatorRole = 'ADVISOR' | 'SUPERVISOR' | 'ADMIN' | 'KIOSK';
 
+/** Elenco unico dei ruoli: lo usano il JWT di sessione e gli schemi delle API. */
+export const OPERATOR_ROLES: readonly OperatorRole[] = ['ADVISOR', 'SUPERVISOR', 'ADMIN', 'KIOSK'];
+
+export function isOperatorRole(value: unknown): value is OperatorRole {
+  return typeof value === 'string' && (OPERATOR_ROLES as readonly string[]).includes(value);
+}
+
 /** Accettatore. Il ruolo è sempre riverificato lato server, mai fidandosi del solo JWT. */
 export interface Operator {
   readonly id: OperatorId;
@@ -23,4 +30,10 @@ export interface Operator {
   /** Hash della password (scrypt da M1). Nel seed demo vale "plain:demo": SOLO sviluppo. */
   readonly passwordHash: string;
   readonly isActive: boolean;
+  /**
+   * True dopo la creazione dell'account e dopo un reset da parte dell'amministratore: la password
+   * la conosce anche chi l'ha dettata, quindi finché non viene cambiata l'operatore può fare solo
+   * quello. Torna false al primo cambio riuscito.
+   */
+  readonly mustChangePassword: boolean;
 }

@@ -12,6 +12,7 @@ import type { Operator, OperatorRole } from '@/domain/entities/operator';
 import { domainError, type DomainError } from '@/domain/errors';
 import { asDeskId, asOperatorId, asWorkstationId, type OperatorId } from '@/domain/ids';
 import { err, ok, type Result } from '@/domain/result';
+import { MIN_PASSWORD_LENGTH } from '@/config/constants';
 import { generateTemporaryPassword, hashPassword } from '@/lib/hash-password';
 import type { IOperatorRepository, IReferenceDataRepository } from '@/repositories/interfaces';
 import type { IIdGenerator } from '@/services/interfaces/IIdGenerator';
@@ -34,6 +35,8 @@ export interface OperatorView {
   readonly deskCodes: readonly string[];
   readonly defaultWorkstationId: string | null;
   readonly isActive: boolean;
+  /** True finché l'operatore non ha sostituito la password iniziale o provvisoria. */
+  readonly mustChangePassword: boolean;
 }
 
 export interface CreateOperatorInput {
@@ -65,7 +68,6 @@ export interface AdminActor {
 }
 
 const USERNAME_PATTERN = /^[a-z0-9][a-z0-9._-]{2,63}$/;
-const MIN_PASSWORD_LENGTH = 8;
 
 export class OperatorAdminService {
   private readonly logger: ILogger;
@@ -128,6 +130,8 @@ export class OperatorAdminService {
         input.defaultWorkstationId === null ? null : asWorkstationId(input.defaultWorkstationId),
       passwordHash: hashPassword(input.password),
       isActive: true,
+      // La password iniziale la conosce anche l'amministratore: va cambiata al primo accesso.
+      mustChangePassword: true,
     };
     const salvato = await this.deps.operators.insert(operator);
     this.logger.info(`operatore creato: ${username}`, { role: input.role, da: actor.operatorId });
@@ -202,7 +206,8 @@ export class OperatorAdminService {
 
   /**
    * Password provvisoria: leggibile a voce e senza caratteri ambigui (niente 0/O, 1/l/I), perché
-   * verrà dettata al collega davanti alla postazione. Da cambiare al primo accesso (M-futuro).
+   * verrà dettata al collega davanti alla postazione. Da cambiare al primo accesso: finché non lo
+   * fa, l'operatore non può aprire nient'altro.
    */
   async resetPassword(
     id: OperatorId,
@@ -216,6 +221,7 @@ export class OperatorAdminService {
     const aggiornato = await this.deps.operators.update({
       ...corrente,
       passwordHash: hashPassword(temporaryPassword),
+      mustChangePassword: true,
     });
     this.logger.warn(`password azzerata per ${aggiornato.username}`, { da: actor.operatorId });
     return ok({
@@ -253,5 +259,6 @@ function toView(o: Operator, desks: readonly { id: string; code: string }[]): Op
     deskCodes: o.deskIds.map((id) => desks.find((d) => d.id === id)?.code ?? id),
     defaultWorkstationId: o.defaultWorkstationId,
     isActive: o.isActive,
+    mustChangePassword: o.mustChangePassword,
   };
 }

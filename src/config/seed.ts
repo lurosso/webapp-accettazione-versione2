@@ -135,6 +135,7 @@ export function buildSeedData(): SeedData {
       defaultWorkstationId: null,
       passwordHash: DEMO_PASSWORD_HASH,
       isActive: true,
+      mustChangePassword: false,
     },
     {
       id: asOperatorId('op-supervisor'),
@@ -145,6 +146,7 @@ export function buildSeedData(): SeedData {
       defaultWorkstationId: asWorkstationId('ws-p1'),
       passwordHash: DEMO_PASSWORD_HASH,
       isActive: true,
+      mustChangePassword: false,
     },
     {
       id: asOperatorId('op-advisor-1'),
@@ -155,6 +157,7 @@ export function buildSeedData(): SeedData {
       defaultWorkstationId: asWorkstationId('ws-p2'),
       passwordHash: DEMO_PASSWORD_HASH,
       isActive: true,
+      mustChangePassword: false,
     },
     {
       id: asOperatorId('op-advisor-2'),
@@ -165,6 +168,7 @@ export function buildSeedData(): SeedData {
       defaultWorkstationId: asWorkstationId('ws-p3'),
       passwordHash: DEMO_PASSWORD_HASH,
       isActive: true,
+      mustChangePassword: false,
     },
     {
       id: asOperatorId('op-advisor-3'),
@@ -175,6 +179,7 @@ export function buildSeedData(): SeedData {
       defaultWorkstationId: asWorkstationId('ws-p4'),
       passwordHash: DEMO_PASSWORD_HASH,
       isActive: true,
+      mustChangePassword: false,
     },
   ];
 

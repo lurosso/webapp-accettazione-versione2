@@ -1,6 +1,8 @@
 import { describe, expect, it } from 'vitest';
+import { OperatorAdminService } from '@/application/admin/OperatorAdminService';
 import { LocalAuthService } from '@/application/auth/LocalAuthService';
 import { verifySessionToken } from '@/application/auth/session-token';
+import { asOperatorId } from '@/domain/ids';
 import { buildTestEnv } from '../helpers/fixtures';
 
 const SECRET = 'segreto-di-test-lungo-almeno-trentadue-caratteri';
@@ -95,6 +97,175 @@ describe('LocalAuthService', () => {
     expect(expired.ok).toBe(false);
     if (!expired.ok) {
       expect(expired.error.code).toBe('VALIDATION');
+    }
+  });
+});
+
+describe('LocalAuthService: password provvisoria e cambio password', () => {
+  const AMMINISTRATORE = { operatorId: asOperatorId('op-admin') };
+
+  function setupConAdmin() {
+    const base = setup();
+    const admin = new OperatorAdminService({
+      operators: base.env.operators,
+      referenceData: base.env.referenceData,
+      ids: base.env.ids,
+      logger: base.env.logger,
+    });
+    return { ...base, admin };
+  }
+
+  it('gli account del seed non hanno obbligo di cambio: la sessione lo dice', async () => {
+    const { env, service } = setup();
+    const r = await service.login({ username: 'admin', password: 'demo', workstationId: 'ws-p1' });
+    expect(r.ok && r.value.session.mustChangePassword).toBe(false);
+    if (r.ok) {
+      const claims = await verifySessionToken(r.value.token, SECRET, env.clock.now());
+      expect(claims.ok && claims.value.mustChangePassword).toBe(false);
+    }
+  });
+
+  it("dopo un reset il login riesce ma la sessione porta l'obbligo di cambio, anche nel token", async () => {
+    const { env, service, admin } = setupConAdmin();
+    const reset = await admin.resetPassword(asOperatorId('op-advisor-1'), AMMINISTRATORE);
+    expect(reset.ok).toBe(true);
+    if (!reset.ok) {
+      return;
+    }
+    const r = await service.login({
+      username: 'mario.rossi',
+      password: reset.value.temporaryPassword,
+      workstationId: 'ws-p2',
+    });
+    expect(r.ok).toBe(true);
+    if (!r.ok) {
+      return;
+    }
+    expect(r.value.session.mustChangePassword).toBe(true);
+    // Il proxy legge il claim senza container: deve esserci.
+    const claims = await verifySessionToken(r.value.token, SECRET, env.clock.now());
+    expect(claims.ok && claims.value.mustChangePassword).toBe(true);
+    // E la riverifica completa lo conferma dal repository.
+    const verified = await service.verify(r.value.token);
+    expect(verified.ok && verified.value.mustChangePassword).toBe(true);
+  });
+
+  it("un reset fatto mentre l'operatore è collegato vale subito alla riverifica", async () => {
+    const { env, service, admin } = setupConAdmin();
+    const prima = await service.login({
+      username: 'mario.rossi',
+      password: 'demo',
+      workstationId: 'ws-p2',
+    });
+    expect(prima.ok).toBe(true);
+    if (!prima.ok) {
+      return;
+    }
+    await admin.resetPassword(asOperatorId('op-advisor-1'), AMMINISTRATORE);
+    // Il token vecchio dice ancora "nessun obbligo"...
+    const claims = await verifySessionToken(prima.value.token, SECRET, env.clock.now());
+    expect(claims.ok && claims.value.mustChangePassword).toBe(false);
+    // ...ma il server, che rilegge l'operatore, lo impone.
+    const verified = await service.verify(prima.value.token);
+    expect(verified.ok && verified.value.mustChangePassword).toBe(true);
+  });
+
+  it('il cambio rifiuta password attuale errata, nuova troppo corta o uguale alla attuale', async () => {
+    const { service } = setup();
+    const r = await service.login({ username: 'admin', password: 'demo', workstationId: 'ws-p1' });
+    if (!r.ok) {
+      throw new Error('login fallito');
+    }
+    const sbagliata = await service.changePassword(r.value.session, {
+      currentPassword: 'non-demo',
+      newPassword: 'nuova-password-lunga',
+    });
+    expect(!sbagliata.ok && sbagliata.error.code).toBe('VALIDATION');
+    const corta = await service.changePassword(r.value.session, {
+      currentPassword: 'demo',
+      newPassword: 'corta',
+    });
+    expect(!corta.ok && corta.error.code).toBe('VALIDATION');
+    const uguale = await service.changePassword(r.value.session, {
+      currentPassword: 'demo',
+      newPassword: 'demo',
+    });
+    expect(uguale.ok).toBe(false);
+    // Nulla è cambiato: la vecchia password funziona ancora.
+    const ancora = await service.login({
+      username: 'admin',
+      password: 'demo',
+      workstationId: 'ws-p1',
+    });
+    expect(ancora.ok).toBe(true);
+  });
+
+  it("il cambio riuscito toglie l'obbligo, rinnova il token e invalida la provvisoria", async () => {
+    const { env, service, admin } = setupConAdmin();
+    const reset = await admin.resetPassword(asOperatorId('op-advisor-2'), AMMINISTRATORE);
+    if (!reset.ok) {
+      throw new Error('reset fallito');
+    }
+    const login = await service.login({
+      username: 'laura.bianchi',
+      password: reset.value.temporaryPassword,
+      workstationId: 'ws-p3',
+    });
+    if (!login.ok) {
+      throw new Error('login fallito');
+    }
+    const cambio = await service.changePassword(login.value.session, {
+      currentPassword: reset.value.temporaryPassword,
+      newPassword: 'la-mia-password-nuova',
+    });
+    expect(cambio.ok).toBe(true);
+    if (!cambio.ok) {
+      return;
+    }
+    expect(cambio.value.session.mustChangePassword).toBe(false);
+    expect(cambio.value.session.workstationId).toBe('ws-p3');
+    const claims = await verifySessionToken(cambio.value.token, SECRET, env.clock.now());
+    expect(claims.ok && claims.value.mustChangePassword).toBe(false);
+
+    const conProvvisoria = await service.login({
+      username: 'laura.bianchi',
+      password: reset.value.temporaryPassword,
+      workstationId: 'ws-p3',
+    });
+    expect(conProvvisoria.ok).toBe(false);
+    const conNuova = await service.login({
+      username: 'laura.bianchi',
+      password: 'la-mia-password-nuova',
+      workstationId: 'ws-p3',
+    });
+    expect(conNuova.ok && conNuova.value.session.mustChangePassword).toBe(false);
+  });
+
+  it('un account KIOSK entra e il suo token si verifica (il ruolo è nel JWT)', async () => {
+    const { env, service, admin } = setupConAdmin();
+    const creato = await admin.create(
+      {
+        username: 'tabellone-sala',
+        displayName: 'Tabellone sala',
+        role: 'KIOSK',
+        deskIds: [],
+        defaultWorkstationId: null,
+        password: 'password-kiosk',
+      },
+      AMMINISTRATORE,
+    );
+    expect(creato.ok).toBe(true);
+    const r = await service.login({
+      username: 'tabellone-sala',
+      password: 'password-kiosk',
+      workstationId: 'ws-p1',
+    });
+    expect(r.ok && r.value.session.role).toBe('KIOSK');
+    if (r.ok) {
+      const claims = await verifySessionToken(r.value.token, SECRET, env.clock.now());
+      expect(claims.ok && claims.value.role).toBe('KIOSK');
+      // Appena creato: deve ancora scegliere la password.
+      expect(claims.ok && claims.value.mustChangePassword).toBe(true);
     }
   });
 });

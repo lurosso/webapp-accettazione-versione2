@@ -18,23 +18,51 @@ export async function readSession(): Promise<Session | null> {
   return verified.ok ? verified.value : null;
 }
 
-/** Per le pagine protette: sessione valida oppure redirect al login con ritorno. */
+/** Pagina del cambio password obbligatorio (la stessa che conosce il proxy). */
+export const CHANGE_PASSWORD_PATH = '/cambia-password';
+
+/**
+ * Per le pagine protette: sessione valida oppure redirect al login con ritorno. Con una password
+ * provvisoria si viene rimandati al cambio: il proxy lo fa già leggendo il token, qui si copre il
+ * caso del reset fatto mentre l'operatore era collegato (il token dice ancora "no").
+ */
 export async function requireSession(nextPath: string): Promise<Session> {
   const session = await readSession();
   if (session === null) {
     redirect(`/login?next=${encodeURIComponent(nextPath)}`);
   }
+  if (session.mustChangePassword) {
+    redirect(`${CHANGE_PASSWORD_PATH}?next=${encodeURIComponent(nextPath)}`);
+  }
   return session;
 }
 
-/** Per i Route Handler: sessione dal cookie della `NextRequest`, null se assente o non valida. */
-export async function readApiSession(request: NextRequest): Promise<Session | null> {
+export interface ReadApiSessionOptions {
+  /** Solo per le rotte di autenticazione: una password provvisoria non blocca la chiamata. */
+  readonly allowPendingPasswordChange?: boolean;
+}
+
+/**
+ * Per i Route Handler: sessione dal cookie della `NextRequest`, null se assente o non valida.
+ * Con password provvisoria vale null (401) salvo `allowPendingPasswordChange`: rete di sicurezza
+ * dietro al proxy, che in quel caso risponde già 403 PASSWORD_CHANGE_REQUIRED.
+ */
+export async function readApiSession(
+  request: NextRequest,
+  options: ReadApiSessionOptions = {},
+): Promise<Session | null> {
   const token = request.cookies.get(SESSION_COOKIE_NAME)?.value;
   if (token === undefined || token === '') {
     return null;
   }
   const verified = await getContainer().authService.verify(token);
-  return verified.ok ? verified.value : null;
+  if (!verified.ok) {
+    return null;
+  }
+  if (verified.value.mustChangePassword && options.allowPendingPasswordChange !== true) {
+    return null;
+  }
+  return verified.value;
 }
 
 /** Imposta il cookie di sessione sulla risposta (HttpOnly, SameSite=Lax, Secure in produzione). */

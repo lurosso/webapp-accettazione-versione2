@@ -16,8 +16,16 @@ export interface Session {
   readonly workstationId: WorkstationId;
   /** Sportelli abituali dell'operatore. */
   readonly deskIds: readonly DeskId[];
+  /** True finché l'operatore non sostituisce la password provvisoria: può fare solo quello. */
+  readonly mustChangePassword: boolean;
   readonly issuedAt: IsoDateTime;
   readonly expiresAt: IsoDateTime;
+}
+
+/** Cambio password da parte dell'operatore stesso (mai dall'amministratore). */
+export interface ChangePasswordInput {
+  readonly currentPassword: string;
+  readonly newPassword: string;
 }
 
 /** Credenziali e postazione inviate dal form di login. */
@@ -42,5 +50,13 @@ export interface IAuthService {
   switchWorkstation(
     session: Session,
     workstationId: string,
+  ): Promise<Result<IssuedSession, DomainError>>;
+  /**
+   * Sostituisce la password verificando quella attuale ed emette un nuovo token senza l'obbligo
+   * di cambio. Un adapter SSO risponde NOT_IMPLEMENTED: la password la gestisce l'IdP.
+   */
+  changePassword(
+    session: Session,
+    input: ChangePasswordInput,
   ): Promise<Result<IssuedSession, DomainError>>;
 }

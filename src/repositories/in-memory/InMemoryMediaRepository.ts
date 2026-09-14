@@ -33,6 +33,12 @@ export class InMemoryMediaRepository implements IMediaRepository {
       .map((m) => ({ ...m }));
   }
 
+  async listArchivedBefore(cutoff: IsoDateTime): Promise<readonly MediaAsset[]> {
+    return [...this.store.state.media.values()]
+      .filter((m) => m.archivedAt !== null && m.archivedAt <= cutoff)
+      .map((m) => ({ ...m }));
+  }
+
   async update(asset: MediaAsset): Promise<MediaAsset> {
     const stored = { ...asset };
     this.store.state.media.set(stored.id, stored);

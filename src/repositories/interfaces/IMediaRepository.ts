@@ -12,6 +12,8 @@ export interface IMediaRepository {
   listAll(): Promise<readonly MediaAsset[]>;
   /** Foto con `expiresAt <= now` e file ancora presente (`archivedAt === null`). */
   listExpired(now: IsoDateTime): Promise<readonly MediaAsset[]>;
+  /** Record già archiviati (file eliminato) con `archivedAt <= cutoff`: candidati all'eliminazione. */
+  listArchivedBefore(cutoff: IsoDateTime): Promise<readonly MediaAsset[]>;
   update(asset: MediaAsset): Promise<MediaAsset>;
   delete(id: MediaAssetId): Promise<void>;
 }

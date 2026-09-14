@@ -76,6 +76,18 @@ function redirectToLogin(): void {
   }
 }
 
+/** 403 PASSWORD_CHANGE_REQUIRED: la password provvisoria va sostituita prima di tutto il resto. */
+function redirectToPasswordChange(): void {
+  if (typeof window !== 'undefined' && !window.location.pathname.startsWith('/cambia-password')) {
+    const next = `${window.location.pathname}${window.location.search}`;
+    const target = new URL(
+      `/cambia-password?next=${encodeURIComponent(next)}`,
+      window.location.origin,
+    );
+    window.location.href = target.toString();
+  }
+}
+
 /** Richiesta JSON tipizzata; lancia `ApiError` su risposta non 2xx e `Error` su rete/timeout. */
 export async function apiFetch<T>(
   path: string,
@@ -101,6 +113,9 @@ export async function apiFetch<T>(
     const error = await toApiError(response);
     if (response.status === 401 && init.publicEndpoint !== true) {
       redirectToLogin();
+    }
+    if (response.status === 403 && error.code === 'PASSWORD_CHANGE_REQUIRED') {
+      redirectToPasswordChange();
     }
     throw error;
   }
@@ -364,6 +379,14 @@ export function postLogin(body: {
   readonly workstationId: string;
 }): Promise<{ readonly session: Session }> {
   return apiFetch('/api/v1/auth/login', { method: 'POST', json: body });
+}
+
+/** POST /api/v1/auth/change-password: sostituisce la password e rinnova la sessione. */
+export function postChangePassword(body: {
+  readonly currentPassword: string;
+  readonly newPassword: string;
+}): Promise<{ readonly session: Session }> {
+  return apiFetch('/api/v1/auth/change-password', { method: 'POST', json: body });
 }
 
 /** POST /api/v1/auth/logout. */

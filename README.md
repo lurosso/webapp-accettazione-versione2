@@ -165,7 +165,8 @@ API principali (JSON, autenticate via cookie di sessione): `GET /api/v1/queue`,
 `POST /api/v1/system/close-day` (chiusura giornata), `GET /api/v1/crm/outbox` e
 `POST /api/v1/crm/outbox/{id}/retry` (amministratore), `GET /api/v1/inspections/archive?q=` (archivio),
 `GET|POST /api/v1/admin/operators`, `PATCH /api/v1/admin/operators/{id}`,
-`POST /api/v1/admin/operators/{id}/reset-password` e `GET /api/v1/admin/assistance` (amministratore).
+`POST /api/v1/admin/operators/{id}/reset-password` e `GET /api/v1/admin/assistance` (amministratore),
+`POST /api/v1/auth/change-password` (l'operatore cambia la propria password).
 Pubbliche, senza sessione: `GET /api/v1/public/status?targa=AB123CD` (stato del turno, protetta da
 limiti di frequenza) e `GET /api/v1/health`.
 
@@ -349,6 +350,14 @@ dettata a voce, e la mostra una volta sola: da quel momento esiste solo il suo h
 rifiuta di disattivare o degradare chi sta operando e l'ultimo amministratore attivo: l'officina
 non può restare chiusa fuori.
 
+**Primo accesso e cambio password.** Un account appena creato, o appena azzerato, ha una password
+che conoscono in due: finché l'operatore non la sostituisce può aprire soltanto la pagina
+`/cambia-password`. Qualunque altra pagina lo rimanda lì e qualunque API risponde 403
+`PASSWORD_CHANGE_REQUIRED`; anche un reset fatto mentre è collegato vale dalla richiesta
+successiva. La nuova password deve avere almeno 8 caratteri ed essere diversa dall'attuale; la
+pagina è raggiungibile anche di propria iniziativa. Nel pannello la riga mostra "Password
+provvisoria" finché il cambio non è avvenuto.
+
 **Assistenza.** Sotto l'elenco ci sono le quattro accettazioni con la pratica che le occupa e da
 quanti minuti, più tutte le pratiche in carico. *Libera accettazione* e *Rimetti in coda* fanno la
 stessa cosa (la pratica torna in attesa, l'accettazione si libera) e sono reversibili, quindi
@@ -361,9 +370,11 @@ danno.
 
 **Retention.** Ogni foto nasce con una scadenza: `PHOTO_RETENTION_DAYS` giorni (default 30). Dopo
 la chiusura della giornata lo scheduler elimina i file scaduti e marca il record come archiviato:
-la scheda resta con data, categorie e note e al posto della foto compare "file eliminato". Lo
-stesso lavoro si può affidare a un cron esterno con `POST /api/v1/system/cron/media-retention`
-(sessione amministratore o header `x-cron-secret`).
+la scheda resta con data, categorie e note e al posto della foto compare "file eliminato". Dopo
+altri `PHOTO_HARD_DELETE_DAYS` giorni (default 90, contati dall'archiviazione) anche la scheda
+viene eliminata dal database: in tutto una foto lascia traccia per 120 giorni. Lo stesso lavoro
+si può affidare a un cron esterno con `POST /api/v1/system/cron/media-retention` (sessione
+amministratore o header `x-cron-secret`); la risposta riporta file archiviati e record eliminati.
 
 ## Statistiche ed esportazione
 
@@ -413,4 +424,5 @@ tests/              Test unitari Vitest
 - [`ARCHITECTURE.md`](ARCHITECTURE.md): stack, Regola d'Oro Mock-First, modello di dominio, decisioni.
 - [`TASKS.md`](TASKS.md): piano di lavoro per milestone (M0 bootstrap → M7 passaggio ai servizi reali).
 - [`docs/ANALISI_REQUISITI.md`](docs/ANALISI_REQUISITI.md): requisiti e flussi operativi.
+- [`docs/AUDIT_PRODUZIONE.md`](docs/AUDIT_PRODUZIONE.md): cosa manca per la produzione, casi limite non coperti, passo successivo raccomandato.
 - [`CLAUDE.md`](CLAUDE.md): regole di sviluppo e priorità.

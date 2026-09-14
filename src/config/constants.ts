@@ -93,6 +93,13 @@ export const NOTIFICATION_IN_FLIGHT_STALE_MS = 5 * 60_000;
  * Servono contro i tentativi a raffica sulla rete interna: otto errori al minuto sullo stesso
  * utente sono un attacco o una tastiera rotta, in entrambi i casi meglio fermarsi un attimo.
  */
+/**
+ * Lunghezza minima delle password degli operatori (creazione dal pannello e cambio da parte
+ * dell'operatore). Otto caratteri, senza regole di composizione: la difesa vera è il limite ai
+ * tentativi, e una regola complicata finisce scritta su un foglietto accanto alla postazione.
+ */
+export const MIN_PASSWORD_LENGTH = 8;
+
 export const LOGIN_RATE_LIMIT = {
   perIp: { limit: 30, windowMs: 60_000 },
   perUser: { limit: 8, windowMs: 60_000 },
@@ -137,3 +144,11 @@ export const TURN_APPROACHING_AHEAD = 2;
  * dell'officina. I record restano per sempre: dicono che il giro era stato fatto.
  */
 export const DEFAULT_PHOTO_RETENTION_DAYS = 30;
+
+/**
+ * Giorni dopo l'archiviazione oltre i quali anche il RECORD della foto viene eliminato (env
+ * PHOTO_HARD_DELETE_DAYS). Un trimestre dopo la sparizione del file nessuno cerca più la scheda:
+ * tenerla ancora sarebbe solo accumulo. In totale, quindi, una foto lascia traccia per
+ * PHOTO_RETENTION_DAYS + PHOTO_HARD_DELETE_DAYS giorni (default 120).
+ */
+export const DEFAULT_PHOTO_HARD_DELETE_DAYS = 90;

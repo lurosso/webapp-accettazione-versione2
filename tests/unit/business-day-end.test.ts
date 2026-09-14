@@ -63,6 +63,7 @@ function setup(clock: TestClock) {
       referenceData: env.referenceData,
       clock: env.clock,
       logger: env.logger,
+      hardDeleteDays: 90,
     }),
     clock: env.clock,
     logger: env.logger,

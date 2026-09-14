@@ -1,7 +1,7 @@
 // Firma e verifica del JWT di sessione (HS256 con `jose`). Funzioni pure: nessun repository,
 // così il proxy Next.js può controllare il cookie senza costruire il container.
 import { SignJWT, jwtVerify } from 'jose';
-import type { OperatorRole } from '@/domain/entities/operator';
+import { isOperatorRole } from '@/domain/entities/operator';
 import { domainError, type DomainError } from '@/domain/errors';
 import { asDeskId, asOperatorId, asWorkstationId } from '@/domain/ids';
 import { err, ok, type Result } from '@/domain/result';
@@ -10,12 +10,6 @@ import type { Session } from './IAuthService';
 
 const ALGORITHM = 'HS256';
 const ISSUER = 'webapp-accettazione';
-const ROLES: readonly OperatorRole[] = ['ADVISOR', 'SUPERVISOR', 'ADMIN'];
-
-function isOperatorRole(v: unknown): v is OperatorRole {
-  return typeof v === 'string' && (ROLES as readonly string[]).includes(v);
-}
-
 function isStringArray(v: unknown): v is string[] {
   return Array.isArray(v) && v.every((x) => typeof x === 'string');
 }
@@ -32,6 +26,8 @@ export async function signSessionToken(session: Session, secret: string): Promis
     role: session.role,
     workstationId: session.workstationId,
     deskIds: [...session.deskIds],
+    // Il proxy legge questo claim senza container: basta a bloccare tutto tranne il cambio.
+    mustChangePassword: session.mustChangePassword,
   })
     .setProtectedHeader({ alg: ALGORITHM })
     .setIssuer(ISSUER)
@@ -57,7 +53,17 @@ export async function verifySessionToken(
       issuer: ISSUER,
       ...(now === undefined ? {} : { currentDate: now }),
     });
-    const { sub, iat, exp, username, displayName, role, workstationId, deskIds } = payload;
+    const {
+      sub,
+      iat,
+      exp,
+      username,
+      displayName,
+      role,
+      workstationId,
+      deskIds,
+      mustChangePassword,
+    } = payload;
     if (
       typeof sub !== 'string' ||
       typeof iat !== 'number' ||
@@ -66,7 +72,8 @@ export async function verifySessionToken(
       typeof displayName !== 'string' ||
       !isOperatorRole(role) ||
       typeof workstationId !== 'string' ||
-      !isStringArray(deskIds)
+      !isStringArray(deskIds) ||
+      typeof mustChangePassword !== 'boolean'
     ) {
       return err(domainError('VALIDATION', 'Sessione non valida: claim mancanti o malformati.'));
     }
@@ -77,6 +84,7 @@ export async function verifySessionToken(
       role,
       workstationId: asWorkstationId(workstationId),
       deskIds: deskIds.map(asDeskId),
+      mustChangePassword,
       issuedAt: isoDateTime(new Date(iat * 1000)),
       expiresAt: isoDateTime(new Date(exp * 1000)),
     });

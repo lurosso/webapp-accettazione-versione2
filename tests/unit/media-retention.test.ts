@@ -8,6 +8,7 @@ import { asOperatorId, asWorkstationId } from '@/domain/ids';
 import { buildTestEnv, makeAppointment, TestClock } from '../helpers/fixtures';
 
 const RETENTION_DAYS = 30;
+const HARD_DELETE_DAYS = 90;
 const GIORNO_MS = 24 * 60 * 60_000;
 
 function setup() {
@@ -42,6 +43,7 @@ function setup() {
     referenceData: env.referenceData,
     clock,
     logger: env.logger,
+    hardDeleteDays: HARD_DELETE_DAYS,
   });
   const ctx: ActionContext = {
     operatorId: asOperatorId('op-advisor-1'),
@@ -103,7 +105,12 @@ describe('InspectionArchiveService: retention', () => {
     });
 
     clock.advance((RETENTION_DAYS - 1) * GIORNO_MS);
-    expect(await archive.purgeExpired()).toEqual({ examined: 0, archived: 0, failed: 0 });
+    expect(await archive.purgeExpired()).toEqual({
+      examined: 0,
+      archived: 0,
+      failed: 0,
+      deleted: 0,
+    });
     expect(env.mediaStorage.size).toBe(1);
   });
 
@@ -121,7 +128,7 @@ describe('InspectionArchiveService: retention', () => {
 
     clock.advance((RETENTION_DAYS + 1) * GIORNO_MS);
     const esito = await archive.purgeExpired();
-    expect(esito).toEqual({ examined: 1, archived: 1, failed: 0 });
+    expect(esito).toEqual({ examined: 1, archived: 1, failed: 0, deleted: 0 });
 
     // Il file non c'è più, il record sì: dice ancora che il giro era stato fatto.
     expect(env.mediaStorage.get(key)).toBeNull();
@@ -130,7 +137,71 @@ describe('InspectionArchiveService: retention', () => {
     expect(record?.category).toBe('LEFT');
 
     // Una seconda passata non trova più nulla da fare.
-    expect(await archive.purgeExpired()).toEqual({ examined: 0, archived: 0, failed: 0 });
+    expect(await archive.purgeExpired()).toEqual({
+      examined: 0,
+      archived: 0,
+      failed: 0,
+      deleted: 0,
+    });
+  });
+
+  it("trascorsi i giorni di hard delete dall'archiviazione elimina anche il record", async () => {
+    const { env, clock, inspection, archive, ctx } = setup();
+    const a = await insert(env, makeAppointment());
+    await inspection.addPhoto({
+      appointmentId: a.id,
+      operatorId: ctx.operatorId,
+      bytes: foto(),
+      mimeType: 'image/jpeg',
+      category: 'FRONT',
+    });
+
+    // Il file scade e viene archiviato con qualche giorno di ritardo rispetto alla scadenza:
+    // il conteggio dell'hard delete parte da QUI, non dallo scatto.
+    clock.advance((RETENTION_DAYS + 3) * GIORNO_MS);
+    expect((await archive.purgeExpired()).archived).toBe(1);
+
+    // Un giorno prima del limite la scheda c'è ancora, senza file.
+    clock.advance((HARD_DELETE_DAYS - 1) * GIORNO_MS);
+    expect(await archive.purgeExpired()).toEqual({
+      examined: 0,
+      archived: 0,
+      failed: 0,
+      deleted: 0,
+    });
+    expect(await env.media.listByAppointment(a.id)).toHaveLength(1);
+
+    // Superato il limite il record sparisce dal database e dall'archivio.
+    clock.advance(2 * GIORNO_MS);
+    expect(await archive.purgeExpired()).toEqual({
+      examined: 0,
+      archived: 0,
+      failed: 0,
+      deleted: 1,
+    });
+    expect(await env.media.listByAppointment(a.id)).toHaveLength(0);
+    expect(await archive.search(a.code)).toHaveLength(0);
+  });
+
+  it('una foto non ancora archiviata non viene mai eliminata dal secondo passaggio', async () => {
+    const { env, clock, inspection, archive, ctx } = setup();
+    const a = await insert(env, makeAppointment());
+    await inspection.addPhoto({
+      appointmentId: a.id,
+      operatorId: ctx.operatorId,
+      bytes: foto(),
+      mimeType: 'image/jpeg',
+      category: 'FRONT',
+    });
+    // Tanto tempo dopo, in un solo giro: prima si archivia, l'hard delete parte da oggi.
+    clock.advance((RETENTION_DAYS + HARD_DELETE_DAYS + 30) * GIORNO_MS);
+    expect(await archive.purgeExpired()).toEqual({
+      examined: 1,
+      archived: 1,
+      failed: 0,
+      deleted: 0,
+    });
+    expect(await env.media.listByAppointment(a.id)).toHaveLength(1);
   });
 
   it('un file già sparito dal disco conta come archiviato, non come errore', async () => {
@@ -147,7 +218,12 @@ describe('InspectionArchiveService: retention', () => {
       await env.mediaStorage.delete(salvata.value.asset.storageKey);
     }
     clock.advance((RETENTION_DAYS + 1) * GIORNO_MS);
-    expect(await archive.purgeExpired()).toEqual({ examined: 1, archived: 1, failed: 0 });
+    expect(await archive.purgeExpired()).toEqual({
+      examined: 1,
+      archived: 1,
+      failed: 0,
+      deleted: 0,
+    });
   });
 });
 

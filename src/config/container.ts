@@ -234,6 +234,7 @@ export function createContainer(overrides: ContainerOverrides = {}): Container {
     referenceData: repos.referenceData,
     clock,
     logger,
+    hardDeleteDays: env.photoHardDeleteDays,
   });
 
   const operatorAdminService = new OperatorAdminService({

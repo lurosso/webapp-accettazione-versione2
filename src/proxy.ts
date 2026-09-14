@@ -1,6 +1,8 @@
 // Proxy Next.js 16 (ex middleware): protegge area operatore e API verificando il JWT del cookie.
 // Controllo leggero (firma e scadenza) senza container; la riverifica dell'operatore avviene nei
 // Route Handler e nei Server Component tramite `app/_server/session.ts`.
+// Una sessione con password provvisoria (claim `mustChangePassword`) può raggiungere solo la
+// pagina di cambio e le rotte di autenticazione: tutto il resto viene rimandato lì.
 import { NextResponse, type NextRequest } from 'next/server';
 import { verifySessionToken } from '@/application/auth/session-token';
 import { resolveSessionSecret, SESSION_COOKIE_NAME } from '@/config/auth';
@@ -17,6 +19,9 @@ const PUBLIC_API_PREFIXES = [
 function isPublicApi(pathname: string): boolean {
   return PUBLIC_API_PREFIXES.some((prefix) => pathname.startsWith(prefix));
 }
+
+/** Pagina del cambio password: l'unica consentita finché la provvisoria non è stata sostituita. */
+export const CHANGE_PASSWORD_PATH = '/cambia-password';
 
 let cachedSecret: string | null = null;
 function sessionSecret(): string {
@@ -58,6 +63,23 @@ export async function proxy(request: NextRequest): Promise<NextResponse> {
     return response;
   }
 
+  if (verified.value.mustChangePassword && !pathname.startsWith(CHANGE_PASSWORD_PATH)) {
+    if (isApi) {
+      return NextResponse.json(
+        {
+          error: {
+            code: 'PASSWORD_CHANGE_REQUIRED',
+            message: 'Password provvisoria: va sostituita prima di continuare.',
+          },
+        },
+        { status: 403 },
+      );
+    }
+    const changeUrl = new URL(CHANGE_PASSWORD_PATH, request.url);
+    changeUrl.searchParams.set('next', `${pathname}${request.nextUrl.search}`);
+    return NextResponse.redirect(changeUrl);
+  }
+
   // Propaga il correlation id (o ne crea uno) verso i Route Handler.
   const headers = new Headers(request.headers);
   if (!headers.has('x-correlation-id')) {
@@ -73,6 +95,7 @@ export const config = {
     '/sistema/:path*',
     '/manager/:path*',
     '/admin/:path*',
+    '/cambia-password',
     '/api/v1/:path*',
   ],
 };

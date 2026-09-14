@@ -18,6 +18,7 @@ import type {
 import {
   DEFAULT_BUSINESS_DAY_END,
   DEFAULT_CODE_PREFIX,
+  DEFAULT_PHOTO_HARD_DELETE_DAYS,
   DEFAULT_PHOTO_RETENTION_DAYS,
   DEFAULT_MEDIA_DIR,
   DEFAULT_SYNC_HOUR_LOCAL,
@@ -51,6 +52,8 @@ export interface AppEnv {
   readonly messagingTriggersEnabled: boolean;
   /** Giorni di conservazione dei file delle foto dell'ispezione. */
   readonly photoRetentionDays: number;
+  /** Giorni dopo l'archiviazione oltre i quali il record della foto viene eliminato. */
+  readonly photoHardDeleteDays: number;
   /** Segreto per il cron esterno dei rinvii CRM (null = solo sessione amministratore). */
   readonly cronSecret: string | null;
   /**
@@ -248,6 +251,12 @@ export function parseEnv(
     displayTokenRequired: pickBool(source, 'DISPLAY_TOKEN_REQUIRED', false, warn),
     messagingTriggersEnabled: pickBool(source, 'MESSAGING_TRIGGERS_ENABLED', true, warn),
     photoRetentionDays: pickInt(source, 'PHOTO_RETENTION_DAYS', DEFAULT_PHOTO_RETENTION_DAYS, warn),
+    photoHardDeleteDays: pickInt(
+      source,
+      'PHOTO_HARD_DELETE_DAYS',
+      DEFAULT_PHOTO_HARD_DELETE_DAYS,
+      warn,
+    ),
     cronSecret:
       pickString(source, 'CRON_SECRET', '').trim() === ''
         ? null

@@ -5,7 +5,10 @@
 // foto nasce con una scadenza (`expiresAt`) e, passata quella, il file sparisce dal disco mentre il
 // RECORD resta, marcato `archivedAt`: nel fascicolo si continua a leggere che quel giorno erano
 // state scattate quattro foto del giro veicolo, anche se le immagini non ci sono più. Cancellare
-// anche il record cancellerebbe la prova che il giro era stato fatto.
+// subito anche il record cancellerebbe la prova che il giro era stato fatto.
+// Il record però non resta per sempre: trascorsi `hardDeleteDays` dall'archiviazione viene
+// eliminato anche lui (secondo passaggio dello stesso job), altrimenti il database accumulerebbe
+// righe che nessuno consulterà più.
 import { PHOTO_CATEGORY_LABELS } from '@/domain/entities/media-asset';
 import type { MediaAsset } from '@/domain/entities/media-asset';
 import { customerFullName } from '@/domain/entities/customer';
@@ -28,7 +31,11 @@ export interface InspectionArchiveServiceDeps {
   readonly referenceData: IReferenceDataRepository;
   readonly clock: IClock;
   readonly logger: ILogger;
+  /** Giorni dopo l'archiviazione oltre i quali il record viene eliminato (PHOTO_HARD_DELETE_DAYS). */
+  readonly hardDeleteDays: number;
 }
+
+const GIORNO_MS = 24 * 60 * 60_000;
 
 export interface ArchivedPhotoView {
   readonly id: string;
@@ -58,9 +65,14 @@ export interface InspectionArchiveEntry {
 }
 
 export interface RetentionSummary {
+  /** Foto con file scaduto trovate in questo giro. */
   readonly examined: number;
+  /** File eliminati (o già assenti) e record marcati come archiviati. */
   readonly archived: number;
+  /** File che non si è riusciti a eliminare: si riprova al giro successivo. */
   readonly failed: number;
+  /** Record archiviati da oltre `hardDeleteDays` eliminati definitivamente. */
+  readonly deleted: number;
 }
 
 export class InspectionArchiveService {
@@ -136,9 +148,13 @@ export class InspectionArchiveService {
   }
 
   /**
-   * Retention: elimina dal disco i file scaduti e marca i record come archiviati.
-   * Un file già sparito (NOT_FOUND) conta come archiviato: l'obiettivo è che non occupi spazio,
-   * non che l'eliminazione sia "nostra". Un errore su un file non ferma gli altri.
+   * Retention in due passaggi.
+   * 1) File: elimina dal disco le foto scadute e marca i record come archiviati. Un file già
+   *    sparito (NOT_FOUND) conta come archiviato: l'obiettivo è che non occupi spazio, non che
+   *    l'eliminazione sia "nostra". Un errore su un file non ferma gli altri.
+   * 2) Record: i metadati archiviati da oltre `hardDeleteDays` vengono eliminati definitivamente.
+   *    Il conteggio parte dall'archiviazione, non dallo scatto: se il primo passaggio è rimasto
+   *    fermo per giorni, la scheda resta comunque leggibile per tutto il periodo promesso.
    */
   async purgeExpired(): Promise<RetentionSummary> {
     const now = this.deps.clock.nowIso();
@@ -157,13 +173,29 @@ export class InspectionArchiveService {
       await this.deps.media.update({ ...asset, archivedAt: now });
       archived += 1;
     }
-    if (scadute.length > 0) {
+
+    const deleted = await this.hardDeleteArchived(now);
+
+    if (scadute.length > 0 || deleted > 0) {
       this.logger.info('retention foto completata', {
         esaminate: scadute.length,
         archived,
         failed,
+        deleted,
       });
     }
-    return { examined: scadute.length, archived, failed };
+    return { examined: scadute.length, archived, failed, deleted };
+  }
+
+  /** Secondo passaggio: elimina i record archiviati da più di `hardDeleteDays`. */
+  private async hardDeleteArchived(now: IsoDateTime): Promise<number> {
+    const cutoff = new Date(
+      new Date(now).getTime() - this.deps.hardDeleteDays * GIORNO_MS,
+    ).toISOString() as IsoDateTime;
+    const daEliminare = await this.deps.media.listArchivedBefore(cutoff);
+    for (const asset of daEliminare) {
+      await this.deps.media.delete(asset.id);
+    }
+    return daEliminare.length;
   }
 }

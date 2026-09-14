@@ -74,6 +74,7 @@ function setup(mode: InfinityMockMode) {
       referenceData: env.referenceData,
       clock,
       logger: env.logger,
+      hardDeleteDays: 90,
     }),
     clock,
     logger: env.logger,
