@@ -15,6 +15,7 @@ import { localTimeHHmm } from '@/lib/dates';
 import type { IAppointmentRepository, ISyncRunRepository } from '@/repositories/interfaces';
 import type { IClock } from '@/services/interfaces/IClock';
 import type { ILogger } from '@/services/interfaces/ILogger';
+import type { InspectionArchiveService } from '../media/InspectionArchiveService';
 import { SYSTEM_ACTOR_ID, type QueueService } from '../queue/QueueService';
 import type { SyncService } from './SyncService';
 
@@ -24,6 +25,8 @@ export interface SyncSchedulerDeps {
   /** Servono alla chiusura di fine turno. */
   readonly queueService: QueueService;
   readonly appointments: IAppointmentRepository;
+  /** Retention delle foto: gira dopo il fine turno, quando l'officina non carica più nulla. */
+  readonly archive: InspectionArchiveService;
   readonly clock: IClock;
   readonly logger: ILogger;
   /** Ora locale "HH:mm" (env SYNC_HOUR_LOCAL). */
@@ -45,6 +48,8 @@ export class SyncScheduler {
   private lastClosedDate: IsoDate | null = null;
   /** Nuovi tentativi automatici già fatti per una sync fallita, per giornata. */
   private readonly syncRetries = new Map<IsoDate, number>();
+  /** Giornata in cui la retention delle foto è già stata eseguita. */
+  private lastPurgedDate: IsoDate | null = null;
 
   constructor(private readonly deps: SyncSchedulerDeps) {
     this.logger = deps.logger.child('[Scheduler]');
@@ -89,6 +94,7 @@ export class SyncScheduler {
       const oraLocale = localTimeHHmm(now, this.deps.timeZone);
 
       await this.closeBusinessDayIfDue(today, oraLocale);
+      await this.purgeExpiredMediaIfDue(today, oraLocale);
 
       if (oraLocale < this.deps.syncHourLocal) {
         return;
@@ -133,6 +139,21 @@ export class SyncScheduler {
       `sync fallita per ${today} (${latest.errorCode ?? 'errore'}): nuovo tentativo automatico ${fatti + 1}/${SYNC_RETRY_BACKOFF_MINUTES.length}`,
     );
     await this.deps.syncService.runDailySync(today, 'RETRY');
+  }
+
+  /**
+   * Retention delle foto: una volta al giorno, dopo il fine turno, quando nessun tablet sta
+   * caricando. Elimina i file scaduti e marca i record come archiviati.
+   */
+  private async purgeExpiredMediaIfDue(today: IsoDate, oraLocale: string): Promise<void> {
+    if (oraLocale < this.deps.businessDayEndLocal || this.lastPurgedDate === today) {
+      return;
+    }
+    this.lastPurgedDate = today;
+    const esito = await this.deps.archive.purgeExpired();
+    if (esito.examined > 0) {
+      this.logger.info('retention foto eseguita', { ...esito });
+    }
   }
 
   /**

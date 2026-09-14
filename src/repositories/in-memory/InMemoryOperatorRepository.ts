@@ -24,6 +24,20 @@ export class InMemoryOperatorRepository implements IOperatorRepository {
     return null;
   }
 
+  async listAll(): Promise<readonly Operator[]> {
+    return [...this.store.state.operators.values()].map((o) => ({ ...o, deskIds: [...o.deskIds] }));
+  }
+
+  async insert(operator: Operator): Promise<Operator> {
+    const stored = { ...operator, deskIds: [...operator.deskIds] };
+    this.store.state.operators.set(stored.id, stored);
+    return { ...stored, deskIds: [...stored.deskIds] };
+  }
+
+  async update(operator: Operator): Promise<Operator> {
+    return this.insert(operator);
+  }
+
   async listActive(): Promise<readonly Operator[]> {
     return [...this.store.state.operators.values()]
       .filter((o) => o.isActive)

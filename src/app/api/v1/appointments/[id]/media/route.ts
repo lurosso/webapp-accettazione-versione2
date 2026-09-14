@@ -37,6 +37,7 @@ export async function GET(request: NextRequest, context: RouteContext): Promise<
       capturedAt: f.asset.capturedAt,
       sizeBytes: f.asset.sizeBytes,
       category: f.asset.category,
+      archivedAt: f.asset.archivedAt,
     })),
   });
 }
@@ -97,6 +98,7 @@ export async function POST(request: NextRequest, context: RouteContext): Promise
         capturedAt: salvata.value.asset.capturedAt,
         sizeBytes: salvata.value.asset.sizeBytes,
         category: salvata.value.asset.category,
+        archivedAt: salvata.value.asset.archivedAt,
       },
     },
     { status: 201, headers: { 'x-correlation-id': correlationId } },

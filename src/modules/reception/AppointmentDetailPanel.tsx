@@ -28,6 +28,11 @@ export interface AppointmentDetailPanelProps {
   /** Operatore collegato: serve a marcare "(tu)" sulla presa in carico. */
   readonly currentOperatorName: string;
   readonly onClose: () => void;
+  /**
+   * Su tablet il pannello sale dal basso come un foglio, invece di aprirsi di lato: con il
+   * dispositivo in orizzontale la tabella resta visibile sopra e si chiude con un tocco fuori.
+   */
+  readonly sheet?: boolean;
 }
 
 /** Riga etichetta/valore del pannello. */
@@ -91,6 +96,7 @@ export function AppointmentDetailPanel({
   timeZone,
   currentOperatorName,
   onClose,
+  sheet = false,
 }: AppointmentDetailPanelProps) {
   // Chiusura con Esc: l'accettatore lavora molto da tastiera.
   useEffect(() => {
@@ -115,14 +121,30 @@ export function AppointmentDetailPanel({
   const events = timeline(a);
 
   return (
-    <div className="fixed inset-0 z-40 flex justify-end bg-slate-900/30" onClick={onClose}>
+    <div
+      className={
+        sheet
+          ? 'fixed inset-0 z-40 flex items-end bg-slate-900/30'
+          : 'fixed inset-0 z-40 flex justify-end bg-slate-900/30'
+      }
+      onClick={onClose}
+    >
       <aside
         role="dialog"
         aria-modal="true"
         aria-labelledby="dettaglio-titolo"
-        className="flex h-full w-full max-w-md flex-col overflow-y-auto bg-white shadow-2xl"
+        className={
+          sheet
+            ? 'flex max-h-[85vh] w-full flex-col overflow-y-auto rounded-t-2xl bg-white shadow-2xl'
+            : 'flex h-full w-full max-w-md flex-col overflow-y-auto bg-white shadow-2xl'
+        }
         onClick={(event) => event.stopPropagation()}
       >
+        {sheet ? (
+          <div className="flex justify-center pt-2" aria-hidden="true">
+            <span className="h-1.5 w-12 rounded-full bg-slate-300" />
+          </div>
+        ) : null}
         <header className="sticky top-0 flex items-start justify-between gap-4 border-b border-slate-200 bg-white px-5 py-4">
           <div className="flex flex-col gap-1">
             <span className="font-mono text-2xl font-bold tracking-wide" id="dettaglio-titolo">
@@ -262,8 +284,13 @@ export function AppointmentDetailPanel({
           <MediaGallery appointmentId={a.id} inspectionNotes={a.notes} timeZone={timeZone} />
 
           {events.length > 0 ? (
-            <section>
-              <h3 className="mb-1 text-sm font-bold text-slate-900">Cronologia di oggi</h3>
+            <details open={!sheet} className="group">
+              <summary className="cursor-pointer list-none text-sm font-bold text-slate-900 select-none">
+                Cronologia di oggi
+                <span className="ml-2 text-xs font-normal text-slate-500 group-open:hidden">
+                  (tocca per aprire)
+                </span>
+              </summary>
               <ul className="flex flex-col gap-1 text-sm text-slate-700">
                 {events.map((e) => (
                   <li key={e.label} className="flex justify-between gap-4">
@@ -274,7 +301,7 @@ export function AppointmentDetailPanel({
                   </li>
                 ))}
               </ul>
-            </section>
+            </details>
           ) : null}
 
           <p className="text-xs text-slate-400">

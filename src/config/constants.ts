@@ -130,3 +130,10 @@ export const INFINITY_RESILIENCE = {
 
 /** "Il turno si avvicina": quante pratiche del proprio sportello possono restare davanti. */
 export const TURN_APPROACHING_AHEAD = 2;
+
+/**
+ * Giorni di conservazione dei file delle foto (env PHOTO_RETENTION_DAYS). Un mese copre il tempo
+ * in cui un cliente può contestare un danno al ritiro; oltre, i file occupano solo il disco
+ * dell'officina. I record restano per sempre: dicono che il giro era stato fatto.
+ */
+export const DEFAULT_PHOTO_RETENTION_DAYS = 30;

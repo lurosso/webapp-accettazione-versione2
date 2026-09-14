@@ -31,6 +31,8 @@ export interface AppointmentRowProps {
   readonly lateByMinutes?: number;
   readonly onAction: (action: AppointmentAction) => void;
   readonly onSelect: () => void;
+  /** Riga aperta nel pannello di dettaglio. */
+  readonly selected?: boolean;
 }
 
 const ROW_CLASSES: Partial<Record<AppointmentStatus, string>> = {
@@ -54,6 +56,7 @@ export function AppointmentRow({
   lateByMinutes = 0,
   onAction,
   onSelect,
+  selected = false,
 }: AppointmentRowProps) {
   const a = row.appointment;
   return (
@@ -65,7 +68,9 @@ export function AppointmentRow({
         'cursor-pointer select-none hover:brightness-[0.97]',
         ROW_CLASSES[a.status],
         pending && 'opacity-60',
+        selected && 'ring-brand-secondary/70 ring-2 ring-inset',
       )}
+      aria-selected={selected}
       data-status={a.status}
       onClick={onSelect}
     >

@@ -29,6 +29,7 @@ function setup() {
     clock: env.clock,
     ids: env.ids,
     logger: env.logger,
+    retentionDays: 30,
   });
   const ctx: ActionContext = {
     operatorId: asOperatorId('op-advisor-1'),
@@ -328,6 +329,7 @@ describe('InspectionService: chiusura del check-in', () => {
       clock: env.clock,
       ids: env.ids,
       logger: env.logger,
+      retentionDays: 30,
     });
     const ctx: ActionContext = {
       operatorId: asOperatorId('op-advisor-1'),

@@ -67,7 +67,8 @@ export function ActionButtons({
     buttons.push({
       action: 'take',
       label: foreignDesk ? 'Prendi in carico (altro sportello)' : 'Prendi in carico',
-      variant: 'warning',
+      // Blu: è un'azione di lavoro, non un completamento.
+      variant: 'default',
     });
   }
   if (late) {

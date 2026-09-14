@@ -132,6 +132,7 @@ export function BdcLeadsTable({ leads, timeZone, pendingId, onContacted }: BdcLe
                   <div className="flex flex-wrap gap-2">
                     <Button
                       size="sm"
+                      variant="success"
                       onClick={() => onContacted(lead, null)}
                       disabled={pendingId === lead.eventId}
                     >
@@ -164,6 +165,7 @@ export function BdcLeadsTable({ leads, timeZone, pendingId, onContacted }: BdcLe
                     <div className="flex gap-2">
                       <Button
                         size="sm"
+                        variant="success"
                         disabled={pendingId === lead.eventId}
                         onClick={() => onContacted(lead, nota.trim() === '' ? null : nota.trim())}
                       >

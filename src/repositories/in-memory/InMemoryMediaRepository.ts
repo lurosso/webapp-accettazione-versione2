@@ -2,6 +2,7 @@
 
 import type { MediaAsset } from '@/domain/entities/media-asset';
 import type { AppointmentId, MediaAssetId } from '@/domain/ids';
+import type { IsoDateTime } from '@/domain/value-objects/iso-date';
 import type { IMediaRepository } from '../interfaces/IMediaRepository';
 import type { InMemoryStore } from './InMemoryStore';
 
@@ -20,6 +21,22 @@ export class InMemoryMediaRepository implements IMediaRepository {
       .filter((m) => m.appointmentId === appointmentId)
       .sort((a, b) => (a.capturedAt < b.capturedAt ? -1 : a.capturedAt > b.capturedAt ? 1 : 0))
       .map((m) => ({ ...m }));
+  }
+
+  async listAll(): Promise<readonly MediaAsset[]> {
+    return [...this.store.state.media.values()].map((m) => ({ ...m }));
+  }
+
+  async listExpired(now: IsoDateTime): Promise<readonly MediaAsset[]> {
+    return [...this.store.state.media.values()]
+      .filter((m) => m.archivedAt === null && m.expiresAt <= now)
+      .map((m) => ({ ...m }));
+  }
+
+  async update(asset: MediaAsset): Promise<MediaAsset> {
+    const stored = { ...asset };
+    this.store.state.media.set(stored.id, stored);
+    return { ...stored };
   }
 
   async delete(id: MediaAssetId): Promise<void> {

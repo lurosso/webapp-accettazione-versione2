@@ -325,7 +325,13 @@ export function QueueDashboard({
             pendingId={actions.pendingId}
             currentOperatorName={session.displayName}
             onAction={onAction}
-            onSelect={(row) => setSelectedId(row.appointment.id)}
+            selectedId={selectedId}
+            // Stessa riga toccata due volte: il pannello si chiude. Sul tablet è il gesto naturale.
+            onSelect={(row) =>
+              setSelectedId((corrente) =>
+                corrente === row.appointment.id ? null : row.appointment.id,
+              )
+            }
           />
         )
       ) : queue.isLoading ? (
@@ -341,6 +347,7 @@ export function QueueDashboard({
 
       <AppointmentDetailPanel
         row={selectedRow}
+        sheet={touchLayout}
         brandName={
           selectedRow === null
             ? ''

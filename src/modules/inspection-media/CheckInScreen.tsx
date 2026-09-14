@@ -178,7 +178,7 @@ export function CheckInScreen({
             onClick={() => void completa()}
             disabled={inChiusura || mancanti.length > 0}
             aria-describedby={mancanti.length > 0 ? 'foto-mancanti' : undefined}
-            className="bg-status-completed h-16 w-full rounded-xl text-xl font-bold text-white shadow-sm hover:brightness-95 focus-visible:ring-4 focus-visible:ring-emerald-300 focus-visible:outline-none disabled:opacity-60"
+            className="bg-brand-primary hover:bg-brand-lime-dark focus-visible:ring-brand-lime-dark h-16 w-full rounded-xl text-xl font-bold text-slate-950 shadow-sm hover:text-white focus-visible:ring-4 focus-visible:outline-none disabled:opacity-60"
           >
             {inChiusura ? 'Conclusione in corso…' : 'Completa check-in'}
           </button>

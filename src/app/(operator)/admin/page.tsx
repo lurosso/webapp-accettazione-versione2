@@ -1,10 +1,11 @@
-// Area di amministrazione: oggi segnaposto, la rotta esiste e non rimanda altrove.
+// Area di amministrazione: gestione degli operatori e strumenti di assistenza.
 // Riservata ad ADMIN; gli altri ruoli vedono un messaggio esplicito invece di un redirect muto.
 import type { Metadata } from 'next';
 import { requireSession } from '@/app/_server/session';
 import { AccessDenied } from '@/components/shared/AccessDenied';
-import { PlaceholderPage } from '@/components/shared/PlaceholderPage';
+import { getContainer } from '@/config/container';
 import { canAccess } from '@/lib/navigation';
+import { AdminDashboard } from '@/modules/admin/AdminDashboard';
 
 export const dynamic = 'force-dynamic';
 
@@ -15,24 +16,5 @@ export default async function AdminPage() {
   if (!canAccess('admin', session.role)) {
     return <AccessDenied area="area di amministrazione" role={session.role} />;
   }
-
-  return (
-    <PlaceholderPage
-      title="Dashboard Admin"
-      intro="Configurazione del sistema e strumenti di manutenzione. In lavorazione: la rotta è già
-        attiva, così la navigazione e i permessi si possono provare fin d'ora."
-      planned={[
-        { label: 'Anagrafiche: marchi, sportelli, postazioni, accettazioni', milestone: 'M6' },
-        { label: 'Operatori e ruoli, reimpostazione delle password', milestone: 'M6' },
-        { label: 'Interruttori dei mock e sincronizzazione manuale', milestone: 'M1-T15' },
-        { label: 'Coda degli eventi verso il CRM e loro rinvio', milestone: 'M6' },
-        { label: 'Passaggio ai servizi reali, una porta alla volta', milestone: 'M7' },
-      ]}
-      shortcuts={[
-        { href: '/sistema', label: 'Stato dei sistemi esterni' },
-        { href: '/accettazione', label: 'Vai alla coda di accettazione' },
-        { href: '/display/1', label: 'Anteprima monitor accettazione 1' },
-      ]}
-    />
-  );
+  return <AdminDashboard session={session} timeZone={getContainer().env.timeZone} />;
 }

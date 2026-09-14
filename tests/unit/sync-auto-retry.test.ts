@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { QueueService } from '@/application/queue/QueueService';
 import { CodeGenerator } from '@/application/queue/CodeGenerator';
+import { InspectionArchiveService } from '@/application/media/InspectionArchiveService';
 import { SyncScheduler } from '@/application/sync/SyncScheduler';
 import { SyncService } from '@/application/sync/SyncService';
 import { SYNC_RETRY_BACKOFF_MINUTES } from '@/config/constants';
@@ -66,6 +67,14 @@ function setup(mode: InfinityMockMode) {
     syncRuns: env.syncRuns,
     queueService,
     appointments: env.appointments,
+    archive: new InspectionArchiveService({
+      appointments: env.appointments,
+      media: env.media,
+      mediaStorage: env.mediaStorage,
+      referenceData: env.referenceData,
+      clock,
+      logger: env.logger,
+    }),
     clock,
     logger: env.logger,
     syncHourLocal: '06:00',

@@ -162,12 +162,21 @@ export function MediaGallery({ appointmentId, inspectionNotes, timeZone }: Media
                         className="group focus:ring-brand-blue relative block aspect-square w-full overflow-hidden rounded-md border border-slate-200 focus:ring-2 focus:outline-none"
                         aria-label={`Ingrandisci la foto: ${gruppo.etichetta}`}
                       >
-                        {/* eslint-disable-next-line @next/next/no-img-element -- file servito dalla rotta media, non ottimizzabile da next/image */}
-                        <img
-                          src={photo.url}
-                          alt=""
-                          className="h-full w-full object-cover transition group-hover:scale-105"
-                        />
+                        {photo.archivedAt !== null ? (
+                          <span className="flex h-full w-full flex-col items-center justify-center bg-slate-100 px-1 text-center text-[10px] text-slate-500">
+                            <span aria-hidden="true" className="text-lg">
+                              🗄️
+                            </span>
+                            file archiviato
+                          </span>
+                        ) : (
+                          // eslint-disable-next-line @next/next/no-img-element -- file servito dalla rotta media, non ottimizzabile da next/image
+                          <img
+                            src={photo.url}
+                            alt=""
+                            className="h-full w-full object-cover transition group-hover:scale-105"
+                          />
+                        )}
                         <span className="absolute right-1 bottom-1 rounded bg-slate-900/70 px-1 text-[10px] font-semibold text-white">
                           {sizeLabel(photo.sizeBytes)}
                         </span>

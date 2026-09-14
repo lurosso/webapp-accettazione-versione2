@@ -26,13 +26,18 @@ export interface ButtonProps extends ButtonHTMLAttributes<HTMLButtonElement> {
 }
 
 const VARIANT_CLASSES: Record<ButtonVariant, string> = {
-  default: 'bg-brand-blue text-white hover:bg-brand-blue-dark focus-visible:ring-brand-blue-light',
+  // Blu Autoclub: struttura, navigazione e azioni di lavoro (prendi in carico, filtri).
+  default:
+    'bg-brand-secondary text-white hover:bg-brand-blue-dark focus-visible:ring-brand-blue-light',
   secondary: 'bg-slate-100 text-slate-900 hover:bg-slate-200 focus-visible:ring-slate-400',
   outline:
     'border border-slate-300 bg-white text-slate-900 hover:bg-slate-50 focus-visible:ring-slate-400',
   ghost: 'text-slate-700 hover:bg-slate-100 focus-visible:ring-slate-400',
   destructive: 'bg-red-600 text-white hover:bg-red-700 focus-visible:ring-red-400',
-  success: 'bg-status-completed text-white hover:brightness-95 focus-visible:ring-emerald-400',
+  // Verde Autoclub: solo completamento e avanzamento. Testo scuro: il verde del marchio con il
+  // bianco sopra non si legge (contrasto 2,6:1), con il testo scuro supera 8:1.
+  success:
+    'bg-brand-primary text-slate-950 hover:bg-brand-lime-dark hover:text-white focus-visible:ring-brand-lime-dark',
   warning: 'bg-status-in-progress text-slate-900 hover:brightness-95 focus-visible:ring-amber-400',
   onDark:
     'border border-white/40 bg-white/10 text-white hover:bg-white/20 focus-visible:ring-white',

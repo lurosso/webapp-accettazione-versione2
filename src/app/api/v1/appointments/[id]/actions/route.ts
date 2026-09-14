@@ -10,13 +10,24 @@ import { asAppointmentId, asBayId } from '@/domain/ids';
 import {
   badRequestResponse,
   domainErrorResponse,
+  forbiddenResponse,
   unauthorizedResponse,
 } from '@/lib/http/api-error';
+import { canAccess } from '@/lib/navigation';
 
 export const dynamic = 'force-dynamic';
 
 const ActionBody = z.object({
-  action: z.enum(['take', 'skip', 'complete', 'release', 'restore', 'reschedule', 'no-show']),
+  action: z.enum([
+    'take',
+    'skip',
+    'complete',
+    'release',
+    'restore',
+    'reschedule',
+    'no-show',
+    'cancel',
+  ]),
   expectedVersion: z.number().int().nonnegative(),
   bayId: z.string().trim().min(1).nullable().optional(),
   reason: z.string().trim().max(500).nullable().optional(),
@@ -50,6 +61,12 @@ export async function POST(request: NextRequest, context: RouteContext): Promise
   };
   const queue = container.queueService;
   const { action } = parsed.data;
+  // Annullare una pratica non è un'azione da banco: la decide un responsabile o un amministratore.
+  if (action === 'cancel' && !canAccess('manager', session.role)) {
+    return forbiddenResponse(
+      "L'annullamento di una pratica è riservato a responsabili e amministratori.",
+    );
+  }
 
   const result = await (async () => {
     switch (action) {
@@ -70,6 +87,8 @@ export async function POST(request: NextRequest, context: RouteContext): Promise
         return queue.rescheduleToNow(input, ctx);
       case 'no-show':
         return queue.markNoShow({ ...input, reason: parsed.data.reason ?? undefined }, ctx);
+      case 'cancel':
+        return queue.cancel(input, ctx);
     }
   })();
 

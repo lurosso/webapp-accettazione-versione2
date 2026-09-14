@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { QueueService, type ActionContext } from '@/application/queue/QueueService';
+import { InspectionArchiveService } from '@/application/media/InspectionArchiveService';
 import { SyncScheduler } from '@/application/sync/SyncScheduler';
 import { SyncService } from '@/application/sync/SyncService';
 import { CodeGenerator } from '@/application/queue/CodeGenerator';
@@ -55,6 +56,14 @@ function setup(clock: TestClock) {
     syncRuns: env.syncRuns,
     queueService,
     appointments: env.appointments,
+    archive: new InspectionArchiveService({
+      appointments: env.appointments,
+      media: env.media,
+      mediaStorage: env.mediaStorage,
+      referenceData: env.referenceData,
+      clock: env.clock,
+      logger: env.logger,
+    }),
     clock: env.clock,
     logger: env.logger,
     // Sincronizzazione spostata a fine giornata: questi test guardano solo la chiusura, e una

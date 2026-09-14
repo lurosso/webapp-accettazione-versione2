@@ -164,7 +164,7 @@ export function TabletQueue({ session, homeDeskId, openCheckInFor = null }: Tabl
             className={cn(
               'h-touch rounded-xl border-2 px-4 text-lg font-semibold transition-colors',
               scheda === t.id
-                ? 'border-slate-900 bg-slate-900 text-white'
+                ? 'border-brand-secondary bg-brand-secondary text-white'
                 : 'border-slate-300 bg-white text-slate-700',
             )}
           >
@@ -232,9 +232,11 @@ export function TabletQueue({ session, homeDeskId, openCheckInFor = null }: Tabl
                     onClick={() => iniziaCheckIn(row)}
                     className={cn(
                       'h-touch shrink-0 rounded-xl px-6 text-lg font-bold shadow-sm disabled:opacity-60',
+                      // Blu in entrambi i casi: prendere in carico e riprendere sono azioni di
+                      // lavoro; il verde è riservato a "Completa check-in".
                       inLavorazione
-                        ? 'bg-slate-900 text-white hover:bg-slate-700'
-                        : 'bg-status-in-progress text-slate-900 hover:brightness-95',
+                        ? 'border-brand-secondary text-brand-secondary border-2 bg-white hover:bg-slate-50'
+                        : 'bg-brand-secondary hover:bg-brand-blue-dark text-white',
                     )}
                   >
                     {actions.pendingId === a.id

@@ -2,7 +2,7 @@
 // Formato memorizzato: `scrypt$N=<n>,r=<r>,p=<p>$<salt base64>$<hash base64>`.
 // Il prefisso `plain:` del seed demo è accettato SOLO perché il container rifiuta le credenziali
 // demo appena un provider è reale o NODE_ENV=production (config/container.ts).
-import { randomBytes, scryptSync, timingSafeEqual } from 'node:crypto';
+import { randomBytes, randomInt, scryptSync, timingSafeEqual } from 'node:crypto';
 
 const SCRYPT_PREFIX = 'scrypt';
 const PLAIN_PREFIX = 'plain:';
@@ -69,6 +69,22 @@ export function verifyPassword(plain: string, stored: string): boolean {
   } catch {
     return false;
   }
+}
+
+/**
+ * Alfabeto per le password provvisorie: niente 0/O, 1/I/L, così si dettano a voce senza dubbi.
+ * 31 simboli su 12 posizioni: circa 59 bit di entropia, sufficienti per una credenziale che
+ * verrà cambiata al primo accesso.
+ */
+const TEMP_PASSWORD_ALPHABET = 'ABCDEFGHJKMNPQRSTUVWXYZ23456789';
+
+/** Password provvisoria casuale nel formato `XXXX-XXXX-XXXX` (CSPRNG, distribuzione uniforme). */
+export function generateTemporaryPassword(): string {
+  let out = '';
+  for (let i = 0; i < 12; i += 1) {
+    out += TEMP_PASSWORD_ALPHABET.charAt(randomInt(TEMP_PASSWORD_ALPHABET.length));
+  }
+  return `${out.slice(0, 4)}-${out.slice(4, 8)}-${out.slice(8, 12)}`;
 }
 
 /** True se l'hash memorizzato è una credenziale demo in chiaro (solo sviluppo). */

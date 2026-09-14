@@ -35,7 +35,15 @@ export interface QueueResponse {
  * deposita l'evento per il CRM.
  */
 export type AppointmentAction =
-  'take' | 'skip' | 'complete' | 'release' | 'restore' | 'reschedule' | 'no-show';
+  | 'take'
+  | 'skip'
+  | 'complete'
+  | 'release'
+  | 'restore'
+  | 'reschedule'
+  | 'no-show'
+  /** Annullamento deciso da un responsabile o amministratore (assistenza). */
+  | 'cancel';
 
 export interface AppointmentActionRequest {
   readonly action: AppointmentAction;

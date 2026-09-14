@@ -12,6 +12,9 @@ export function homePathForRole(role: OperatorRole): string {
       return '/manager';
     case 'ADVISOR':
       return '/accettazione';
+    case 'KIOSK':
+      // Un dispositivo non ha una "dashboard": la sua casa è il tabellone della sala.
+      return '/display/sala-attesa';
   }
 }
 

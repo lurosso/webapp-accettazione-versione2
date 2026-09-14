@@ -33,6 +33,8 @@ export interface QueueTableProps {
     expectedVersion: number,
   ) => void;
   readonly onSelect: (row: QueueRowView) => void;
+  /** Pratica aperta nel pannello di dettaglio: la riga resta evidenziata. */
+  readonly selectedId?: string | null;
 }
 
 interface Section {
@@ -69,6 +71,7 @@ export function QueueTable({
   currentOperatorName,
   onAction,
   onSelect,
+  selectedId = null,
 }: QueueTableProps) {
   const [closedOpen, setClosedOpen] = useState(false);
 
@@ -218,6 +221,7 @@ export function QueueTable({
                           currentOperatorName={currentOperatorName}
                           late={section.late === true}
                           lateByMinutes={section.late === true ? lateBy(row) : 0}
+                          selected={row.appointment.id === selectedId}
                           onAction={(action) =>
                             onAction(row.appointment.id, action, row.appointment.version)
                           }

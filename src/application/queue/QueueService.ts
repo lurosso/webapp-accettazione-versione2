@@ -437,6 +437,21 @@ export class QueueService {
   }
 
   /**
+   * Annulla una pratica (in coda o in carico → CANCELLED). È la leva dell'assistenza per una
+   * pratica incagliata che non ha più senso: la state machine la ammette da WAITING, SKIPPED e
+   * IN_PROGRESS; il controllo del ruolo (responsabile o amministratore) sta nella rotta.
+   */
+  async cancel(
+    input: TransitionInput,
+    ctx: ActionContext,
+  ): Promise<Result<Appointment, DomainError>> {
+    return this.transition(input, ctx, 'CANCELLED', () => ({
+      cancelledAt: this.deps.clock.nowIso(),
+      bayId: null,
+    }));
+  }
+
+  /**
    * Chiusura della giornata: a officina chiusa non deve restare nulla di aperto.
    * - chi era ancora in coda (in attesa o saltato) diventa `NO_SHOW` e finisce nel cruscotto BDC
    *   con l'evento verso il CRM: non si è presentato, e domani qualcuno deve richiamarlo;

@@ -6,8 +6,9 @@ import { cn } from '@/lib/utils/cn';
 
 export const ROLE_LABELS: Record<OperatorRole, string> = {
   ADVISOR: 'Accettatore',
-  SUPERVISOR: 'Responsabile',
+  SUPERVISOR: 'Manager',
   ADMIN: 'Amministratore',
+  KIOSK: 'Kiosk',
 };
 
 /** Iniziali del nome (al massimo due lettere), es. "Mario Rossi" → "MR". */

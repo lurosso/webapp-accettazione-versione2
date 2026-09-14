@@ -16,6 +16,7 @@ riduce le attese e rende trasparente lo stato della pratica a operatori e client
 - [Avvio rapido](#avvio-rapido)
 - [Account dimostrativi](#account-dimostrativi)
 - [Le dashboard](#le-dashboard)
+- [Amministrazione, archivio foto e retention](#amministrazione-archivio-foto-e-retention)
 - [Script disponibili](#script-disponibili)
 - [Struttura del repository](#struttura-del-repository)
 - [Documentazione](#documentazione)
@@ -56,6 +57,12 @@ grigi `#2E2E2E` e `#F2F2F2`, presi dalle variabili CSS pubblicate da
 `--color-brand-*`, insieme alla scala neutra ritinta sul blu: cambiando quei valori cambia tutta
 l'applicazione. I colori di stato della coda (in attesa, in carico, completata, assente) restano
 invece indipendenti dal marchio, perché comunicano un'informazione e non uno stile.
+
+I due colori del marchio hanno un significato preciso, non solo estetico: il **verde**
+(`bg-brand-primary`) compare esclusivamente sulle azioni che completano o fanno avanzare un lavoro
+(Completa check-in, Completato, Segna come ricontattato); il **blu** (`bg-brand-secondary`) veste
+struttura, navigazione e azioni secondarie (Prendi in carico, Passa al check-in, schede e filtri).
+Sul piazzale l'occhio trova così in un attimo il pulsante che chiude il giro.
 
 Il marchio a schermo (`BrandMark`) è scritto in CSS, non è un file immagine: resta nitido sui
 monitor appesi in officina e non aggiunge nulla da caricare. Quando ci verrà fornito il logo
@@ -128,6 +135,10 @@ container **rifiuta di avviarsi** con queste credenziali se un provider è impos
 | `laura.bianchi` | Accettatore    | S2 · Jeep / Alfa Romeo               |
 | `andrea.conti`  | Accettatore    | S3 · Peugeot / Citroën / Opel        |
 
+Gli account si gestiscono da `/admin` (vedi sotto): l'amministratore ne crea di nuovi, li modifica,
+li disattiva e azzera le password senza toccare il seed. Esiste anche il ruolo **Kiosk** per gli
+account dei dispositivi, che atterrano sul tabellone e non entrano nell'area operatore.
+
 Al login si scelgono **Sportello / Brand** e **Postazione** (P1–P4, ognuna con un'accettazione
 predefinita): determinano il filtro iniziale della coda e l'accettazione proposta alla presa in carico.
 
@@ -144,13 +155,17 @@ predefinita): determinano il filtro iniziale della coda e l'accettazione propost
 | `/comunicazioni`      | Responsabile   | pianificato    | Registro degli invii WhatsApp e SMS con conferma manuale (l'invio automatico funziona già) |
 | `/display/1` … `/4`   | Monitor        | disponibile    | Schermo a tutto campo per i monitor sopra le postazioni: codice e targa in servizio, oppure invito verde ad avanzare; si aggiorna ogni 2 secondi |
 | `/tablet`             | Tablet         | disponibile    | Accettazione al veicolo: le pratiche del proprio sportello in due schede grandi, check-in a tutto schermo con fotocamera e note sui danni rilevati |
+| `/accettazione/archivio` | Accettatore | disponibile    | Archivio delle ispezioni: ricerca per targa o codice, schede con le foto per categoria; i file oltre la retention risultano eliminati ma la scheda resta |
+| `/admin`              | Amministratore | disponibile    | Gestione operatori (crea, modifica, disattiva, reset password) e strumenti di assistenza: accettazioni occupate, pratiche in carico da troppo tempo, rimetti in coda o annulla |
 
 API principali (JSON, autenticate via cookie di sessione): `GET /api/v1/queue`,
 `POST /api/v1/appointments/{id}/actions`, `POST /api/v1/appointments/{id}/media` (foto, multipart),
 `POST /api/v1/appointments/{id}/check-in`, `POST /api/v1/sync`, `POST /api/v1/auth/login`,
 `GET /api/v1/crm/leads` e `POST /api/v1/crm/leads/{id}/contacted` (responsabile e amministratore),
 `POST /api/v1/system/close-day` (chiusura giornata), `GET /api/v1/crm/outbox` e
-`POST /api/v1/crm/outbox/{id}/retry` (amministratore).
+`POST /api/v1/crm/outbox/{id}/retry` (amministratore), `GET /api/v1/inspections/archive?q=` (archivio),
+`GET|POST /api/v1/admin/operators`, `PATCH /api/v1/admin/operators/{id}`,
+`POST /api/v1/admin/operators/{id}/reset-password` e `GET /api/v1/admin/assistance` (amministratore).
 Pubbliche, senza sessione: `GET /api/v1/public/status?targa=AB123CD` (stato del turno, protetta da
 limiti di frequenza) e `GET /api/v1/health`.
 
@@ -322,6 +337,34 @@ curl -s -X POST -H "x-cron-secret: $CRON_SECRET" http://localhost:3000/api/v1/sy
 Le due strade possono convivere: ogni evento porta la propria chiave di idempotenza e il CRM la
 riconosce, quindi un doppio invio non genera un doppio lead.
 
+## Amministrazione, archivio foto e retention
+
+**Operatori.** In `/admin` l'amministratore vede tutti gli account con nome, utente, ruolo
+(Accettatore, Manager, Amministratore, Kiosk), sportelli assegnati e stato. *Nuovo operatore*
+chiede nome utente (minuscolo, senza spazi), nome da mostrare, ruolo, sportelli, postazione
+abituale e password iniziale (almeno 8 caratteri); *Modifica* cambia tutto tranne il nome utente;
+*Disattiva* è reversibile e non cancella nulla, così i registri restano leggibili. *Reset
+password* genera una provvisoria nel formato `XXXX-XXXX-XXXX`, senza caratteri ambigui perché va
+dettata a voce, e la mostra una volta sola: da quel momento esiste solo il suo hash. Il server
+rifiuta di disattivare o degradare chi sta operando e l'ultimo amministratore attivo: l'officina
+non può restare chiusa fuori.
+
+**Assistenza.** Sotto l'elenco ci sono le quattro accettazioni con la pratica che le occupa e da
+quanti minuti, più tutte le pratiche in carico. *Libera accettazione* e *Rimetti in coda* fanno la
+stessa cosa (la pratica torna in attesa, l'accettazione si libera) e sono reversibili, quindi
+bastano un tocco; *Annulla pratica* chiude definitivamente e chiede un secondo tocco.
+
+**Archivio ispezioni.** Da *Archivio* nell'intestazione si cerca un check-in per targa (anche
+scritta con spazi o in minuscolo) o per codice pratica: la scheda mostra veicolo, cliente, stato,
+note e le foto raggruppate per parte del veicolo. Serve al ritiro, quando un cliente contesta un
+danno.
+
+**Retention.** Ogni foto nasce con una scadenza: `PHOTO_RETENTION_DAYS` giorni (default 30). Dopo
+la chiusura della giornata lo scheduler elimina i file scaduti e marca il record come archiviato:
+la scheda resta con data, categorie e note e al posto della foto compare "file eliminato". Lo
+stesso lavoro si può affidare a un cron esterno con `POST /api/v1/system/cron/media-retention`
+(sessione amministratore o header `x-cron-secret`).
+
 ## Statistiche ed esportazione
 
 Il cruscotto responsabile apre con il riquadro **Statistiche del giorno**: attesa media (dal
@@ -352,14 +395,14 @@ apre con un doppio clic.
 
 ```
 src/
-├── app/            Pagine e Route Handler Next.js (login, accettazione, sistema, api/v1)
-├── application/    Casi d'uso: auth, queue (QueueService, CodeGenerator), sync, health, notifications
+├── app/            Pagine e Route Handler Next.js (login, accettazione, archivio, tablet, manager, admin, sistema, api/v1)
+├── application/    Casi d'uso: auth, queue, sync, health, notifications, crm, media (ispezione e archivio), reporting, admin
 ├── components/     UI riusabile (primitive in ui/, shell in layout/)
 ├── config/         Composition root: env, seed, auth, container
 ├── domain/         Entità, value object, state machine, eventi (codice puro)
 ├── hooks/          Hook React (polling della coda, azioni)
 ├── lib/            Utilità: date, hash password, client API, helper HTTP
-├── modules/        Componenti di modulo (reception = dashboard accettazione)
+├── modules/        Componenti di modulo (reception, customer-portal, bay-displays, inspection-media, crm, admin)
 ├── repositories/   Interfacce di persistenza e implementazione in memoria
 └── services/       Porte esterne, DTO, mapper e Mock (Infinity, Spoki, SMS Hosting, CRM)
 tests/              Test unitari Vitest

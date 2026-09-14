@@ -25,6 +25,7 @@ export interface HeaderProps {
 /** Voci di navigazione: i permessi arrivano da `AREA_ROLES`, non duplicati qui. */
 const NAV: readonly { href: string; label: string; area: ProtectedArea }[] = [
   { href: '/accettazione', label: 'Accettazione', area: 'accettazione' },
+  { href: '/accettazione/archivio', label: 'Archivio', area: 'accettazione' },
   { href: '/tablet', label: 'Tablet', area: 'tablet' },
   { href: '/manager', label: 'BDC', area: 'manager' },
   { href: '/admin', label: 'Admin', area: 'admin' },
@@ -84,7 +85,11 @@ export function Header({ displayName, role, workstationLabel, deskLabel, timeZon
                 href={item.href}
                 className={cn(
                   'rounded-md px-2.5 py-1 text-sm transition-colors hover:bg-white/10',
-                  pathname.startsWith(item.href)
+                  (
+                    item.href === '/accettazione'
+                      ? pathname === item.href || pathname.startsWith('/accettazione/pratiche')
+                      : pathname.startsWith(item.href)
+                  )
                     ? 'bg-white/15 font-semibold text-white'
                     : 'text-white/75',
                 )}

@@ -12,6 +12,13 @@
    * (autoclubgroup.it): blu istituzionale #0065A0 dell'intestazione, verde #87BD22 del marchio
    * "GROUP" e dei pulsanti, grigi #2E2E2E / #F2F2F2 dei testi e degli sfondi.
    */
+  /*
+   * Ruoli semantici dei due colori del marchio:
+   * - primary (verde): SOLO azioni positive di completamento e avanzamento;
+   * - secondary (blu): struttura, navigazione, azioni di lavoro (prendi in carico, filtri).
+   */
+  --color-brand-primary: #87bd22;
+  --color-brand-secondary: #0065a0;
   --color-brand-blue: #0065a0;
   --color-brand-blue-dark: #00466f;
   --color-brand-blue-light: #0180ca;

@@ -14,6 +14,7 @@ import {
 } from '@/domain/entities/media-asset';
 import { domainError, type DomainError } from '@/domain/errors';
 import { asMediaAssetId, type AppointmentId, type OperatorId } from '@/domain/ids';
+import type { IsoDateTime } from '@/domain/value-objects/iso-date';
 import { err, ok, type Result } from '@/domain/result';
 import type { IAppointmentRepository, IMediaRepository } from '@/repositories/interfaces';
 import type { IClock } from '@/services/interfaces/IClock';
@@ -32,6 +33,8 @@ export interface InspectionServiceDeps {
   readonly clock: IClock;
   readonly ids: IIdGenerator;
   readonly logger: ILogger;
+  /** Giorni di conservazione dei file (env PHOTO_RETENTION_DAYS). */
+  readonly retentionDays: number;
 }
 
 /** Dimensione massima accettata per una foto (le fotocamere dei tablet stanno sotto). */
@@ -129,6 +132,11 @@ export class InspectionService {
       capturedByOperatorId: input.operatorId,
       capturedAt: this.deps.clock.nowIso(),
       note: input.note ?? null,
+      // La scadenza nasce con la foto: la retention non deve ricalcolare nulla, solo confrontare.
+      expiresAt: new Date(
+        this.deps.clock.now().getTime() + this.deps.retentionDays * 24 * 60 * 60_000,
+      ).toISOString() as IsoDateTime,
+      archivedAt: null,
     });
     this.logger.info(`foto acquisita per ${appointment.code}`, {
       mediaId: asset.id,

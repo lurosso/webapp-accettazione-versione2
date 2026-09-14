@@ -18,6 +18,7 @@ import type {
 import {
   DEFAULT_BUSINESS_DAY_END,
   DEFAULT_CODE_PREFIX,
+  DEFAULT_PHOTO_RETENTION_DAYS,
   DEFAULT_MEDIA_DIR,
   DEFAULT_SYNC_HOUR_LOCAL,
   TIMEZONE,
@@ -48,6 +49,8 @@ export interface AppEnv {
   readonly displayTokenRequired: boolean;
   /** Messaggi al cliente guidati dagli eventi (conferma, turno vicino, annullamento). */
   readonly messagingTriggersEnabled: boolean;
+  /** Giorni di conservazione dei file delle foto dell'ispezione. */
+  readonly photoRetentionDays: number;
   /** Segreto per il cron esterno dei rinvii CRM (null = solo sessione amministratore). */
   readonly cronSecret: string | null;
   /**
@@ -244,6 +247,7 @@ export function parseEnv(
     crmRetryEnabled: pickBool(source, 'CRM_RETRY_ENABLED', true, warn),
     displayTokenRequired: pickBool(source, 'DISPLAY_TOKEN_REQUIRED', false, warn),
     messagingTriggersEnabled: pickBool(source, 'MESSAGING_TRIGGERS_ENABLED', true, warn),
+    photoRetentionDays: pickInt(source, 'PHOTO_RETENTION_DAYS', DEFAULT_PHOTO_RETENTION_DAYS, warn),
     cronSecret:
       pickString(source, 'CRON_SECRET', '').trim() === ''
         ? null

@@ -67,4 +67,11 @@ export interface MediaAsset {
   readonly capturedByOperatorId: OperatorId;
   readonly capturedAt: IsoDateTime;
   readonly note: string | null;
+  /** Dopo questo istante il file può essere eliminato dal disco (retention). */
+  readonly expiresAt: IsoDateTime;
+  /**
+   * Quando il file è stato eliminato. Il record resta: nel fascicolo si continua a leggere che la
+   * foto era stata scattata, con data e categoria, anche senza l'immagine.
+   */
+  readonly archivedAt: IsoDateTime | null;
 }

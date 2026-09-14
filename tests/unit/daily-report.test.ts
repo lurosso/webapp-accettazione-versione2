@@ -167,6 +167,8 @@ describe('DailyReportService: esportazione CSV', () => {
       capturedByOperatorId: 'op-advisor-1' as never,
       capturedAt: AT('09:00'),
       note: null,
+      expiresAt: AT('09:00'),
+      archivedAt: null,
     });
 
     const csv = await report.buildDailyCsv(TEST_DATE);

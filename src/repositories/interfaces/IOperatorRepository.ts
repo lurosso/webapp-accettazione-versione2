@@ -9,4 +9,8 @@ export interface IOperatorRepository {
   /** Ricerca case-insensitive per username. */
   findByUsername(username: string): Promise<Operator | null>;
   listActive(): Promise<readonly Operator[]>;
+  /** Tutti, anche disattivati (pannello di amministrazione). */
+  listAll(): Promise<readonly Operator[]>;
+  insert(operator: Operator): Promise<Operator>;
+  update(operator: Operator): Promise<Operator>;
 }

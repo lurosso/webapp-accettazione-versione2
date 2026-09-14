@@ -6,6 +6,14 @@ import type { Session } from '@/application/auth/IAuthService';
 import type { BdcLeadsView, BdcLeadView, CrmOutboxView } from '@/domain/read-models';
 import type { CrmOutboxEvent, CrmOutboxStatus } from '@/domain/entities/crm-outbox-event';
 import type { DailyReportView } from '@/application/reporting/DailyReportService';
+import type {
+  CreateOperatorInput,
+  OperatorView,
+  ResetPasswordResult,
+  UpdateOperatorInput,
+} from '@/application/admin/OperatorAdminService';
+import type { AssistanceView } from '@/application/admin/AssistanceService';
+import type { InspectionArchiveEntry } from '@/application/media/InspectionArchiveService';
 import type { MediaCategory } from '@/domain/entities/media-asset';
 import type { BoardStatus, DisplayStatus } from '@/modules/bay-displays/types';
 import type { PublicStatus } from '@/modules/customer-portal/types';
@@ -72,7 +80,7 @@ function redirectToLogin(): void {
 export async function apiFetch<T>(
   path: string,
   init: {
-    method?: 'GET' | 'POST';
+    method?: 'GET' | 'POST' | 'PATCH' | 'DELETE';
     json?: unknown;
     /** Rotte pubbliche (portale cliente): un 401 non deve mai portare al login dell'operatore. */
     publicEndpoint?: boolean;
@@ -171,6 +179,8 @@ export interface InspectionPhoto {
   readonly sizeBytes: number;
   /** Parte del veicolo ripresa; `null` solo per foto acquisite prima delle categorie. */
   readonly category: MediaCategory | null;
+  /** File eliminato dalla retention: il record resta, l'immagine no. */
+  readonly archivedAt: string | null;
 }
 
 /**
@@ -290,6 +300,61 @@ export function postOutboxRetry(eventId: string): Promise<{
 /** GET /api/v1/reports/daily: indicatori della giornata (responsabile e amministratore). */
 export function fetchDailyReport(businessDate: string): Promise<DailyReportView> {
   return apiFetch(`/api/v1/reports/daily?giornata=${encodeURIComponent(businessDate)}`);
+}
+
+/** Elenco operatori con sportelli e postazioni per i menu (solo ADMIN). */
+export interface AdminOperatorsResponse {
+  readonly operators: readonly OperatorView[];
+  readonly desks: readonly { readonly id: string; readonly code: string; readonly name: string }[];
+  readonly workstations: readonly {
+    readonly id: string;
+    readonly code: string;
+    readonly name: string;
+    readonly deskId: string;
+  }[];
+}
+
+export function fetchAdminOperators(): Promise<AdminOperatorsResponse> {
+  return apiFetch('/api/v1/admin/operators');
+}
+
+export function postAdminOperator(
+  body: CreateOperatorInput,
+): Promise<{ readonly operator: OperatorView }> {
+  return apiFetch('/api/v1/admin/operators', { method: 'POST', json: body });
+}
+
+export function patchAdminOperator(
+  id: string,
+  body: UpdateOperatorInput,
+): Promise<{ readonly operator: OperatorView }> {
+  return apiFetch(`/api/v1/admin/operators/${encodeURIComponent(id)}`, {
+    method: 'PATCH',
+    json: body,
+  });
+}
+
+export function postAdminResetPassword(id: string): Promise<ResetPasswordResult> {
+  return apiFetch(`/api/v1/admin/operators/${encodeURIComponent(id)}/reset-password`, {
+    method: 'POST',
+  });
+}
+
+/** GET /api/v1/admin/assistance: accettazioni occupate e pratiche in carico. */
+export function fetchAssistance(): Promise<AssistanceView> {
+  return apiFetch('/api/v1/admin/assistance');
+}
+
+/** GET /api/v1/inspections/archive: storico dei check-in fotografici. */
+export function fetchInspectionArchive(
+  query: string,
+): Promise<{ readonly query: string; readonly entries: readonly InspectionArchiveEntry[] }> {
+  const search = new URLSearchParams();
+  if (query !== '') {
+    search.set('q', query);
+  }
+  const qs = search.toString();
+  return apiFetch(`/api/v1/inspections/archive${qs === '' ? '' : `?${qs}`}`);
 }
 
 /** POST /api/v1/auth/login. */

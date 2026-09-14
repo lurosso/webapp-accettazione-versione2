@@ -7,6 +7,9 @@ import { BdcLeadService } from '@/application/crm/BdcLeadService';
 import { CrmNotifier } from '@/application/crm/CrmNotifier';
 import { CrmOutboxService } from '@/application/crm/CrmOutboxService';
 import { CrmRetryScheduler } from '@/application/crm/CrmRetryScheduler';
+import { AssistanceService } from '@/application/admin/AssistanceService';
+import { OperatorAdminService } from '@/application/admin/OperatorAdminService';
+import { InspectionArchiveService } from '@/application/media/InspectionArchiveService';
 import { InspectionService } from '@/application/media/InspectionService';
 import { DailyReportService } from '@/application/reporting/DailyReportService';
 import { CustomerMessagingPolicy } from '@/application/notifications/CustomerMessagingPolicy';
@@ -53,6 +56,9 @@ export interface Container {
   readonly crmOutboxService: CrmOutboxService;
   readonly crmRetryScheduler: CrmRetryScheduler;
   readonly inspectionService: InspectionService;
+  readonly inspectionArchiveService: InspectionArchiveService;
+  readonly operatorAdminService: OperatorAdminService;
+  readonly assistanceService: AssistanceService;
   readonly dailyReportService: DailyReportService;
   readonly messagingPolicy: CustomerMessagingPolicy;
   readonly syncService: SyncService;
@@ -218,6 +224,30 @@ export function createContainer(overrides: ContainerOverrides = {}): Container {
     clock,
     ids,
     logger,
+    retentionDays: env.photoRetentionDays,
+  });
+
+  const inspectionArchiveService = new InspectionArchiveService({
+    appointments: repos.appointments,
+    media: repos.media,
+    mediaStorage: external.mediaStorage,
+    referenceData: repos.referenceData,
+    clock,
+    logger,
+  });
+
+  const operatorAdminService = new OperatorAdminService({
+    operators: repos.operators,
+    referenceData: repos.referenceData,
+    ids,
+    logger,
+  });
+
+  const assistanceService = new AssistanceService({
+    appointments: repos.appointments,
+    referenceData: repos.referenceData,
+    operators: repos.operators,
+    clock,
   });
 
   const dailyReportService = new DailyReportService({
@@ -247,6 +277,7 @@ export function createContainer(overrides: ContainerOverrides = {}): Container {
     syncRuns: repos.syncRuns,
     queueService,
     appointments: repos.appointments,
+    archive: inspectionArchiveService,
     clock,
     logger,
     syncHourLocal: env.syncHourLocal,
@@ -282,6 +313,9 @@ export function createContainer(overrides: ContainerOverrides = {}): Container {
     crmOutboxService,
     crmRetryScheduler,
     inspectionService,
+    inspectionArchiveService,
+    operatorAdminService,
+    assistanceService,
     dailyReportService,
     messagingPolicy,
     syncService,
