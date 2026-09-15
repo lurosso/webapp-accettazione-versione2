@@ -51,6 +51,8 @@ export interface ManualIntakeInput {
   readonly deskId: string | null;
   /** Cosa chiede il cliente (lavorazione, note). */
   readonly serviceDescription: string | null;
+  /** Il cliente accetta gli avvisi WhatsApp (chiesto al banco); altrimenti si usa l'SMS. */
+  readonly whatsappOptIn: boolean;
 }
 
 /** Modello sconosciuto all'inserimento: si legge così in coda finché nessuno lo corregge. */
@@ -140,8 +142,7 @@ export class ManualIntakeService {
         lastName: nome.lastName,
         phone: telefono === null ? null : telefono.value,
         email: null,
-        // Nessun consenso raccolto al banco: eventuali messaggi partono via SMS.
-        whatsappOptIn: false,
+        whatsappOptIn: input.whatsappOptIn,
       },
       vehicle: {
         id: this.deps.ids.nextAs(asVehicleId),

@@ -12,6 +12,13 @@ export interface TemplateVars {
   readonly scheduledTime: string;
   readonly plate: string;
   readonly brandName: string;
+  /** Link al portale cliente per seguire la coda (/portal?targa=…), già assoluto. */
+  readonly portalUrl: string;
+}
+
+/** Link pubblico del portale per una targa. `publicBaseUrl` vuoto → percorso relativo. */
+export function buildPortalUrl(publicBaseUrl: string, plate: string): string {
+  return `${publicBaseUrl.replace(/\/+$/, '')}/portal?targa=${encodeURIComponent(plate)}`;
 }
 
 /** Definizione di un template: chiave Spoki e funzione di rendering del testo (per SMS e log). */
@@ -30,7 +37,7 @@ export const NOTIFICATION_TEMPLATES: Readonly<Record<NotificationKind, Notificat
   BOOKING_CONFIRMED: {
     spokiTemplateKey: 'booking_confirmed_v1',
     render: (v) =>
-      `${v.firstName}, la sua pratica per la vettura ${v.plate} è stata registrata presso Autoclub Group. Il suo codice è ${v.code}: lo troverà sui monitor dell'accettazione.`,
+      `${v.firstName}, la sua pratica per la vettura ${v.plate} è stata registrata presso Autoclub Group. Il suo codice è ${v.code}: lo troverà sui monitor dell'accettazione. Segua la coda in tempo reale: ${v.portalUrl}`,
   },
   TURN_APPROACHING: {
     spokiTemplateKey: 'turn_approaching_v1',
@@ -63,6 +70,7 @@ export function buildTemplateVars(
   appointment: Appointment,
   brand: Brand,
   timeZone = 'Europe/Rome',
+  publicBaseUrl = '',
 ): TemplateVars {
   return {
     firstName: appointment.customer.firstName,
@@ -70,5 +78,6 @@ export function buildTemplateVars(
     scheduledTime: localTimeHHmm(new Date(appointment.scheduledAt), timeZone),
     plate: appointment.vehicle.plate,
     brandName: brand.name,
+    portalUrl: buildPortalUrl(publicBaseUrl, appointment.vehicle.plate),
   };
 }

@@ -127,3 +127,41 @@ export function isLate(
   const attesa = new Date(effectiveScheduleTime(a)).getTime() + graceMinutes * 60_000;
   return attesa < new Date(nowIso).getTime();
 }
+
+/**
+ * Orario atteso superato ma ancora entro la tolleranza: il cliente non è "in ritardo" (non finisce
+ * nel blocco dei ritardi), però va servito adesso. È la riga gialla della coda.
+ */
+export function isDueWithinGrace(
+  a: Pick<Appointment, 'scheduledAt' | 'rescheduledAt' | 'status'>,
+  nowIso: string,
+  graceMinutes: number,
+): boolean {
+  if (!isInQueue(a.status)) {
+    return false;
+  }
+  const attesa = new Date(effectiveScheduleTime(a)).getTime();
+  const now = new Date(nowIso).getTime();
+  return attesa <= now && now < attesa + graceMinutes * 60_000;
+}
+
+/**
+ * Ordine della coda: orario effettivo (quello riprogrammato in officina, se c'è), poi sequenza del
+ * codice. Un cliente riattivato dopo un'assenza ha come orario effettivo il momento del rientro:
+ * viene quindi servito dopo i puntuali già presenti e prima di chi è atteso più tardi, senza che
+ * il suo codice cambi. Unica regola per dashboard, tablet, portale e messaggi.
+ */
+export function compareQueueOrder(
+  a: Pick<Appointment, 'scheduledAt' | 'rescheduledAt' | 'sequence'>,
+  b: Pick<Appointment, 'scheduledAt' | 'rescheduledAt' | 'sequence'>,
+): number {
+  const ta = effectiveScheduleTime(a);
+  const tb = effectiveScheduleTime(b);
+  if (ta < tb) {
+    return -1;
+  }
+  if (ta > tb) {
+    return 1;
+  }
+  return a.sequence - b.sequence;
+}

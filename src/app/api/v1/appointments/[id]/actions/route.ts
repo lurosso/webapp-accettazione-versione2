@@ -30,6 +30,7 @@ const ActionBody = z.object({
     'cancel',
     'reopen-completed',
     'confirm-auto-close',
+    'reactivate',
   ]),
   expectedVersion: z.number().int().nonnegative(),
   bayId: z.string().trim().min(1).nullable().optional(),
@@ -100,6 +101,8 @@ export async function POST(request: NextRequest, context: RouteContext): Promise
         return queue.cancel(input, ctx);
       case 'reopen-completed':
         return queue.reopenCompleted(input, ctx);
+      case 'reactivate':
+        return queue.reactivate(input, ctx);
       case 'confirm-auto-close': {
         const esito = await container.inspectionService.confirmAutoClosed(input, ctx);
         return esito.ok ? ok(esito.value.appointment) : esito;

@@ -9,5 +9,11 @@ export type ProviderKind = 'mock' | 'real';
 /** Implementazione della persistenza selezionabile via `REPOSITORY_PROVIDER`. */
 export type RepositoryProvider = 'memory' | 'prisma';
 
+/**
+ * Modalità del servizio Spoki reale (`SPOKI_MODE`): `simulation` non chiama nulla e registra i
+ * payload (nessun credito WhatsApp consumato), `live` chiama le automazioni Spoki.
+ */
+export type SpokiMode = 'simulation' | 'live';
+
 /** Implementazione dello storage media selezionabile via `MEDIA_STORAGE_PROVIDER`. */
 export type MediaStorageProvider = 'memory' | 'local' | 'blob';

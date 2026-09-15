@@ -14,7 +14,9 @@ import type { IInfinityService } from './interfaces/IInfinityService';
 import type { ILogger } from './interfaces/ILogger';
 import type { IMediaStorage } from './interfaces/IMediaStorage';
 import type { ISmsHostingService } from './interfaces/ISmsHostingService';
+import type { ISpokiActivityLog } from './interfaces/ISpokiActivityLog';
 import type { ISpokiService } from './interfaces/ISpokiService';
+import { SpokiActivityLog, SpokiService } from '@/infrastructure/messaging/spoki';
 import {
   CrmServiceMock,
   InfinityServiceMock,
@@ -32,6 +34,8 @@ export type { ProviderKind } from './interfaces/provider-kinds';
 export interface ExternalServices {
   readonly infinity: IInfinityService;
   readonly spoki: ISpokiService;
+  /** Registro delle chiamate a Spoki (simulate o reali), letto dal pannello di amministrazione. */
+  readonly spokiActivityLog: ISpokiActivityLog;
   readonly smsHosting: ISmsHostingService;
   readonly crm: ICrmService;
   readonly mediaStorage: IMediaStorage;
@@ -80,6 +84,8 @@ export function createExternalServices(env: AppEnv, deps: ExternalServiceDeps): 
     { clock: deps.clock, logger: deps.logger },
   );
 
+  // Spoki reale: la modalità decide se chiamare davvero (live) o registrare soltanto (simulation).
+  const spokiActivityLog: ISpokiActivityLog = new SpokiActivityLog(deps.ids);
   const spoki: ISpokiService =
     env.spokiProvider === 'mock'
       ? new SpokiServiceMock(
@@ -93,7 +99,28 @@ export function createExternalServices(env: AppEnv, deps: ExternalServiceDeps): 
           },
           { clock: deps.clock, ids: deps.ids, logger: deps.logger },
         )
-      : notImplemented('Spoki', 'SPOKI_PROVIDER');
+      : new SpokiService(
+          {
+            mode: env.spokiMode,
+            apiKey: env.spokiApiKey,
+            urls: {
+              CONFIRMATION: env.spokiUrlConfirmation,
+              TURN_APPROACHING: env.spokiUrlTurnApproaching,
+              CANCELLATION: env.spokiUrlCancellation,
+            },
+            timeoutMs: 8_000,
+          },
+          {
+            clock: deps.clock,
+            ids: deps.ids,
+            logger: deps.logger,
+            activityLog: spokiActivityLog,
+            fetchImpl:
+              typeof globalThis.fetch === 'function'
+                ? (url, init) => globalThis.fetch(url, init)
+                : undefined,
+          },
+        );
 
   const smsHosting: ISmsHostingService =
     env.smsProvider === 'mock'
@@ -130,5 +157,5 @@ export function createExternalServices(env: AppEnv, deps: ExternalServiceDeps): 
         ? new MediaStorageMock({ latencyMs: env.mockMediaLatencyMs }, { logger: deps.logger })
         : notImplemented(`storage media "${env.mediaStorageProvider}"`, 'MEDIA_STORAGE_PROVIDER');
 
-  return { infinity, spoki, smsHosting, crm, mediaStorage };
+  return { infinity, spoki, spokiActivityLog, smsHosting, crm, mediaStorage };
 }

@@ -7,6 +7,7 @@ const ALL_MOCK: SessionSecretEnv = {
   servicesProvider: 'mock',
   infinityProvider: 'mock',
   spokiProvider: 'mock',
+  spokiMode: 'simulation',
   smsProvider: 'mock',
   crmProvider: 'mock',
   repositoryProvider: 'memory',

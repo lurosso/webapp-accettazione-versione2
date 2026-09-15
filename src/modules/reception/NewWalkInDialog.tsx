@@ -39,6 +39,7 @@ export function NewWalkInDialog({
   const [brandScelta, setBrandScelta] = useState<string | null>(null);
   const brandId = brandScelta ?? defaultBrandId ?? attivi[0]?.id ?? '';
   const [service, setService] = useState('');
+  const [whatsappOptIn, setWhatsappOptIn] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
 
@@ -71,6 +72,7 @@ export function NewWalkInDialog({
         brandId,
         deskId,
         serviceDescription: service.trim() === '' ? null : service.trim(),
+        whatsappOptIn,
       });
       reset();
       onCreated(appointment);
@@ -141,6 +143,16 @@ export function NewWalkInDialog({
           <p className="text-xs text-slate-500">
             Serve per avvisarlo del turno: senza, il cliente va chiamato a voce.
           </p>
+          <label className="mt-1 flex items-center gap-2 text-sm text-slate-700">
+            <input
+              id="wi-whatsapp"
+              type="checkbox"
+              className="h-5 w-5 accent-[#0065a0]"
+              checked={whatsappOptIn}
+              onChange={(e) => setWhatsappOptIn(e.target.checked)}
+            />
+            Il cliente accetta gli avvisi su WhatsApp (altrimenti SMS)
+          </label>
         </div>
         <div className="flex flex-col gap-1.5">
           <Label htmlFor="wi-lavorazione">Lavorazione richiesta / note</Label>

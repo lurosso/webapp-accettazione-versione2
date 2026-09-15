@@ -87,7 +87,9 @@ UI / Dashboard ─► Casi d'uso ─► Interfacce (porte) ◄─ Mock (oggi)   
   stessa agenda a partire da un seme, con targhe, nomi e orari italiani realistici.
 - **Spoki** (WhatsApp) e **SMS Hosting** (SMS di ripiego): `ISpokiService` / `ISmsHostingService` →
   i mock decidono l'esito dall'ultima cifra del telefono, così la catena WhatsApp → SMS → contatto
-  manuale è verificabile senza inviare nulla a nessuno. Le cifre: da 0 a 6 WhatsApp consegnato,
+  manuale è verificabile senza inviare nulla a nessuno. Per Spoki esiste anche l'adapter reale in
+  **modalità sandbox** (`SPOKI_PROVIDER=real`, `SPOKI_MODE=simulation`): stesso codice della
+  produzione, nessuna chiamata di rete, payload leggibili in `/admin` (vedi più sotto). Le cifre: da 0 a 6 WhatsApp consegnato,
   7 non consegnabile e 9 rifiutato (in entrambi i casi parte l'SMS), 8 errore temporaneo su
   entrambi i canali, 99 nessun canale disponibile e serve una telefonata. Dopo la sincronizzazione
   dell'agenda i promemoria partono da soli e l'esito compare in dashboard accanto al cliente.
@@ -152,7 +154,7 @@ anche il server, quindi due login sullo stesso posto non passano nemmeno chiaman
 | Percorso              | Destinatario   | Stato          | Contenuto                                                                                 |
 | --------------------- | -------------- | -------------- | ----------------------------------------------------------------------------------------- |
 | `/login`              | Accettatore    | disponibile    | Credenziali, scelta sportello/brand e postazione                                          |
-| `/accettazione`       | Accettatore    | disponibile    | Coda ordinata per orario con codici F001…, azioni rapide, blocco **In ritardo / assenti**, banner sync, **vista globale** per prendere in carico pratiche di altri sportelli, aggiornamento ogni 3 s; il clic su una riga apre i dati del cliente; **Nuovo cliente (senza appuntamento)** mette in coda un walk-in con targa, nome, telefono, marca e lavorazione; dal dettaglio di una pratica completata si può **riaprirla** |
+| `/accettazione`       | Accettatore    | disponibile    | Coda ordinata per orario con codici F001…, azioni rapide, blocco **In ritardo / assenti**, banner sync, **vista globale** per prendere in carico pratiche di altri sportelli, aggiornamento ogni 3 s; il clic su una riga apre i dati del cliente; **Nuovo cliente (senza appuntamento)** mette in coda un walk-in con targa, nome, telefono, marca e lavorazione; dal dettaglio di una pratica completata si può **riaprirla**; le righe con l'orario superato da meno di dieci minuti sono **gialle** e un cliente segnato assente che si presenta si **riattiva** ("Arrivato in ritardo": torna in coda dopo i presenti, con lo stesso codice) |
 | `/sistema`            | Responsabile / IT | disponibile | Stato delle porte esterne (Infinity, Spoki, SMS Hosting, CRM) e, per gli amministratori, la coda di uscita verso il CRM con "Forza riprova" |
 | `/cliente` (`/qr`)    | Cliente (QR)   | disponibile    | Ricerca per targa e stato del turno in tempo reale: codice, clienti in attesa, messaggio per stato; nessuna autenticazione e nessun dato personale |
 | `/display/sala-attesa` | Sala d'attesa | disponibile    | Tabellone stile ufficio pubblico: codici chiamati con l'accettazione a cui presentarsi e prossimi turni |
@@ -161,7 +163,7 @@ anche il server, quindi due login sullo stesso posto non passano nemmeno chiaman
 | `/display/1` … `/4`   | Monitor        | disponibile    | Schermo a tutto campo per i monitor sopra le postazioni: codice e targa in servizio, oppure invito verde ad avanzare; si aggiorna ogni 2 secondi |
 | `/check-in`           | Tablet         | disponibile    | Check-in veicolo a tutto schermo, senza l'intestazione del sito: le pratiche del proprio sportello in due schede grandi, giro fotografico a slot, note con annotazioni rapide, comandi fissi in basso (il vecchio `/tablet` rimanda qui) |
 | `/accettazione/archivio` | Accettatore | disponibile    | Archivio delle ispezioni: ricerca per targa o codice, schede con le foto per categoria; i file oltre la retention risultano eliminati ma la scheda resta |
-| `/admin`              | Amministratore | disponibile    | Gestione operatori (crea, modifica, disattiva, reset password) e strumenti di assistenza: accettazioni occupate, pratiche in carico da troppo tempo, rimetti in coda o annulla |
+| `/admin`              | Amministratore | disponibile    | Gestione operatori (crea, modifica, disattiva, reset password), strumenti di assistenza (accettazioni occupate, pratiche in carico da troppo tempo, rimetti in coda o annulla) e integrazione Spoki (stato, messaggio di prova, registro dei payload) |
 
 API principali (JSON, autenticate via cookie di sessione): `GET /api/v1/queue`,
 `POST /api/v1/appointments/{id}/actions`, `POST /api/v1/appointments/{id}/media` (foto, multipart),
@@ -291,6 +293,29 @@ Sul flusso viaggiano segnali, non dati: "è cambiata una pratica", e chi riceve 
 endpoint. Per questo esistono due canali — `/api/v1/events/stream` per l'area operatore e
 `/api/v1/public/events/stream` per gli schermi pubblici, che ricevono solo il tipo dell'evento e
 nessun identificativo.
+
+## Messaggi WhatsApp con Spoki (sandbox)
+
+I messaggi ai clienti passano dalla policy a eventi già descritta sopra: **conferma con il codice**
+(anche per il cliente inserito a mano, con il link al portale `/portal?targa=…`), **turno in
+arrivo** quando restano al massimo due clienti davanti, **annullamento** quando un operatore
+annulla la pratica o segna il cliente assente. Con `SPOKI_PROVIDER=real` a inviarli è
+`SpokiService`, l'adapter che andrà in produzione, in due modalità:
+
+- `SPOKI_MODE=simulation` (predefinita, ed è quella del file `.env.local` di sviluppo): nessuna
+  chiamata a Spoki, nessun credito consumato. Ogni messaggio finisce nel log del server e nel
+  registro del pannello admin con il payload esatto che l'automazione riceverebbe (`phone`,
+  `first_name`, `code`, `plate`, `scheduled_time`, `brand`, `portal_url`, `text`).
+- `SPOKI_MODE=live`: POST JSON all'URL dell'automazione del template (`SPOKI_URL_CONFIRMATION`,
+  `SPOKI_URL_TURN_APPROACHING`, `SPOKI_URL_CANCELLATION`) con `SPOKI_API_KEY`. Errori di rete e
+  5xx sono ritentabili, 4xx no: in entrambi i casi vale il ripiego su SMS.
+
+In `/admin`, la sezione **Integrazione Spoki & messaggistica** mostra provider e modalità, la
+chiave mascherata, quali URL sono configurati, un **messaggio di prova** a un numero scelto a mano
+(in simulazione finisce solo nel registro) e il **registro dei payload** con il JSON espandibile.
+La guida in fondo alla sezione spiega come recuperare chiave e URL dal menu "Integrazioni API" di
+Spoki e come passare a `live` senza sorprese. `PUBLIC_BASE_URL` è l'indirizzo pubblico usato nei
+link dei messaggi.
 
 ## Quando qualcosa va storto
 

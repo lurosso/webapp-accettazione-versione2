@@ -200,6 +200,42 @@ export class CrmNotifier {
   }
 
   /**
+   * Cliente segnato assente che poi si presenta: il lead del BDC si chiude come "gestito", con la
+   * nota del perché, e non viene più rinviato al CRM. Se l'evento era già stato consegnato resta
+   * consegnato: il CRM saprà dal check-in successivo che il cliente è arrivato.
+   */
+  async resolveNoShow(
+    appointment: Appointment,
+    operatorId: OperatorId,
+    note: string,
+  ): Promise<void> {
+    try {
+      const evento = await this.deps.outbox.findByIdempotencyKey(
+        buildNoShowIdempotencyKey(appointment),
+      );
+      if (evento === null || evento.status === 'MANUAL') {
+        return;
+      }
+      await this.deps.outbox.update({
+        ...evento,
+        status: 'MANUAL',
+        nextAttemptAt: null,
+        handledAt: this.deps.clock.nowIso(),
+        handledByOperatorId: operatorId,
+        handledNote: note,
+      });
+      this.logger.info(`lead assente chiuso per ${appointment.code}: cliente arrivato`, {
+        eventId: evento.id,
+        operatorId,
+      });
+    } catch (cause) {
+      this.logger.error(`lead assente di ${appointment.code} non chiuso`, {
+        message: cause instanceof Error ? cause.message : String(cause),
+      });
+    }
+  }
+
+  /**
    * Scrive l'evento nella coda di uscita e tenta subito la consegna. Non lancia mai: qualunque
    * guasto lascia la riga in coda, pronta per il rinvio, e viene solo segnalato nei log.
    */

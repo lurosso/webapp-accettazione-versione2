@@ -14,6 +14,7 @@ import type {
   MediaStorageProvider,
   ProviderKind,
   RepositoryProvider,
+  SpokiMode,
 } from '@/services/interfaces/provider-kinds';
 import {
   DEFAULT_BUSINESS_DAY_END,
@@ -38,6 +39,16 @@ export interface AppEnv {
   readonly servicesProvider: ProviderKind;
   readonly infinityProvider: ProviderKind;
   readonly spokiProvider: ProviderKind;
+  /** Con SPOKI_PROVIDER=real: simulazione (nessuna chiamata) o live. */
+  readonly spokiMode: SpokiMode;
+  /** Chiave API globale di Spoki (menu "Integrazioni API"); null se non impostata. */
+  readonly spokiApiKey: string | null;
+  /** URL delle automazioni Spoki, una per template; null se non impostati. */
+  readonly spokiUrlConfirmation: string | null;
+  readonly spokiUrlTurnApproaching: string | null;
+  readonly spokiUrlCancellation: string | null;
+  /** Indirizzo pubblico del portale cliente, usato nei link dei messaggi. */
+  readonly publicBaseUrl: string;
   readonly smsProvider: ProviderKind;
   readonly crmProvider: ProviderKind;
   readonly repositoryProvider: RepositoryProvider;
@@ -105,6 +116,7 @@ const UP_DOWN: readonly ProviderMockMode[] = ['ok', 'down'];
 const CRM_MODES: readonly CrmMockMode[] = ['ok', 'error', 'timeout', 'flaky'];
 const SEQUENCE_SCOPES: readonly AppEnv['codeSequenceScope'][] = ['SITE', 'BRAND'];
 const NODE_ENVS: readonly AppEnv['nodeEnv'][] = ['development', 'test', 'production'];
+const SPOKI_MODES: readonly SpokiMode[] = ['simulation', 'live'];
 
 function defaultWarning(message: string): void {
   console.warn(`[env] ${message}`);
@@ -127,6 +139,11 @@ function pickEnum<T extends string>(
     return fallback;
   }
   return found;
+}
+
+function pickStringOrNull(source: EnvSource, key: string): string | null {
+  const raw = source[key];
+  return raw === undefined || raw.trim() === '' ? null : raw.trim();
 }
 
 function pickString(source: EnvSource, key: string, fallback: string): string {
@@ -230,6 +247,15 @@ export function parseEnv(
     servicesProvider,
     infinityProvider: perPort('INFINITY_PROVIDER'),
     spokiProvider: perPort('SPOKI_PROVIDER'),
+    spokiMode: pickEnum(source, 'SPOKI_MODE', SPOKI_MODES, 'simulation', warn),
+    spokiApiKey: pickStringOrNull(source, 'SPOKI_API_KEY'),
+    spokiUrlConfirmation: pickStringOrNull(source, 'SPOKI_URL_CONFIRMATION'),
+    spokiUrlTurnApproaching: pickStringOrNull(source, 'SPOKI_URL_TURN_APPROACHING'),
+    spokiUrlCancellation: pickStringOrNull(source, 'SPOKI_URL_CANCELLATION'),
+    publicBaseUrl: pickString(source, 'PUBLIC_BASE_URL', 'http://localhost:3000').replace(
+      /\/+$/,
+      '',
+    ),
     smsProvider: perPort('SMS_PROVIDER'),
     crmProvider: perPort('CRM_PROVIDER'),
     repositoryProvider: pickEnum(

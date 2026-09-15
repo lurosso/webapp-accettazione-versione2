@@ -27,18 +27,22 @@ export type SessionSecretEnv = Pick<
   | 'servicesProvider'
   | 'infinityProvider'
   | 'spokiProvider'
+  | 'spokiMode'
   | 'smsProvider'
   | 'crmProvider'
   | 'repositoryProvider'
 >;
 
-/** True quando nessun sistema reale è coinvolto: solo allora il segreto di default è tollerato. */
+/**
+ * True quando nessun sistema reale è coinvolto: solo allora il segreto di default è tollerato.
+ * Spoki in simulazione conta come mock: il servizio è quello reale ma non parte nessuna chiamata.
+ */
 export function isAllMock(env: SessionSecretEnv): boolean {
   return (
     env.nodeEnv !== 'production' &&
     env.servicesProvider === 'mock' &&
     env.infinityProvider === 'mock' &&
-    env.spokiProvider === 'mock' &&
+    (env.spokiProvider === 'mock' || env.spokiMode === 'simulation') &&
     env.smsProvider === 'mock' &&
     env.crmProvider === 'mock' &&
     env.repositoryProvider === 'memory'

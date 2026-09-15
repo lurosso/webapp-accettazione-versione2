@@ -147,6 +147,24 @@ describe('CustomerMessagingPolicy', () => {
     ).toHaveLength(0);
   });
 
+  it("un cliente segnato assente da un operatore riceve l'avviso di annullamento", async () => {
+    const { env, esegui } = setup();
+    const a = await insert(env, makeAppointment({ status: 'NO_SHOW', noShowAt: AT('08:15') }));
+
+    evento(env, {
+      actor: { kind: 'OPERATOR', id: 'op-advisor-1' },
+      type: 'APPOINTMENT_STATUS_CHANGED',
+      appointmentId: a.id,
+      from: 'WAITING',
+      to: 'NO_SHOW',
+      bayId: null,
+    });
+    await esegui();
+
+    const jobs = await env.notifications.listByAppointment(a.id);
+    expect(jobs.map((j) => j.kind)).toContain('APPOINTMENT_CANCELLED');
+  });
+
   it('"il turno si avvicina" arriva a chi ha al massimo due pratiche davanti, una volta sola', async () => {
     const { env, esegui, errori } = setup();
     const inCoda: Appointment[] = [];

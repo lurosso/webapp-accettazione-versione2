@@ -33,6 +33,8 @@ export interface AppointmentRowProps {
   readonly late?: boolean;
   /** Minuti di ritardo accumulati, mostrati accanto all'orario. */
   readonly lateByMinutes?: number;
+  /** Orario atteso superato ma entro la tolleranza: riga gialla, "da servire ora". */
+  readonly dueSoon?: boolean;
   readonly onAction: (action: AppointmentAction) => void;
   readonly onSelect: () => void;
   /** Riga aperta nel pannello di dettaglio. */
@@ -58,6 +60,7 @@ export function AppointmentRow({
   currentOperatorName,
   late = false,
   lateByMinutes = 0,
+  dueSoon = false,
   onAction,
   onSelect,
   selected = false,
@@ -71,6 +74,7 @@ export function AppointmentRow({
         // aprire il pannello.
         'cursor-pointer select-none hover:brightness-[0.97]',
         ROW_CLASSES[a.status],
+        dueSoon && 'bg-amber-100/80',
         pending && 'opacity-60',
         selected && 'ring-brand-secondary/70 ring-2 ring-inset',
       )}
@@ -105,6 +109,9 @@ export function AppointmentRow({
           >
             rimessa in coda
           </span>
+        ) : null}
+        {dueSoon ? (
+          <span className="block text-xs font-semibold text-amber-800">orario superato</span>
         ) : null}
         {late && lateByMinutes > 0 ? (
           <span className="block text-xs font-semibold text-red-700">

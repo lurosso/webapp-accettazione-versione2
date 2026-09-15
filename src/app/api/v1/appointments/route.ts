@@ -23,6 +23,8 @@ const ManualAppointmentBody = z.object({
   brandId: z.string().trim().min(1),
   deskId: z.string().trim().min(1).nullable().optional(),
   serviceDescription: z.string().trim().max(500).nullable().optional(),
+  /** Consenso agli avvisi WhatsApp chiesto al banco (predefinito: sì). */
+  whatsappOptIn: z.boolean().optional(),
 });
 
 export async function POST(request: NextRequest): Promise<NextResponse> {
@@ -53,6 +55,7 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
       brandId: parsed.data.brandId,
       deskId: parsed.data.deskId ?? null,
       serviceDescription: parsed.data.serviceDescription ?? null,
+      whatsappOptIn: parsed.data.whatsappOptIn ?? true,
     },
     ctx,
   );

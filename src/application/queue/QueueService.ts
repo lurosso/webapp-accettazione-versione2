@@ -628,6 +628,50 @@ export class QueueService {
     return ok(updated.value);
   }
 
+  /**
+   * "Riattiva / Arrivato in ritardo": un cliente segnato assente si presenta. NO_SHOW → WAITING
+   * con l'orario atteso spostato ad adesso, così viene servito dopo i puntuali già presenti e
+   * prima di chi è atteso più tardi; il codice non cambia e il "segnato assente" resta nella
+   * cronologia. Il lead del BDC si chiude da solo: nessuno deve richiamare chi è già al banco.
+   */
+  async reactivate(
+    input: TransitionInput,
+    ctx: ActionContext,
+  ): Promise<Result<Appointment, DomainError>> {
+    const current = await this.load(input.appointmentId);
+    if (!current.ok) {
+      return current;
+    }
+    const a = current.value;
+    if (a.status !== 'NO_SHOW') {
+      return err(
+        domainError('INVALID_TRANSITION', 'Si può riattivare solo un cliente segnato assente.', {
+          from: a.status,
+        }),
+      );
+    }
+    const transition = assertTransition(a.status, 'WAITING');
+    if (!transition.ok) {
+      return transition;
+    }
+    const riattivata = await this.apply(
+      a,
+      'WAITING',
+      { rescheduledAt: this.deps.clock.nowIso(), skippedAt: null },
+      input.expectedVersion,
+      ctx,
+    );
+    if (!riattivata.ok) {
+      return riattivata;
+    }
+    await this.deps.crmNotifier.resolveNoShow(
+      riattivata.value,
+      ctx.operatorId,
+      'Cliente arrivato in ritardo: rimesso in coda, nessun ricontatto necessario.',
+    );
+    return riattivata;
+  }
+
   // --- interni ---------------------------------------------------------------------------
 
   /**

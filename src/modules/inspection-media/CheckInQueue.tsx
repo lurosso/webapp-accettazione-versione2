@@ -8,9 +8,13 @@
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useEffect, useState } from 'react';
-import { effectiveScheduleTime } from '@/domain/entities/appointment';
+import {
+  compareQueueOrder,
+  effectiveScheduleTime,
+  isDueWithinGrace,
+} from '@/domain/entities/appointment';
+import { LATE_GRACE_MINUTES } from '@/config/constants';
 import type { QueueRowView } from '@/domain/read-models';
-import { compareByScheduleThenSequence } from '@/domain/value-objects/queue-code';
 import type { Session } from '@/application/auth/IAuthService';
 import { BrandMark } from '@/components/layout/BrandMark';
 import { EmptyState } from '@/components/shared/EmptyState';
@@ -21,6 +25,8 @@ import { useQueue } from '@/hooks/useQueue';
 import { postLogout } from '@/lib/api-client/client';
 import { localTimeHHmm } from '@/lib/dates';
 import { cn } from '@/lib/utils/cn';
+import { AppointmentDetailPanel } from '@/modules/reception/AppointmentDetailPanel';
+import { deskOf } from '@/modules/reception/QueueTable';
 import { CheckInScreen } from './CheckInScreen';
 
 export interface CheckInQueueProps {
@@ -49,6 +55,8 @@ export function CheckInQueue({
   const [scheda, setScheda] = useState<Scheda>('attesa');
   const [inCheckIn, setInCheckIn] = useState<string | null>(openCheckInFor);
   const [conferma, setConferma] = useState<string | null>(null);
+  // Dettaglio della pratica aperto dal tocco sulla scheda, prima di prenderla in carico.
+  const [dettaglio, setDettaglio] = useState<string | null>(null);
   const [uscita, setUscita] = useState(false);
   // Ricorda se il check-in è stato aperto dalla dashboard: uscendo si torna da dove si è arrivati.
   // Vale solo per quella prima apertura: i check-in aperti poi dall'elenco si chiudono e basta.
@@ -70,12 +78,7 @@ export function CheckInQueue({
         delMioSportello(r) &&
         (r.appointment.status === 'WAITING' || r.appointment.status === 'SKIPPED'),
     )
-    .sort((x, y) =>
-      compareByScheduleThenSequence(
-        { scheduledAt: effectiveScheduleTime(x.appointment), sequence: x.appointment.sequence },
-        { scheduledAt: effectiveScheduleTime(y.appointment), sequence: y.appointment.sequence },
-      ),
-    );
+    .sort((x, y) => compareQueueOrder(x.appointment, y.appointment));
   const mie = rows.filter(
     (r) =>
       r.appointment.status === 'IN_PROGRESS' && r.appointment.operatorId === session.operatorId,
@@ -271,6 +274,9 @@ export function CheckInQueue({
             {elenco.map((row) => {
               const a = row.appointment;
               const inLavorazione = a.status === 'IN_PROGRESS';
+              // Orario atteso superato ma entro la tolleranza: scheda gialla, da servire ora.
+              const daServire =
+                data !== undefined && isDueWithinGrace(a, data.serverTime, LATE_GRACE_MINUTES);
               return (
                 <li
                   key={a.id}
@@ -278,10 +284,25 @@ export function CheckInQueue({
                     'rounded-2xl border-2 bg-white p-4 shadow-sm',
                     inLavorazione
                       ? 'bg-status-in-progress-soft border-amber-400'
-                      : 'border-slate-200',
+                      : daServire
+                        ? 'border-amber-400 bg-amber-50'
+                        : 'border-slate-200',
                   )}
                 >
-                  <div className="flex flex-wrap items-center justify-between gap-3">
+                  {/* Tutta la scheda apre il dettaglio; il pulsante fa la sua azione e basta. */}
+                  <div
+                    role="button"
+                    tabIndex={0}
+                    aria-label={`Apri i dettagli della pratica ${a.code}`}
+                    onClick={() => setDettaglio(a.id)}
+                    onKeyDown={(event) => {
+                      if (event.key === 'Enter' || event.key === ' ') {
+                        event.preventDefault();
+                        setDettaglio(a.id);
+                      }
+                    }}
+                    className="flex cursor-pointer flex-wrap items-center justify-between gap-3 select-none"
+                  >
                     <div className="flex flex-col gap-1">
                       <div className="flex flex-wrap items-baseline gap-3">
                         <span className="font-mono text-3xl font-black tracking-wide">
@@ -303,11 +324,19 @@ export function CheckInQueue({
                       {a.serviceDescription !== null ? (
                         <span className="text-base text-slate-500">{a.serviceDescription}</span>
                       ) : null}
+                      {daServire ? (
+                        <span className="text-sm font-semibold text-amber-800">
+                          orario superato · da servire ora
+                        </span>
+                      ) : null}
                     </div>
                     <button
                       type="button"
                       disabled={actions.pendingId === a.id}
-                      onClick={() => iniziaCheckIn(row)}
+                      onClick={(event) => {
+                        event.stopPropagation();
+                        iniziaCheckIn(row);
+                      }}
                       className={cn(
                         'min-h-14 shrink-0 rounded-xl px-6 text-lg font-bold shadow-sm disabled:opacity-60',
                         // Blu in entrambi i casi: prendere in carico e riprendere sono azioni di
@@ -330,6 +359,40 @@ export function CheckInQueue({
           </ul>
         )}
       </main>
+
+      {data !== undefined ? (
+        <AppointmentDetailPanel
+          row={rows.find((r) => r.appointment.id === dettaglio) ?? null}
+          presentation="modal"
+          allowCheckIn
+          showTake
+          brandName={(() => {
+            const r = rows.find((x) => x.appointment.id === dettaglio);
+            return r === undefined ? '' : brandName(r.appointment.brandId);
+          })()}
+          deskLabel={(() => {
+            const r = rows.find((x) => x.appointment.id === dettaglio);
+            const desk = r === undefined ? null : deskOf(r, data.desks);
+            return desk === null ? null : `${desk.code} · ${desk.name}`;
+          })()}
+          timeZone={data.timeZone}
+          currentOperatorName={session.displayName}
+          actionPending={dettaglio !== null && actions.pendingId === dettaglio}
+          onClose={() => setDettaglio(null)}
+          onAction={(action) => {
+            const r = rows.find((x) => x.appointment.id === dettaglio);
+            if (r === undefined) {
+              return;
+            }
+            if (action === 'take') {
+              setDettaglio(null);
+              iniziaCheckIn(r);
+              return;
+            }
+            actions.run(r.appointment.id, { action, expectedVersion: r.appointment.version });
+          }}
+        />
+      ) : null}
 
       {rigaInCheckIn !== null && data !== undefined ? (
         <CheckInScreen

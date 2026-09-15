@@ -11,7 +11,7 @@
 // continua ad aggiornarsi con il polling della coda, senza una richiesta dedicata.
 import Link from 'next/link';
 import { useEffect } from 'react';
-import { isAutoClosedPending, type Appointment } from '@/domain/entities/appointment';
+import { isAutoClosedPending, isInQueue, type Appointment } from '@/domain/entities/appointment';
 import { customerFullName } from '@/domain/entities/customer';
 import type { NotificationJobStatus } from '@/domain/entities/notification';
 import type { QueueRowView } from '@/domain/read-models';
@@ -48,6 +48,11 @@ export interface AppointmentDetailPanelProps {
   /** True per responsabili e amministratori: possono confermare una chiusura d'ufficio. */
   readonly canConfirmAutoClose?: boolean;
   readonly actionPending?: boolean;
+  /**
+   * Mostra la presa in carico per una pratica ancora in coda. Serve alla vista check-in del
+   * tablet, dove il dettaglio si apre prima di iniziare e da lì si parte.
+   */
+  readonly showTake?: boolean;
 }
 
 /** Riga etichetta/valore della scheda. */
@@ -149,6 +154,7 @@ export function AppointmentDetailPanel({
   onAction,
   canConfirmAutoClose = false,
   actionPending = false,
+  showTake = false,
 }: AppointmentDetailPanelProps) {
   // Chiusura con Esc: al banco l'accettatore lavora molto da tastiera.
   useEffect(() => {
@@ -242,6 +248,36 @@ export function AppointmentDetailPanel({
         <div className={cn('flex flex-col', modal ? 'gap-4 px-6 py-5' : 'gap-6 px-5 py-4')}>
           {/* Pratica completata: si può riaprire (Completato premuto per errore, foto da rifare) e,
               se è una chiusura d'ufficio, un responsabile la conferma. */}
+          {showTake && onAction !== undefined && isInQueue(a.status) ? (
+            <Button
+              variant="default"
+              size="touch"
+              className="min-h-14 w-full text-lg"
+              disabled={actionPending}
+              onClick={() => onAction('take')}
+            >
+              {allowCheckIn ? 'Inizia check-in' : 'Prendi in carico'}
+            </Button>
+          ) : null}
+
+          {/* Cliente segnato assente che si presenta: torna in coda dopo chi è già in attesa. */}
+          {a.status === 'NO_SHOW' && onAction !== undefined ? (
+            <section className="flex flex-col gap-3 rounded-xl border-2 border-red-200 bg-red-50 p-4">
+              <p className="text-sm text-red-900">
+                Segnato assente. Se il cliente si è presentato, riattivalo: torna in coda con
+                l&apos;orario di adesso, dopo chi è già in attesa, e il BDC non lo richiamerà.
+              </p>
+              <Button
+                variant="default"
+                size="touch"
+                disabled={actionPending}
+                onClick={() => onAction('reactivate')}
+              >
+                Riattiva / Arrivato in ritardo
+              </Button>
+            </section>
+          ) : null}
+
           {a.status === 'COMPLETED' && onAction !== undefined ? (
             <section
               className={cn(

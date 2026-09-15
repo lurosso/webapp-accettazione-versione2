@@ -16,6 +16,7 @@ import { CustomerMessagingPolicy } from '@/application/notifications/CustomerMes
 import { NotificationOrchestrator } from '@/application/notifications/NotificationOrchestrator';
 import { CodeGenerator } from '@/application/queue/CodeGenerator';
 import { ManualIntakeService } from '@/application/queue/ManualIntakeService';
+import { SpokiDiagnosticsService } from '@/application/messaging/SpokiDiagnosticsService';
 import { QueueService } from '@/application/queue/QueueService';
 import { SyncScheduler } from '@/application/sync/SyncScheduler';
 import { SyncService } from '@/application/sync/SyncService';
@@ -49,6 +50,7 @@ export interface Container {
   readonly external: ExternalServices;
   readonly repos: Repositories;
   readonly notificationOrchestrator: NotificationOrchestrator;
+  readonly spokiDiagnosticsService: SpokiDiagnosticsService;
   readonly authService: IAuthService;
   readonly codeGenerator: CodeGenerator;
   readonly queueService: QueueService;
@@ -92,7 +94,7 @@ function assertNoDemoCredentialsOutsideMock(env: AppEnv, seed: SeedData, logger:
     env.nodeEnv === 'production' ||
     env.servicesProvider === 'real' ||
     env.infinityProvider === 'real' ||
-    env.spokiProvider === 'real' ||
+    (env.spokiProvider === 'real' && env.spokiMode === 'live') ||
     env.smsProvider === 'real' ||
     env.crmProvider === 'real' ||
     env.repositoryProvider === 'prisma';
@@ -147,6 +149,25 @@ export function createContainer(overrides: ContainerOverrides = {}): Container {
     logger,
     eventBus,
     timeZone: env.timeZone,
+    publicBaseUrl: env.publicBaseUrl,
+  });
+
+  const spokiDiagnosticsService = new SpokiDiagnosticsService({
+    spoki: external.spoki,
+    activityLog: external.spokiActivityLog,
+    config: {
+      provider: env.spokiProvider,
+      mode: env.spokiMode,
+      apiKey: env.spokiApiKey,
+      urls: {
+        confirmation: env.spokiUrlConfirmation,
+        turnApproaching: env.spokiUrlTurnApproaching,
+        cancellation: env.spokiUrlCancellation,
+      },
+      publicBaseUrl: env.publicBaseUrl,
+    },
+    ids,
+    logger,
   });
 
   // Messaggi al cliente guidati dagli eventi: ascolta il bus e manda conferme, "turno vicino" e
@@ -323,6 +344,7 @@ export function createContainer(overrides: ContainerOverrides = {}): Container {
     codeGenerator,
     queueService,
     manualIntakeService,
+    spokiDiagnosticsService,
     crmNotifier,
     bdcLeadService,
     crmOutboxService,

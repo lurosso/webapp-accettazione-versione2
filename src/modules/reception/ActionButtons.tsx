@@ -95,6 +95,15 @@ export function ActionButtons({
     }
   }
 
+  if (status === 'NO_SHOW' && canTransition(status, 'WAITING')) {
+    // Il cliente segnato assente si è presentato: torna in coda dopo chi è già in attesa.
+    buttons.push({
+      action: 'reactivate',
+      label: 'Riattiva / Arrivato in ritardo',
+      variant: 'default',
+    });
+  }
+
   if (buttons.length === 0) {
     return <span className="text-xs text-slate-400">—</span>;
   }

@@ -57,6 +57,8 @@ export interface NotificationOrchestratorDeps {
   readonly eventBus: IEventBus;
   /** Fuso per l'orario nel testo (default Europe/Rome). */
   readonly timeZone?: string;
+  /** Indirizzo pubblico del portale per i link nei messaggi (env PUBLIC_BASE_URL). */
+  readonly publicBaseUrl?: string;
   /** Dopo quanti ms un job IN_FLIGHT è considerato orfano e riprocessabile (default 5 minuti). */
   readonly inFlightStaleMs?: number;
 }
@@ -109,7 +111,12 @@ export class NotificationOrchestrator {
       kind,
       appointment.businessDate,
     );
-    const vars = buildTemplateVars(appointment, brand, this.deps.timeZone);
+    const vars = buildTemplateVars(
+      appointment,
+      brand,
+      this.deps.timeZone,
+      this.deps.publicBaseUrl ?? '',
+    );
     const renderedText = NOTIFICATION_TEMPLATES[kind].render(vars);
     const now = this.deps.clock.nowIso();
     const draft: NotificationJob = {

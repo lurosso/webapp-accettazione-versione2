@@ -13,6 +13,11 @@ import type {
   UpdateOperatorInput,
 } from '@/application/admin/OperatorAdminService';
 import type { AssistanceView } from '@/application/admin/AssistanceService';
+import type {
+  SpokiOverview,
+  SpokiTestKind,
+  SpokiTestResult,
+} from '@/application/messaging/SpokiDiagnosticsService';
 import type { InspectionArchiveEntry } from '@/application/media/InspectionArchiveService';
 import type { MediaCategory } from '@/domain/entities/media-asset';
 import type { BoardStatus, DisplayStatus } from '@/modules/bay-displays/types';
@@ -154,6 +159,7 @@ export function postManualAppointment(body: {
   readonly brandId: string;
   readonly deskId: string | null;
   readonly serviceDescription: string | null;
+  readonly whatsappOptIn: boolean;
 }): Promise<{ readonly appointment: Appointment }> {
   return apiFetch('/api/v1/appointments', { method: 'POST', json: body });
 }
@@ -371,6 +377,20 @@ export function postAdminResetPassword(id: string): Promise<ResetPasswordResult>
   return apiFetch(`/api/v1/admin/operators/${encodeURIComponent(id)}/reset-password`, {
     method: 'POST',
   });
+}
+
+/** GET /api/v1/admin/spoki: stato dell'integrazione WhatsApp e registro dei payload. */
+export function fetchSpokiOverview(): Promise<SpokiOverview> {
+  return apiFetch('/api/v1/admin/spoki');
+}
+
+/** POST /api/v1/admin/spoki/test: messaggio di prova a un numero scelto a mano. */
+export function postSpokiTest(body: {
+  readonly phone: string;
+  readonly kind: SpokiTestKind;
+  readonly firstName?: string | undefined;
+}): Promise<SpokiTestResult> {
+  return apiFetch('/api/v1/admin/spoki/test', { method: 'POST', json: body });
 }
 
 /** GET /api/v1/admin/assistance: accettazioni occupate e pratiche in carico. */

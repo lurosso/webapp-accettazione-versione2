@@ -5,7 +5,7 @@ import nextTs from 'eslint-config-next/typescript';
 
 /** Messaggio unico per gli import vietati: rimanda ai factory e al composition root. */
 const MSG_IMPLEMENTAZIONI =
-  'Import vietato: le implementazioni concrete (mock, real, in-memory, prisma) si usano solo ' +
+  'Import vietato: le implementazioni concrete (mock, real, infrastructure, in-memory, prisma) si usano solo ' +
   'tramite services/factory.ts, repositories/factory.ts e config/container.ts (ARCHITECTURE.md §3).';
 
 const MSG_FACTORY =
@@ -22,6 +22,9 @@ const IMPLEMENTAZIONI = [
   '@/repositories/in-memory/*',
   '@/repositories/prisma',
   '@/repositories/prisma/*',
+  '@/infrastructure',
+  '@/infrastructure/*',
+  '@/infrastructure/**',
   '**/services/mocks',
   '**/services/mocks/*',
   '**/services/real',
@@ -30,6 +33,7 @@ const IMPLEMENTAZIONI = [
   '**/repositories/in-memory/*',
   '**/repositories/prisma',
   '**/repositories/prisma/*',
+  '**/infrastructure/**',
 ];
 
 const FACTORY_E_CONTAINER = [

@@ -53,6 +53,7 @@ describe('ManualIntakeService: cliente senza appuntamento', () => {
         brandId: 'brand-fiat',
         deskId: null,
         serviceDescription: '  Rumore anteriore ',
+        whatsappOptIn: true,
       },
       ctx,
     );
@@ -70,7 +71,7 @@ describe('ManualIntakeService: cliente senza appuntamento', () => {
     expect(a.customer.firstName).toBe('Mario');
     expect(a.customer.lastName).toBe('Rossi');
     expect(a.customer.phone).toBe('+393331234567');
-    expect(a.customer.whatsappOptIn).toBe(false);
+    expect(a.customer.whatsappOptIn).toBe(true);
     expect(a.serviceDescription).toBe('Rumore anteriore');
     // Lo sportello è quello che serve il marchio (Fiat → S1).
     expect(a.deskId).toBe('desk-s1');
@@ -96,6 +97,7 @@ describe('ManualIntakeService: cliente senza appuntamento', () => {
         brandId: 'brand-jeep',
         deskId: null,
         serviceDescription: null,
+        whatsappOptIn: false,
       },
       ctx,
     );
@@ -113,6 +115,7 @@ describe('ManualIntakeService: cliente senza appuntamento', () => {
       brandId: 'brand-fiat',
       deskId: null,
       serviceDescription: null,
+      whatsappOptIn: true,
     };
     expect((await service.create({ ...base, plate: '!!' }, ctx)).ok).toBe(false);
     expect((await service.create({ ...base, customerName: ' ' }, ctx)).ok).toBe(false);
@@ -138,6 +141,7 @@ describe('ManualIntakeService: cliente senza appuntamento', () => {
         brandId: 'brand-fiat',
         deskId: null,
         serviceDescription: null,
+        whatsappOptIn: true,
       },
       ctx,
     );
@@ -166,6 +170,7 @@ describe('ManualIntakeService: cliente senza appuntamento', () => {
         brandId: 'brand-fiat',
         deskId: null,
         serviceDescription: 'È tornato con un altro problema',
+        whatsappOptIn: true,
       },
       ctx,
     );

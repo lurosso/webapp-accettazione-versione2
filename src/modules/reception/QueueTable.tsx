@@ -3,13 +3,17 @@
 // Tabella della coda con tre sezioni: In carico (in alto), In coda (attesa + saltate per orario) e
 // Chiuse oggi (completate, no-show, annullate; collassabile).
 import { useState } from 'react';
-import { effectiveScheduleTime, isLate } from '@/domain/entities/appointment';
+import {
+  compareQueueOrder,
+  effectiveScheduleTime,
+  isDueWithinGrace,
+  isLate,
+} from '@/domain/entities/appointment';
 import type { Brand } from '@/domain/entities/brand';
 import { LATE_GRACE_MINUTES } from '@/config/constants';
 import { cn } from '@/lib/utils/cn';
 import type { Desk } from '@/domain/entities/desk';
 import type { QueueRowView } from '@/domain/read-models';
-import { compareByScheduleThenSequence } from '@/domain/value-objects/queue-code';
 import { Button } from '@/components/ui/button';
 import { Table, TableBody, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { AppointmentRow } from './AppointmentRow';
@@ -77,12 +81,7 @@ export function QueueTable({
 
   /** Ordina per orario effettivo: una pratica rimessa in coda si ricolloca al nuovo orario. */
   const byTime = (list: readonly QueueRowView[]): QueueRowView[] =>
-    [...list].sort((x, y) =>
-      compareByScheduleThenSequence(
-        { scheduledAt: effectiveScheduleTime(x.appointment), sequence: x.appointment.sequence },
-        { scheduledAt: effectiveScheduleTime(y.appointment), sequence: y.appointment.sequence },
-      ),
-    );
+    [...list].sort((x, y) => compareQueueOrder(x.appointment, y.appointment));
 
   /** Minuti trascorsi dall'orario in cui la pratica era attesa. */
   const lateBy = (row: QueueRowView): number =>
@@ -213,6 +212,10 @@ export function QueueTable({
                           key={row.appointment.id}
                           row={row}
                           brandName={brandName(row.appointment.brandId)}
+                          dueSoon={
+                            section.late !== true &&
+                            isDueWithinGrace(row.appointment, serverTime, LATE_GRACE_MINUTES)
+                          }
                           deskLabel={desk === null ? null : `${desk.code} · ${desk.name}`}
                           showDesk={showDesk}
                           foreignDesk={foreignDesk}

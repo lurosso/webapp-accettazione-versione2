@@ -8,9 +8,9 @@
 //   sarebbe rumore;
 // - il turno si avvicina → quando davanti al cliente restano al massimo N pratiche del suo
 //   sportello. Una volta sola per giornata: l'idempotenza del job lo garantisce;
-// - pratica annullata → avviso, ma solo se ad annullare è stata una persona. La chiusura
-//   automatica delle 19:00 annulla per pulizia, e nessun cliente vuole un messaggio alle 19:00 che
-//   gli dice che il suo appuntamento non c'è più.
+// - pratica annullata o cliente segnato assente → avviso di annullamento, ma solo se a deciderlo
+//   è stata una persona. La chiusura automatica delle 19:00 chiude per pulizia, e nessun cliente
+//   vuole un messaggio alle 19:00 che gli dice che il suo appuntamento non c'è più.
 //
 // Nulla di tutto questo blocca chi ha generato l'evento: il bus consegna in modo sincrono, quindi
 // il lavoro vero parte al giro successivo dell'event loop e un provider lento o giù non rallenta
@@ -99,7 +99,7 @@ export class CustomerMessagingPolicy {
         }
         return;
       case 'APPOINTMENT_STATUS_CHANGED':
-        if (event.to === 'CANCELLED' && event.actor.kind !== 'SYSTEM') {
+        if ((event.to === 'CANCELLED' || event.to === 'NO_SHOW') && event.actor.kind !== 'SYSTEM') {
           await this.send(event.appointmentId, 'APPOINTMENT_CANCELLED', event.correlationId);
         }
         // Ogni cambio di stato riordina la fila: qualcuno potrebbe essere arrivato vicino al turno.

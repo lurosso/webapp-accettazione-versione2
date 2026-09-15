@@ -47,7 +47,9 @@ export type AppointmentAction =
   /** "Completato" premuto per errore, o check-in da rifare: la pratica torna in carico. */
   | 'reopen-completed'
   /** Conferma di una chiusura d'ufficio (responsabile o amministratore). */
-  | 'confirm-auto-close';
+  | 'confirm-auto-close'
+  /** Cliente segnato assente che si presenta: torna in coda con l'orario di adesso. */
+  | 'reactivate';
 
 export interface AppointmentActionRequest {
   readonly action: AppointmentAction;
