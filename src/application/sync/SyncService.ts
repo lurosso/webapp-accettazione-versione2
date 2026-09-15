@@ -19,7 +19,6 @@ import type { IEventBus } from '@/services/interfaces/IEventBus';
 import type { IIdGenerator } from '@/services/interfaces/IIdGenerator';
 import type { ILogger } from '@/services/interfaces/ILogger';
 import { mapInfinityAgenda, type AppointmentDraft } from '@/services/mappers/infinity.mapper';
-import type { NotificationOrchestrator } from '../notifications/NotificationOrchestrator';
 import type { CodeGenerator } from '../queue/CodeGenerator';
 
 export interface SyncServiceDeps {
@@ -33,11 +32,6 @@ export interface SyncServiceDeps {
   readonly ids: IIdGenerator;
   readonly logger: ILogger;
   readonly timeZone: string;
-  /**
-   * Orchestratore dei promemoria (modulo C): dopo la sincronizzazione dell'agenda i clienti
-   * appena inseriti in coda ricevono il messaggio del mattino.
-   */
-  readonly notifications: NotificationOrchestrator;
 }
 
 /** Timeout della chiamata a Infinity: oltre, la sync fallisce e la dashboard mostra il banner. */
@@ -89,7 +83,7 @@ export class SyncService {
     operatorId: OperatorId | null,
   ): Promise<SyncRun> {
     const correlationId = this.deps.ids.next();
-    let run: SyncRun = await this.deps.syncRuns.insert({
+    const run: SyncRun = await this.deps.syncRuns.insert({
       id: this.deps.ids.nextAs(asSyncRunId),
       businessDate,
       trigger,
@@ -138,7 +132,7 @@ export class SyncService {
           mapped.error.message,
         );
       }
-      const { counters, created } = await this.reconcile(
+      const { counters } = await this.reconcile(
         businessDate,
         run,
         mapped.value.drafts,
@@ -157,22 +151,10 @@ export class SyncService {
             ? 'Agenda parziale ricevuta da Infinity: nessuna pratica assente è stata annullata.'
             : `${rejected} appuntamenti scartati per dati non validi.`
           : null;
-      run = await this.finish(run, status, finalCounters, null, message);
-
-      // Promemoria del mattino alle pratiche appena entrate in coda. NON si attende l'esito:
-      // con decine di clienti l'invio dura secondi e la coda è già utilizzabile. Gli esiti
-      // finiscono nei log e sul job di ogni notifica, visibili poi dalla dashboard.
-      if (created.length > 0) {
-        void this.deps.notifications
-          .sendMorningReminders({ appointments: created, brands, correlationId })
-          .catch((cause: unknown) => {
-            this.logger.error('invio dei promemoria interrotto', {
-              correlationId,
-              message: cause instanceof Error ? cause.message : String(cause),
-            });
-          });
-      }
-      return run;
+      // I promemoria ai clienti NON partono da qui: li manda `AppointmentReminderService` alle
+      // ore configurate (giorno prima e giorno stesso), così una sync alle 06:00 o una sync
+      // anticipata di domani non fa suonare telefoni fuori orario.
+      return this.finish(run, status, finalCounters, null, message);
     } catch (error) {
       // Rete di sicurezza: qualunque eccezione inattesa diventa una SyncRun FAILED, mai un crash.
       const message = error instanceof Error ? error.message : 'Errore inatteso durante la sync.';
@@ -188,7 +170,6 @@ export class SyncService {
     partial: boolean,
   ): Promise<{ readonly counters: SyncCounters; readonly created: readonly Appointment[] }> {
     const counters: MutableCounters = { ...EMPTY_SYNC_COUNTERS };
-    // Le pratiche appena create servono a chi invia i promemoria: solo a loro va il messaggio.
     const created: Appointment[] = [];
     const existing = await this.deps.appointments.listByDate(businessDate, {
       includeCancelled: true,

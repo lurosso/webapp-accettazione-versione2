@@ -67,7 +67,9 @@ export class TestClock implements IClock {
  * Ambiente di test isolato: store con seed, repository, bus eventi, id sequenziali, logger muto
  * e il modulo comunicazioni già cablato con i mock (latenza a zero, esiti deterministici).
  */
-export function buildTestEnv(clock = new TestClock()) {
+export function buildTestEnv<C extends IClock = TestClock>(
+  clock: C = new TestClock() as unknown as C,
+) {
   const store = InMemoryStore.createIsolated();
   const seed: SeedData = buildSeedData();
   store.seedReferenceData(seed);

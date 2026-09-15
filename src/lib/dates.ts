@@ -75,6 +75,21 @@ export function toBusinessDate(d: Date, timeZone = DEFAULT_TIME_ZONE): IsoDate {
   return isoDate(`${p.year}-${pad2(p.month)}-${pad2(p.day)}`);
 }
 
+/** Giornata operativa spostata di `days` giorni di calendario (aritmetica pura su YYYY-MM-DD). */
+export function addDays(businessDate: IsoDate, days: number): IsoDate {
+  const [y, m, d] = businessDate.split('-').map((s) => Number.parseInt(s, 10));
+  const utc = new Date(Date.UTC(y ?? 1970, (m ?? 1) - 1, (d ?? 1) + days));
+  return isoDate(
+    `${utc.getUTCFullYear()}-${pad2(utc.getUTCMonth() + 1)}-${pad2(utc.getUTCDate())}`,
+  );
+}
+
+/** Giornata operativa in formato italiano "GG/MM/AAAA" (per i messaggi al cliente). */
+export function formatBusinessDateIt(businessDate: IsoDate): string {
+  const [y, m, d] = businessDate.split('-');
+  return `${d ?? ''}/${m ?? ''}/${y ?? ''}`;
+}
+
 /** Ora locale "HH:mm" dell'istante nel fuso indicato. */
 export function localTimeHHmm(d: Date, timeZone = DEFAULT_TIME_ZONE): string {
   const p = wallClockParts(d, timeZone);

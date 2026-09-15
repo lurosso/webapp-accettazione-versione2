@@ -24,7 +24,7 @@ describe('NotificationOrchestrator: WhatsApp con ripiego su SMS', () => {
     const run = await env.orchestrator.sendReminder({
       appointment,
       brand,
-      kind: 'REMINDER_MORNING',
+      kind: 'REMINDER_SAME_DAY',
       correlationId: 'c1',
     });
 
@@ -47,7 +47,7 @@ describe('NotificationOrchestrator: WhatsApp con ripiego su SMS', () => {
     const run = await env.orchestrator.sendReminder({
       appointment,
       brand,
-      kind: 'REMINDER_MORNING',
+      kind: 'REMINDER_SAME_DAY',
       correlationId: 'c2',
     });
 
@@ -70,7 +70,7 @@ describe('NotificationOrchestrator: WhatsApp con ripiego su SMS', () => {
     const run = await env.orchestrator.sendReminder({
       appointment,
       brand,
-      kind: 'REMINDER_MORNING',
+      kind: 'REMINDER_SAME_DAY',
       correlationId: 'c3',
     });
 
@@ -98,7 +98,7 @@ describe('NotificationOrchestrator: WhatsApp con ripiego su SMS', () => {
     const run = await env.orchestrator.sendReminder({
       appointment: appointmentWithPhone(null),
       brand,
-      kind: 'REMINDER_MORNING',
+      kind: 'REMINDER_SAME_DAY',
       correlationId: 'c4',
     });
     expect(run.outcome.kind).toBe('NO_RECIPIENT');
@@ -114,7 +114,7 @@ describe('NotificationOrchestrator: WhatsApp con ripiego su SMS', () => {
     const run = await env.orchestrator.sendReminder({
       appointment: appointmentWithPhone(phoneEndingIn('60'), false),
       brand,
-      kind: 'REMINDER_MORNING',
+      kind: 'REMINDER_SAME_DAY',
       correlationId: 'c5',
     });
     expect(run.outcome.kind).toBe('SMS_FALLBACK_SENT');
@@ -131,7 +131,7 @@ describe('NotificationOrchestrator: WhatsApp con ripiego su SMS', () => {
     const input = {
       appointment,
       brand,
-      kind: 'REMINDER_MORNING' as const,
+      kind: 'REMINDER_SAME_DAY' as const,
       correlationId: 'c6',
     };
     const first = await env.orchestrator.sendReminder(input);
@@ -143,7 +143,7 @@ describe('NotificationOrchestrator: WhatsApp con ripiego su SMS', () => {
     expect(jobs).toHaveLength(1);
   });
 
-  it('sendMorningReminders elabora tutte le pratiche e non si ferma al primo errore', async () => {
+  it('sendReminders elabora tutte le pratiche e non si ferma al primo errore', async () => {
     const env = buildTestEnv();
     const brands = env.seed.brands;
     const appointments = [
@@ -153,7 +153,8 @@ describe('NotificationOrchestrator: WhatsApp con ripiego su SMS', () => {
       appointmentWithPhone(null),
     ];
 
-    const runs = await env.orchestrator.sendMorningReminders({
+    const runs = await env.orchestrator.sendReminders({
+      kind: 'REMINDER_SAME_DAY',
       appointments,
       brands,
       correlationId: 'mattina',

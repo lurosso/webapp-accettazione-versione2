@@ -1,12 +1,17 @@
 'use client';
 
-// Integrazione Spoki & messaggistica, per l'amministratore: com'è configurata, un invio di prova a
-// un numero scelto a mano, il registro dei payload generati (in simulazione è l'unica traccia) e la
-// guida per passare alle chiavi vere. Tutto in una sezione: chi entra qui vuole capire in un colpo
-// d'occhio se i messaggi partono e cosa contengono.
+// Integrazione Spoki & messaggistica, per l'amministratore: com'è configurata (provider, modalità,
+// blocco di sicurezza, URL e segreti dei due promemoria), un invio di prova a un numero digitato a
+// mano, il registro dei payload generati (con il blocco attivo è l'unica traccia) e la guida per
+// passare al live. Tutto in una sezione: chi entra qui vuole capire in un colpo d'occhio se i
+// messaggi partono davvero e cosa contengono.
 import { useState, type FormEvent } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import type { SpokiTestKind } from '@/application/messaging/SpokiDiagnosticsService';
+import {
+  SPOKI_TEST_KIND_LABELS,
+  type SpokiBlockReason,
+  type SpokiTestKind,
+} from '@/application/messaging/SpokiDiagnosticsService';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -21,10 +26,10 @@ export interface SpokiPanelProps {
   readonly timeZone: string;
 }
 
-const KIND_LABELS: Record<SpokiTestKind, string> = {
-  BOOKING_CONFIRMED: 'Conferma / inserimento manuale',
-  TURN_APPROACHING: 'Turno in arrivo',
-  APPOINTMENT_CANCELLED: 'Annullamento',
+const BLOCK_LABELS: Record<Exclude<SpokiBlockReason, null>, string> = {
+  MOCK_PROVIDER: 'provider mock: nessun invio reale',
+  SIMULATION: 'simulazione: nessuna chiamata a Spoki',
+  SAFETY_LOCK: 'SAFETY LOCK attivo: chiamate bloccate',
 };
 
 export function SpokiPanel({ timeZone }: SpokiPanelProps) {
@@ -35,13 +40,13 @@ export function SpokiPanel({ timeZone }: SpokiPanelProps) {
     refetchInterval: 15_000,
   });
   const [phone, setPhone] = useState('');
-  const [kind, setKind] = useState<SpokiTestKind>('BOOKING_CONFIRMED');
+  const [kind, setKind] = useState<SpokiTestKind>('REMINDER_PREVIOUS_DAY');
   const [firstName, setFirstName] = useState('');
   const [invio, setInvio] = useState(false);
   const [esito, setEsito] = useState<{ tono: 'ok' | 'errore'; testo: string } | null>(null);
 
   const data = query.data;
-  const simulazione = data?.mode === 'simulation';
+  const bloccato = data !== undefined && !data.liveDeliveryAllowed;
 
   const inviaProva = async (event: FormEvent<HTMLFormElement>): Promise<void> => {
     event.preventDefault();
@@ -55,7 +60,7 @@ export function SpokiPanel({ timeZone }: SpokiPanelProps) {
       });
       setEsito({
         tono: 'ok',
-        testo: `${simulazione ? 'Simulato' : 'Inviato'} (${r.templateKey}, id ${r.receipt.providerMessageId}): "${r.renderedText}"`,
+        testo: `${r.dryRun ? 'Simulato, nessun invio reale' : 'INVIATO DAVVERO'} (${r.templateKey}, id ${r.receipt.providerMessageId}): "${r.renderedText}"`,
       });
       await queryClient.invalidateQueries({ queryKey: ['admin-spoki'] });
     } catch (cause) {
@@ -80,9 +85,10 @@ export function SpokiPanel({ timeZone }: SpokiPanelProps) {
             Integrazione Spoki &amp; messaggistica
           </h2>
           <p className="text-sm text-slate-600">
-            WhatsApp ai clienti: conferma con il codice, turno in arrivo, annullamento. In
-            simulazione nessun messaggio parte davvero e nessun credito viene consumato: i payload
-            finiscono nel registro qui sotto.
+            Due promemoria WhatsApp ai clienti: il <strong>giorno prima</strong> (data, orario,
+            targa, codice, link al portale) e il <strong>giorno stesso</strong> (orario, targa,
+            codice). Finché il blocco di sicurezza è attivo o la modalità non è live, nessun
+            messaggio parte davvero: i payload finiscono nel registro qui sotto.
           </p>
         </div>
         {data !== undefined ? (
@@ -93,6 +99,12 @@ export function SpokiPanel({ timeZone }: SpokiPanelProps) {
             <Badge tone={data.mode === 'simulation' ? 'warning' : 'success'}>
               {data.mode === 'simulation' ? 'SIMULAZIONE' : 'LIVE'}
             </Badge>
+            <Badge tone={data.safetyLock ? 'danger' : 'success'}>
+              {data.safetyLock ? 'SAFETY LOCK ATTIVO' : 'safety lock tolto'}
+            </Badge>
+            <Badge tone={data.liveDeliveryAllowed ? 'success' : 'neutral'}>
+              {data.liveDeliveryAllowed ? 'INVII REALI ABILITATI' : 'nessun invio reale'}
+            </Badge>
           </div>
         ) : null}
       </div>
@@ -101,14 +113,38 @@ export function SpokiPanel({ timeZone }: SpokiPanelProps) {
         <TableSkeleton rows={4} columns={3} label="Caricamento dello stato Spoki" />
       ) : (
         <div className="flex flex-col gap-6">
+          {bloccato && data.blockReason !== null ? (
+            <p
+              role="status"
+              className="rounded-lg border border-amber-300 bg-amber-50 px-3 py-2 text-sm text-amber-900"
+            >
+              Guardrail: {BLOCK_LABELS[data.blockReason]}. Nessun cliente reale viene notificato.
+            </p>
+          ) : (
+            <p
+              role="alert"
+              className="rounded-lg border border-red-300 bg-red-50 px-3 py-2 text-sm font-semibold text-red-900"
+            >
+              ATTENZIONE: invii reali abilitati. Ogni messaggio raggiunge un telefono vero e consuma
+              un credito WhatsApp.
+            </p>
+          )}
+
           {/* Configurazione */}
           <div className="grid gap-3 sm:grid-cols-2">
             <div className="rounded-lg border border-slate-200 bg-slate-50 p-3">
               <p className="text-xs font-semibold tracking-wide text-slate-500 uppercase">
-                Chiave API (SPOKI_API_KEY)
+                Chiave API (SPOKI_API_KEY) e orari
               </p>
               <p className="mt-1 font-mono text-sm">
                 {data.apiKeyConfigured ? data.apiKeyMasked : 'non impostata'}
+              </p>
+              <p className="mt-1 text-xs text-slate-500">
+                Giorno prima alle{' '}
+                <span className="font-mono">{data.reminderPreviousDayHourLocal}</span>
+                {' · '}giorno stesso alle{' '}
+                <span className="font-mono">{data.reminderSameDayHourLocal}</span>
+                {data.remindersEnabled ? '' : ' · promemoria programmati DISATTIVATI'}
               </p>
               <p className="mt-1 text-xs text-slate-500">
                 Link al portale nei messaggi:{' '}
@@ -118,24 +154,26 @@ export function SpokiPanel({ timeZone }: SpokiPanelProps) {
             </div>
             <div className="rounded-lg border border-slate-200 bg-slate-50 p-3">
               <p className="text-xs font-semibold tracking-wide text-slate-500 uppercase">
-                Template (URL automazioni)
+                Automazioni (URL e segreto)
               </p>
               <ul className="mt-1 flex flex-col gap-1 text-sm">
                 {data.templates.map((t) => (
                   <li key={t.kind} className="flex flex-wrap items-center justify-between gap-2">
                     <span>
-                      {KIND_LABELS[t.notificationKind]}{' '}
-                      <span className="font-mono text-xs text-slate-500">{t.envKey}</span>
+                      {t.label}{' '}
+                      <span className="font-mono text-xs text-slate-500">{t.urlEnvKey}</span>
                     </span>
-                    {t.configured ? (
-                      <Badge tone="success" title={t.urlPreview ?? undefined}>
-                        configurato
+                    <span className="flex gap-1">
+                      <Badge
+                        tone={t.urlConfigured ? 'success' : 'warning'}
+                        title={t.urlPreview ?? undefined}
+                      >
+                        {t.urlConfigured ? 'URL ok' : 'URL mancante'}
                       </Badge>
-                    ) : (
-                      <Badge tone={simulazione ? 'neutral' : 'warning'}>
-                        {simulazione ? 'non serve in simulazione' : 'mancante'}
+                      <Badge tone={t.secretConfigured ? 'success' : 'warning'}>
+                        {t.secretConfigured ? 'segreto ok' : 'segreto mancante'}
                       </Badge>
-                    )}
+                    </span>
                   </li>
                 ))}
               </ul>
@@ -148,20 +186,22 @@ export function SpokiPanel({ timeZone }: SpokiPanelProps) {
             className="rounded-lg border border-slate-200 p-4"
             aria-label="Invio di prova"
           >
-            <h3 className="text-sm font-bold text-slate-900">Messaggio di prova</h3>
+            <h3 className="text-sm font-bold text-slate-900">Invio test manuale</h3>
             <p className="mt-0.5 mb-3 text-xs text-slate-500">
-              Dati fittizi (pratica F999, targa AB123CD).{' '}
-              {simulazione
-                ? 'In simulazione finisce solo nel registro.'
-                : 'ATTENZIONE: in modalità live parte un WhatsApp vero e consuma un credito.'}
+              Il numero va digitato a mano: le liste clienti non si usano e il numero di un cliente
+              in agenda viene rifiutato. Dati fittizi (pratica F999, targa AB123CD, ore 09:30).{' '}
+              {bloccato
+                ? 'Con il guardrail attivo finisce solo nel registro.'
+                : 'ATTENZIONE: parte un WhatsApp vero e consuma un credito.'}
             </p>
             <div className="grid gap-3 sm:grid-cols-3">
               <div className="flex flex-col gap-1">
-                <Label htmlFor="spoki-phone">Numero</Label>
+                <Label htmlFor="spoki-phone">Numero (digitato a mano)</Label>
                 <Input
                   id="spoki-phone"
                   type="tel"
                   inputMode="tel"
+                  autoComplete="off"
                   placeholder="+39 333 1234567"
                   value={phone}
                   onChange={(e) => setPhone(e.target.value)}
@@ -169,15 +209,15 @@ export function SpokiPanel({ timeZone }: SpokiPanelProps) {
                 />
               </div>
               <div className="flex flex-col gap-1">
-                <Label htmlFor="spoki-kind">Template</Label>
+                <Label htmlFor="spoki-kind">Promemoria</Label>
                 <Select
                   id="spoki-kind"
                   value={kind}
                   onChange={(e) => setKind(e.target.value as SpokiTestKind)}
                 >
-                  {(Object.keys(KIND_LABELS) as SpokiTestKind[]).map((k) => (
+                  {(Object.keys(SPOKI_TEST_KIND_LABELS) as SpokiTestKind[]).map((k) => (
                     <option key={k} value={k}>
-                      {KIND_LABELS[k]}
+                      {SPOKI_TEST_KIND_LABELS[k]}
                     </option>
                   ))}
                 </Select>
@@ -194,7 +234,7 @@ export function SpokiPanel({ timeZone }: SpokiPanelProps) {
             </div>
             <div className="mt-3 flex flex-wrap items-center gap-3">
               <Button type="submit" disabled={invio || phone.trim() === ''}>
-                {invio ? 'Invio…' : simulazione ? 'Simula invio' : 'Invia messaggio di prova'}
+                {invio ? 'Invio…' : bloccato ? 'Simula invio' : 'Invia messaggio di prova'}
               </Button>
               {esito !== null ? (
                 <p
@@ -218,7 +258,7 @@ export function SpokiPanel({ timeZone }: SpokiPanelProps) {
                 Registro dei payload ({data.log.length})
               </h3>
               <span className="text-xs text-slate-500">
-                dal più recente · in memoria, si azzera al riavvio
+                dal più recente · in memoria, si azzera al riavvio · segreto mascherato
               </span>
             </div>
             {data.log.length === 0 ? (
@@ -227,7 +267,7 @@ export function SpokiPanel({ timeZone }: SpokiPanelProps) {
                 description={
                   data.provider === 'mock'
                     ? 'Con SPOKI_PROVIDER=mock i messaggi passano dal finto WhatsApp e non compaiono qui: imposta SPOKI_PROVIDER=real e SPOKI_MODE=simulation in .env.local per vedere i payload.'
-                    : 'Inserisci un cliente a mano, o usa il messaggio di prova: il payload comparirà qui.'
+                    : 'Usa il test manuale, oppure attendi i promemoria programmati: il payload comparirà qui.'
                 }
               />
             ) : (
@@ -239,7 +279,13 @@ export function SpokiPanel({ timeZone }: SpokiPanelProps) {
                         <span className="font-mono text-xs text-slate-500 tabular-nums">
                           {formatDateTimeIt(e.at, timeZone)}
                         </span>
-                        <Badge tone={e.mode === 'simulation' ? 'warning' : 'info'}>{e.mode}</Badge>
+                        <Badge tone={e.blockedBy === null ? 'info' : 'warning'}>
+                          {e.blockedBy === null
+                            ? 'INVIATO'
+                            : e.blockedBy === 'SAFETY_LOCK'
+                              ? 'bloccato · safety lock'
+                              : 'simulato'}
+                        </Badge>
                         <span className="font-semibold">{e.templateKind}</span>
                         <span className="font-mono text-slate-600">{e.phoneMasked}</span>
                         <Badge tone={e.outcome.ok ? 'success' : 'neutral'}>
@@ -254,6 +300,7 @@ export function SpokiPanel({ timeZone }: SpokiPanelProps) {
                           {
                             url: e.url,
                             payload: e.payload,
+                            blockedBy: e.blockedBy,
                             outcome: e.outcome,
                             correlationId: e.correlationId,
                           },
@@ -270,34 +317,38 @@ export function SpokiPanel({ timeZone }: SpokiPanelProps) {
 
           {/* Guida */}
           <div className="rounded-lg border border-dashed border-slate-300 p-4 text-sm text-slate-700">
-            <h3 className="text-sm font-bold text-slate-900">Come passare alle chiavi vere</h3>
+            <h3 className="text-sm font-bold text-slate-900">Come funziona e come si sblocca</h3>
             <ol className="mt-2 list-decimal space-y-1 pl-5">
               <li>
-                In Spoki apri <strong>Integrazioni API</strong> e copia la{' '}
-                <strong>chiave API</strong> dell&apos;account.
+                Ogni automazione Spoki riceve un POST JSON nel formato del fornitore:{' '}
+                <span className="font-mono">
+                  {
+                    '{ secret, phone, first_name, last_name, email, custom_fields: { code, plate, time, date, portal_url } }'
+                  }
+                </span>
+                . Il segreto è quello della singola automazione (
+                <span className="font-mono">SPOKI_SECRET_REMINDER_PREVIOUS_DAY</span>,{' '}
+                <span className="font-mono">SPOKI_SECRET_REMINDER_SAME_DAY</span>), gli URL sono{' '}
+                <span className="font-mono">SPOKI_URL_REMINDER_PREVIOUS_DAY</span> e{' '}
+                <span className="font-mono">SPOKI_URL_REMINDER_SAME_DAY</span>.
               </li>
               <li>
-                Crea tre <strong>automazioni</strong> (conferma, turno in arrivo, annullamento),
-                ognuna collegata al template WhatsApp approvato, e copia l&apos;
-                <strong>URL del webhook</strong> di ciascuna. Il payload che riceveranno è quello
-                del registro qui sopra (campi{' '}
-                <span className="font-mono">phone, first_name, code, plate, portal_url, text</span>
-                ).
+                Il promemoria del giorno prima parte alle{' '}
+                <span className="font-mono">{data.reminderPreviousDayHourLocal}</span> dopo aver
+                anticipato l&apos;agenda di domani (così il codice esiste già); quello del giorno
+                stesso alle <span className="font-mono">{data.reminderSameDayHourLocal}</span>, dopo
+                la sync. Entrambi sono idempotenti per pratica e giornata.
               </li>
               <li>
-                Nel file <span className="font-mono">.env.local</span> del server imposta{' '}
-                <span className="font-mono">SPOKI_PROVIDER=real</span>,{' '}
-                <span className="font-mono">SPOKI_API_KEY</span>,{' '}
-                <span className="font-mono">SPOKI_URL_CONFIRMATION</span>,{' '}
-                <span className="font-mono">SPOKI_URL_TURN_APPROACHING</span>,{' '}
-                <span className="font-mono">SPOKI_URL_CANCELLATION</span> e{' '}
-                <span className="font-mono">PUBLIC_BASE_URL</span> (indirizzo pubblico del portale).
+                Guardrail: con <span className="font-mono">SPOKI_MODE=simulation</span> oppure{' '}
+                <span className="font-mono">SPOKI_SAFETY_LOCK=true</span> nessuna chiamata HTTP
+                parte. Verifica qui i payload finché sono giusti.
               </li>
               <li>
-                Lascia <span className="font-mono">SPOKI_MODE=simulation</span>, riavvia e verifica
-                i payload nel registro; quando sono corretti passa a{' '}
-                <span className="font-mono">SPOKI_MODE=live</span>, riavvia e fai un messaggio di
-                prova al tuo numero. Da quel momento i messaggi consumano crediti WhatsApp.
+                Per andare in produzione: <span className="font-mono">SPOKI_MODE=live</span> e{' '}
+                <span className="font-mono">SPOKI_SAFETY_LOCK=false</span>, riavvio, poi un solo
+                messaggio di prova al proprio numero. Da quel momento i messaggi consumano crediti
+                WhatsApp e raggiungono i clienti.
               </li>
             </ol>
             <p className="mt-2 text-xs text-slate-500">

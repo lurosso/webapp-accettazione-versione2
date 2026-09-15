@@ -4,8 +4,11 @@
 import type { OperatorId, SyncRunId } from '../ids';
 import type { IsoDate, IsoDateTime } from '../value-objects/iso-date';
 
-/** Cosa ha avviato la sincronizzazione. */
-export type SyncTrigger = 'SCHEDULED' | 'MANUAL' | 'BOOTSTRAP' | 'RETRY';
+/**
+ * Cosa ha avviato la sincronizzazione. `REMINDER` = anticipo dell'agenda di domani fatto la sera
+ * dal promemoria del giorno prima, così le pratiche hanno già il codice quando il cliente lo legge.
+ */
+export type SyncTrigger = 'SCHEDULED' | 'MANUAL' | 'BOOTSTRAP' | 'RETRY' | 'REMINDER';
 
 /** Esito: PARTIAL = agenda parziale (banner giallo), FAILED = banner rosso con fallback manuale. */
 export type SyncRunStatus = 'RUNNING' | 'SUCCESS' | 'PARTIAL' | 'FAILED';

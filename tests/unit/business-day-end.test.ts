@@ -49,7 +49,6 @@ function setup(clock: TestClock) {
     ids: env.ids,
     logger: env.logger,
     timeZone: 'Europe/Rome',
-    notifications: env.orchestrator,
   });
   const scheduler = new SyncScheduler({
     syncService,

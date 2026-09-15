@@ -41,7 +41,6 @@ function setup(mode: InfinityMockMode) {
     ids: env.ids,
     logger: env.logger,
     timeZone: 'Europe/Rome',
-    notifications: env.orchestrator,
   });
   const inneschi: SyncTrigger[] = [];
   const spia = {

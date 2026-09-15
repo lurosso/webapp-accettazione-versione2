@@ -164,16 +164,17 @@ export class NotificationOrchestrator {
   }
 
   /**
-   * Promemoria del mattino per un elenco di pratiche, subito dopo la sincronizzazione dell'agenda
-   * (requisito: "messaggio WhatsApp automatico inviato la mattina post-sync").
+   * Stesso messaggio `kind` per un elenco di pratiche (i promemoria del giorno prima e del giorno
+   * stesso, lanciati dallo scheduler o dal cron).
    *
    * Gli invii sono in sequenza, non in parallelo: un provider reale limita la frequenza e
    * l'officina non ha fretta di svuotare la coda dei messaggi. Un errore su una pratica non
    * interrompe le altre: ogni esito è registrato sul proprio job e confermabile a mano.
    */
-  async sendMorningReminders(input: {
+  async sendReminders(input: {
     readonly appointments: readonly Appointment[];
     readonly brands: readonly Brand[];
+    readonly kind: NotificationKind;
     readonly correlationId: string;
   }): Promise<readonly NotificationRun[]> {
     const runs: NotificationRun[] = [];
@@ -190,7 +191,7 @@ export class NotificationOrchestrator {
         await this.sendReminder({
           appointment,
           brand,
-          kind: 'REMINDER_MORNING',
+          kind: input.kind,
           correlationId: input.correlationId,
         }),
       );
@@ -199,7 +200,7 @@ export class NotificationOrchestrator {
     const conteggio = (kind: NotificationOutcome['kind']): number =>
       runs.filter((r) => r.outcome.kind === kind).length;
     this.logger.info(
-      `promemoria del mattino: ${runs.length} pratiche elaborate ` +
+      `${input.kind}: ${runs.length} pratiche elaborate ` +
         `(WhatsApp ${conteggio('WHATSAPP_SENT')}, SMS di ripiego ${conteggio('SMS_FALLBACK_SENT')}, ` +
         `da ritentare ${conteggio('FAILED_RETRYABLE')}, da contattare a mano ${conteggio('MANUAL_REQUIRED')}, ` +
         `senza recapito ${conteggio('NO_RECIPIENT')}, già inviate ${conteggio('ALREADY_PROCESSED')})`,

@@ -7,6 +7,8 @@ import type {
   SpokiActivityEntry,
 } from '@/services/interfaces/ISpokiActivityLog';
 
+const GLOBAL_KEY = '__accettazioneSpokiActivityLog';
+
 export class SpokiActivityLog implements ISpokiActivityLog {
   private readonly entries: SpokiActivityEntry[] = [];
 
@@ -14,6 +16,22 @@ export class SpokiActivityLog implements ISpokiActivityLog {
     private readonly ids: IIdGenerator,
     private readonly maxEntries = 200,
   ) {}
+
+  /**
+   * Registro condiviso del processo, memoizzato su `globalThis` come lo store: in sviluppo l'HMR
+   * ricostruisce il container e con lui il servizio Spoki, ma i payload già registrati (per esempio
+   * i promemoria partiti dallo scheduler un minuto prima) devono restare leggibili dal pannello.
+   */
+  static getShared(ids: IIdGenerator, maxEntries = 200): SpokiActivityLog {
+    const g = globalThis as unknown as Record<string, unknown>;
+    const existing = g[GLOBAL_KEY];
+    if (existing instanceof SpokiActivityLog) {
+      return existing;
+    }
+    const created = new SpokiActivityLog(ids, maxEntries);
+    g[GLOBAL_KEY] = created;
+    return created;
+  }
 
   record(entry: Omit<SpokiActivityEntry, 'id'>): SpokiActivityEntry {
     const completa: SpokiActivityEntry = { ...entry, id: this.ids.next() };

@@ -295,28 +295,35 @@ endpoint. Per questo esistono due canali — `/api/v1/events/stream` per l'area 
 `/api/v1/public/events/stream` per gli schermi pubblici, che ricevono solo il tipo dell'evento e
 nessun identificativo.
 
-## Messaggi WhatsApp con Spoki (sandbox)
+## Promemoria WhatsApp con Spoki (sandbox bloccata)
 
-I messaggi ai clienti passano dalla policy a eventi già descritta sopra: **conferma con il codice**
-(anche per il cliente inserito a mano, con il link al portale `/portal?targa=…`), **turno in
-arrivo** quando restano al massimo due clienti davanti, **annullamento** quando un operatore
-annulla la pratica o segna il cliente assente. Con `SPOKI_PROVIDER=real` a inviarli è
-`SpokiService`, l'adapter che andrà in produzione, in due modalità:
+In questa fase l'integrazione Spoki copre **due soli promemoria** ai clienti:
 
-- `SPOKI_MODE=simulation` (predefinita, ed è quella del file `.env.local` di sviluppo): nessuna
-  chiamata a Spoki, nessun credito consumato. Ogni messaggio finisce nel log del server e nel
-  registro del pannello admin con il payload esatto che l'automazione riceverebbe (`phone`,
-  `first_name`, `code`, `plate`, `scheduled_time`, `brand`, `portal_url`, `text`).
-- `SPOKI_MODE=live`: POST JSON all'URL dell'automazione del template (`SPOKI_URL_CONFIRMATION`,
-  `SPOKI_URL_TURN_APPROACHING`, `SPOKI_URL_CANCELLATION`) con `SPOKI_API_KEY`. Errori di rete e
-  5xx sono ritentabili, 4xx no: in entrambi i casi vale il ripiego su SMS.
+- **Giorno prima** (alle `REMINDER_PREVIOUS_DAY_HOUR_LOCAL`, predefinito 18:00): il sistema
+  anticipa la sincronizzazione dell'agenda di domani, così ogni pratica ha già il suo codice, e
+  scrive a chi è in attesa domani con data, orario, targa, codice (es. F041) e link al portale.
+- **Giorno stesso** (alle `REMINDER_SAME_DAY_HOUR_LOCAL`, predefinito 07:30, dopo la sync): a chi è
+  in coda oggi arrivano orario, targa e codice.
 
-In `/admin`, la sezione **Integrazione Spoki & messaggistica** mostra provider e modalità, la
-chiave mascherata, quali URL sono configurati, un **messaggio di prova** a un numero scelto a mano
-(in simulazione finisce solo nel registro) e il **registro dei payload** con il JSON espandibile.
-La guida in fondo alla sezione spiega come recuperare chiave e URL dal menu "Integrazioni API" di
-Spoki e come passare a `live` senza sorprese. `PUBLIC_BASE_URL` è l'indirizzo pubblico usato nei
-link dei messaggi.
+Entrambi sono idempotenti per pratica e giornata e si possono lanciare anche da un cron esterno
+(`POST /api/v1/system/cron/reminders?kind=previous-day|same-day` con `x-cron-secret`).
+
+**Guardrail anti-invio.** Nessun cliente reale riceve un WhatsApp finché `SPOKI_MODE` non è `live`
+**e** `SPOKI_SAFETY_LOCK` non è `false` (predefinito `true`). Con il blocco attivo l'adapter non
+apre alcuna connessione: formatta il payload nel formato Spoki (`secret`, `phone` in E.164,
+`first_name`, `last_name`, `email`, `custom_fields` con `code`, `plate`, `time`, `date`,
+`portal_url`), lo scrive nel log e nel registro del pannello, e risponde come se fosse andato.
+Il file `.env.local` di sviluppo tiene `SPOKI_PROVIDER=real`, `SPOKI_MODE=simulation`,
+`SPOKI_SAFETY_LOCK=true` con gli URL e i segreti delle due automazioni
+(`SPOKI_URL_REMINDER_PREVIOUS_DAY`, `SPOKI_SECRET_REMINDER_PREVIOUS_DAY`,
+`SPOKI_URL_REMINDER_SAME_DAY`, `SPOKI_SECRET_REMINDER_SAME_DAY`).
+
+In `/admin/spoki-test` (e nella stessa sezione di `/admin`) l'amministratore vede provider,
+modalità, blocco di sicurezza, stato di URL e segreti, e può fare un **invio test manuale** dei due
+promemoria a un numero **digitato a mano**: le liste clienti non si usano e il numero di un cliente
+in agenda viene rifiutato. Il **registro dei payload** mostra ogni messaggio con il motivo del
+blocco (simulazione o safety lock) e il segreto mascherato. `PUBLIC_BASE_URL` è l'indirizzo
+pubblico usato nei link dei messaggi.
 
 ## Il planning di Infinity dal database reale (ODBC)
 

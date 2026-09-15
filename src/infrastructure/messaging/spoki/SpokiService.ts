@@ -1,11 +1,12 @@
 // Implementazione della porta `ISpokiService` sopra le automazioni Spoki. È quella che il
-// factory sceglie con `SPOKI_PROVIDER=real`; la modalità (`SPOKI_MODE`) decide se l'adapter
-// chiama davvero Spoki o simula. L'orchestratore delle notifiche non vede differenza rispetto al
-// mock: stesse ricevute, stessi errori con `retryable`, stesso ripiego su SMS quando serve.
+// factory sceglie con `SPOKI_PROVIDER=real`; modalità (`SPOKI_MODE`) e blocco di sicurezza
+// (`SPOKI_SAFETY_LOCK`) decidono se l'adapter chiama davvero Spoki o formatta soltanto.
+// L'orchestratore delle notifiche non vede differenza rispetto al mock: stesse ricevute, stessi
+// errori con `retryable`, stesso ripiego su SMS quando serve.
 //
 // Idempotenza: la stessa `idempotencyKey` restituisce la stessa ricevuta senza richiamare Spoki.
-// Consegna: in simulazione il messaggio risulta subito consegnato (così il flusso "consegnato →
-// nessun SMS" si prova per intero); in live resta SENT finché il webhook di Spoki non dice altro.
+// Consegna: quando la chiamata è bloccata il messaggio risulta subito consegnato (così il flusso
+// "consegnato → nessun SMS" si prova per intero); in live resta SENT finché il webhook non dice altro.
 import { err, ok, type Result } from '@/domain/result';
 import type {
   CallOptions,
@@ -24,6 +25,8 @@ import type { ISpokiActivityLog } from '@/services/interfaces/ISpokiActivityLog'
 import type { ISpokiService } from '@/services/interfaces/ISpokiService';
 import { SpokiClientAdapter, type FetchLike } from './SpokiClientAdapter';
 import {
+  canDeliverLive,
+  SPOKI_ACTIVE_TEMPLATE_KINDS,
   SPOKI_TEMPLATE_KINDS,
   TEMPLATE_KIND_BY_KEY,
   type SpokiServiceConfig,
@@ -60,7 +63,12 @@ export class SpokiService implements ISpokiService {
     private readonly deps: SpokiServiceDeps,
   ) {
     this.adapter = new SpokiClientAdapter(
-      { mode: config.mode, apiKey: config.apiKey, timeoutMs: config.timeoutMs },
+      {
+        mode: config.mode,
+        safetyLock: config.safetyLock,
+        apiKey: config.apiKey,
+        timeoutMs: config.timeoutMs,
+      },
       {
         clock: deps.clock,
         ids: deps.ids,
@@ -69,6 +77,11 @@ export class SpokiService implements ISpokiService {
         fetchImpl: deps.fetchImpl,
       },
     );
+  }
+
+  /** True solo se un WhatsApp reale può partire (live e blocco tolto). */
+  get liveDeliveryAllowed(): boolean {
+    return canDeliverLive(this.config.mode, this.config.safetyLock);
   }
 
   async sendTemplateMessage(
@@ -81,8 +94,8 @@ export class SpokiService implements ISpokiService {
     }
     const kind = TEMPLATE_KIND_BY_KEY[request.templateKey];
     if (kind === undefined) {
-      // Template senza automazione Spoki (es. promemoria del mattino): l'orchestratore ripiega
-      // sull'SMS, che il testo renderizzato lo porta comunque.
+      // Template senza automazione Spoki: l'orchestratore ripiega sull'SMS, che il testo
+      // renderizzato lo porta comunque.
       return err(
         providerError(
           'SPOKI',
@@ -96,7 +109,7 @@ export class SpokiService implements ISpokiService {
       kind,
       templateKey: request.templateKey,
       url: this.config.urls[kind],
-      payload: buildWebhookPayload(request),
+      payload: buildWebhookPayload(request, this.config.secrets[kind]),
       correlationId: request.correlationId,
       options,
     });
@@ -110,7 +123,7 @@ export class SpokiService implements ISpokiService {
     this.receipts.set(request.idempotencyKey, receipt);
     this.deliveries.set(
       receipt.providerMessageId,
-      this.config.mode === 'simulation' ? 'DELIVERED' : 'SENT',
+      esito.value.blockedBy === null ? 'SENT' : 'DELIVERED',
     );
     return ok(receipt);
   }
@@ -178,57 +191,79 @@ export class SpokiService implements ISpokiService {
   }
 
   async healthCheck(): Promise<HealthStatus> {
-    const mancanti = SPOKI_TEMPLATE_KINDS.filter((k) => this.config.urls[k] === null);
-    if (this.config.mode === 'simulation') {
+    // Contano solo i template integrati in questa fase: gli altri non hanno automazione.
+    const senzaUrl = SPOKI_ACTIVE_TEMPLATE_KINDS.filter((k) => this.config.urls[k] === null);
+    const senzaSegreto = SPOKI_ACTIVE_TEMPLATE_KINDS.filter((k) => this.config.secrets[k] === null);
+    const configurazione = [
+      senzaUrl.length > 0 ? `URL non configurati: ${senzaUrl.join(', ')}` : null,
+      senzaSegreto.length > 0 ? `segreti non configurati: ${senzaSegreto.join(', ')}` : null,
+    ].filter((s): s is string => s !== null);
+
+    if (!this.liveDeliveryAllowed) {
+      const motivo =
+        this.config.mode !== 'live'
+          ? 'simulazione: nessuna chiamata a Spoki, payload nel registro'
+          : 'BLOCCATO dal safety lock (SPOKI_SAFETY_LOCK=true): nessuna chiamata a Spoki, payload nel registro';
       return {
         provider: 'SPOKI',
         status: 'UP',
         checkedAt: this.deps.clock.nowIso(),
         latencyMs: null,
-        detail: `simulazione: nessuna chiamata a Spoki, payload nel registro${
-          mancanti.length > 0 ? `; URL non configurati: ${mancanti.join(', ')}` : ''
-        }`,
+        detail: [motivo, ...configurazione].join('; '),
         implementation: 'real',
       };
     }
-    const problemi: string[] = [];
-    if (this.config.apiKey === null) {
-      problemi.push('SPOKI_API_KEY mancante');
-    }
-    if (mancanti.length > 0) {
-      problemi.push(`URL non configurati: ${mancanti.join(', ')}`);
-    }
     return {
       provider: 'SPOKI',
-      status: problemi.length === 0 ? 'UP' : 'DEGRADED',
+      status: configurazione.length === 0 ? 'UP' : 'DEGRADED',
       checkedAt: this.deps.clock.nowIso(),
       latencyMs: null,
       detail:
-        problemi.length === 0 ? 'live: configurazione completa' : `live: ${problemi.join('; ')}`,
+        configurazione.length === 0
+          ? 'live: configurazione completa, i WhatsApp partono davvero'
+          : `live: ${configurazione.join('; ')}`,
       implementation: 'real',
     };
   }
 
-  /** Template gestiti e loro URL (per la pagina di amministrazione). */
-  templates(): readonly { kind: SpokiTemplateKind; url: string | null }[] {
-    return SPOKI_TEMPLATE_KINDS.map((kind) => ({ kind, url: this.config.urls[kind] }));
+  /** Template gestiti, con URL e presenza del segreto (per la pagina di amministrazione). */
+  templates(): readonly {
+    kind: SpokiTemplateKind;
+    active: boolean;
+    url: string | null;
+    secretConfigured: boolean;
+  }[] {
+    return SPOKI_TEMPLATE_KINDS.map((kind) => ({
+      kind,
+      active: SPOKI_ACTIVE_TEMPLATE_KINDS.includes(kind),
+      url: this.config.urls[kind],
+      secretConfigured: this.config.secrets[kind] !== null,
+    }));
   }
 }
 
-/** Dalle variabili dell'orchestratore al payload piatto dell'automazione. */
-export function buildWebhookPayload(request: SpokiSendRequestDto): SpokiWebhookPayload {
+/**
+ * Dalle variabili dell'orchestratore al payload dell'automazione Spoki (formato del fornitore):
+ * `phone` in E.164, nome e cognome, e-mail se nota, e i campi dinamici in `custom_fields`
+ * (`code` F041, `plate`, `time` HH:mm, `date` GG/MM/AAAA, `portal_url`).
+ */
+export function buildWebhookPayload(
+  request: SpokiSendRequestDto,
+  secret: string | null,
+): SpokiWebhookPayload {
   const v = request.variables;
   return {
+    secret: secret ?? '',
     phone: request.to,
     first_name: v['firstName'] ?? '',
-    code: v['code'] ?? '',
-    plate: v['plate'] ?? '',
-    scheduled_time: v['scheduledTime'] ?? '',
-    brand: v['brandName'] ?? '',
-    portal_url: v['portalUrl'] ?? '',
-    text: v['text'] ?? '',
-    template: request.templateKey,
-    correlation_id: request.correlationId,
-    idempotency_key: request.idempotencyKey,
+    last_name: v['lastName'] ?? '',
+    email: v['email'] ?? '',
+    custom_fields: {
+      code: v['code'] ?? '',
+      plate: v['plate'] ?? '',
+      time: v['scheduledTime'] ?? '',
+      date: v['scheduledDate'] ?? '',
+      portal_url: v['portalUrl'] ?? '',
+    },
   };
 }

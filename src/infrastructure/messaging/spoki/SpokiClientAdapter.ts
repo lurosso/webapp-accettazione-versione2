@@ -1,8 +1,10 @@
-// Adapter HTTP verso le automazioni Spoki. Due modalità:
-// - `simulation` (predefinita): NESSUNA chiamata di rete. Il payload finisce nel log strutturato e
-//   nel registro attività, la risposta è un 200 finto. Serve a provare tutto il flusso messaggi
-//   senza consumare crediti WhatsApp né disturbare clienti veri;
-// - `live`: POST JSON all'URL dell'automazione, con la chiave API nell'intestazione.
+// Adapter HTTP verso le automazioni Spoki, con il GUARDRAIL anti-invio:
+// - se `mode` non è `live` OPPURE il blocco di sicurezza (`safetyLock`) è attivo, NESSUNA chiamata
+//   di rete parte. Il payload viene formattato, scritto nel log strutturato e nel registro del
+//   pannello admin (con il motivo del blocco), e la risposta è un 200 finto;
+// - solo con `mode = live` e blocco tolto si fa il POST JSON all'URL dell'automazione, con il
+//   segreto dell'automazione nel payload (come richiede Spoki) e la chiave API nell'intestazione se
+//   configurata.
 // Non lancia mai: ogni guasto diventa un ProviderError con il flag `retryable` giusto, così
 // l'orchestratore decide se ritentare o passare all'SMS.
 import { err, ok } from '@/domain/result';
@@ -14,13 +16,21 @@ import type { IIdGenerator } from '@/services/interfaces/IIdGenerator';
 import type { ILogger } from '@/services/interfaces/ILogger';
 import type { ISpokiActivityLog } from '@/services/interfaces/ISpokiActivityLog';
 import type { SpokiMode } from '@/services/interfaces/provider-kinds';
-import { maskForLog, type SpokiTemplateKind, type SpokiWebhookPayload } from './spoki-config';
+import {
+  deliveryBlockReason,
+  maskForLog,
+  payloadForLog,
+  type SpokiTemplateKind,
+  type SpokiWebhookPayload,
+} from './spoki-config';
 
 /** Sottoinsieme di `fetch` usato dall'adapter: iniettabile nei test. */
 export type FetchLike = (input: string, init: RequestInit) => Promise<Response>;
 
 export interface SpokiClientAdapterConfig {
   readonly mode: SpokiMode;
+  /** Blocco di sicurezza: con true nessuna chiamata parte, nemmeno in live. */
+  readonly safetyLock: boolean;
   readonly apiKey: string | null;
   readonly timeoutMs: number;
 }
@@ -37,7 +47,7 @@ export interface SpokiClientAdapterDeps {
 export interface TriggerInput {
   readonly kind: SpokiTemplateKind | 'TEST';
   readonly templateKey: string;
-  /** URL dell'automazione; null solo in simulazione (si registra comunque). */
+  /** URL dell'automazione; null se non configurato (in simulazione si registra comunque). */
   readonly url: string | null;
   readonly payload: SpokiWebhookPayload;
   readonly correlationId: string;
@@ -46,9 +56,11 @@ export interface TriggerInput {
 
 export interface TriggerResult {
   readonly httpStatus: number;
-  /** Identificativo restituito da Spoki, o generato in simulazione. */
+  /** Identificativo restituito da Spoki, o generato quando la chiamata è bloccata. */
   readonly messageId: string;
   readonly acceptedAt: IsoDateTime;
+  /** Motivo per cui la chiamata NON è partita; null se è stata fatta davvero. */
+  readonly blockedBy: 'SIMULATION' | 'SAFETY_LOCK' | null;
 }
 
 export class SpokiClientAdapter {
@@ -58,43 +70,58 @@ export class SpokiClientAdapter {
     private readonly config: SpokiClientAdapterConfig,
     private readonly deps: SpokiClientAdapterDeps,
   ) {
-    this.logger = deps.logger.child(`[Spoki][${config.mode}]`);
+    this.logger = deps.logger.child(`[Spoki][${config.mode}${config.safetyLock ? '+lock' : ''}]`);
   }
 
   get mode(): SpokiMode {
     return this.config.mode;
   }
 
+  /** True solo se una chiamata reale può partire (live e blocco tolto). */
+  get liveDeliveryAllowed(): boolean {
+    return deliveryBlockReason(this.config.mode, this.config.safetyLock) === null;
+  }
+
   async trigger(input: TriggerInput): Promise<ProviderResult<TriggerResult>> {
-    if (this.config.mode === 'simulation') {
-      return this.simulate(input);
+    const blocco = deliveryBlockReason(this.config.mode, this.config.safetyLock);
+    if (blocco !== null) {
+      return this.simulate(input, blocco);
     }
     return this.callLive(input);
   }
 
-  /** Simulazione: log strutturato del payload e 200 OK finto. Zero rete, zero crediti. */
-  private simulate(input: TriggerInput): ProviderResult<TriggerResult> {
+  /**
+   * Chiamata bloccata: log strutturato del payload (segreto mascherato) e 200 OK finto.
+   * Zero rete, zero crediti, nessun cliente disturbato.
+   */
+  private simulate(
+    input: TriggerInput,
+    blockedBy: 'SIMULATION' | 'SAFETY_LOCK',
+  ): ProviderResult<TriggerResult> {
     const acceptedAt = this.deps.clock.nowIso();
     const messageId = `sim-${this.deps.ids.next()}`;
-    this.logger.info(`SIMULAZIONE ${input.kind} → ${maskForLog(input.payload.phone)}`, {
+    const etichetta = blockedBy === 'SAFETY_LOCK' ? 'BLOCCATO (safety lock)' : 'SIMULAZIONE';
+    this.logger.info(`${etichetta} ${input.kind} → ${maskForLog(input.payload.phone)}`, {
       url: input.url ?? '(non configurato)',
       template: input.templateKey,
-      payload: input.payload,
+      payload: payloadForLog(input.payload),
       correlationId: input.correlationId,
+      bloccatoDa: blockedBy,
       risposta: { status: 200, messageId },
     });
     this.deps.activityLog.record({
       at: acceptedAt,
-      mode: 'simulation',
+      mode: this.config.mode,
       templateKind: input.kind,
       templateKey: input.templateKey,
       url: input.url,
       phoneMasked: maskForLog(input.payload.phone),
-      payload: { ...input.payload },
+      payload: payloadForLog(input.payload),
+      blockedBy,
       outcome: { ok: true, httpStatus: 200, messageId, error: null },
       correlationId: input.correlationId,
     });
-    return ok({ httpStatus: 200, messageId, acceptedAt });
+    return ok({ httpStatus: 200, messageId, acceptedAt, blockedBy });
   }
 
   private async callLive(input: TriggerInput): Promise<ProviderResult<TriggerResult>> {
@@ -110,13 +137,13 @@ export class SpokiClientAdapter {
         null,
       );
     }
-    if (this.config.apiKey === null) {
+    if (input.payload.secret === '') {
       return this.fail(
         input,
         providerError(
           'SPOKI',
           'AUTH',
-          'SPOKI_API_KEY mancante: impossibile chiamare Spoki.',
+          `Segreto dell'automazione Spoki mancante per ${input.kind}: impossibile chiamare Spoki.`,
           false,
         ),
         null,
@@ -138,14 +165,17 @@ export class SpokiClientAdapter {
     );
     input.options?.signal?.addEventListener('abort', () => controller.abort(), { once: true });
     try {
+      const headers: Record<string, string> = {
+        'content-type': 'application/json',
+        accept: 'application/json',
+        'x-correlation-id': input.correlationId,
+      };
+      if (this.config.apiKey !== null) {
+        headers['authorization'] = `Bearer ${this.config.apiKey}`;
+      }
       const response = await fetchImpl(input.url, {
         method: 'POST',
-        headers: {
-          'content-type': 'application/json',
-          accept: 'application/json',
-          authorization: `Bearer ${this.config.apiKey}`,
-          'x-correlation-id': input.correlationId,
-        },
+        headers,
         body: JSON.stringify(input.payload),
         signal: controller.signal,
       });
@@ -167,11 +197,12 @@ export class SpokiClientAdapter {
         templateKey: input.templateKey,
         url: input.url,
         phoneMasked: maskForLog(input.payload.phone),
-        payload: { ...input.payload },
+        payload: payloadForLog(input.payload),
+        blockedBy: null,
         outcome: { ok: true, httpStatus: response.status, messageId, error: null },
         correlationId: input.correlationId,
       });
-      return ok({ httpStatus: response.status, messageId, acceptedAt });
+      return ok({ httpStatus: response.status, messageId, acceptedAt, blockedBy: null });
     } catch (cause) {
       const timeout = cause instanceof Error && cause.name === 'AbortError';
       return this.fail(
@@ -195,7 +226,12 @@ export class SpokiClientAdapter {
   private errorForStatus(status: number, body: string): ProviderError {
     const dettaglio = body.trim() === '' ? '' : ` (${body.trim().slice(0, 200)})`;
     if (status === 401 || status === 403) {
-      return providerError('SPOKI', 'AUTH', `Spoki ha rifiutato la chiave API${dettaglio}.`, false);
+      return providerError(
+        'SPOKI',
+        'AUTH',
+        `Spoki ha rifiutato le credenziali (chiave API o segreto dell'automazione)${dettaglio}.`,
+        false,
+      );
     }
     if (status === 404) {
       return providerError(
@@ -265,7 +301,8 @@ export class SpokiClientAdapter {
       templateKey: input.templateKey,
       url: input.url,
       phoneMasked: maskForLog(input.payload.phone),
-      payload: { ...input.payload },
+      payload: payloadForLog(input.payload),
+      blockedBy: null,
       outcome: { ok: false, httpStatus, messageId: null, error: `${error.code}: ${error.message}` },
       correlationId: input.correlationId,
     });

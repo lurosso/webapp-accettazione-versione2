@@ -8,16 +8,20 @@ import type { QueueCode } from '../value-objects/queue-code';
 
 /**
  * Tipo di messaggio.
- * - REMINDER_MORNING: promemoria dopo la sincronizzazione dell'agenda;
+ * - REMINDER_PREVIOUS_DAY: promemoria del giorno prima (data, ora, targa, codice, link al portale);
+ * - REMINDER_SAME_DAY: promemoria della mattina per l'appuntamento di oggi (ora, targa, codice);
  * - BOOKING_CONFIRMED: pratica inserita a mano al banco (le pratiche dell'agenda hanno il promemoria);
  * - TURN_APPROACHING: davanti al cliente restano poche pratiche del suo sportello;
  * - YOUR_TURN: è il suo turno;
  * - APPOINTMENT_CANCELLED: pratica annullata da una persona (non dalla chiusura automatica);
  * - VEHICLE_READY: vettura pronta al ritiro;
  * - CUSTOM: testo libero dell'operatore.
+ * Oggi l'integrazione Spoki copre SOLO i due promemoria; gli altri tipi restano definiti per
+ * l'orchestratore (SMS, log) e per il futuro.
  */
 export type NotificationKind =
-  | 'REMINDER_MORNING'
+  | 'REMINDER_PREVIOUS_DAY'
+  | 'REMINDER_SAME_DAY'
   | 'BOOKING_CONFIRMED'
   | 'TURN_APPROACHING'
   | 'YOUR_TURN'

@@ -104,8 +104,9 @@ export function createExternalServices(env: AppEnv, deps: ExternalServiceDeps): 
     { clock: deps.clock, logger: deps.logger },
   );
 
-  // Spoki reale: la modalità decide se chiamare davvero (live) o registrare soltanto (simulation).
-  const spokiActivityLog: ISpokiActivityLog = new SpokiActivityLog(deps.ids);
+  // Spoki reale: modalità e blocco di sicurezza decidono se chiamare davvero o registrare soltanto.
+  // Il registro è condiviso dal processo: sopravvive alla ricostruzione del container in sviluppo.
+  const spokiActivityLog: ISpokiActivityLog = SpokiActivityLog.getShared(deps.ids);
   const spoki: ISpokiService =
     env.spokiProvider === 'mock'
       ? new SpokiServiceMock(
@@ -122,11 +123,23 @@ export function createExternalServices(env: AppEnv, deps: ExternalServiceDeps): 
       : new SpokiService(
           {
             mode: env.spokiMode,
+            // GUARDRAIL: con il blocco attivo nessuna chiamata HTTP parte, nemmeno in live.
+            safetyLock: env.spokiSafetyLock,
             apiKey: env.spokiApiKey,
             urls: {
+              REMINDER_PREVIOUS_DAY: env.spokiUrlReminderPreviousDay,
+              REMINDER_SAME_DAY: env.spokiUrlReminderSameDay,
               CONFIRMATION: env.spokiUrlConfirmation,
               TURN_APPROACHING: env.spokiUrlTurnApproaching,
               CANCELLATION: env.spokiUrlCancellation,
+            },
+            secrets: {
+              REMINDER_PREVIOUS_DAY: env.spokiSecretReminderPreviousDay,
+              REMINDER_SAME_DAY: env.spokiSecretReminderSameDay,
+              // Non integrati in questa fase: nessuna automazione, quindi nessun segreto.
+              CONFIRMATION: null,
+              TURN_APPROACHING: null,
+              CANCELLATION: null,
             },
             timeoutMs: 8_000,
           },

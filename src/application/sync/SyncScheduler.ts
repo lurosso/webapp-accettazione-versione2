@@ -1,7 +1,10 @@
-// Scheduler della giornata operativa: la apre e la chiude.
-// - alle SYNC_HOUR_LOCAL (default 06:00, fuso dell'officina) esegue la sync se la giornata non ne
-//   ha ancora una; all'avvio del processo fa il "catch-up" (server riavviato alle 09:00 → sync
-//   immediata);
+// Scheduler della giornata operativa: la apre, manda i promemoria e la chiude.
+// - alle SYNC_HOUR_LOCAL (default 06:00, fuso dell'officina) esegue la sync se la giornata non ha
+//   ancora una sync avviata oggi; all'avvio del processo fa il "catch-up" (server riavviato alle
+//   09:00 → sync immediata);
+// - alle REMINDER_SAME_DAY_HOUR_LOCAL (default 07:30) manda il promemoria del giorno stesso, dopo
+//   che la sync di oggi è riuscita; alle REMINDER_PREVIOUS_DAY_HOUR_LOCAL (default 18:00) anticipa
+//   la sync di domani e manda il promemoria del giorno prima. Una volta al giorno ciascuno;
 // - dopo BUSINESS_DAY_END_TIME (default 19:00) chiude la giornata, se è rimasto qualcosa di aperto
 //   e il responsabile non l'ha già chiusa a mano.
 // Un solo timer per processo. La chiusura automatica è deliberatamente prudente: una volta sola
@@ -11,11 +14,12 @@ import { SYNC_RETRY_BACKOFF_MINUTES } from '@/config/constants';
 import { ACTIVE_QUEUE_STATUSES } from '@/domain/entities/appointment';
 import type { SyncRun } from '@/domain/entities/sync-run';
 import type { IsoDate } from '@/domain/value-objects/iso-date';
-import { localTimeHHmm } from '@/lib/dates';
+import { localTimeHHmm, toBusinessDate } from '@/lib/dates';
 import type { IAppointmentRepository, ISyncRunRepository } from '@/repositories/interfaces';
 import type { IClock } from '@/services/interfaces/IClock';
 import type { ILogger } from '@/services/interfaces/ILogger';
 import type { InspectionArchiveService } from '../media/InspectionArchiveService';
+import type { AppointmentReminderService } from '../notifications/AppointmentReminderService';
 import { SYSTEM_ACTOR_ID, type QueueService } from '../queue/QueueService';
 import type { SyncService } from './SyncService';
 
@@ -36,6 +40,15 @@ export interface SyncSchedulerDeps {
   readonly timeZone: string;
   /** Intervallo del tick in ms (default 60 s). */
   readonly tickMs?: number;
+  /**
+   * Promemoria ai clienti (giorno prima, giorno stesso). Facoltativi: senza, lo scheduler fa solo
+   * sync e chiusura, come prima del modulo C.
+   */
+  readonly reminders?: AppointmentReminderService;
+  /** Ora locale "HH:mm" del promemoria del giorno prima (env REMINDER_PREVIOUS_DAY_HOUR_LOCAL). */
+  readonly reminderPreviousDayHourLocal?: string;
+  /** Ora locale "HH:mm" del promemoria del giorno stesso (env REMINDER_SAME_DAY_HOUR_LOCAL). */
+  readonly reminderSameDayHourLocal?: string;
 }
 
 const DEFAULT_TICK_MS = 60_000;
@@ -50,6 +63,9 @@ export class SyncScheduler {
   private readonly syncRetries = new Map<IsoDate, number>();
   /** Giornata in cui la retention delle foto è già stata eseguita. */
   private lastPurgedDate: IsoDate | null = null;
+  /** Giornate in cui i promemoria sono già partiti (uno per tipo). */
+  private lastSameDayReminderDate: IsoDate | null = null;
+  private lastPreviousDayReminderDate: IsoDate | null = null;
 
   constructor(private readonly deps: SyncSchedulerDeps) {
     this.logger = deps.logger.child('[Scheduler]');
@@ -64,6 +80,8 @@ export class SyncScheduler {
       this.logger.info('avviato', {
         syncHourLocal: this.deps.syncHourLocal,
         businessDayEndLocal: this.deps.businessDayEndLocal,
+        promemoriaGiornoPrima: this.deps.reminders ? this.deps.reminderPreviousDayHourLocal : 'no',
+        promemoriaGiornoStesso: this.deps.reminders ? this.deps.reminderSameDayHourLocal : 'no',
         timeZone: this.deps.timeZone,
       });
       void this.tick('BOOTSTRAP');
@@ -79,9 +97,10 @@ export class SyncScheduler {
   }
 
   /**
-   * Un tick: se l'ora locale ha superato SYNC_HOUR_LOCAL e la giornata non ha ancora una sync,
-   * la esegue. Le sync fallite NON vengono ritentate automaticamente: la dashboard mostra il
-   * banner con "Riprova" (regola di fallback manuale).
+   * Un tick: se l'ora locale ha superato SYNC_HOUR_LOCAL e la giornata non ha ancora una sync
+   * avviata oggi, la esegue. Una sync anticipata la sera prima (promemoria del giorno prima) non
+   * conta: l'agenda può cambiare durante la notte e la mattina si rilegge. Le sync fallite vengono
+   * ritentate con attesa crescente, poi resta il pulsante "Riprova" della dashboard.
    */
   async tick(trigger: 'SCHEDULED' | 'BOOTSTRAP'): Promise<void> {
     if (this.ticking) {
@@ -95,17 +114,19 @@ export class SyncScheduler {
 
       await this.closeBusinessDayIfDue(today, oraLocale);
       await this.purgeExpiredMediaIfDue(today, oraLocale);
+      await this.sendPreviousDayRemindersIfDue(today, oraLocale);
 
       if (oraLocale < this.deps.syncHourLocal) {
         return;
       }
       const latest = await this.deps.syncRuns.findLatest(today);
-      if (latest === null) {
-        this.logger.info(`nessuna sync per ${today}: avvio ${trigger}`);
+      if (latest === null || this.startedBefore(latest, today)) {
+        this.logger.info(`nessuna sync avviata oggi per ${today}: avvio ${trigger}`);
         await this.deps.syncService.runDailySync(today, trigger);
         return;
       }
       await this.retryFailedSyncIfDue(today, latest, now);
+      await this.sendSameDayRemindersIfDue(today, oraLocale, latest);
     } catch (error) {
       this.logger.error('tick fallito', {
         message: error instanceof Error ? error.message : String(error),
@@ -113,6 +134,11 @@ export class SyncScheduler {
     } finally {
       this.ticking = false;
     }
+  }
+
+  /** La sync è stata avviata in una giornata precedente (anticipo della sera prima). */
+  private startedBefore(run: SyncRun, today: IsoDate): boolean {
+    return toBusinessDate(new Date(run.startedAt), this.deps.timeZone) < today;
   }
 
   /**
@@ -139,6 +165,50 @@ export class SyncScheduler {
       `sync fallita per ${today} (${latest.errorCode ?? 'errore'}): nuovo tentativo automatico ${fatti + 1}/${SYNC_RETRY_BACKOFF_MINUTES.length}`,
     );
     await this.deps.syncService.runDailySync(today, 'RETRY');
+  }
+
+  /**
+   * Promemoria del giorno stesso: una volta al giorno, dall'ora configurata, solo se la sync di
+   * oggi è riuscita (con una sync fallita non c'è agenda da ricordare: si riprova al tick dopo).
+   */
+  private async sendSameDayRemindersIfDue(
+    today: IsoDate,
+    oraLocale: string,
+    latest: SyncRun,
+  ): Promise<void> {
+    const reminders = this.deps.reminders;
+    const ora = this.deps.reminderSameDayHourLocal;
+    if (reminders === undefined || ora === undefined || oraLocale < ora) {
+      return;
+    }
+    if (this.lastSameDayReminderDate === today) {
+      return;
+    }
+    if (latest.status === 'RUNNING' || latest.status === 'FAILED') {
+      return;
+    }
+    this.lastSameDayReminderDate = today;
+    const esito = await reminders.sendSameDayReminders(today);
+    this.logger.info('promemoria del giorno stesso eseguiti', { ...esito });
+  }
+
+  /**
+   * Promemoria del giorno prima: una volta al giorno, dall'ora configurata. Il servizio anticipa
+   * la sync di domani e poi manda i messaggi a chi è in attesa domani.
+   */
+  private async sendPreviousDayRemindersIfDue(today: IsoDate, oraLocale: string): Promise<void> {
+    const reminders = this.deps.reminders;
+    const ora = this.deps.reminderPreviousDayHourLocal;
+    if (reminders === undefined || ora === undefined || oraLocale < ora) {
+      return;
+    }
+    if (this.lastPreviousDayReminderDate === today) {
+      return;
+    }
+    // Segnata subito: un errore non deve far ripartire il giro a ogni minuto fino a mezzanotte.
+    this.lastPreviousDayReminderDate = today;
+    const esito = await reminders.sendPreviousDayReminders(today);
+    this.logger.info('promemoria del giorno prima eseguiti', { ...esito });
   }
 
   /**

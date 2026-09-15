@@ -36,6 +36,13 @@ export interface CustomerMessagingPolicyDeps {
   readonly logger: ILogger;
   /** Interruttore generale (env MESSAGING_TRIGGERS_ENABLED). */
   readonly enabled: boolean;
+  /**
+   * GUARDRAIL: true solo con Spoki reale, in live e senza blocco di sicurezza. Quando è false la
+   * policy lavora in dry-run: i messaggi passano comunque dall'orchestratore (che li registra e
+   * ripiega sui canali finti), ma nessun WhatsApp raggiunge un telefono vero, e ogni invio lo dice
+   * nel log. Il blocco fisico della chiamata HTTP sta nell'adapter Spoki: qui si rende visibile.
+   */
+  readonly liveDeliveryAllowed?: boolean;
   /** Quante pratiche davanti fanno scattare "il turno si avvicina" (default dalla configurazione). */
   readonly turnApproachingAhead?: number;
   /**
@@ -61,9 +68,20 @@ export class CustomerMessagingPolicy {
       this.unsubscribe = this.deps.eventBus.subscribe((event) => this.onEvent(event));
       this.logger.info('policy messaggi attiva', {
         turnoVicinoEntro: this.deps.turnApproachingAhead ?? TURN_APPROACHING_AHEAD,
+        consegnaReale: this.liveDeliveryAllowed,
       });
+      if (!this.liveDeliveryAllowed) {
+        this.logger.warn(
+          'GUARDRAIL attivo: nessun WhatsApp reale (SPOKI_MODE diverso da live o SPOKI_SAFETY_LOCK=true). I payload vengono solo formattati e registrati.',
+        );
+      }
     }
     return () => this.stop();
+  }
+
+  /** True solo se un WhatsApp può davvero partire; altrimenti la policy è in dry-run. */
+  get liveDeliveryAllowed(): boolean {
+    return this.deps.liveDeliveryAllowed === true;
   }
 
   stop(): void {
@@ -173,7 +191,11 @@ export class CustomerMessagingPolicy {
       correlationId: correlationId === '' ? this.deps.ids.next() : correlationId,
     });
     if (esito.outcome.kind !== 'ALREADY_PROCESSED') {
-      this.logger.info(`${kind} per ${appointment.code}: ${esito.outcome.kind}`);
+      this.logger.info(
+        `${kind} per ${appointment.code}: ${esito.outcome.kind}${
+          this.liveDeliveryAllowed ? '' : ' (dry-run: nessun WhatsApp reale)'
+        }`,
+      );
     }
   }
 

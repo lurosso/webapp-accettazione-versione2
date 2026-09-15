@@ -12,6 +12,7 @@ import { OperatorAdminService } from '@/application/admin/OperatorAdminService';
 import { InspectionArchiveService } from '@/application/media/InspectionArchiveService';
 import { InspectionService } from '@/application/media/InspectionService';
 import { DailyReportService } from '@/application/reporting/DailyReportService';
+import { AppointmentReminderService } from '@/application/notifications/AppointmentReminderService';
 import { CustomerMessagingPolicy } from '@/application/notifications/CustomerMessagingPolicy';
 import { NotificationOrchestrator } from '@/application/notifications/NotificationOrchestrator';
 import { CodeGenerator } from '@/application/queue/CodeGenerator';
@@ -65,6 +66,7 @@ export interface Container {
   readonly assistanceService: AssistanceService;
   readonly dailyReportService: DailyReportService;
   readonly messagingPolicy: CustomerMessagingPolicy;
+  readonly appointmentReminderService: AppointmentReminderService;
   readonly syncService: SyncService;
   readonly syncScheduler: SyncScheduler;
 }
@@ -152,21 +154,35 @@ export function createContainer(overrides: ContainerOverrides = {}): Container {
     publicBaseUrl: env.publicBaseUrl,
   });
 
+  // GUARDRAIL: un WhatsApp reale può partire solo con Spoki reale, in live e con il blocco di
+  // sicurezza tolto. Il blocco fisico sta nell'adapter; qui il flag serve a policy, promemoria e
+  // pannello per dire chiaramente che si lavora in dry-run.
+  const spokiLiveDeliveryAllowed =
+    env.spokiProvider === 'real' && env.spokiMode === 'live' && !env.spokiSafetyLock;
+
   const spokiDiagnosticsService = new SpokiDiagnosticsService({
     spoki: external.spoki,
     activityLog: external.spokiActivityLog,
+    appointments: repos.appointments,
     config: {
       provider: env.spokiProvider,
       mode: env.spokiMode,
+      safetyLock: env.spokiSafetyLock,
       apiKey: env.spokiApiKey,
-      urls: {
-        confirmation: env.spokiUrlConfirmation,
-        turnApproaching: env.spokiUrlTurnApproaching,
-        cancellation: env.spokiUrlCancellation,
+      reminders: {
+        previousDay: {
+          url: env.spokiUrlReminderPreviousDay,
+          secret: env.spokiSecretReminderPreviousDay,
+        },
+        sameDay: { url: env.spokiUrlReminderSameDay, secret: env.spokiSecretReminderSameDay },
       },
       publicBaseUrl: env.publicBaseUrl,
+      reminderPreviousDayHourLocal: env.reminderPreviousDayHourLocal,
+      reminderSameDayHourLocal: env.reminderSameDayHourLocal,
+      remindersEnabled: env.remindersEnabled,
     },
     ids,
+    clock,
     logger,
   });
 
@@ -180,6 +196,7 @@ export function createContainer(overrides: ContainerOverrides = {}): Container {
     ids,
     logger,
     enabled: env.messagingTriggersEnabled,
+    liveDeliveryAllowed: spokiLiveDeliveryAllowed,
   });
   messagingPolicy.start();
 
@@ -304,7 +321,20 @@ export function createContainer(overrides: ContainerOverrides = {}): Container {
     ids,
     logger,
     timeZone: env.timeZone,
-    notifications: notificationOrchestrator,
+  });
+
+  // I due promemoria ai clienti (giorno prima, giorno stesso): passano dall'orchestratore, quindi
+  // dal guardrail Spoki; li lancia lo scheduler alle ore configurate o il cron esterno.
+  const appointmentReminderService = new AppointmentReminderService({
+    appointments: repos.appointments,
+    referenceData: repos.referenceData,
+    orchestrator: notificationOrchestrator,
+    syncService,
+    clock,
+    ids,
+    logger,
+    enabled: env.remindersEnabled,
+    liveDeliveryAllowed: spokiLiveDeliveryAllowed,
   });
 
   const syncScheduler = new SyncScheduler({
@@ -318,12 +348,18 @@ export function createContainer(overrides: ContainerOverrides = {}): Container {
     syncHourLocal: env.syncHourLocal,
     businessDayEndLocal: env.businessDayEndLocal,
     timeZone: env.timeZone,
+    reminders: appointmentReminderService,
+    reminderPreviousDayHourLocal: env.reminderPreviousDayHourLocal,
+    reminderSameDayHourLocal: env.reminderSameDayHourLocal,
   });
 
   logger.info('[Container] inizializzato', {
     servicesProvider: env.servicesProvider,
     infinity: env.infinityProvider,
     spoki: env.spokiProvider,
+    spokiMode: env.spokiMode,
+    spokiSafetyLock: env.spokiSafetyLock,
+    whatsappReali: spokiLiveDeliveryAllowed,
     sms: env.smsProvider,
     crm: env.crmProvider,
     repository: env.repositoryProvider,
@@ -355,6 +391,7 @@ export function createContainer(overrides: ContainerOverrides = {}): Container {
     assistanceService,
     dailyReportService,
     messagingPolicy,
+    appointmentReminderService,
     syncService,
     syncScheduler,
   };
@@ -409,6 +446,9 @@ export function resetContainerForTests(): void {
   }
   delete g[GLOBAL_KEY];
   InMemoryStore.getGlobal().reset();
+  if (isContainer(existing)) {
+    existing.external.spokiActivityLog.clear();
+  }
 }
 
 function isContainer(v: unknown): v is Container {

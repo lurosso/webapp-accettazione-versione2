@@ -15,6 +15,16 @@ export const DEFAULT_SYNC_HOUR_LOCAL = '06:00';
  */
 export const DEFAULT_BUSINESS_DAY_END = '19:00';
 
+/**
+ * Ora locale del promemoria del giorno prima (default di `REMINDER_PREVIOUS_DAY_HOUR_LOCAL`):
+ * nel pomeriggio, quando l'agenda di domani è ormai stabile; prima si anticipa la sync di domani,
+ * così il messaggio porta già il codice della pratica.
+ */
+export const DEFAULT_REMINDER_PREVIOUS_DAY_HOUR = '18:00';
+
+/** Ora locale del promemoria del giorno stesso (default di `REMINDER_SAME_DAY_HOUR_LOCAL`): dopo la sync, all'apertura. */
+export const DEFAULT_REMINDER_SAME_DAY_HOUR = '07:30';
+
 /** Prefisso del codice progressivo F001 (default di `CODE_PREFIX`). */
 export const DEFAULT_CODE_PREFIX = 'F';
 

@@ -96,7 +96,7 @@ export const GLOSSARY = [
   },
   {
     it: 'promemoria',
-    en: 'reminder (REMINDER_MORNING)',
+    en: 'reminder (REMINDER_PREVIOUS_DAY, REMINDER_SAME_DAY)',
     note: 'WhatsApp via Spoki, fallback SMS Hosting',
   },
   {

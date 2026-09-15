@@ -10,7 +10,7 @@ export interface SpokiActivityEntry {
   readonly id: string;
   readonly at: IsoDateTime;
   readonly mode: SpokiMode;
-  /** Template Spoki chiamato (CONFIRMATION, TURN_APPROACHING, CANCELLATION) o "TEST". */
+  /** Template Spoki chiamato (REMINDER_PREVIOUS_DAY, REMINDER_SAME_DAY, …) o "TEST". */
   readonly templateKind: string;
   /** Chiave del template Meta (es. booking_confirmed_v1). */
   readonly templateKey: string;
@@ -18,8 +18,13 @@ export interface SpokiActivityEntry {
   readonly url: string | null;
   /** Numero mascherato: il registro è leggibile dall'amministratore, non deve mostrare tutto. */
   readonly phoneMasked: string;
-  /** Payload inviato (o che sarebbe stato inviato), così com'è. */
+  /** Payload inviato (o che sarebbe stato inviato); il segreto dell'automazione è mascherato. */
   readonly payload: Readonly<Record<string, unknown>>;
+  /**
+   * Perché la chiamata HTTP NON è partita: `SIMULATION` (SPOKI_MODE diverso da live) o
+   * `SAFETY_LOCK` (blocco di sicurezza attivo). null quando la chiamata è stata fatta davvero.
+   */
+  readonly blockedBy: 'SIMULATION' | 'SAFETY_LOCK' | null;
   readonly outcome: {
     readonly ok: boolean;
     readonly httpStatus: number | null;

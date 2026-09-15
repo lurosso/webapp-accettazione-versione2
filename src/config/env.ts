@@ -22,6 +22,8 @@ import {
   DEFAULT_PHOTO_HARD_DELETE_DAYS,
   DEFAULT_PHOTO_RETENTION_DAYS,
   DEFAULT_MEDIA_DIR,
+  DEFAULT_REMINDER_PREVIOUS_DAY_HOUR,
+  DEFAULT_REMINDER_SAME_DAY_HOUR,
   DEFAULT_SYNC_HOUR_LOCAL,
   TIMEZONE,
 } from './constants';
@@ -41,12 +43,26 @@ export interface AppEnv {
   readonly spokiProvider: ProviderKind;
   /** Con SPOKI_PROVIDER=real: simulazione (nessuna chiamata) o live. */
   readonly spokiMode: SpokiMode;
+  /**
+   * Blocco di sicurezza (SPOKI_SAFETY_LOCK, predefinito true): finché è attivo nessun WhatsApp
+   * parte verso un telefono reale, qualunque sia la modalità. Va tolto esplicitamente.
+   */
+  readonly spokiSafetyLock: boolean;
   /** Chiave API globale di Spoki (menu "Integrazioni API"); null se non impostata. */
   readonly spokiApiKey: string | null;
-  /** URL delle automazioni Spoki, una per template; null se non impostati. */
+  /** URL e segreti delle automazioni dei due promemoria (giorno prima, giorno stesso). */
+  readonly spokiUrlReminderPreviousDay: string | null;
+  readonly spokiUrlReminderSameDay: string | null;
+  readonly spokiSecretReminderPreviousDay: string | null;
+  readonly spokiSecretReminderSameDay: string | null;
+  /** URL delle automazioni degli altri template (non integrati in questa fase); null se non impostati. */
   readonly spokiUrlConfirmation: string | null;
   readonly spokiUrlTurnApproaching: string | null;
   readonly spokiUrlCancellation: string | null;
+  /** Promemoria programmati (REMINDERS_ENABLED) e loro ore locali "HH:mm". */
+  readonly remindersEnabled: boolean;
+  readonly reminderPreviousDayHourLocal: string;
+  readonly reminderSameDayHourLocal: string;
   /** Indirizzo pubblico del portale cliente, usato nei link dei messaggi. */
   readonly publicBaseUrl: string;
   readonly smsProvider: ProviderKind;
@@ -248,7 +264,26 @@ export function parseEnv(
     infinityProvider: perPort('INFINITY_PROVIDER'),
     spokiProvider: perPort('SPOKI_PROVIDER'),
     spokiMode: pickEnum(source, 'SPOKI_MODE', SPOKI_MODES, 'simulation', warn),
+    // Predefinito TRUE: il blocco si toglie solo per scelta esplicita, mai per dimenticanza.
+    spokiSafetyLock: pickBool(source, 'SPOKI_SAFETY_LOCK', true, warn),
     spokiApiKey: pickStringOrNull(source, 'SPOKI_API_KEY'),
+    spokiUrlReminderPreviousDay: pickStringOrNull(source, 'SPOKI_URL_REMINDER_PREVIOUS_DAY'),
+    spokiUrlReminderSameDay: pickStringOrNull(source, 'SPOKI_URL_REMINDER_SAME_DAY'),
+    spokiSecretReminderPreviousDay: pickStringOrNull(source, 'SPOKI_SECRET_REMINDER_PREVIOUS_DAY'),
+    spokiSecretReminderSameDay: pickStringOrNull(source, 'SPOKI_SECRET_REMINDER_SAME_DAY'),
+    remindersEnabled: pickBool(source, 'REMINDERS_ENABLED', true, warn),
+    reminderPreviousDayHourLocal: pickHourLocal(
+      source,
+      'REMINDER_PREVIOUS_DAY_HOUR_LOCAL',
+      DEFAULT_REMINDER_PREVIOUS_DAY_HOUR,
+      warn,
+    ),
+    reminderSameDayHourLocal: pickHourLocal(
+      source,
+      'REMINDER_SAME_DAY_HOUR_LOCAL',
+      DEFAULT_REMINDER_SAME_DAY_HOUR,
+      warn,
+    ),
     spokiUrlConfirmation: pickStringOrNull(source, 'SPOKI_URL_CONFIRMATION'),
     spokiUrlTurnApproaching: pickStringOrNull(source, 'SPOKI_URL_TURN_APPROACHING'),
     spokiUrlCancellation: pickStringOrNull(source, 'SPOKI_URL_CANCELLATION'),

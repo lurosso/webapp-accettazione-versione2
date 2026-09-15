@@ -1,15 +1,26 @@
 // Testi dei messaggi al cliente (italiano) e chiavi dei template Spoki approvati da Meta.
+//
+// In questa fase l'integrazione WhatsApp copre due promemoria:
+// - REMINDER_PREVIOUS_DAY, il giorno prima: data, orario, targa, codice, link al portale;
+// - REMINDER_SAME_DAY, la mattina dell'appuntamento: orario, targa, codice.
+// Gli altri tipi hanno il testo per SMS e log ma nessuna automazione Spoki.
 
 import type { Appointment } from '@/domain/entities/appointment';
 import type { Brand } from '@/domain/entities/brand';
 import type { NotificationKind } from '@/domain/entities/notification';
-import { localTimeHHmm } from '@/lib/dates';
+import { formatBusinessDateIt, localTimeHHmm, toBusinessDate } from '@/lib/dates';
 
 /** Variabili disponibili nei template. */
 export interface TemplateVars {
   readonly firstName: string;
+  readonly lastName: string;
+  /** Indirizzo e-mail del cliente, vuoto se assente (Spoki lo accetta vuoto). */
+  readonly email: string;
   readonly code: string;
+  /** Orario locale "HH:mm" dell'appuntamento. */
   readonly scheduledTime: string;
+  /** Data locale "GG/MM/AAAA" dell'appuntamento. */
+  readonly scheduledDate: string;
   readonly plate: string;
   readonly brandName: string;
   /** Link al portale cliente per seguire la coda (/portal?targa=…), già assoluto. */
@@ -29,10 +40,15 @@ export interface NotificationTemplate {
 
 /** Template per tipo di notifica. */
 export const NOTIFICATION_TEMPLATES: Readonly<Record<NotificationKind, NotificationTemplate>> = {
-  REMINDER_MORNING: {
-    spokiTemplateKey: 'reminder_morning_v1',
+  REMINDER_PREVIOUS_DAY: {
+    spokiTemplateKey: 'reminder_previous_day_v1',
     render: (v) =>
-      `Buongiorno ${v.firstName}, le ricordiamo l'appuntamento di oggi alle ${v.scheduledTime} presso Autoclub Group per la vettura ${v.plate}. Il suo codice è ${v.code}.`,
+      `Buongiorno ${v.firstName}, le ricordiamo l'appuntamento di domani ${v.scheduledDate} alle ${v.scheduledTime} presso Autoclub Group per la vettura ${v.plate}. Il suo codice di accettazione è ${v.code}. Segua la coda in tempo reale: ${v.portalUrl}`,
+  },
+  REMINDER_SAME_DAY: {
+    spokiTemplateKey: 'reminder_same_day_v1',
+    render: (v) =>
+      `Buongiorno ${v.firstName}, le ricordiamo l'appuntamento di oggi alle ${v.scheduledTime} presso Autoclub Group per la vettura ${v.plate}. Il suo codice di accettazione è ${v.code}.`,
   },
   BOOKING_CONFIRMED: {
     spokiTemplateKey: 'booking_confirmed_v1',
@@ -72,10 +88,14 @@ export function buildTemplateVars(
   timeZone = 'Europe/Rome',
   publicBaseUrl = '',
 ): TemplateVars {
+  const scheduled = new Date(appointment.scheduledAt);
   return {
     firstName: appointment.customer.firstName,
+    lastName: appointment.customer.lastName,
+    email: appointment.customer.email ?? '',
     code: appointment.code,
-    scheduledTime: localTimeHHmm(new Date(appointment.scheduledAt), timeZone),
+    scheduledTime: localTimeHHmm(scheduled, timeZone),
+    scheduledDate: formatBusinessDateIt(toBusinessDate(scheduled, timeZone)),
     plate: appointment.vehicle.plate,
     brandName: brand.name,
     portalUrl: buildPortalUrl(publicBaseUrl, appointment.vehicle.plate),

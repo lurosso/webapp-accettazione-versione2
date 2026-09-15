@@ -7,15 +7,33 @@ import {
   SpokiActivityLog,
   SpokiService,
   buildWebhookPayload,
+  canDeliverLive,
+  deliveryBlockReason,
+  maskSecret,
   type SpokiServiceConfig,
+  type SpokiTemplateKind,
 } from '@/infrastructure/messaging/spoki';
 import { TestClock } from '../helpers/fixtures';
 
-const URLS = {
-  CONFIRMATION: 'https://hooks.spoki.example/aut/conferma',
-  TURN_APPROACHING: 'https://hooks.spoki.example/aut/turno',
-  CANCELLATION: 'https://hooks.spoki.example/aut/annullo',
-} as const;
+const NESSUNO: Readonly<Record<SpokiTemplateKind, null>> = {
+  REMINDER_PREVIOUS_DAY: null,
+  REMINDER_SAME_DAY: null,
+  CONFIRMATION: null,
+  TURN_APPROACHING: null,
+  CANCELLATION: null,
+};
+
+const URLS: Readonly<Record<SpokiTemplateKind, string | null>> = {
+  ...NESSUNO,
+  REMINDER_PREVIOUS_DAY: 'https://api.spoki.example/wh/ap/prev-0001/',
+  REMINDER_SAME_DAY: 'https://api.spoki.example/wh/ap/same-0002/',
+};
+
+const SECRETS: Readonly<Record<SpokiTemplateKind, string | null>> = {
+  ...NESSUNO,
+  REMINDER_PREVIOUS_DAY: 'segreto-giorno-prima-0123456789abcdef',
+  REMINDER_SAME_DAY: 'segreto-giorno-stesso-0123456789abcdef',
+};
 
 interface FetchCall {
   readonly url: string;
@@ -42,8 +60,10 @@ function setup(
   const activityLog = new SpokiActivityLog(ids, 50);
   const config: SpokiServiceConfig = {
     mode: 'simulation',
+    safetyLock: true,
     apiKey: null,
-    urls: { CONFIRMATION: null, TURN_APPROACHING: null, CANCELLATION: null },
+    urls: NESSUNO,
+    secrets: NESSUNO,
     timeoutMs: 1000,
     ...overrides,
   };
@@ -57,27 +77,60 @@ function setup(
   return { service, activityLog, clock };
 }
 
+/** Configurazione che PUÒ inviare davvero: live, blocco tolto, URL e segreti presenti. */
+const LIVE_SBLOCCATO: Partial<SpokiServiceConfig> = {
+  mode: 'live',
+  safetyLock: false,
+  apiKey: 'chiave-segreta',
+  urls: URLS,
+  secrets: SECRETS,
+};
+
 const richiesta = (overrides: Partial<SpokiSendRequestDto> = {}): SpokiSendRequestDto => ({
-  idempotencyKey: 'app-1:BOOKING_CONFIRMED:2026-09-10:WA:1',
+  idempotencyKey: 'app-1:REMINDER_SAME_DAY:2026-09-11:WA:1',
   to: '+393331234567' as PhoneE164,
-  templateKey: 'booking_confirmed_v1',
+  templateKey: 'reminder_same_day_v1',
   variables: {
     firstName: 'Mario',
+    lastName: 'Rossi',
+    email: '',
     code: 'F012',
     plate: 'AB123CD',
     scheduledTime: '09:30',
+    scheduledDate: '11/09/2026',
     brandName: 'Fiat',
     portalUrl: 'https://officina.example/portal?targa=AB123CD',
-    text: 'Mario, la sua pratica…',
+    text: 'Buongiorno Mario, le ricordiamo…',
   },
   correlationId: 'corr-1',
   ...overrides,
 });
 
-describe('SpokiService in simulazione', () => {
-  it('non chiama la rete, risponde 200 e scrive il payload nel registro', async () => {
+describe('Guardrail Spoki: quando una chiamata reale è ammessa', () => {
+  it('solo con modalità live E blocco di sicurezza tolto', () => {
+    expect(canDeliverLive('live', false)).toBe(true);
+    expect(canDeliverLive('live', true)).toBe(false);
+    expect(canDeliverLive('simulation', false)).toBe(false);
+    expect(canDeliverLive('simulation', true)).toBe(false);
+    expect(deliveryBlockReason('simulation', true)).toBe('SIMULATION');
+    expect(deliveryBlockReason('simulation', false)).toBe('SIMULATION');
+    expect(deliveryBlockReason('live', true)).toBe('SAFETY_LOCK');
+    expect(deliveryBlockReason('live', false)).toBeNull();
+  });
+
+  it('il segreto mascherato non rivela il valore', () => {
+    expect(maskSecret('')).toBe('');
+    expect(maskSecret('corto')).toBe('••••');
+    const m = maskSecret('159256ac34c34a318ee0ee930daae247');
+    expect(m).toBe('1592••••e247');
+    expect(m).not.toContain('ac34c34a');
+  });
+});
+
+describe('SpokiService in simulazione (blocco predefinito)', () => {
+  it('non chiama la rete, risponde 200 e scrive il payload nel registro con il motivo del blocco', async () => {
     const rete = fakeFetch(() => new Response('{}', { status: 200 }));
-    const { service, activityLog } = setup({}, rete.impl);
+    const { service, activityLog } = setup({ urls: URLS, secrets: SECRETS }, rete.impl);
 
     const r = await service.sendTemplateMessage(richiesta());
     expect(r.ok).toBe(true);
@@ -91,9 +144,11 @@ describe('SpokiService in simulazione', () => {
     expect(voci).toHaveLength(1);
     const voce = voci[0];
     expect(voce?.mode).toBe('simulation');
-    expect(voce?.templateKind).toBe('CONFIRMATION');
-    expect(voce?.templateKey).toBe('booking_confirmed_v1');
+    expect(voce?.blockedBy).toBe('SIMULATION');
+    expect(voce?.templateKind).toBe('REMINDER_SAME_DAY');
+    expect(voce?.templateKey).toBe('reminder_same_day_v1');
     expect(voce?.phoneMasked).toBe('*********4567');
+    expect(voce?.url).toBe(URLS.REMINDER_SAME_DAY);
     expect(voce?.outcome).toEqual({
       ok: true,
       httpStatus: 200,
@@ -103,12 +158,18 @@ describe('SpokiService in simulazione', () => {
     expect(voce?.payload).toMatchObject({
       phone: '+393331234567',
       first_name: 'Mario',
-      code: 'F012',
-      plate: 'AB123CD',
-      portal_url: 'https://officina.example/portal?targa=AB123CD',
-      template: 'booking_confirmed_v1',
+      last_name: 'Rossi',
+      custom_fields: {
+        code: 'F012',
+        plate: 'AB123CD',
+        time: '09:30',
+        date: '11/09/2026',
+        portal_url: 'https://officina.example/portal?targa=AB123CD',
+      },
     });
-    // Nel registro non compare mai il numero in chiaro fuori dal payload.
+    // Nel registro il segreto è mascherato e il numero non compare fuori dal payload.
+    expect(voce?.payload['secret']).toBe(maskSecret(SECRETS.REMINDER_SAME_DAY ?? ''));
+    expect(JSON.stringify(voce)).not.toContain(SECRETS.REMINDER_SAME_DAY);
     expect(JSON.stringify({ ...voce, payload: undefined })).not.toContain('+393331234567');
   });
 
@@ -134,63 +195,106 @@ describe('SpokiService in simulazione', () => {
 
   it("un template senza automazione Spoki è rifiutato senza retry: si passa all'SMS", async () => {
     const { service, activityLog } = setup();
-    const r = await service.sendTemplateMessage(richiesta({ templateKey: 'reminder_morning_v1' }));
+    const r = await service.sendTemplateMessage(richiesta({ templateKey: 'your_turn_v1' }));
     expect(!r.ok && r.error.code).toBe('INVALID_REQUEST');
     expect(!r.ok && r.error.retryable).toBe(false);
     expect(activityLog.list()).toHaveLength(0);
   });
 
-  it('lo stato di salute dice che è simulazione e che nessuna chiamata parte', async () => {
+  it('lo stato di salute dice che è simulazione e segnala URL e segreti mancanti dei promemoria', async () => {
     const { service } = setup();
     const h = await service.healthCheck();
     expect(h.status).toBe('UP');
     expect(h.implementation).toBe('real');
     expect(h.detail).toContain('simulazione');
+    expect(h.detail).toContain('REMINDER_PREVIOUS_DAY');
+    expect(service.liveDeliveryAllowed).toBe(false);
   });
 
-  it('il payload piatto riporta le variabili del template in snake_case', () => {
-    const p = buildWebhookPayload(richiesta());
+  it('il payload segue il formato Spoki: secret, phone E.164, nome, cognome, e-mail e custom_fields', () => {
+    const p = buildWebhookPayload(richiesta(), 'segreto-x');
     expect(p).toEqual({
+      secret: 'segreto-x',
       phone: '+393331234567',
       first_name: 'Mario',
-      code: 'F012',
-      plate: 'AB123CD',
-      scheduled_time: '09:30',
-      brand: 'Fiat',
-      portal_url: 'https://officina.example/portal?targa=AB123CD',
-      text: 'Mario, la sua pratica…',
-      template: 'booking_confirmed_v1',
-      correlation_id: 'corr-1',
-      idempotency_key: 'app-1:BOOKING_CONFIRMED:2026-09-10:WA:1',
+      last_name: 'Rossi',
+      email: '',
+      custom_fields: {
+        code: 'F012',
+        plate: 'AB123CD',
+        time: '09:30',
+        date: '11/09/2026',
+        portal_url: 'https://officina.example/portal?targa=AB123CD',
+      },
     });
+    expect(buildWebhookPayload(richiesta(), null).secret).toBe('');
   });
 });
 
-describe('SpokiService live', () => {
-  it("chiama l'URL del template con la chiave nell'intestazione e il payload JSON", async () => {
-    const rete = fakeFetch(() => new Response(JSON.stringify({ id: 'wa-42' }), { status: 200 }));
-    const { service, activityLog } = setup(
-      { mode: 'live', apiKey: 'chiave-segreta', urls: URLS },
-      rete.impl,
-    );
+describe('SpokiService in live con SAFETY LOCK attivo', () => {
+  it('NON chiama la rete anche se tutto è configurato: registra e risponde 200', async () => {
+    const rete = fakeFetch(() => new Response('{}', { status: 200 }));
+    const { service, activityLog } = setup({ ...LIVE_SBLOCCATO, safetyLock: true }, rete.impl);
+    const r = await service.sendTemplateMessage(richiesta());
+    expect(r.ok).toBe(true);
+    expect(rete.calls).toHaveLength(0);
+    const voce = activityLog.list()[0];
+    expect(voce?.mode).toBe('live');
+    expect(voce?.blockedBy).toBe('SAFETY_LOCK');
+    expect(voce?.outcome.ok).toBe(true);
+    expect(service.liveDeliveryAllowed).toBe(false);
+    const h = await service.healthCheck();
+    expect(h.status).toBe('UP');
+    expect(h.detail).toContain('BLOCCATO');
+    // Consegna simulata: il flusso "consegnato → nessun SMS" resta provabile.
+    const stato = await service.getDeliveryStatus(r.ok ? r.value.providerMessageId : '');
+    expect(stato.ok && stato.value.state).toBe('DELIVERED');
+  });
+});
 
-    const r = await service.sendTemplateMessage(richiesta({ templateKey: 'turn_approaching_v1' }));
+describe('SpokiService live con blocco tolto', () => {
+  it("chiama l'URL dell'automazione con il segreto nel payload e la chiave nell'intestazione", async () => {
+    const rete = fakeFetch(() => new Response(JSON.stringify({ id: 'wa-42' }), { status: 200 }));
+    const { service, activityLog } = setup(LIVE_SBLOCCATO, rete.impl);
+
+    const r = await service.sendTemplateMessage(
+      richiesta({ templateKey: 'reminder_previous_day_v1' }),
+    );
     expect(r.ok && r.value.providerMessageId).toBe('wa-42');
     expect(rete.calls).toHaveLength(1);
     const chiamata = rete.calls[0];
-    expect(chiamata?.url).toBe(URLS.TURN_APPROACHING);
+    expect(chiamata?.url).toBe(URLS.REMINDER_PREVIOUS_DAY);
     expect(chiamata?.init.method).toBe('POST');
     const headers = chiamata?.init.headers as Record<string, string>;
     expect(headers['authorization']).toBe('Bearer chiave-segreta');
     expect(headers['content-type']).toBe('application/json');
     const body = JSON.parse(String(chiamata?.init.body)) as Record<string, unknown>;
+    expect(body['secret']).toBe(SECRETS.REMINDER_PREVIOUS_DAY);
     expect(body['phone']).toBe('+393331234567');
-    expect(body['code']).toBe('F012');
-    expect(body['portal_url']).toBe('https://officina.example/portal?targa=AB123CD');
+    expect(body['custom_fields']).toEqual({
+      code: 'F012',
+      plate: 'AB123CD',
+      time: '09:30',
+      date: '11/09/2026',
+      portal_url: 'https://officina.example/portal?targa=AB123CD',
+    });
     // In live la consegna non è nota finché Spoki non lo dice: resta SENT.
     const stato = await service.getDeliveryStatus('wa-42');
     expect(stato.ok && stato.value.state).toBe('SENT');
-    expect(activityLog.list()[0]?.mode).toBe('live');
+    const voce = activityLog.list()[0];
+    expect(voce?.mode).toBe('live');
+    expect(voce?.blockedBy).toBeNull();
+    // Il registro non contiene mai il segreto in chiaro.
+    expect(JSON.stringify(voce)).not.toContain(SECRETS.REMINDER_PREVIOUS_DAY);
+  });
+
+  it('senza chiave API la chiamata parte comunque: autentica il segreto nel payload', async () => {
+    const rete = fakeFetch(() => new Response('{}', { status: 200 }));
+    const { service } = setup({ ...LIVE_SBLOCCATO, apiKey: null }, rete.impl);
+    const r = await service.sendTemplateMessage(richiesta());
+    expect(r.ok).toBe(true);
+    const headers = rete.calls[0]?.init.headers as Record<string, string>;
+    expect(headers['authorization']).toBeUndefined();
   });
 
   it('errori 5xx e 429 sono ritentabili, 401 e 4xx no', async () => {
@@ -202,29 +306,29 @@ describe('SpokiService live', () => {
       [404, 'NOT_FOUND', false],
     ] as const) {
       const rete = fakeFetch(() => new Response('no', { status }));
-      const { service } = setup({ mode: 'live', apiKey: 'k', urls: URLS }, rete.impl);
+      const { service } = setup(LIVE_SBLOCCATO, rete.impl);
       const r = await service.sendTemplateMessage(richiesta({ idempotencyKey: `k-${status}` }));
       expect(!r.ok && r.error.code).toBe(code);
       expect(!r.ok && r.error.retryable).toBe(retryable);
     }
   });
 
-  it('senza URL o senza chiave non chiama nulla e non ritenta', async () => {
+  it('senza URL o senza segreto non chiama nulla e non ritenta', async () => {
     const rete = fakeFetch(() => new Response('{}', { status: 200 }));
-    const senzaUrl = setup({ mode: 'live', apiKey: 'k' }, rete.impl);
+    const senzaUrl = setup({ ...LIVE_SBLOCCATO, urls: NESSUNO }, rete.impl);
     const r1 = await senzaUrl.service.sendTemplateMessage(richiesta());
     expect(!r1.ok && r1.error.code).toBe('INVALID_REQUEST');
 
-    const senzaChiave = setup({ mode: 'live', apiKey: null, urls: URLS }, rete.impl);
-    const r2 = await senzaChiave.service.sendTemplateMessage(richiesta());
+    const senzaSegreto = setup({ ...LIVE_SBLOCCATO, secrets: NESSUNO }, rete.impl);
+    const r2 = await senzaSegreto.service.sendTemplateMessage(richiesta());
     expect(!r2.ok && r2.error.code).toBe('AUTH');
     expect(rete.calls).toHaveLength(0);
     // Anche i fallimenti restano nel registro, con il motivo.
-    expect(senzaChiave.activityLog.list()[0]?.outcome.ok).toBe(false);
+    expect(senzaSegreto.activityLog.list()[0]?.outcome.ok).toBe(false);
   });
 
   it('un errore di rete è ritentabile', async () => {
-    const { service } = setup({ mode: 'live', apiKey: 'k', urls: URLS }, async () => {
+    const { service } = setup(LIVE_SBLOCCATO, async () => {
       throw new Error('ECONNREFUSED');
     });
     const r = await service.sendTemplateMessage(richiesta());
@@ -232,22 +336,33 @@ describe('SpokiService live', () => {
     expect(!r.ok && r.error.retryable).toBe(true);
   });
 
-  it('lo stato di salute segnala la configurazione incompleta', async () => {
+  it('lo stato di salute segnala la configurazione incompleta dei promemoria', async () => {
     const { service } = setup({
-      mode: 'live',
-      apiKey: null,
-      urls: { ...URLS, CANCELLATION: null },
+      ...LIVE_SBLOCCATO,
+      urls: { ...URLS, REMINDER_SAME_DAY: null },
+      secrets: { ...SECRETS, REMINDER_PREVIOUS_DAY: null },
     });
     const h = await service.healthCheck();
     expect(h.status).toBe('DEGRADED');
-    expect(h.detail).toContain('SPOKI_API_KEY');
-    expect(h.detail).toContain('CANCELLATION');
+    expect(h.detail).toContain('URL non configurati: REMINDER_SAME_DAY');
+    expect(h.detail).toContain('segreti non configurati: REMINDER_PREVIOUS_DAY');
+    expect(service.liveDeliveryAllowed).toBe(true);
   });
 
   it('il webhook di esito aggiorna lo stato di consegna', () => {
-    const { service } = setup({ mode: 'live', apiKey: 'k', urls: URLS });
+    const { service } = setup(LIVE_SBLOCCATO);
     const r = service.parseWebhook({ message_id: 'wa-1', status: 'delivered' }, {});
     expect(r.ok && r.value.state).toBe('DELIVERED');
     expect(service.parseWebhook({ status: 'x' }, {}).ok).toBe(false);
+  });
+
+  it('elenca i template con URL, segreto e se sono integrati in questa fase', () => {
+    const { service } = setup(LIVE_SBLOCCATO);
+    const t = service.templates();
+    expect(t.filter((x) => x.active).map((x) => x.kind)).toEqual([
+      'REMINDER_PREVIOUS_DAY',
+      'REMINDER_SAME_DAY',
+    ]);
+    expect(t.find((x) => x.kind === 'CONFIRMATION')?.secretConfigured).toBe(false);
   });
 });
