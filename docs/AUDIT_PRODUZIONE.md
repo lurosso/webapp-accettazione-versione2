@@ -14,7 +14,7 @@
 | Qualità del codice | TypeScript strict, ESLint con guardia architetturale, Prettier, controllo encoding | `npm run typecheck`, `npm run lint` |
 | Sicurezza applicativa | sessione JWT HttpOnly, riverifica ruolo lato server, rate limit login e cambio password, tetto SSE, segreti a tempo costante, password provvisoria con cambio obbligatorio | `src/proxy.ts`, `src/app/_server/session.ts`, `src/lib/http/*` |
 | Persistenza | **solo memoria**: tutto lo stato della giornata vive nel processo | `src/repositories/in-memory/InMemoryStore.ts` (esiste `toSnapshot()`, nessuno lo scrive su disco) |
-| Integrazioni esterne | **tutte mock** (Infinity, Spoki, SMS Hosting, CRM) | `src/services/factory.ts`, `SERVICES_PROVIDER=mock` |
+| Integrazioni esterne | **tutte mock** (Infinity, Spoki, SMS Hosting, CRM). Aggiornamento 2026-09-15: esistono gli adapter reali di Spoki (sandbox) e di Infinity in lettura via ODBC, provato su `infinity02` (`docs/INFINITY_ODBC.md`) | `src/services/factory.ts`, `SERVICES_PROVIDER=mock` |
 | Infrastruttura di rilascio | **assente**: nessun Dockerfile, nessuna pipeline, nessun runbook operativo | radice del repository, `.github/` inesistente |
 | Osservabilità | log su console con contesto JSON e correlation id; nessuna metrica, nessun allarme | `src/services/mocks/ConsoleLogger.ts` |
 
@@ -76,6 +76,14 @@ gestionale, perché è il collo di bottiglia del calendario.
 - Serve: specifica, adapter, test di contratto registrati su dati reali anonimizzati, gestione
   delle differenze di codifica (targhe estere, clienti senza telefono, appuntamenti riprogrammati).
 - Stima: 3 giorni dopo la ricezione della specifica.
+
+**Aggiornamento 2026-09-15.** L'accesso è il database stesso, via ODBC (SQL Anywhere 12):
+`InfinityServiceOdbc` legge il planning (`tdo_pre` e tabelle collegate) ed è stato provato sulla
+copia `infinity02` con dati reali (`docs/INFINITY_ODBC.md`): nomi cliente, cellulari, lavorazioni
+con ore stimate, modello e stato documento sono tutti leggibili con la sola `SELECT`. Restano da
+chiedere all'IT del gestionale: il DSN `Infinity01` e `GRANT EXECUTE ON dba.sp_off_docs_planning`
+(la procedura del planning nativo; senza, l'adapter legge le tabelle e riconosce le annullate dallo
+stato documento). Il punto non è più bloccante per il pilota.
 
 ### 2.4 Confezionamento e rilascio (necessario)
 

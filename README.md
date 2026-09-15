@@ -16,6 +16,7 @@ riduce le attese e rende trasparente lo stato della pratica a operatori e client
 - [Avvio rapido](#avvio-rapido)
 - [Account dimostrativi](#account-dimostrativi)
 - [Le dashboard](#le-dashboard)
+- [Il planning di Infinity dal database reale (ODBC)](#il-planning-di-infinity-dal-database-reale-odbc)
 - [Amministrazione, archivio foto e retention](#amministrazione-archivio-foto-e-retention)
 - [Script disponibili](#script-disponibili)
 - [Struttura del repository](#struttura-del-repository)
@@ -317,6 +318,32 @@ La guida in fondo alla sezione spiega come recuperare chiave e URL dal menu "Int
 Spoki e come passare a `live` senza sorprese. `PUBLIC_BASE_URL` è l'indirizzo pubblico usato nei
 link dei messaggi.
 
+## Il planning di Infinity dal database reale (ODBC)
+
+Il gestionale Zucchetti Infinity gira su SQL Anywhere 12. L'adapter `InfinityServiceOdbc`
+(`src/infrastructure/adapters/infinity/`) legge il **Planning Appuntamenti Clienti** in sola
+lettura attraverso il DSN ODBC di sistema già configurato sul server, e restituisce la stessa
+agenda che oggi produce il mock: sync, coda e dashboard non sanno da dove arrivano i dati.
+
+- `INFINITY_ODBC_DSN=Infinity02` è la copia di prova; per la produzione basta `Infinity01`.
+  `INFINITY_DB_TYPE=sql_anywhere_12`; credenziali nel DSN (o in `INFINITY_ODBC_UID/PWD`, mai nel
+  repository); `INFINITY_BOOKING_DOC_TYPES=PR01` sceglie i tipi documento dell'officina.
+- La testata del planning arriva dalla stessa procedura che usa Infinity (`sp_off_docs_planning`,
+  serve un `GRANT EXECUTE` all'utenza del DSN) oppure, se non è concessa, dalle tabelle:
+  `INFINITY_PLANNING_SOURCE=auto` sceglie da solo e avvisa nel log. Nome cliente, cellulare,
+  lavorazioni con ore stimate, modello e stato (annullata, chiusa) si leggono in entrambi i casi.
+- `npm run infinity:check` (con `INFINITY_ODBC_DSN` nell'ambiente, e `INFINITY_ODBC_DATE` per una
+  giornata diversa da oggi) stampa a terminale la connessione, la **verifica dei permessi** con i
+  `GRANT` da richiedere all'IT del gestionale e il planning letto davvero: ora, documento, targa,
+  cliente, telefono mascherato, veicolo, accettatore, stato, ore, lavorazioni, note.
+- `INFINITY_PROVIDER=real` attiva l'adapter nell'applicazione; richiede `SESSION_SECRET` e un seed
+  senza credenziali demo, quindi arriva con il pilota (M9). Fino ad allora `.env.local` tiene il
+  DSN pronto e il provider su `mock`.
+
+Mappatura delle tabelle, analisi della query nativa del planning, permessi e `GRANT`, limiti
+riscontrati su `infinity02` (targhe solo dagli invii FAL) e procedura per `infinity01` sono in
+[`docs/INFINITY_ODBC.md`](docs/INFINITY_ODBC.md).
+
 ## Quando qualcosa va storto
 
 **Infinity non risponde.** La porta verso il DMS è avvolta da un interruttore di circuito: dopo tre
@@ -443,6 +470,7 @@ apre con un doppio clic.
 | `npm run format`        | Prettier su sorgenti, test e configurazioni                     |
 | `npm test`              | Test unitari con Vitest                                         |
 | `npm run test:coverage` | Test con copertura                                              |
+| `npm run infinity:check` | Lettura di prova del planning dal database Infinity reale (serve `INFINITY_ODBC_DSN`) |
 
 ## Struttura del repository
 
@@ -451,14 +479,15 @@ src/
 ├── app/            Pagine e Route Handler Next.js (login, accettazione, archivio, tablet, manager, admin, sistema, api/v1)
 ├── application/    Casi d'uso: auth, queue, sync, health, notifications, crm, media (ispezione e archivio), reporting, admin
 ├── components/     UI riusabile (primitive in ui/, shell in layout/)
-├── config/         Composition root: env, seed, auth, container
+├── config/         Composition root: env, seed, auth, container, infinity (config dell'adapter reale)
 ├── domain/         Entità, value object, state machine, eventi (codice puro)
 ├── hooks/          Hook React (polling della coda, azioni)
+├── infrastructure/ Adapter reali: adapters/infinity (ODBC verso SQL Anywhere), messaging/spoki
 ├── lib/            Utilità: date, hash password, client API, helper HTTP
 ├── modules/        Componenti di modulo (reception, customer-portal, bay-displays, inspection-media, crm, admin)
 ├── repositories/   Interfacce di persistenza e implementazione in memoria
 └── services/       Porte esterne, DTO, mapper e Mock (Infinity, Spoki, SMS Hosting, CRM)
-tests/              Test unitari Vitest
+tests/              Test unitari, di contratto e di integrazione (Vitest)
 ```
 
 ## Documentazione
@@ -467,4 +496,5 @@ tests/              Test unitari Vitest
 - [`TASKS.md`](TASKS.md): piano di lavoro per milestone (M0 bootstrap → M7 passaggio ai servizi reali).
 - [`docs/ANALISI_REQUISITI.md`](docs/ANALISI_REQUISITI.md): requisiti e flussi operativi.
 - [`docs/AUDIT_PRODUZIONE.md`](docs/AUDIT_PRODUZIONE.md): cosa manca per la produzione, casi limite non coperti, passo successivo raccomandato.
+- [`docs/INFINITY_ODBC.md`](docs/INFINITY_ODBC.md): integrazione con il database Infinity via ODBC (mappatura delle tabelle, limiti riscontrati, passaggio a `infinity01`).
 - [`CLAUDE.md`](CLAUDE.md): regole di sviluppo e priorità.

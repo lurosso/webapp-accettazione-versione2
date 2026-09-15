@@ -20,6 +20,9 @@ const SECURITY_HEADERS = [
 const nextConfig: NextConfig = {
   reactStrictMode: true,
   output: 'standalone',
+  // Il driver ODBC è un modulo nativo (binario .node): resta fuori dal bundle e viene richiesto a
+  // runtime dal processo Node solo quando INFINITY_PROVIDER=real.
+  serverExternalPackages: ['odbc'],
   async headers() {
     return [{ source: '/:path*', headers: SECURITY_HEADERS }];
   },

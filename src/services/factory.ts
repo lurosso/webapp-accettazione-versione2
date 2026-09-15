@@ -1,12 +1,18 @@
-// Factory delle porte esterne: UNICO importatore di services/mocks (e domani services/real).
-// Per ogni porta legge <X>_PROVIDER con fallback su SERVICES_PROVIDER; il ramo "real"
-// lancia NotImplementedError all'avvio (fail-fast), mai a metà giornata.
+// Factory delle porte esterne: UNICO importatore di services/mocks, services/real e infrastructure.
+// Per ogni porta legge <X>_PROVIDER con fallback su SERVICES_PROVIDER; i rami "real" non ancora
+// disponibili lanciano NotImplementedError all'avvio (fail-fast), mai a metà giornata.
 
 import { INFINITY_RESILIENCE } from '@/config/constants';
 import type { AppEnv } from '@/config/env';
+import { resolveInfinityRealConfig } from '@/config/infinity';
 import type { Brand } from '@/domain/entities/brand';
 import type { Desk } from '@/domain/entities/desk';
 import { NotImplementedError } from '@/domain/errors';
+import {
+  InfinityServiceOdbc,
+  SqlAnywhereOdbcClient,
+  buildConnectionString,
+} from '@/infrastructure/adapters/infinity';
 import type { IClock } from './interfaces/IClock';
 import type { ICrmService } from './interfaces/ICrmService';
 import type { IIdGenerator } from './interfaces/IIdGenerator';
@@ -56,6 +62,20 @@ function notImplemented(portName: string, envKey: string): never {
   );
 }
 
+/**
+ * Infinity reale: lettura del planning via ODBC (SQL Anywhere). Il DSN e il motore vengono
+ * dall'ambiente (`INFINITY_ODBC_DSN`, `INFINITY_DB_TYPE`): un DSN mancante ferma l'avvio.
+ */
+function createInfinityOdbc(env: AppEnv, deps: ExternalServiceDeps): IInfinityService {
+  const config = resolveInfinityRealConfig(env.timeZone);
+  const client = new SqlAnywhereOdbcClient({
+    connectionString: buildConnectionString(config),
+    loginTimeoutSec: config.loginTimeoutSec,
+    queryTimeoutSec: config.queryTimeoutSec,
+  });
+  return new InfinityServiceOdbc(config, { client, clock: deps.clock, logger: deps.logger });
+}
+
 /** Costruisce le porte esterne in base all'ambiente. */
 export function createExternalServices(env: AppEnv, deps: ExternalServiceDeps): ExternalServices {
   const infinityAdapter: IInfinityService =
@@ -73,7 +93,7 @@ export function createExternalServices(env: AppEnv, deps: ExternalServiceDeps): 
           },
           { clock: deps.clock, logger: deps.logger },
         )
-      : notImplemented('Infinity', 'INFINITY_PROVIDER');
+      : createInfinityOdbc(env, deps);
 
   // Resilienza sulla porta Infinity: timeout, ripetizione sugli errori di rete e interruttore di
   // circuito. Vale per il mock come per l'adapter reale, così il comportamento sotto guasto si
