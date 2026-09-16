@@ -9,6 +9,16 @@ import type {
 
 const GLOBAL_KEY = '__accettazioneSpokiActivityLog';
 
+function isActivityLog(v: unknown): v is SpokiActivityLog {
+  return (
+    typeof v === 'object' &&
+    v !== null &&
+    typeof (v as { record?: unknown }).record === 'function' &&
+    typeof (v as { list?: unknown }).list === 'function' &&
+    typeof (v as { clear?: unknown }).clear === 'function'
+  );
+}
+
 export class SpokiActivityLog implements ISpokiActivityLog {
   private readonly entries: SpokiActivityEntry[] = [];
 
@@ -25,7 +35,9 @@ export class SpokiActivityLog implements ISpokiActivityLog {
   static getShared(ids: IIdGenerator, maxEntries = 200): SpokiActivityLog {
     const g = globalThis as unknown as Record<string, unknown>;
     const existing = g[GLOBAL_KEY];
-    if (existing instanceof SpokiActivityLog) {
+    // Riconosciuto per struttura e non per identità di classe: dopo una ricompilazione in
+    // sviluppo la classe è un oggetto nuovo, ma il registro pieno è ancora quello vecchio.
+    if (isActivityLog(existing)) {
       return existing;
     }
     const created = new SpokiActivityLog(ids, maxEntries);

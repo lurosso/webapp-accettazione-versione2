@@ -70,6 +70,14 @@ export interface Appointment {
    */
   readonly autoClosedAt: IsoDateTime | null;
   readonly autoCloseConfirmedAt: IsoDateTime | null;
+  /**
+   * Auto-segnalazione dal portale cliente: "sto arrivando in ritardo". `customerLateNoticeAt` è
+   * quando il cliente ha toccato il pulsante, `customerEtaAt` l'arrivo che ha dichiarato. Non
+   * cambiano l'ordine della coda (quello lo decide l'accettatore): servono all'avviso in
+   * dashboard e a non contare il cliente come assente prima dell'orario che ha promesso.
+   */
+  readonly customerLateNoticeAt: IsoDateTime | null;
+  readonly customerEtaAt: IsoDateTime | null;
   /** Ultima sincronizzazione che ha toccato la pratica. */
   readonly lastSyncRunId: SyncRunId | null;
   /** Versione per la concorrenza ottimistica fra postazioni (409 → ConflictDialog). */
@@ -112,19 +120,32 @@ export function effectiveScheduleTime(
 }
 
 /**
+ * Orario a cui il cliente è atteso in officina ai fini del ritardo: l'arrivo che ha dichiarato
+ * dal portale ("sto arrivando in ritardo"), se c'è ed è successivo, altrimenti l'orario effettivo.
+ * Non è l'orario d'ordine della coda: chi ha avvisato non passa avanti a nessuno.
+ */
+export function expectedArrivalTime(
+  a: Pick<Appointment, 'scheduledAt' | 'rescheduledAt' | 'customerEtaAt'>,
+): IsoDateTime {
+  const effettivo = effectiveScheduleTime(a);
+  return a.customerEtaAt !== null && a.customerEtaAt > effettivo ? a.customerEtaAt : effettivo;
+}
+
+/**
  * Pratica in ritardo: attesa da prima di adesso (oltre i minuti di tolleranza) e ancora in coda,
  * cioè nessuno l'ha presa in carico. È la definizione usata dalla dashboard per raccogliere in un
- * blocco a parte i clienti che non si sono presentati.
+ * blocco a parte i clienti che non si sono presentati. Un cliente che ha avvisato del ritardo dal
+ * portale è atteso all'orario che ha dichiarato.
  */
 export function isLate(
-  a: Pick<Appointment, 'scheduledAt' | 'rescheduledAt' | 'status'>,
+  a: Pick<Appointment, 'scheduledAt' | 'rescheduledAt' | 'status' | 'customerEtaAt'>,
   nowIso: string,
   graceMinutes: number,
 ): boolean {
   if (!isInQueue(a.status)) {
     return false;
   }
-  const attesa = new Date(effectiveScheduleTime(a)).getTime() + graceMinutes * 60_000;
+  const attesa = new Date(expectedArrivalTime(a)).getTime() + graceMinutes * 60_000;
   return attesa < new Date(nowIso).getTime();
 }
 
@@ -133,14 +154,14 @@ export function isLate(
  * nel blocco dei ritardi), però va servito adesso. È la riga gialla della coda.
  */
 export function isDueWithinGrace(
-  a: Pick<Appointment, 'scheduledAt' | 'rescheduledAt' | 'status'>,
+  a: Pick<Appointment, 'scheduledAt' | 'rescheduledAt' | 'status' | 'customerEtaAt'>,
   nowIso: string,
   graceMinutes: number,
 ): boolean {
   if (!isInQueue(a.status)) {
     return false;
   }
-  const attesa = new Date(effectiveScheduleTime(a)).getTime();
+  const attesa = new Date(expectedArrivalTime(a)).getTime();
   const now = new Date(nowIso).getTime();
   return attesa <= now && now < attesa + graceMinutes * 60_000;
 }

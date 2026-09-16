@@ -7,9 +7,9 @@ import { POLLING_MS } from '@/config/constants';
 import { ApiError, fetchPublicStatus } from '@/lib/api-client/client';
 import type { PublicStatusProblem } from '@/modules/customer-portal/types';
 
-/** Chiave della query: una per targa cercata. */
+/** Chiave della query: una per targa (e token del link) cercati. */
 export const publicStatusKeys = {
-  byPlate: (targa: string) => ['public-status', targa] as const,
+  byLookup: (targa: string, token: string | null) => ['public-status', targa, token ?? ''] as const,
 };
 
 /** Traduce un errore di rete o di API nel motivo mostrato al cliente. */
@@ -30,15 +30,15 @@ export function problemFrom(error: unknown): PublicStatusProblem {
 }
 
 /**
- * Interroga `/api/v1/public/status` ogni 5 secondi (`POLLING_MS.portal`).
+ * Interroga `/api/v1/public/status` ogni 5 secondi (`POLLING_MS.portal`), per targa e/o token.
  * Non ritenta gli errori definitivi (targa non valida o non trovata, troppe richieste):
  * riprovare non cambierebbe l'esito e aumenterebbe il carico.
  */
-export function usePublicStatus(targa: string) {
+export function usePublicStatus(targa: string, token: string | null = null) {
   return useQuery({
-    queryKey: publicStatusKeys.byPlate(targa),
-    queryFn: () => fetchPublicStatus(targa),
-    enabled: targa.length > 0,
+    queryKey: publicStatusKeys.byLookup(targa, token),
+    queryFn: () => fetchPublicStatus(targa, token),
+    enabled: targa.length > 0 || (token !== null && token.length > 0),
     refetchInterval: POLLING_MS.portal,
     refetchIntervalInBackground: false,
     placeholderData: keepPreviousData,

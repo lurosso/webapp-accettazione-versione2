@@ -173,9 +173,33 @@ export function postSync(): Promise<{ readonly run: SyncRun }> {
  * GET /api/v1/public/status: stato pubblico della pratica per targa (portale cliente).
  * Endpoint anonimo: un errore non deve mai portare il cliente al login dell'operatore.
  */
-export function fetchPublicStatus(targa: string): Promise<PublicStatus> {
-  const search = new URLSearchParams({ targa });
+export function fetchPublicStatus(
+  targa: string,
+  token: string | null = null,
+): Promise<PublicStatus> {
+  const search = new URLSearchParams();
+  if (targa !== '') {
+    search.set('targa', targa);
+  }
+  if (token !== null && token !== '') {
+    search.set('t', token);
+  }
   return apiFetch<PublicStatus>(`/api/v1/public/status?${search.toString()}`, {
+    publicEndpoint: true,
+  });
+}
+
+/**
+ * POST /api/v1/public/late-notice: il cliente avvisa dal telefono che arriva in ritardo (+10 min).
+ * Stesso contratto dello stato: la risposta è lo stato aggiornato della pratica.
+ */
+export function postPublicLateNotice(body: {
+  readonly targa: string;
+  readonly token?: string | null;
+}): Promise<PublicStatus> {
+  return apiFetch<PublicStatus>('/api/v1/public/late-notice', {
+    method: 'POST',
+    json: { targa: body.targa, t: body.token ?? undefined },
     publicEndpoint: true,
   });
 }

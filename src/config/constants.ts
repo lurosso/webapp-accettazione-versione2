@@ -162,3 +162,25 @@ export const DEFAULT_PHOTO_RETENTION_DAYS = 30;
  * PHOTO_RETENTION_DAYS + PHOTO_HARD_DELETE_DAYS giorni (default 120).
  */
 export const DEFAULT_PHOTO_HARD_DELETE_DAYS = 90;
+
+/** Nome della sede mostrato al cliente nel portale (accanto allo sportello). */
+export const SITE_NAME = 'Autoclub Group';
+
+/** Minuti di ritardo dichiarati dal pulsante rapido del portale ("Sto arrivando in ritardo"). */
+export const CUSTOMER_LATE_NOTICE_MINUTES = 10;
+
+/** Dopo quanti minuti il cliente può rifare la segnalazione di ritardo (evita doppi tocchi). */
+export const CUSTOMER_LATE_NOTICE_COOLDOWN_MINUTES = 5;
+
+/** Ore dopo la chiusura della pratica oltre le quali il portale mostra solo "pratica conclusa". */
+export const PORTAL_CONCLUDED_AFTER_HOURS = 24;
+
+/**
+ * Anti-abuso della segnalazione di ritardo dal portale: pochi tocchi per targa in dieci minuti
+ * (il cliente ne fa uno), un tetto per indirizzo che regge il wifi ospiti dell'officina.
+ */
+export const PUBLIC_LATE_NOTICE_RATE_LIMIT = {
+  perIp: 30,
+  perPlate: 3,
+  windowMs: 600_000,
+} as const;

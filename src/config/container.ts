@@ -15,6 +15,8 @@ import { DailyReportService } from '@/application/reporting/DailyReportService';
 import { AppointmentReminderService } from '@/application/notifications/AppointmentReminderService';
 import { CustomerMessagingPolicy } from '@/application/notifications/CustomerMessagingPolicy';
 import { NotificationOrchestrator } from '@/application/notifications/NotificationOrchestrator';
+import { CustomerPortalService } from '@/application/portal/CustomerPortalService';
+import { createPortalTokenFactory } from '@/application/portal/portal-token';
 import { CodeGenerator } from '@/application/queue/CodeGenerator';
 import { ManualIntakeService } from '@/application/queue/ManualIntakeService';
 import { SpokiDiagnosticsService } from '@/application/messaging/SpokiDiagnosticsService';
@@ -56,6 +58,7 @@ export interface Container {
   readonly codeGenerator: CodeGenerator;
   readonly queueService: QueueService;
   readonly manualIntakeService: ManualIntakeService;
+  readonly customerPortalService: CustomerPortalService;
   readonly crmNotifier: CrmNotifier;
   readonly bdcLeadService: BdcLeadService;
   readonly crmOutboxService: CrmOutboxService;
@@ -142,6 +145,10 @@ export function createContainer(overrides: ContainerOverrides = {}): Container {
     desks: [...store.state.desks],
   });
 
+  // Token del portale cliente: HMAC dell'id pratica con il segreto di sessione. Entra nel link
+  // dei messaggi e permette l'accesso senza login dal telefono.
+  const portalTokens = createPortalTokenFactory(sessionSecret);
+
   const notificationOrchestrator = new NotificationOrchestrator({
     spoki: external.spoki,
     smsHosting: external.smsHosting,
@@ -152,6 +159,18 @@ export function createContainer(overrides: ContainerOverrides = {}): Container {
     eventBus,
     timeZone: env.timeZone,
     publicBaseUrl: env.publicBaseUrl,
+    portalToken: (appointmentId) => portalTokens.forAppointment(appointmentId),
+  });
+
+  const customerPortalService = new CustomerPortalService({
+    appointments: repos.appointments,
+    referenceData: repos.referenceData,
+    operators: repos.operators,
+    eventBus,
+    clock,
+    ids,
+    logger,
+    tokens: portalTokens,
   });
 
   // GUARDRAIL: un WhatsApp reale può partire solo con Spoki reale, in live e con il blocco di
@@ -380,6 +399,7 @@ export function createContainer(overrides: ContainerOverrides = {}): Container {
     codeGenerator,
     queueService,
     manualIntakeService,
+    customerPortalService,
     spokiDiagnosticsService,
     crmNotifier,
     bdcLeadService,

@@ -16,7 +16,7 @@ import type {
 import { buildNotificationIdempotencyKey } from '@/domain/entities/notification';
 import type { DomainError } from '@/domain/errors';
 import { domainError } from '@/domain/errors';
-import type { NotificationJobId, OperatorId } from '@/domain/ids';
+import type { AppointmentId, NotificationJobId, OperatorId } from '@/domain/ids';
 import { asNotificationAttemptId, asNotificationJobId } from '@/domain/ids';
 import type { Result } from '@/domain/result';
 import { err, ok } from '@/domain/result';
@@ -59,6 +59,8 @@ export interface NotificationOrchestratorDeps {
   readonly timeZone?: string;
   /** Indirizzo pubblico del portale per i link nei messaggi (env PUBLIC_BASE_URL). */
   readonly publicBaseUrl?: string;
+  /** Token di accesso al portale per pratica, aggiunto al link (`&t=`); assente nei test. */
+  readonly portalToken?: (appointmentId: AppointmentId) => string;
   /** Dopo quanti ms un job IN_FLIGHT è considerato orfano e riprocessabile (default 5 minuti). */
   readonly inFlightStaleMs?: number;
 }
@@ -116,6 +118,7 @@ export class NotificationOrchestrator {
       brand,
       this.deps.timeZone,
       this.deps.publicBaseUrl ?? '',
+      this.deps.portalToken?.(appointment.id) ?? null,
     );
     const renderedText = NOTIFICATION_TEMPLATES[kind].render(vars);
     const now = this.deps.clock.nowIso();

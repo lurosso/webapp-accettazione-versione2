@@ -7,6 +7,7 @@
 import {
   effectiveScheduleTime,
   isAutoClosedPending,
+  isInQueue,
   type AppointmentStatus,
 } from '@/domain/entities/appointment';
 import type { QueueRowView } from '@/domain/read-models';
@@ -66,6 +67,8 @@ export function AppointmentRow({
   selected = false,
 }: AppointmentRowProps) {
   const a = row.appointment;
+  // Il cliente ha avvisato dal portale che arriva in ritardo: avviso ambra finché è in coda.
+  const avvisoRitardo = a.customerLateNoticeAt !== null && isInQueue(a.status);
   return (
     <TableRow
       className={cn(
@@ -75,6 +78,7 @@ export function AppointmentRow({
         'cursor-pointer select-none hover:brightness-[0.97]',
         ROW_CLASSES[a.status],
         dueSoon && 'bg-amber-100/80',
+        avvisoRitardo && !dueSoon && 'bg-amber-50',
         pending && 'opacity-60',
         selected && 'ring-brand-secondary/70 ring-2 ring-inset',
       )}
@@ -112,6 +116,15 @@ export function AppointmentRow({
         ) : null}
         {dueSoon ? (
           <span className="block text-xs font-semibold text-amber-800">orario superato</span>
+        ) : null}
+        {avvisoRitardo ? (
+          <span
+            className="block text-xs font-semibold text-amber-800"
+            title={`Avviso dal portale alle ${localTimeHHmm(new Date(a.customerLateNoticeAt ?? a.updatedAt), timeZone)}`}
+          >
+            cliente in ritardo · arrivo ~
+            {a.customerEtaAt === null ? '?' : localTimeHHmm(new Date(a.customerEtaAt), timeZone)}
+          </span>
         ) : null}
         {late && lateByMinutes > 0 ? (
           <span className="block text-xs font-semibold text-red-700">

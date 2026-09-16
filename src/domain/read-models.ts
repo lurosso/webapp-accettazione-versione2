@@ -4,7 +4,8 @@
 import type { Appointment, AppointmentStatus } from './entities/appointment';
 import type { CrmEventType, CrmOutboxStatus } from './entities/crm-outbox-event';
 import type { NotificationChannel, NotificationJobStatus } from './entities/notification';
-import type { IsoDateTime } from './value-objects/iso-date';
+import type { IsoDate, IsoDateTime } from './value-objects/iso-date';
+import type { PlateNumber } from './value-objects/plate';
 import type { QueueCode } from './value-objects/queue-code';
 
 /** Posizione in coda mostrata dal portale cliente dopo la ricerca per targa. */
@@ -147,4 +148,40 @@ export interface CrmOutboxView {
     readonly failed: number;
     readonly manual: number;
   };
+}
+
+/**
+ * Tappa del percorso mostrata dal portale cliente: 1 In attesa (in coda), 2 In accettazione
+ * (presa in carico), 3 In lavorazione (check-in concluso, vettura in officina), 4 Pronta per il
+ * ritiro (arriverà dallo stato "Veicolo pronto alla consegna" del gestionale).
+ */
+export type PortalStage = 1 | 2 | 3 | 4;
+
+/**
+ * Stato della pratica come lo legge il cliente dal telefono (link WhatsApp o QR): posizione in
+ * coda più le informazioni dell'appuntamento. Nessun dato personale del cliente; il nome
+ * dell'accettatore è quello del personale che lo riceverà.
+ */
+export interface PortalStatusView extends QueuePositionView {
+  readonly businessDate: IsoDate;
+  readonly plate: PlateNumber;
+  readonly stage: PortalStage;
+  /** Orario a cui il cliente è atteso adesso (riprogrammato in officina, se c'è). */
+  readonly expectedTime: IsoDateTime;
+  readonly siteName: string;
+  /** Sportello che serve la pratica (es. "Sportello Stellantis Italia"). */
+  readonly deskName: string | null;
+  /** Accettatore che ha preso in carico la pratica; null finché è in attesa. */
+  readonly operatorName: string | null;
+  /** Ultima auto-segnalazione di ritardo fatta dal cliente, se c'è. */
+  readonly lateNotice: {
+    readonly at: IsoDateTime;
+    readonly etaAt: IsoDateTime;
+    readonly minutes: number;
+  } | null;
+  /** True se il pulsante "Sto arrivando in ritardo" ha senso adesso. */
+  readonly canReportDelay: boolean;
+  /** Pratica conclusa da oltre la soglia (24 h) o di una giornata passata: si mostra solo la chiusura. */
+  readonly expired: boolean;
+  readonly concludedAt: IsoDateTime | null;
 }

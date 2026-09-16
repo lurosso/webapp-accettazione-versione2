@@ -271,9 +271,18 @@ raggiungibile", ma il BDC può comunque telefonare e chiudere: l'evento resta in
 ### Provare il portale cliente
 
 Il portale si apre su <http://localhost:3000/qr> (alias breve di `/cliente`, adatto ai cartelli con
-il QR code). Serve una targa presente nell'agenda del giorno: le targhe finte sono generate in modo
-deterministico dal seme dei mock **e dalla data**, quindi cambiano ogni giorno. Per leggere quelle
-di oggi apri la dashboard e copia una targa dalla colonna Targa, oppure interroga l'API:
+il QR code) oppure direttamente su `/portal?targa=AB123CD`, l'indirizzo che il cliente riceve via
+WhatsApp (con in più `&t=<token>`, il token unico della pratica che apre la pagina senza login e
+senza limiti di frequenza). La schermata mobile mostra codice e targa in grande, la **barra di
+avanzamento** a quattro tappe (In attesa → In accettazione → In lavorazione → Pronta per il
+ritiro), quanti clienti ci sono prima nella stessa fila, orario previsto, accettatore e sede, e il
+pulsante **"Sto arrivando in ritardo (+10 min)"**: un tocco avvisa l'accettazione (avviso ambra
+sulla riga della dashboard, nessuna telefonata) senza cambiare codice né posizione in coda. Una
+targa sconosciuta, un token non valido o una pratica conclusa da oltre 24 ore mostrano una
+schermata cortese al posto della coda. Serve una targa presente nell'agenda del giorno: le targhe
+finte sono generate in modo deterministico dal seme dei mock **e dalla data**, quindi cambiano ogni
+giorno. Per leggere quelle di oggi apri la dashboard e copia una targa dalla colonna Targa, oppure
+interroga l'API:
 
 ```bash
 curl -s -c /tmp/c.txt -H 'content-type: application/json' -d '{"username":"mario.rossi","password":"demo","workstationId":"ws-p2"}' http://localhost:3000/api/v1/auth/login >/dev/null && curl -s -b /tmp/c.txt 'http://localhost:3000/api/v1/queue?view=global'

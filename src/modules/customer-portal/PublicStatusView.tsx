@@ -1,24 +1,31 @@
 'use client';
 
 // Vista di stato del portale cliente: polling ogni 5 s verso l'API pubblica, con la card dello
-// stato oppure il messaggio di errore. Mantiene sempre visibile l'ultimo stato noto: se la rete
-// cade, il cliente continua a vedere il proprio codice.
+// stato (barra di avanzamento, info appuntamento, pulsante di ritardo) oppure il messaggio di
+// errore. Mantiene sempre visibile l'ultimo stato noto: se la rete cade, il cliente continua a
+// vedere il proprio codice.
 import Link from 'next/link';
 import { problemFrom, usePublicStatus } from '@/hooks/usePublicStatus';
-import { QueuePositionCard } from './QueuePositionCard';
+import { ConcludedCard } from './ConcludedCard';
+import { LateNoticeButton } from './LateNoticeButton';
+import { PortalStatusCard } from './PortalStatusCard';
 import { ServiceUnavailableCard } from './ServiceUnavailableCard';
 
 export interface PublicStatusViewProps {
   readonly targa: string;
+  /** Token unico della pratica dal link WhatsApp (`?t=`); null dal QR. */
+  readonly token?: string | null;
 }
 
-export function PublicStatusView({ targa }: PublicStatusViewProps) {
-  const query = usePublicStatus(targa);
+export function PublicStatusView({ targa, token = null }: PublicStatusViewProps) {
+  const query = usePublicStatus(targa, token);
 
   if (query.isPending) {
     return (
-      <section className="flex flex-col items-center gap-3 rounded-2xl border-2 border-slate-200 bg-white p-8 text-center shadow-sm">
-        <p className="text-lg text-slate-600">Cerchiamo la targa {targa}…</p>
+      <section className="flex flex-col items-center gap-3 rounded-3xl border-2 border-slate-200 bg-white p-8 text-center shadow-sm">
+        <p className="text-lg text-slate-600">
+          {targa !== '' ? `Cerchiamo la targa ${targa}…` : 'Apriamo la tua pratica…'}
+        </p>
       </section>
     );
   }
@@ -35,13 +42,21 @@ export function PublicStatusView({ targa }: PublicStatusViewProps) {
     return <ServiceUnavailableCard problem="unavailable" plate={targa} />;
   }
 
+  const { position, timeZone } = query.data;
+  if (position.expired) {
+    return <ConcludedCard position={position} timeZone={timeZone} />;
+  }
+
   return (
     <div className="flex flex-col gap-4">
-      <QueuePositionCard
-        position={query.data.position}
-        timeZone={query.data.timeZone}
+      <PortalStatusCard
+        position={position}
+        timeZone={timeZone}
         updatedAtMs={query.dataUpdatedAt}
         stale={query.isError}
+        action={
+          <LateNoticeButton position={position} targa={targa} token={token} timeZone={timeZone} />
+        }
       />
       <Link
         href="/cliente"

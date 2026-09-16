@@ -14,6 +14,7 @@ export type DomainEventType =
   | 'APPOINTMENT_CREATED'
   | 'APPOINTMENT_STATUS_CHANGED'
   | 'APPOINTMENT_CODE_ASSIGNED'
+  | 'CUSTOMER_LATE_NOTICE'
   | 'SYNC_RUN_FINISHED'
   | 'NOTIFICATION_JOB_CHANGED'
   | 'CRM_EVENT_CHANGED'
@@ -52,6 +53,17 @@ export type DomainEventPayload =
       readonly type: 'APPOINTMENT_CODE_ASSIGNED';
       readonly appointmentId: AppointmentId;
       readonly code: QueueCode;
+    }
+  | {
+      /**
+       * Il cliente ha avvisato dal portale che arriva in ritardo: la dashboard mostra l'avviso
+       * ambra e il cliente è atteso a `etaAt` prima di finire fra gli assenti. L'ordine della coda
+       * non cambia; l'attore è il cliente stesso (`actor.kind = 'CUSTOMER'`).
+       */
+      readonly type: 'CUSTOMER_LATE_NOTICE';
+      readonly appointmentId: AppointmentId;
+      readonly minutes: number;
+      readonly etaAt: IsoDateTime;
     }
   | {
       readonly type: 'SYNC_RUN_FINISHED';

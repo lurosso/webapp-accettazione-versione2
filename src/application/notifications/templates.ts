@@ -27,9 +27,17 @@ export interface TemplateVars {
   readonly portalUrl: string;
 }
 
-/** Link pubblico del portale per una targa. `publicBaseUrl` vuoto → percorso relativo. */
-export function buildPortalUrl(publicBaseUrl: string, plate: string): string {
-  return `${publicBaseUrl.replace(/\/+$/, '')}/portal?targa=${encodeURIComponent(plate)}`;
+/**
+ * Link pubblico del portale per una targa. `publicBaseUrl` vuoto → percorso relativo. Con il token
+ * della pratica (`t`) il cliente entra dal link WhatsApp senza limiti di frequenza né enumerazione.
+ */
+export function buildPortalUrl(
+  publicBaseUrl: string,
+  plate: string,
+  token: string | null = null,
+): string {
+  const base = `${publicBaseUrl.replace(/\/+$/, '')}/portal?targa=${encodeURIComponent(plate)}`;
+  return token === null || token === '' ? base : `${base}&t=${encodeURIComponent(token)}`;
 }
 
 /** Definizione di un template: chiave Spoki e funzione di rendering del testo (per SMS e log). */
@@ -87,6 +95,7 @@ export function buildTemplateVars(
   brand: Brand,
   timeZone = 'Europe/Rome',
   publicBaseUrl = '',
+  portalToken: string | null = null,
 ): TemplateVars {
   const scheduled = new Date(appointment.scheduledAt);
   return {
@@ -98,6 +107,6 @@ export function buildTemplateVars(
     scheduledDate: formatBusinessDateIt(toBusinessDate(scheduled, timeZone)),
     plate: appointment.vehicle.plate,
     brandName: brand.name,
-    portalUrl: buildPortalUrl(publicBaseUrl, appointment.vehicle.plate),
+    portalUrl: buildPortalUrl(publicBaseUrl, appointment.vehicle.plate, portalToken),
   };
 }

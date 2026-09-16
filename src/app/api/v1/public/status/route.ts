@@ -1,16 +1,18 @@
-// GET /api/v1/public/status?targa=AB123CD  (alias accettato: ?plate=)
+// GET /api/v1/public/status?targa=AB123CD[&t=token]  (alias accettato: ?plate=)
 //
-// Endpoint PUBBLICO del portale cliente (modulo B): nessuna sessione, raggiungibile dal QR code.
-// Risponde solo con dati non personali (codice, stato, clienti in attesa, campata, marchio, orari):
-// nomi, telefoni e modello del veicolo non escono mai da qui.
+// Endpoint PUBBLICO del portale cliente (modulo B): nessuna sessione, raggiungibile dal QR code o
+// dal link WhatsApp. Il cliente si identifica con la targa oppure con il token unico della pratica
+// (`t`, HMAC dell'id con il segreto del server): niente form di login. Risponde solo con dati non
+// personali (codice, stato, tappa del percorso, clienti in attesa, campata, sportello, accettatore,
+// orari): nomi e telefoni dei clienti non escono mai da qui.
 //
-// Codici: 200 stato trovato · 400 targa mancante o formato non valido · 404 targa non in agenda
-// oggi · 429 troppe richieste (anti-enumerazione) · 503 configurazione non valida.
+// Codici: 200 stato trovato · 400 targa mancante o formato non valido · 404 targa o token non in
+// agenda (oggi o ieri) · 429 troppe richieste (anti-enumerazione) · 503 configurazione non valida.
 import { NextResponse, type NextRequest } from 'next/server';
 import { isStartupError, type SystemHealthUnavailable } from '@/application/health/check-health';
 import { PUBLIC_STATUS_RATE_LIMIT } from '@/config/constants';
 import { getContainer } from '@/config/container';
-import type { QueuePositionView } from '@/domain/read-models';
+import type { PortalStatusView } from '@/domain/read-models';
 import { badRequestResponse, domainErrorResponse, type ApiErrorBody } from '@/lib/http/api-error';
 import { clientIpFrom, hitRateLimit, type RateLimitRule } from '@/lib/http/rate-limit';
 
@@ -27,9 +29,9 @@ const PER_PLATE: RateLimitRule = {
   windowMs: PUBLIC_STATUS_RATE_LIMIT.windowMs,
 };
 
-/** Risposta del portale: la posizione in coda, senza alcun dato personale. */
+/** Risposta del portale: lo stato della pratica, senza alcun dato personale del cliente. */
 export interface PublicStatusResponse {
-  readonly position: QueuePositionView;
+  readonly position: PortalStatusView;
   /** Istante del server: la UI mostra "aggiornato alle …" anche se il polling rallenta. */
   readonly serverTime: string;
   readonly timeZone: string;
@@ -39,20 +41,26 @@ type PublicStatusBody = PublicStatusResponse | ApiErrorBody | SystemHealthUnavai
 
 const NO_STORE = { 'cache-control': 'no-store' } as const;
 
+/** Chiave del limite per soggetto cercato: la targa normalizzata o il token del link. */
+export function publicLookupKey(plate: string, token: string): string {
+  return plate !== '' ? `targa:${plate.toUpperCase().replace(/[\s\-.]/g, '')}` : `token:${token}`;
+}
+
 export async function GET(request: NextRequest): Promise<NextResponse<PublicStatusBody>> {
   const { searchParams } = request.nextUrl;
   // `targa` è il nome usato dal QR e dalla UI italiana; `plate` resta accettato per le integrazioni.
-  const raw = (searchParams.get('targa') ?? searchParams.get('plate') ?? '').trim();
-  if (raw === '') {
+  const plate = (searchParams.get('targa') ?? searchParams.get('plate') ?? '').trim();
+  const token = (searchParams.get('t') ?? '').trim();
+  if (plate === '' && token === '') {
     return badRequestResponse('Indicare la targa del veicolo (parametro `targa`).');
   }
 
   const ipCheck = hitRateLimit(`ip:${clientIpFrom(request.headers)}`, PER_IP);
-  const plateCheck = ipCheck.allowed
-    ? hitRateLimit(`targa:${raw.toUpperCase().replace(/[\s\-.]/g, '')}`, PER_PLATE)
+  const subjectCheck = ipCheck.allowed
+    ? hitRateLimit(publicLookupKey(plate, token), PER_PLATE)
     : ipCheck;
-  if (!ipCheck.allowed || !plateCheck.allowed) {
-    const retryAfter = Math.max(ipCheck.retryAfterSeconds, plateCheck.retryAfterSeconds);
+  if (!ipCheck.allowed || !subjectCheck.allowed) {
+    const retryAfter = Math.max(ipCheck.retryAfterSeconds, subjectCheck.retryAfterSeconds);
     return NextResponse.json(
       {
         error: {
@@ -66,10 +74,7 @@ export async function GET(request: NextRequest): Promise<NextResponse<PublicStat
 
   try {
     const container = getContainer();
-    const result = await container.queueService.getPublicPositionByPlate(
-      raw,
-      container.clock.today(),
-    );
+    const result = await container.customerPortalService.getStatus({ plate, token });
     if (!result.ok) {
       return domainErrorResponse(result.error, { ...NO_STORE });
     }

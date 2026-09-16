@@ -1,9 +1,10 @@
-// Contratto dati fra l'API pubblica (`/api/v1/public/status`) e il portale cliente.
-import type { QueuePositionView } from '@/domain/read-models';
+// Contratto dati fra l'API pubblica (`/api/v1/public/status`, `/api/v1/public/late-notice`) e il
+// portale cliente.
+import type { PortalStatusView } from '@/domain/read-models';
 
-/** Risposta dell'endpoint pubblico di stato. */
+/** Risposta degli endpoint pubblici: lo stato della pratica visto dal cliente. */
 export interface PublicStatus {
-  readonly position: QueuePositionView;
+  readonly position: PortalStatusView;
   readonly serverTime: string;
   readonly timeZone: string;
 }
