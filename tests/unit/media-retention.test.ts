@@ -180,7 +180,13 @@ describe('InspectionArchiveService: retention', () => {
       deleted: 1,
     });
     expect(await env.media.listByAppointment(a.id)).toHaveLength(0);
-    expect(await archive.search(a.code)).toHaveLength(0);
+    // La pratica resta nella storia del veicolo (ricerca per codice o targa), ma senza foto;
+    // l'elenco degli ultimi check-in fotografici (ricerca vuota) non la mostra più.
+    const storia = await archive.search(a.code);
+    expect(storia).toHaveLength(1);
+    expect(storia[0]?.photos).toHaveLength(0);
+    expect(storia[0]?.archived).toBe(false);
+    expect(await archive.search('')).toHaveLength(0);
   });
 
   it('una foto non ancora archiviata non viene mai eliminata dal secondo passaggio', async () => {

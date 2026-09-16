@@ -137,6 +137,14 @@ Per lavorare sui dati veri si passa al profilo `real` (`SEED_PROFILE=real` in `.
 solo account `admin` con password provvisoria da cambiare al primo accesso, accettatori creati da
 `/admin`.
 
+**Accesso veloce (solo sviluppo).** Fuori dalla produzione la pagina di login mostra un riquadro
+ambra con un pulsante per profilo: Amministratore, Responsabile / BDC e un Accettatore per ogni
+sportello. Un tocco crea al primo uso l'account `dev.*` corrispondente (password casuale, mai
+comunicata) ed entra senza credenziali: serve a cambiare ruolo in fretta durante il debug e dopo ogni
+riavvio, quando lo store in memoria si azzera. Si governa con `DEV_QUICK_LOGIN` (acceso di default
+in sviluppo, ignorato con `NODE_ENV=production`); la rotta `POST /api/v1/auth/quick-login` risponde
+404 quando è spento.
+
 | Utente          | Ruolo          | Sportello abituale                    |
 | --------------- | -------------- | ------------------------------------- |
 | `admin`         | Amministratore | tutti                                 |
@@ -206,6 +214,29 @@ Ogni accettazione ha un token nel seed (`display-demo-token-c1`…). Passandolo 
 verificato e un token errato riceve 403; senza token l'accesso resta consentito, perché i monitor
 sono su rete interna. L'obbligatorietà è prevista con l'hardening.
 
+### Riconsegne dei veicoli
+
+Le commesse «in consegna» del planning di Infinity (righe `L`, `tipo R`: il veicolo torna al
+cliente a fine lavori) entrano come flusso **RETURN**, con codici `R001…` e una numerazione
+propria, e non passano dalla coda, dai monitor, dai promemoria né dal portale. Si vedono nella
+scheda **Riconsegne (N)** della dashboard: ora prevista, targa, veicolo e cliente, commessa e stato
+in officina (Accettata, In lavorazione, Collaudato…), stato della riconsegna. Quando Infinity segna
+la commessa consegnata la riga diventa «Riconsegnata». `INFINITY_INCLUDE_WORK_ORDERS=false` le
+esclude del tutto.
+
+### Inserimento manuale e BDC
+
+Il pulsante «Nuovo cliente (senza appuntamento)» resta nel codice e nell'API, ma l'inserimento
+avviene a monte in Infinity dal BDC: per default lo vedono solo responsabili e amministratori
+(`UI_MANUAL_INTAKE=managers`; `all` per tutti, `none` per nessuno).
+
+### Archivio: la storia di una targa
+
+In `/accettazione/archivio` la ricerca per targa (o per codice) elenca **ogni ingresso** del
+veicolo su tutte le giornate, dal più recente, con data e ora, stato, commessa, lavorazioni e le
+foto se ci sono; anche le riconsegne, segnate con il badge. Senza ricerca restano gli ultimi
+check-in fotografici.
+
 ### Provare il check-in veicolo dal tablet
 
 La vista per il tablet è su <http://localhost:3000/check-in> (a tutto schermo, senza il menu del
@@ -262,6 +293,16 @@ si riprende dopo dalla scheda "Le mie prese in carico".
 
 La coda è tarata anche per il dito: righe alte, pulsanti di almeno 44 × 44 px e riga interamente
 toccabile per aprire il dettaglio.
+
+### Tablet e iPad: bersagli e larghezze
+
+I controlli principali rispettano il bersaglio minimo di 44×44 px: campi di testo e menu a tendina
+(44 px), voci di navigazione e «Esci» nell'header, pulsanti di azione delle righe e del cruscotto BDC,
+caselle di spunta da 24 px con etichette alte 44 px. A 768 px (iPad verticale) e 1024 px
+(orizzontale) la pagina non scorre mai in orizzontale: le tabelle larghe scorrono dentro il proprio
+riquadro e la coda nasconde le colonne Accettazione e Operatore sotto i 1024 px (si leggono nel
+dettaglio). I badge «In diretta» e «Dati non aggiornati» stanno nella barra dei comandi, che va a
+capo invece di sovrapporsi.
 
 ### Provare il cruscotto BDC
 
@@ -559,12 +600,13 @@ per i cron esterni.
 
 ### API: autenticazione
 
-| Rotta                          | Metodo | Descrizione                                                                                             | Accesso                                            |
-| ------------------------------ | ------ | ------------------------------------------------------------------------------------------------------- | -------------------------------------------------- |
-| `/api/v1/auth/login`           | POST   | Verifica credenziali e postazione, imposta il cookie di sessione (limiti di frequenza per IP e utente). | Pubblico                                           |
-| `/api/v1/auth/logout`          | POST   | Libera la postazione e cancella il cookie.                                                              | Sessione operatore, anche con password provvisoria |
-| `/api/v1/auth/me`              | GET    | Sessione corrente (ruolo, postazione, obbligo di cambio password).                                      | Sessione operatore, anche con password provvisoria |
-| `/api/v1/auth/change-password` | POST   | Sostituisce la password (provvisoria o no) e rinnova il cookie.                                         | Sessione operatore, anche con password provvisoria |
+| Rotta                          | Metodo | Descrizione                                                                                                                       | Accesso                                            |
+| ------------------------------ | ------ | --------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------- |
+| `/api/v1/auth/login`           | POST   | Verifica credenziali e postazione, imposta il cookie di sessione (limiti di frequenza per IP e utente).                           | Pubblico                                           |
+| `/api/v1/auth/logout`          | POST   | Libera la postazione e cancella il cookie.                                                                                        | Sessione operatore, anche con password provvisoria |
+| `/api/v1/auth/me`              | GET    | Sessione corrente (ruolo, postazione, obbligo di cambio password).                                                                | Sessione operatore, anche con password provvisoria |
+| `/api/v1/auth/change-password` | POST   | Sostituisce la password (provvisoria o no) e rinnova il cookie.                                                                   | Sessione operatore, anche con password provvisoria |
+| `/api/v1/auth/quick-login`     | POST   | Accesso veloce di sviluppo (DEV_QUICK_LOGIN): sessione di un profilo dev.* senza credenziali; 404 in produzione o se disattivato. | Pubblico                                           |
 
 ### API: coda e pratiche
 

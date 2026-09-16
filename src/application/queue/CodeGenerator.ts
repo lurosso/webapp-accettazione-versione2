@@ -4,6 +4,8 @@
 import type { Brand } from '@/domain/entities/brand';
 import type { IsoDate } from '@/domain/value-objects/iso-date';
 import { formatQueueCode, type QueueCode } from '@/domain/value-objects/queue-code';
+import { RETURN_CODE_PREFIX } from '@/config/constants';
+import type { AppointmentFlow } from '@/domain/entities/appointment';
 import type { IAppointmentRepository } from '@/repositories/interfaces';
 
 /** Ambito del contatore: unico per la sede (default) oppure uno per marchio con il suo prefisso. */
@@ -33,8 +35,13 @@ export class CodeGenerator {
   }
 
   /** Riserva il prossimo numero della giornata e lo formatta (F001…, F1000 oltre 999). */
-  async next(businessDate: IsoDate, brand: Brand): Promise<AssignedCode> {
-    const prefix = this.prefixFor(brand);
+  async next(
+    businessDate: IsoDate,
+    brand: Brand,
+    flow: AppointmentFlow = 'INTAKE',
+  ): Promise<AssignedCode> {
+    // Le riconsegne hanno una numerazione propria (R001…): non consumano i codici della coda.
+    const prefix = flow === 'RETURN' ? RETURN_CODE_PREFIX : this.prefixFor(brand);
     const sequence = await this.appointments.reserveNextSequence(businessDate, prefix);
     return { code: formatQueueCode(prefix, sequence), sequence, prefix };
   }

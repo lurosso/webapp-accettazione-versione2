@@ -25,12 +25,24 @@ export type AppointmentStatus = (typeof APPOINTMENT_STATUSES)[number];
 /** Origine della pratica: agenda Infinity o inserimento manuale (fallback). */
 export type AppointmentSource = 'INFINITY' | 'MANUAL';
 
+/**
+ * Flusso della pratica. INTAKE è l'accettazione in entrata: la coda dell'officina, i monitor, i
+ * promemoria, il portale. RETURN è la riconsegna del veicolo al cliente a fine lavori (le commesse
+ * «in consegna» del planning di Infinity): vive nella scheda Riconsegne, con codici R001…, e non
+ * passa dalla coda né dai promemoria dell'appuntamento.
+ */
+export type AppointmentFlow = 'INTAKE' | 'RETURN';
+
 /** Pratica. Immutabile: ogni modifica crea un nuovo oggetto con `version + 1`. */
 export interface Appointment {
   readonly id: AppointmentId;
   /** Id dell'appuntamento in Infinity; null se `source === 'MANUAL'`. */
   readonly externalRef: string | null;
   readonly source: AppointmentSource;
+  /** Accettazione in entrata o riconsegna del veicolo (vedi `AppointmentFlow`). */
+  readonly flow: AppointmentFlow;
+  /** Ordine di lavoro / commessa in Infinity (es. "LO01 266158/2026"); null finché non è aperto. */
+  readonly workOrderRef: string | null;
   /** Giornata operativa (Europe/Rome). */
   readonly businessDate: IsoDate;
   /** Orario di prenotazione (UTC) come arriva da Infinity: chiave di ordinamento della coda. */

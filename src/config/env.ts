@@ -37,6 +37,13 @@ export type EnvSource = Readonly<Record<string, string | undefined>>;
  */
 export type SeedProfile = 'demo' | 'real';
 
+/**
+ * Visibilità del pulsante «Nuovo cliente (senza appuntamento)» (UI_MANUAL_INTAKE): l'inserimento
+ * avviene a monte in Infinity dal BDC, quindi di norma lo vedono solo responsabili e amministratori
+ * come fallback; `all` lo mostra a tutti, `none` a nessuno. L'API resta in ogni caso.
+ */
+export type ManualIntakeUi = 'none' | 'managers' | 'all';
+
 /** Legge `process.env` se esiste (Node, edge), altrimenti un oggetto vuoto (browser, test isolati). */
 export function readEnvSource(): EnvSource {
   return typeof process !== 'undefined' && process.env !== undefined ? process.env : {};
@@ -109,6 +116,14 @@ export interface AppEnv {
   readonly mockSeed: string;
   /** Profilo dei dati di riferimento (SEED_PROFILE): demo o real. */
   readonly seedProfile: SeedProfile;
+  /** Pulsante dell'inserimento manuale nella dashboard (UI_MANUAL_INTAKE, default managers). */
+  readonly uiManualIntake: ManualIntakeUi;
+  /**
+   * Accesso veloce di sviluppo nella pagina di login (DEV_QUICK_LOGIN): pulsanti per entrare come
+   * amministratore, responsabile o accettatore senza credenziali. Acceso di default fuori dalla
+   * produzione, sempre spento con NODE_ENV=production.
+   */
+  readonly devQuickLogin: boolean;
   /** Hash scrypt della password iniziale dell'amministratore (SEED_ADMIN_PASSWORD_HASH), profilo real. */
   readonly seedAdminPasswordHash: string | null;
   /** Segreto da cui derivano i token dei display (SEED_DISPLAY_TOKEN_SECRET), profilo real. */
@@ -152,6 +167,18 @@ const SEQUENCE_SCOPES: readonly AppEnv['codeSequenceScope'][] = ['SITE', 'BRAND'
 const NODE_ENVS: readonly AppEnv['nodeEnv'][] = ['development', 'test', 'production'];
 const SPOKI_MODES: readonly SpokiMode[] = ['simulation', 'live'];
 const SEED_PROFILES: readonly SeedProfile[] = ['demo', 'real'];
+const MANUAL_INTAKE_UI: readonly ManualIntakeUi[] = ['none', 'managers', 'all'];
+
+/** DEV_QUICK_LOGIN: mai in produzione, qualunque cosa dica la variabile. */
+function pickDevQuickLogin(source: EnvSource, warn: EnvWarning): boolean {
+  const production = source['NODE_ENV']?.trim() === 'production';
+  const richiesto = pickBool(source, 'DEV_QUICK_LOGIN', !production, warn);
+  if (production && richiesto) {
+    warn("DEV_QUICK_LOGIN=true ignorato con NODE_ENV=production: l'accesso veloce resta spento.");
+    return false;
+  }
+  return richiesto;
+}
 
 function defaultWarning(message: string): void {
   console.warn(`[env] ${message}`);
@@ -355,6 +382,8 @@ export function parseEnv(
     codeSequenceScope: pickEnum(source, 'CODE_SEQUENCE_SCOPE', SEQUENCE_SCOPES, 'SITE', warn),
     mockSeed: pickString(source, 'MOCK_SEED', 'autoclub-demo'),
     seedProfile: pickEnum(source, 'SEED_PROFILE', SEED_PROFILES, 'demo', warn),
+    uiManualIntake: pickEnum(source, 'UI_MANUAL_INTAKE', MANUAL_INTAKE_UI, 'managers', warn),
+    devQuickLogin: pickDevQuickLogin(source, warn),
     seedAdminPasswordHash: pickStringOrNull(source, 'SEED_ADMIN_PASSWORD_HASH'),
     seedDisplayTokenSecret: pickStringOrNull(source, 'SEED_DISPLAY_TOKEN_SECRET'),
     mockLatencyMs: pickInt(source, 'MOCK_LATENCY_MS', 150, warn),

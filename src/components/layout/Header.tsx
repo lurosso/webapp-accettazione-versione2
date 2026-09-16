@@ -89,7 +89,8 @@ export function Header({ displayName, role, workstationLabel, deskLabel, timeZon
                 key={item.href}
                 href={item.href}
                 className={cn(
-                  'rounded-md px-2.5 py-1 text-sm transition-colors hover:bg-white/10',
+                  // 44 px di altezza: sul tablet si tocca senza mirare.
+                  'inline-flex min-h-11 items-center rounded-md px-3 text-sm transition-colors hover:bg-white/10',
                   (
                     item.href === '/accettazione'
                       ? pathname === item.href || pathname.startsWith('/accettazione/pratiche')
@@ -117,7 +118,7 @@ export function Header({ displayName, role, workstationLabel, deskLabel, timeZon
           <span className="flex items-center gap-2 rounded-full bg-white/10 py-1 pr-3 pl-1 ring-1 ring-white/25">
             <OperatorChip displayName={displayName} role={role} isCurrent size="md" tone="light" />
           </span>
-          <Button variant="onDark" size="sm" onClick={() => void onLogout()} disabled={leaving}>
+          <Button variant="onDark" size="touch" onClick={() => void onLogout()} disabled={leaving}>
             {leaving ? 'Uscita…' : 'Esci'}
           </Button>
         </div>

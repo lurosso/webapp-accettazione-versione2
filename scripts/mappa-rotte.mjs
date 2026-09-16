@@ -192,6 +192,13 @@ export const ROTTE = [
     descrizione: 'Sostituisce la password (provvisoria o no) e rinnova il cookie.',
     accesso: ACCESSO.sessioneProvvisoria,
   },
+  {
+    path: '/api/v1/auth/quick-login',
+    area: AREE[8],
+    descrizione:
+      'Accesso veloce di sviluppo (DEV_QUICK_LOGIN): sessione di un profilo dev.* senza credenziali; 404 in produzione o se disattivato.',
+    accesso: ACCESSO.pubblico,
+  },
   // API coda e pratiche
   {
     path: '/api/v1/queue',

@@ -19,7 +19,7 @@ describe('resolveInfinityRealConfig', () => {
       bookingDocTypes: ['PR01'],
       planningSource: 'auto',
       sede: null,
-      includeWorkOrders: false,
+      includeWorkOrders: true,
       timeZone: 'Europe/Rome',
       loginTimeoutSec: 10,
       queryTimeoutSec: 60,
@@ -31,11 +31,11 @@ describe('resolveInfinityRealConfig', () => {
       INFINITY_ODBC_DSN: 'Infinity01',
       INFINITY_PLANNING_SOURCE: 'procedure',
       INFINITY_SEDE: '01',
-      INFINITY_INCLUDE_WORK_ORDERS: 'true',
+      INFINITY_INCLUDE_WORK_ORDERS: 'false',
     });
     expect(c.planningSource).toBe('procedure');
     expect(c.sede).toBe('01');
-    expect(c.includeWorkOrders).toBe(true);
+    expect(c.includeWorkOrders).toBe(false);
     expect(() =>
       resolveInfinityRealConfig('Europe/Rome', {
         INFINITY_ODBC_DSN: 'X',

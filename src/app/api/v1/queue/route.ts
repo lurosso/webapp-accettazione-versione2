@@ -1,6 +1,8 @@
-// GET /api/v1/queue?date=YYYY-MM-DD&deskId=&view=desk|global
+// GET /api/v1/queue?date=YYYY-MM-DD&deskId=&view=desk|global|returns
 // Coda della giornata per la dashboard (polling ogni 3 s): righe arricchite, occupazione campate,
 // ultima sync e dati di riferimento. Senza `deskId` usa lo sportello della postazione di sessione.
+// Con `view=returns` le righe sono le riconsegne (flusso RETURN), che non passano dalla coda;
+// `returnsCount` dice quante sono anche nelle altre viste, per il pulsante della scheda.
 import { NextResponse, type NextRequest } from 'next/server';
 import { readApiSession } from '@/app/_server/session';
 import { getContainer } from '@/config/container';
@@ -24,7 +26,10 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
     return badRequestResponse('Parametro `date` non valido: atteso YYYY-MM-DD.');
   }
   const businessDate = dateParam ?? container.clock.today();
-  const view: QueueView = searchParams.get('view') === 'global' ? 'global' : 'desk';
+  const richiesta = searchParams.get('view');
+  const view: QueueView =
+    richiesta === 'global' ? 'global' : richiesta === 'returns' ? 'returns' : 'desk';
+  const flow = view === 'returns' ? 'RETURN' : 'INTAKE';
 
   const [desks, brands, workstations, bays] = await Promise.all([
     container.repos.referenceData.listDesks(),
@@ -37,14 +42,20 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
   const sessionDesk =
     workstations.find((w) => w.id === session.workstationId)?.deskId ?? session.deskIds[0] ?? null;
   const deskId =
-    view === 'global' ? null : requestedDesk !== null ? asDeskId(requestedDesk) : sessionDesk;
+    view !== 'desk' ? null : requestedDesk !== null ? asDeskId(requestedDesk) : sessionDesk;
   if (deskId !== null && !desks.some((d) => d.id === deskId)) {
     return badRequestResponse('Sportello sconosciuto.', { deskId });
   }
 
-  const [rows, lastSync] = await Promise.all([
-    container.queueService.getQueue({ businessDate, deskId, globalView: view === 'global' }),
+  const [rows, lastSync, riconsegne] = await Promise.all([
+    container.queueService.getQueue({
+      businessDate,
+      deskId,
+      globalView: view === 'global',
+      flow,
+    }),
     container.syncService.getLatestRun(businessDate),
+    container.repos.appointments.listByDate(businessDate, { flow: 'RETURN' }),
   ]);
 
   const body: QueueResponse = {
@@ -52,6 +63,8 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
     serverTime: container.clock.nowIso(),
     timeZone: container.env.timeZone,
     view,
+    flow,
+    returnsCount: riconsegne.length,
     deskId,
     rows,
     bays,

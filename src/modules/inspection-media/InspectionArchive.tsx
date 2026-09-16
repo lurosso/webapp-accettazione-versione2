@@ -45,14 +45,25 @@ function Scheda({
             {entry.vehicle} · {entry.customerName}
           </span>
         </div>
-        <div className="flex items-center gap-2 text-sm text-slate-500">
-          <span>{entry.businessDate}</span>
+        <div className="flex flex-wrap items-center gap-2 text-sm text-slate-500">
+          <span>
+            {entry.businessDate} · {localTimeHHmm(new Date(entry.scheduledAt), timeZone)}
+          </span>
+          {entry.flow === 'RETURN' ? <Badge tone="info">Riconsegna</Badge> : null}
           <Badge tone={entry.status === 'COMPLETED' ? 'success' : 'neutral'}>
             {STATO_IT[entry.status] ?? entry.status}
           </Badge>
           {entry.archived ? <Badge tone="neutral">File archiviati</Badge> : null}
         </div>
       </div>
+
+      {/* Dettaglio dell'ingresso: commessa e lavorazioni, così la storia del veicolo si legge da qui. */}
+      <dl className="mt-2 grid gap-x-6 gap-y-1 text-sm sm:grid-cols-[auto_1fr]">
+        <dt className="text-slate-500">Commessa</dt>
+        <dd className="font-mono text-slate-800">{entry.workOrderRef ?? '—'}</dd>
+        <dt className="text-slate-500">Lavorazioni</dt>
+        <dd className="text-slate-800">{entry.serviceDescription ?? '—'}</dd>
+      </dl>
 
       {entry.notes !== null ? (
         <p className="mt-2 rounded-md bg-slate-50 px-3 py-2 text-sm whitespace-pre-wrap text-slate-800">
@@ -111,8 +122,9 @@ export function InspectionArchive({ timeZone, retentionDays }: InspectionArchive
         <div>
           <h1 className="text-2xl font-bold tracking-tight">Archivio ispezioni</h1>
           <p className="text-sm text-slate-600">
-            Check-in fotografici degli ultimi giorni. I file restano {retentionDays} giorni, poi
-            vengono eliminati: la scheda rimane con data, categorie e note.
+            Senza ricerca: i check-in fotografici degli ultimi giorni. Cercando una targa: tutti gli
+            ingressi storici di quel veicolo, dal più recente, con data, stato, commessa e foto se
+            ci sono. I file restano {retentionDays} giorni, poi vengono eliminati: la scheda rimane.
           </p>
         </div>
         <form
@@ -127,11 +139,11 @@ export function InspectionArchive({ timeZone, retentionDays }: InspectionArchive
             placeholder="Targa o codice (es. AB123CD, F012)"
             value={testo}
             onChange={(event) => setTesto(event.target.value)}
-            className="w-64 font-mono uppercase"
+            className="min-h-11 w-64 font-mono uppercase"
           />
           <button
             type="submit"
-            className="bg-brand-secondary hover:bg-brand-blue-dark inline-flex min-h-11 items-center rounded-md px-4 text-sm font-semibold text-white"
+            className="bg-brand-secondary hover:bg-brand-blue-dark inline-flex min-h-11 min-w-11 items-center rounded-md px-4 text-sm font-semibold text-white"
           >
             Cerca
           </button>

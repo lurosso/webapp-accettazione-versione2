@@ -26,6 +26,7 @@ import { formatDateTimeIt } from '@/lib/dates';
 import { AppointmentDetailPanel } from './AppointmentDetailPanel';
 import { NewWalkInDialog } from './NewWalkInDialog';
 import { deskOf, QueueTable } from './QueueTable';
+import { ReturnsTable } from './ReturnsTable';
 import { StatusBadge } from './StatusBadge';
 import { SyncBanner } from './SyncBanner';
 import type { AppointmentAction, QueueParams, QueueView } from './types';
@@ -35,6 +36,11 @@ export interface QueueDashboardProps {
   readonly homeDeskId: string | null;
   readonly initialView: QueueView;
   readonly initialDeskId: string | null;
+  /**
+   * Pulsante «Nuovo cliente (senza appuntamento)». L'inserimento avviene a monte in Infinity dal BDC,
+   * quindi di norma agli accettatori non si mostra (UI_MANUAL_INTAKE); l'API e il dialogo restano.
+   */
+  readonly manualIntakeEnabled: boolean;
 }
 
 /** Data della giornata in formato italiano lungo. */
@@ -53,6 +59,7 @@ export function QueueDashboard({
   homeDeskId,
   initialView,
   initialDeskId,
+  manualIntakeEnabled,
 }: QueueDashboardProps) {
   const router = useRouter();
   const pathname = usePathname();
@@ -60,8 +67,9 @@ export function QueueDashboard({
   const queryClient = useQueryClient();
 
   // Stato della vista letto dall'URL (fonte di verità), con fallback ai valori iniziali del server.
+  const richiesta = searchParams.get('view') ?? initialView;
   const view: QueueView =
-    (searchParams.get('view') ?? initialView) === 'global' ? 'global' : 'desk';
+    richiesta === 'global' ? 'global' : richiesta === 'returns' ? 'returns' : 'desk';
   const deskId = searchParams.get('deskId') ?? initialDeskId ?? homeDeskId;
 
   const params: QueueParams = useMemo(
@@ -184,14 +192,17 @@ export function QueueDashboard({
     <div className="flex flex-col gap-4">
       <div className="flex flex-wrap items-end justify-between gap-3">
         <div>
-          <h1 className="text-2xl font-bold tracking-tight">Coda accettazione</h1>
+          <h1 className="text-2xl font-bold tracking-tight">
+            {view === 'returns' ? 'Riconsegne veicoli' : 'Coda accettazione'}
+          </h1>
           <p className="text-sm text-slate-600">
             {data !== undefined ? formatBusinessDate(data.businessDate) : 'Caricamento…'}
             {data !== undefined ? (
               <>
                 {' · '}
-                {counts.waiting} in coda, {counts.inProgress} in carico, {counts.completed}{' '}
-                completate
+                {view === 'returns'
+                  ? `${counts.waiting} da riconsegnare, ${counts.completed} riconsegnate`
+                  : `${counts.waiting} in coda, ${counts.inProgress} in carico, ${counts.completed} completate`}
               </>
             ) : null}
           </p>
@@ -214,20 +225,38 @@ export function QueueDashboard({
                 ))}
               </Select>
             </label>
-          ) : (
+          ) : view === 'global' ? (
             <Badge tone="info">Vista globale: tutti gli sportelli</Badge>
+          ) : (
+            <Badge tone="info">Riconsegne di oggi: commesse in consegna, fuori dalla coda</Badge>
           )}
-          <Button variant="outline" onClick={() => setNuovoCliente(true)}>
-            Nuovo cliente (senza appuntamento)
-          </Button>
+          {manualIntakeEnabled ? (
+            <Button variant="outline" size="touch" onClick={() => setNuovoCliente(true)}>
+              Nuovo cliente (senza appuntamento)
+            </Button>
+          ) : null}
           <Button
             variant={view === 'global' ? 'default' : 'outline'}
+            size="touch"
             onClick={() =>
               updateUrl({ view: view === 'global' ? 'desk' : 'global', deskId: homeDeskId })
             }
             aria-pressed={view === 'global'}
           >
             {view === 'global' ? 'Torna al mio sportello' : 'Vista globale'}
+          </Button>
+          <Button
+            variant={view === 'returns' ? 'default' : 'outline'}
+            size="touch"
+            onClick={() =>
+              updateUrl({ view: view === 'returns' ? 'desk' : 'returns', deskId: homeDeskId })
+            }
+            aria-pressed={view === 'returns'}
+            data-testid="scheda-riconsegne"
+          >
+            {view === 'returns'
+              ? 'Torna alla coda'
+              : `Riconsegne${data !== undefined ? ` (${data.returnsCount})` : ''}`}
           </Button>
           {isStale ? (
             <Badge tone="warning" title="I dati non vengono aggiornati da più di 15 secondi">
@@ -261,7 +290,7 @@ export function QueueDashboard({
           tone="error"
           title="Impossibile caricare la coda"
           actions={
-            <Button size="sm" variant="outline" onClick={() => void queue.refetch()}>
+            <Button size="touch" variant="outline" onClick={() => void queue.refetch()}>
               Riprova
             </Button>
           }
@@ -287,7 +316,7 @@ export function QueueDashboard({
           tone="info"
           title={messaggioCoda}
           actions={
-            <Button size="sm" variant="outline" onClick={() => setMessaggioCoda(null)}>
+            <Button size="touch" variant="outline" onClick={() => setMessaggioCoda(null)}>
               Chiudi
             </Button>
           }
@@ -302,7 +331,7 @@ export function QueueDashboard({
           tone="error"
           title="Azione non riuscita"
           actions={
-            <Button size="sm" variant="outline" onClick={actions.clearOutcome}>
+            <Button size="touch" variant="outline" onClick={actions.clearOutcome}>
               Chiudi
             </Button>
           }
@@ -311,7 +340,22 @@ export function QueueDashboard({
         </Alert>
       ) : null}
 
-      {data !== undefined ? (
+      {data !== undefined && view === 'returns' ? (
+        data.rows.length === 0 ? (
+          <EmptyState
+            size="page"
+            title="Nessuna riconsegna prevista oggi"
+            description="Le commesse in consegna arrivano dal planning di Infinity con la sincronizzazione."
+          />
+        ) : (
+          <ReturnsTable
+            rows={data.rows}
+            brands={data.brands}
+            timeZone={data.timeZone}
+            serverTime={data.serverTime}
+          />
+        )
+      ) : data !== undefined ? (
         data.rows.length === 0 ? (
           <EmptyState
             size="page"

@@ -111,12 +111,12 @@ export function CrmOutboxTable({ timeZone }: CrmOutboxTableProps) {
       </div>
 
       <div className="mb-3 flex flex-wrap items-center gap-3">
-        <label className="flex items-center gap-2 text-sm text-slate-700">
+        <label className="flex min-h-11 items-center gap-2 text-sm text-slate-700">
           <input
             type="checkbox"
             checked={soloDaRisolvere}
             onChange={(event) => setSoloDaRisolvere(event.target.checked)}
-            className="h-4 w-4 rounded border-slate-300"
+            className="size-6 rounded border-slate-300 accent-[#0065a0]"
           />
           Mostra solo quelli da risolvere
         </label>

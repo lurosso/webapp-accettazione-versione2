@@ -443,6 +443,11 @@ export function postLogin(body: {
   return apiFetch('/api/v1/auth/login', { method: 'POST', json: body });
 }
 
+/** POST /api/v1/auth/quick-login: accesso veloce di sviluppo con un profilo dev.* (404 in produzione). */
+export function postQuickLogin(profile: string): Promise<{ readonly session: Session }> {
+  return apiFetch('/api/v1/auth/quick-login', { method: 'POST', json: { profile } });
+}
+
 /** POST /api/v1/auth/change-password: sostituisce la password e rinnova la sessione. */
 export function postChangePassword(body: {
   readonly currentPassword: string;

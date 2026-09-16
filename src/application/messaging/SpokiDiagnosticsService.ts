@@ -291,8 +291,8 @@ export class SpokiDiagnosticsService {
     }
     const today = this.deps.clock.today();
     const [oggi, domani] = await Promise.all([
-      repo.listByDate(today, { includeCancelled: true }),
-      repo.listByDate(addDays(today, 1), { includeCancelled: true }),
+      repo.listByDate(today, { includeCancelled: true, flow: 'ALL' }),
+      repo.listByDate(addDays(today, 1), { includeCancelled: true, flow: 'ALL' }),
     ]);
     return [...oggi, ...domani].some((a) => a.customer.phone === phone);
   }

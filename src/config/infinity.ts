@@ -136,7 +136,7 @@ export function resolveInfinityRealConfig(
     bookingDocTypes: docTypes,
     planningSource: enumValue(source, 'INFINITY_PLANNING_SOURCE', PLANNING_SOURCES, 'auto'),
     sede,
-    includeWorkOrders: boolValue(source, 'INFINITY_INCLUDE_WORK_ORDERS', false),
+    includeWorkOrders: boolValue(source, 'INFINITY_INCLUDE_WORK_ORDERS', true),
     timeZone,
     loginTimeoutSec: positiveInt(source, 'INFINITY_ODBC_LOGIN_TIMEOUT_SEC', 10),
     queryTimeoutSec: positiveInt(source, 'INFINITY_ODBC_QUERY_TIMEOUT_SEC', 60),

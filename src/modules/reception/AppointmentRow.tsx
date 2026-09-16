@@ -166,10 +166,10 @@ export function AppointmentRow({
           </span>
         ) : null}
       </TableCell>
-      <TableCell className="font-mono">
+      <TableCell className="hidden font-mono lg:table-cell">
         {row.bayCode ?? (a.status === 'IN_PROGRESS' ? 'senza' : '—')}
       </TableCell>
-      <TableCell>
+      <TableCell className="hidden lg:table-cell">
         {row.operatorName === null ? (
           <span className="text-slate-400">—</span>
         ) : (

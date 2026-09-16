@@ -46,6 +46,12 @@ export interface InfinityTempoIncarico {
 export interface InfinityPlanningRecord {
   /** 'Z' prenotazione, 'L' commessa (veicolo in officina con consegna prevista). */
   readonly genereDoc: 'Z' | 'L';
+  /**
+   * ACCETTAZIONE: prenotazione in entrata (anche se già trasformata in commessa). RICONSEGNA: riga
+   * `L` senza prenotazione, cioè una commessa con consegna prevista nella giornata: il veicolo
+   * torna al cliente. Nel planning di Infinity queste righe hanno `tipo = 'R'`.
+   */
+  readonly flusso: 'ACCETTAZIONE' | 'RICONSEGNA';
   readonly idDocumento: number;
   /** Commessa aperta dalla prenotazione, se già esiste. */
   readonly idCommessa: number | null;
@@ -516,6 +522,8 @@ export function toPlanningRecords(input: PlanningRecordsInput): readonly Infinit
       continue;
     }
     const genereDoc: 'Z' | 'L' = text(row['genere_doc'])?.toUpperCase() === 'L' ? 'L' : 'Z';
+    const flusso: InfinityPlanningRecord['flusso'] =
+      idDocumento === null ? 'RICONSEGNA' : 'ACCETTAZIONE';
     const idClienteGenerico = integer(row['id_cliente_generico']);
     const clienteGenerico = idClienteGenerico !== null && idClienteGenerico === idCliente;
     const noteCliente = text(row['note_cliente']);
@@ -549,6 +557,7 @@ export function toPlanningRecords(input: PlanningRecordsInput): readonly Infinit
 
     const record: InfinityPlanningRecord = {
       genereDoc,
+      flusso,
       idDocumento: chiaveDoc,
       idCommessa,
       tipoDoc,
@@ -638,8 +647,32 @@ export function brandCodeFromDescription(descrizione: string | null): string {
   return BRAND_BY_DESCRIPTION[normalizzata] ?? normalizzata.replace(/ /g, '_');
 }
 
+/** Stati della commessa che dicono «veicolo già riconsegnato al cliente» (off_stati_doc 16 e 17). */
+const STATI_CONSEGNATA = new Set([16, 17]);
+
+/** Riferimento dell'ordine di lavoro per la pratica: quello di Infinity, altrimenti la commessa. */
+function workOrderRefOf(r: InfinityPlanningRecord): string | null {
+  if (r.ordineLavoro !== null) {
+    return r.ordineLavoro;
+  }
+  if (r.idCommessa === null) {
+    return null;
+  }
+  return r.flusso === 'RICONSEGNA'
+    ? `${r.tipoDoc} ${r.numDoc}/${r.anno ?? '?'}`
+    : `commessa n. ${r.idCommessa}`;
+}
+
 /** Descrizione della lavorazione per la coda: righe richieste, poi tipi di incarico, poi note. */
 function serviceDescriptionOf(r: InfinityPlanningRecord): string | null {
+  if (r.flusso === 'RICONSEGNA') {
+    // Per la riconsegna conta lo stato della commessa in officina, non le lavorazioni richieste.
+    // Le note delle commesse sono codici interni del gestionale (non testo per il cliente): via.
+    const parti = ['Riconsegna veicolo', r.statoDocDescrizione].filter(
+      (p): p is string => p !== null && p.trim() !== '',
+    );
+    return parti.join(' · ').slice(0, 500);
+  }
   const testo =
     r.lavorazioni.length > 0
       ? r.lavorazioni.join(' · ')
@@ -690,8 +723,10 @@ export function toAppointmentDto(
   fetchedAt: IsoDateTime,
 ): InfinityAppointmentDto {
   const nome = customerNameOf(r);
+  const riconsegna = r.flusso === 'RICONSEGNA';
   return {
-    externalId: `PRE-${r.idDocumento}`,
+    // Le riconsegne sono commesse: id proprio (COM-), così non collidono con le prenotazioni (PRE-).
+    externalId: riconsegna ? `COM-${r.idDocumento}` : `PRE-${r.idDocumento}`,
     scheduledAt: buildLocalDateTime(r.dataPrenotazione, r.oraPrenotazione, timeZone),
     brandCode: brandCodeFromDescription(r.marcaDescrizione),
     plate: r.targa ?? '',
@@ -710,7 +745,14 @@ export function toAppointmentDto(
     deskCode: null,
     cancelled: r.annullata,
     // «Chiusa in ODL»: il veicolo è già stato accettato in Infinity (ordine di lavoro aperto).
-    closedInDms: !r.annullata && r.chiusa,
+    // Per una riconsegna, «chiusa» vuol dire veicolo già consegnato (stato 16/17 o commessa chiusa).
+    closedInDms:
+      !r.annullata &&
+      (riconsegna
+        ? r.chiusa || (r.statoDocId !== null && STATI_CONSEGNATA.has(r.statoDocId))
+        : r.chiusa),
+    flow: riconsegna ? 'RETURN' : 'INTAKE',
+    workOrderRef: workOrderRefOf(r),
     updatedAt: r.dataModifica ?? fetchedAt,
   };
 }

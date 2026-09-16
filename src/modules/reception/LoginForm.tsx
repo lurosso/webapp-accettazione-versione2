@@ -15,7 +15,8 @@ import { Card, CardContent } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select } from '@/components/ui/select';
-import { ApiError, postLogin } from '@/lib/api-client/client';
+import { ApiError, postLogin, postQuickLogin } from '@/lib/api-client/client';
+import type { QuickLoginProfile } from '@/application/auth/DevQuickLoginService';
 
 export interface DemoAccount {
   readonly username: string;
@@ -27,9 +28,16 @@ export interface LoginFormProps {
   readonly options: readonly LoginWorkstationOption[];
   readonly nextPath: string;
   readonly demoAccounts: readonly DemoAccount[];
+  /** Accesso veloce di sviluppo (DEV_QUICK_LOGIN): vuoto in produzione. */
+  readonly quickLoginProfiles?: readonly QuickLoginProfile[];
 }
 
-export function LoginForm({ options, nextPath, demoAccounts }: LoginFormProps) {
+export function LoginForm({
+  options,
+  nextPath,
+  demoAccounts,
+  quickLoginProfiles = [],
+}: LoginFormProps) {
   const router = useRouter();
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
@@ -50,6 +58,22 @@ export function LoginForm({ options, nextPath, demoAccounts }: LoginFormProps) {
     setSubmitting(true);
     try {
       await postLogin({ username, password, workstationId });
+      router.push(nextPath);
+      router.refresh();
+    } catch (cause) {
+      setError(
+        cause instanceof ApiError ? cause.message : 'Impossibile contattare il server. Riprovare.',
+      );
+      setSubmitting(false);
+    }
+  };
+
+  /** Accesso veloce: sessione di un profilo dev.* senza credenziali, poi la home del ruolo. */
+  const accessoVeloce = async (profile: QuickLoginProfile): Promise<void> => {
+    setError(null);
+    setSubmitting(true);
+    try {
+      await postQuickLogin(profile.id);
       router.push(nextPath);
       router.refresh();
     } catch (cause) {
@@ -143,6 +167,35 @@ export function LoginForm({ options, nextPath, demoAccounts }: LoginFormProps) {
             {submitting ? 'Accesso in corso…' : 'Accedi'}
           </Button>
         </form>
+
+        {quickLoginProfiles.length > 0 ? (
+          <section
+            aria-label="Accesso veloce (solo sviluppo)"
+            data-testid="accesso-veloce"
+            className="mt-6 rounded-md border border-dashed border-amber-400 bg-amber-50 p-3 text-xs text-amber-900"
+          >
+            <p className="mb-2 font-semibold">
+              Accesso veloce · solo sviluppo: entra con un profilo senza credenziali (account{' '}
+              <code className="rounded bg-white/70 px-1">dev.*</code>, creati al primo uso).
+            </p>
+            <ul className="flex flex-wrap gap-2">
+              {quickLoginProfiles.map((p) => (
+                <li key={p.id}>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="touch"
+                    disabled={submitting}
+                    title={p.description}
+                    onClick={() => void accessoVeloce(p)}
+                  >
+                    {p.label}
+                  </Button>
+                </li>
+              ))}
+            </ul>
+          </section>
+        ) : null}
 
         {demoAccounts.length > 0 ? (
           <div className="mt-6 rounded-md border border-dashed border-slate-300 p-3 text-xs text-slate-600">

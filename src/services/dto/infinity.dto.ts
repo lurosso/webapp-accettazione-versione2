@@ -33,6 +33,13 @@ export interface InfinityAppointmentDto {
    * accettato direttamente in Infinity). Nasce completata e non riceve promemoria.
    */
   readonly closedInDms: boolean;
+  /**
+   * INTAKE: prenotazione in entrata (la coda). RETURN: riconsegna del veicolo a fine lavori (le
+   * commesse «in consegna» del planning), da tenere fuori dalla coda e dai promemoria.
+   */
+  readonly flow: 'INTAKE' | 'RETURN';
+  /** Ordine di lavoro / commessa in Infinity ("LO01 266158/2026"); null finché non è aperto. */
+  readonly workOrderRef: string | null;
   readonly updatedAt: string;
 }
 
@@ -84,6 +91,8 @@ export function isInfinityAppointmentDto(v: unknown): v is InfinityAppointmentDt
     isStringOrNull(v['deskCode']) &&
     typeof v['cancelled'] === 'boolean' &&
     typeof v['closedInDms'] === 'boolean' &&
+    (v['flow'] === 'INTAKE' || v['flow'] === 'RETURN') &&
+    (v['workOrderRef'] === null || typeof v['workOrderRef'] === 'string') &&
     typeof v['updatedAt'] === 'string'
   );
 }

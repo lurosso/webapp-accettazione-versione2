@@ -131,7 +131,7 @@ export function BdcLeadsTable({ leads, timeZone, pendingId, onContacted }: BdcLe
                 ) : nota === undefined ? (
                   <div className="flex flex-wrap gap-2">
                     <Button
-                      size="sm"
+                      size="touch"
                       variant="success"
                       onClick={() => onContacted(lead, null)}
                       disabled={pendingId === lead.eventId}
@@ -140,7 +140,7 @@ export function BdcLeadsTable({ leads, timeZone, pendingId, onContacted }: BdcLe
                     </Button>
                     <Button
                       variant="ghost"
-                      size="sm"
+                      size="touch"
                       onClick={() => setNoteAperte((p) => ({ ...p, [lead.eventId]: '' }))}
                     >
                       Con esito
@@ -164,7 +164,7 @@ export function BdcLeadsTable({ leads, timeZone, pendingId, onContacted }: BdcLe
                     />
                     <div className="flex gap-2">
                       <Button
-                        size="sm"
+                        size="touch"
                         variant="success"
                         disabled={pendingId === lead.eventId}
                         onClick={() => onContacted(lead, nota.trim() === '' ? null : nota.trim())}
@@ -173,7 +173,7 @@ export function BdcLeadsTable({ leads, timeZone, pendingId, onContacted }: BdcLe
                       </Button>
                       <Button
                         variant="ghost"
-                        size="sm"
+                        size="touch"
                         onClick={() =>
                           setNoteAperte((p) => {
                             const { [lead.eventId]: _rimossa, ...resto } = p;

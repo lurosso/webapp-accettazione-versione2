@@ -29,6 +29,8 @@ function dto(brandCode: string, vehicleModel = 'Tucson 1.6 CRDi'): InfinityAppoi
     deskCode: null,
     cancelled: false,
     closedInDms: false,
+    flow: 'INTAKE',
+    workOrderRef: null,
     updatedAt: '2026-09-16T06:00:00.000Z',
   };
 }

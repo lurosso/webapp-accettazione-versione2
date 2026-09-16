@@ -127,6 +127,8 @@ export class ManualIntakeService {
       id: this.deps.ids.nextAs(asAppointmentId),
       externalRef: null,
       source: 'MANUAL',
+      flow: 'INTAKE',
+      workOrderRef: null,
       businessDate: today,
       // Senza appuntamento l'orario atteso è adesso: si mette in coda dietro a chi era prenotato prima.
       scheduledAt: now,

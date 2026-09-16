@@ -64,6 +64,8 @@ function dto(n: number, overrides: Partial<InfinityAppointmentDto> = {}): Infini
     deskCode: null,
     cancelled: false,
     closedInDms: false,
+    flow: 'INTAKE',
+    workOrderRef: null,
     updatedAt: `${TEST_DATE}T05:00:00.000Z`,
     ...overrides,
   };

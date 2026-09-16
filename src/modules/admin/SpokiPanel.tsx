@@ -236,7 +236,7 @@ export function SpokiPanel({ timeZone }: SpokiPanelProps) {
               </div>
             </div>
             <div className="mt-3 flex flex-wrap items-center gap-3">
-              <Button type="submit" disabled={invio || phone.trim() === ''}>
+              <Button type="submit" size="touch" disabled={invio || phone.trim() === ''}>
                 {invio ? 'Invio…' : bloccato ? 'Simula invio' : 'Invia messaggio di prova'}
               </Button>
               {esito !== null ? (

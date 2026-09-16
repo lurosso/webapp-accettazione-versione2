@@ -140,24 +140,24 @@ export function BdcDashboard({ session, businessDate, timeZone }: BdcDashboardPr
       <div className="flex flex-wrap items-center gap-2">
         <Button
           variant={giornataCorrente ? 'default' : 'outline'}
-          size="sm"
+          size="touch"
           onClick={() => setGiornataCorrente(true)}
         >
           Oggi
         </Button>
         <Button
           variant={giornataCorrente ? 'outline' : 'default'}
-          size="sm"
+          size="touch"
           onClick={() => setGiornataCorrente(false)}
         >
           Tutte le giornate
         </Button>
-        <label className="ml-2 flex items-center gap-2 text-sm text-slate-700">
+        <label className="ml-2 flex min-h-11 items-center gap-2 text-sm text-slate-700">
           <input
             type="checkbox"
             checked={mostraChiusi}
             onChange={(event) => setMostraChiusi(event.target.checked)}
-            className="h-4 w-4 rounded border-slate-300"
+            className="size-6 rounded border-slate-300 accent-[#0065a0]"
           />
           Mostra anche i già ricontattati
         </label>

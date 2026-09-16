@@ -2,6 +2,7 @@
 // dashboard client. Solo tipi: nessuna dipendenza da implementazioni.
 import type { Session } from '@/application/auth/IAuthService';
 import type { BayOccupancyView } from '@/application/queue/QueueService';
+import type { AppointmentFlow } from '@/domain/entities/appointment';
 import type { Brand } from '@/domain/entities/brand';
 import type { Desk } from '@/domain/entities/desk';
 import type { SyncRun } from '@/domain/entities/sync-run';
@@ -10,8 +11,8 @@ import type { DeskId } from '@/domain/ids';
 import type { QueueRowView } from '@/domain/read-models';
 import type { IsoDate, IsoDateTime } from '@/domain/value-objects/iso-date';
 
-/** Vista della dashboard: solo il proprio sportello oppure tutta l'accettazione. */
-export type QueueView = 'desk' | 'global';
+/** Vista della dashboard: il proprio sportello, tutta l'accettazione, oppure le riconsegne. */
+export type QueueView = 'desk' | 'global' | 'returns';
 
 /** Risposta di GET /api/v1/queue. */
 export interface QueueResponse {
@@ -19,7 +20,11 @@ export interface QueueResponse {
   readonly serverTime: IsoDateTime;
   readonly timeZone: string;
   readonly view: QueueView;
-  /** Sportello filtrato (vista sportello) o null (vista globale). */
+  /** Flusso delle righe: INTAKE per la coda, RETURN per la scheda Riconsegne. */
+  readonly flow: AppointmentFlow;
+  /** Riconsegne previste oggi (non annullate), qualunque sia la vista: per il pulsante della scheda. */
+  readonly returnsCount: number;
+  /** Sportello filtrato (vista sportello) o null (vista globale o riconsegne). */
   readonly deskId: DeskId | null;
   readonly rows: readonly QueueRowView[];
   readonly bays: readonly BayOccupancyView[];

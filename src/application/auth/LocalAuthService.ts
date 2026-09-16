@@ -84,6 +84,17 @@ export class LocalAuthService implements IAuthService {
     return ok(issued);
   }
 
+  /**
+   * Emette una sessione per un operatore già verificato dal chiamante (accesso veloce di
+   * sviluppo): nessun controllo di password né di accettazione occupata, solo emissione e
+   * registrazione del posto. Non fa parte della porta `IAuthService`.
+   */
+  async issueSession(operator: Operator, workstation: Workstation): Promise<IssuedSession> {
+    const issued = await this.issue(operator, workstation);
+    await this.claim(issued.session);
+    return issued;
+  }
+
   async verify(token: string): Promise<Result<Session, DomainError>> {
     const parsed = await verifySessionToken(token, this.deps.secret, this.deps.clock.now());
     if (!parsed.ok) {

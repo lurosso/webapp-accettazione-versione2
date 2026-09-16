@@ -182,8 +182,10 @@ export class SyncService {
     const counters: MutableCounters = { ...EMPTY_SYNC_COUNTERS };
     const created: Appointment[] = [];
     let chiuseDaDms = 0;
+    // Entrambi i flussi: anche le riconsegne vanno riconciliate (altrimenti rinascerebbero a ogni sync).
     const existing = await this.deps.appointments.listByDate(businessDate, {
       includeCancelled: true,
+      flow: 'ALL',
     });
     const byExternalRef = new Map(
       existing.flatMap((a) => (a.externalRef === null ? [] : [[a.externalRef, a] as const])),
@@ -247,6 +249,7 @@ export class SyncService {
             customer: { ...draft.customer, id: current.customer.id },
             vehicle: { ...draft.vehicle, id: current.vehicle.id },
             serviceDescription: draft.serviceDescription,
+            workOrderRef: draft.workOrderRef,
             lastSyncRunId: run.id,
           },
           current.version,
@@ -284,12 +287,18 @@ export class SyncService {
   }
 
   private async create(draft: AppointmentDraft, run: SyncRun): Promise<Appointment | null> {
-    const assigned = await this.deps.codeGenerator.next(draft.businessDate, draft.brand);
+    const assigned = await this.deps.codeGenerator.next(
+      draft.businessDate,
+      draft.brand,
+      draft.flow,
+    );
     const now = this.deps.clock.nowIso();
     const appointment: Appointment = {
       id: this.deps.ids.nextAs(asAppointmentId),
       externalRef: draft.externalRef,
       source: 'INFINITY',
+      flow: draft.flow,
+      workOrderRef: draft.workOrderRef,
       businessDate: draft.businessDate,
       scheduledAt: draft.scheduledAt,
       rescheduledAt: null,
@@ -413,6 +422,7 @@ export class SyncService {
       current.vehicle.plate !== draft.vehicle.plate ||
       current.vehicle.model !== draft.vehicle.model ||
       current.serviceDescription !== draft.serviceDescription ||
+      current.workOrderRef !== draft.workOrderRef ||
       (draft.deskId !== null && current.deskId !== draft.deskId)
     );
   }

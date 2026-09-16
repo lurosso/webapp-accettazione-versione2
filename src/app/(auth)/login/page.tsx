@@ -70,6 +70,10 @@ export default async function LoginPage({ searchParams }: LoginPageProps) {
           .filter((o) => isDemoPasswordHash(o.passwordHash))
           .map((o) => ({ username: o.username, role: o.role, displayName: o.displayName }));
 
+  // Accesso veloce (solo sviluppo): profili pronti, senza credenziali, per il debug.
+  const quickLoginProfiles =
+    container.devQuickLogin === null ? [] : await container.devQuickLogin.profiles();
+
   return (
     <main className="mx-auto flex min-h-screen w-full max-w-md flex-col justify-center gap-6 px-6 py-12">
       <header className="flex flex-col items-center gap-2 text-center">
@@ -79,7 +83,12 @@ export default async function LoginPage({ searchParams }: LoginPageProps) {
           Accedi con le tue credenziali e scegli l&apos;accettazione.
         </p>
       </header>
-      <LoginForm options={options} nextPath={nextPath} demoAccounts={demoAccounts} />
+      <LoginForm
+        options={options}
+        nextPath={nextPath}
+        demoAccounts={demoAccounts}
+        quickLoginProfiles={quickLoginProfiles}
+      />
     </main>
   );
 }

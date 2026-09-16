@@ -12,7 +12,11 @@
 import { PHOTO_CATEGORY_LABELS } from '@/domain/entities/media-asset';
 import type { MediaAsset } from '@/domain/entities/media-asset';
 import { customerFullName } from '@/domain/entities/customer';
-import type { AppointmentStatus } from '@/domain/entities/appointment';
+import type {
+  Appointment,
+  AppointmentFlow,
+  AppointmentStatus,
+} from '@/domain/entities/appointment';
 import type { IsoDateTime } from '@/domain/value-objects/iso-date';
 import { normalizePlate } from '@/domain/value-objects/plate';
 import type {
@@ -53,14 +57,22 @@ export interface InspectionArchiveEntry {
   readonly appointmentId: string;
   readonly code: string;
   readonly businessDate: string;
+  /** Orario atteso dell'ingresso (o della riconsegna). */
+  readonly scheduledAt: IsoDateTime;
   readonly plate: string;
   readonly vehicle: string;
   readonly customerName: string;
   readonly status: AppointmentStatus;
+  /** Accettazione in entrata o riconsegna del veicolo. */
+  readonly flow: AppointmentFlow;
   readonly completedAt: IsoDateTime | null;
+  /** Lavorazioni richieste (o stato della commessa per una riconsegna). */
+  readonly serviceDescription: string | null;
+  /** Ordine di lavoro / commessa in Infinity, se aperto. */
+  readonly workOrderRef: string | null;
   readonly notes: string | null;
   readonly photos: readonly ArchivedPhotoView[];
-  /** True quando tutti i file sono stati eliminati: restano i metadati. */
+  /** True quando c'erano foto e tutti i file sono stati eliminati: restano i metadati. */
   readonly archived: boolean;
 }
 
@@ -83,8 +95,11 @@ export class InspectionArchiveService {
   }
 
   /**
-   * Check-in fotografici, dal più recente. `query` vuota = gli ultimi; altrimenti si cerca per
-   * targa (normalizzata: spazi e minuscole non contano) o per codice pratica (anche parziale).
+   * Senza ricerca: gli ultimi check-in fotografici, dal più recente. Con una ricerca per targa
+   * (normalizzata: spazi e minuscole non contano) o per codice pratica: la STORIA del veicolo, cioè
+   * ogni ingresso in officina su tutte le giornate e i flussi, uno per riga dal più recente, con o
+   * senza foto. Prima si vedeva solo chi aveva foto, e una targa entrata più volte sembrava una sola
+   * pratica: il ritiro contestato di un veicolo abituale ha bisogno di tutta la sua storia.
    */
   async search(query: string, limit = 50): Promise<readonly InspectionArchiveEntry[]> {
     const tutte = await this.deps.media.listAll();
@@ -94,36 +109,48 @@ export class InspectionArchiveService {
       gruppo.push(asset);
       perPratica.set(asset.appointmentId, gruppo);
     }
-
     const brands = await this.deps.referenceData.listBrands();
-    const chiave = normalizePlate(query);
-    const codice = query.trim().toUpperCase();
-    const voci: InspectionArchiveEntry[] = [];
-    for (const [appointmentId, foto] of perPratica) {
-      const a = await this.deps.appointments.findById(appointmentId as MediaAsset['appointmentId']);
-      if (a === null) {
-        continue;
+    const testo = query.trim();
+
+    const pratiche: Appointment[] = [];
+    if (testo === '') {
+      for (const appointmentId of perPratica.keys()) {
+        const a = await this.deps.appointments.findById(
+          appointmentId as MediaAsset['appointmentId'],
+        );
+        if (a !== null) {
+          pratiche.push(a);
+        }
       }
-      const corrisponde =
-        query.trim() === '' ||
-        (chiave !== '' && normalizePlate(a.vehicle.plate).includes(chiave)) ||
-        a.code.toUpperCase().includes(codice);
-      if (!corrisponde) {
-        continue;
-      }
-      const ordinate = [...foto].sort((x, y) => x.capturedAt.localeCompare(y.capturedAt));
-      voci.push({
-        appointmentId,
+    } else {
+      pratiche.push(
+        ...(await this.deps.appointments.searchHistory(
+          { plate: normalizePlate(testo), code: testo.toUpperCase() },
+          limit,
+        )),
+      );
+    }
+
+    const voci = pratiche.map((a): InspectionArchiveEntry => {
+      const foto = [...(perPratica.get(a.id) ?? [])].sort((x, y) =>
+        x.capturedAt.localeCompare(y.capturedAt),
+      );
+      return {
+        appointmentId: a.id,
         code: a.code,
         businessDate: a.businessDate,
+        scheduledAt: a.scheduledAt,
         plate: a.vehicle.plate,
         vehicle:
           `${brands.find((b) => b.id === a.vehicle.brandId)?.name ?? ''} ${a.vehicle.model}`.trim(),
         customerName: customerFullName(a.customer),
         status: a.status,
+        flow: a.flow,
         completedAt: a.completedAt,
+        serviceDescription: a.serviceDescription,
+        workOrderRef: a.workOrderRef,
         notes: a.notes,
-        photos: ordinate.map((asset) => ({
+        photos: foto.map((asset) => ({
           id: asset.id,
           category: asset.category,
           categoryLabel:
@@ -134,16 +161,18 @@ export class InspectionArchiveService {
           expiresAt: asset.expiresAt,
           archivedAt: asset.archivedAt,
         })),
-        archived: ordinate.every((asset) => asset.archivedAt !== null),
-      });
-    }
+        archived: foto.length > 0 && foto.every((asset) => asset.archivedAt !== null),
+      };
+    });
 
+    // Cronologico inverso: giornata, poi orario, poi codice.
     return voci
-      .sort((x, y) => {
-        const ax = x.photos.at(-1)?.capturedAt ?? '';
-        const ay = y.photos.at(-1)?.capturedAt ?? '';
-        return ay.localeCompare(ax);
-      })
+      .sort(
+        (x, y) =>
+          y.businessDate.localeCompare(x.businessDate) ||
+          y.scheduledAt.localeCompare(x.scheduledAt) ||
+          y.code.localeCompare(x.code),
+      )
       .slice(0, limit);
   }
 

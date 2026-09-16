@@ -309,7 +309,7 @@ export function OperatorsPanel({ currentOperatorId }: OperatorsPanelProps) {
                 return (
                   <label
                     key={d.id}
-                    className={`flex cursor-pointer items-center gap-2 rounded-md border px-3 py-2 text-sm ${
+                    className={`flex min-h-11 cursor-pointer items-center gap-2 rounded-md border px-3 py-2 text-sm ${
                       scelto ? 'border-brand-secondary bg-slate-50' : 'border-slate-300'
                     }`}
                   >

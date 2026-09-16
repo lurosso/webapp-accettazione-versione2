@@ -197,8 +197,9 @@ export function QueueTable({
                       <TableHead className="pt-3">Cliente</TableHead>
                       {showDesk ? <TableHead className="pt-3">Sportello</TableHead> : null}
                       <TableHead className="pt-3">Stato</TableHead>
-                      <TableHead className="pt-3">Accettazione</TableHead>
-                      <TableHead className="pt-3">Operatore</TableHead>
+                      {/* Sul tablet in verticale campata e operatore si leggono nel dettaglio: qui farebbero solo scorrere. */}
+                      <TableHead className="hidden pt-3 lg:table-cell">Accettazione</TableHead>
+                      <TableHead className="hidden pt-3 lg:table-cell">Operatore</TableHead>
                       <TableHead className="pt-3">Azioni</TableHead>
                     </TableRow>
                   </TableHeader>

@@ -8,7 +8,7 @@ import type { AppointmentId } from '@/domain/ids';
 import type { Result } from '@/domain/result';
 import { err, ok } from '@/domain/result';
 import type { IsoDate } from '@/domain/value-objects/iso-date';
-import type { PlateNumber } from '@/domain/value-objects/plate';
+import { normalizePlate, type PlateNumber } from '@/domain/value-objects/plate';
 import type { QueueCode } from '@/domain/value-objects/queue-code';
 import { compareByScheduleThenSequence } from '@/domain/value-objects/queue-code';
 import type { IClock } from '@/services/interfaces/IClock';
@@ -60,11 +60,40 @@ export class InMemoryAppointmentRepository implements IAppointmentRepository {
   async findByPlate(plate: PlateNumber, businessDate: IsoDate): Promise<readonly Appointment[]> {
     const out: Appointment[] = [];
     for (const a of this.map.values()) {
-      if (a.vehicle.plate === plate && a.businessDate === businessDate) {
+      // Solo le accettazioni in entrata: il cliente che cerca la targa vuole la sua pratica in coda,
+      // non la riconsegna del veicolo a fine lavori.
+      if (a.vehicle.plate === plate && a.businessDate === businessDate && a.flow === 'INTAKE') {
         out.push(clone(a));
       }
     }
     return out.sort(compareByScheduleThenSequence);
+  }
+
+  async searchHistory(
+    query: { readonly plate?: string; readonly code?: string },
+    limit: number,
+  ): Promise<readonly Appointment[]> {
+    const targa = query.plate === undefined ? '' : normalizePlate(query.plate);
+    const codice = query.code?.trim().toUpperCase() ?? '';
+    if (targa === '' && codice === '') {
+      return [];
+    }
+    const out: Appointment[] = [];
+    for (const a of this.map.values()) {
+      const perTarga = targa !== '' && normalizePlate(a.vehicle.plate).includes(targa);
+      const perCodice = codice !== '' && a.code.toUpperCase().includes(codice);
+      if (perTarga || perCodice) {
+        out.push(clone(a));
+      }
+    }
+    return out
+      .sort(
+        (x, y) =>
+          y.businessDate.localeCompare(x.businessDate) ||
+          y.scheduledAt.localeCompare(x.scheduledAt) ||
+          y.sequence - x.sequence,
+      )
+      .slice(0, Math.max(0, limit));
   }
 
   async listByDate(
@@ -74,9 +103,13 @@ export class InMemoryAppointmentRepository implements IAppointmentRepository {
     // `statuses` è autoritativo: chi chiede esplicitamente CANCELLED le ottiene anche senza includeCancelled.
     const includeCancelled =
       filter?.includeCancelled ?? filter?.statuses?.includes('CANCELLED') ?? false;
+    const flow = filter?.flow ?? 'INTAKE';
     const out: Appointment[] = [];
     for (const a of this.map.values()) {
       if (a.businessDate !== businessDate) {
+        continue;
+      }
+      if (flow !== 'ALL' && a.flow !== flow) {
         continue;
       }
       if (a.status === 'CANCELLED' && !includeCancelled) {

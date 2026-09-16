@@ -1,6 +1,7 @@
 // Composition root: UNICO punto che collega porte (interfacce) e implementazioni concrete
 // (oggi Mock e in-memory, domani adapter reali e Prisma) e costruisce i casi d'uso.
 // Memoizzato su globalThis: sopravvive all'HMR di Next e viene condiviso da tutte le richieste.
+import { DevQuickLoginService } from '@/application/auth/DevQuickLoginService';
 import { LocalAuthService } from '@/application/auth/LocalAuthService';
 import type { IAuthService } from '@/application/auth/IAuthService';
 import { BdcLeadService } from '@/application/crm/BdcLeadService';
@@ -55,6 +56,8 @@ export interface Container {
   readonly notificationOrchestrator: NotificationOrchestrator;
   readonly spokiDiagnosticsService: SpokiDiagnosticsService;
   readonly authService: IAuthService;
+  /** Accesso veloce di sviluppo (DEV_QUICK_LOGIN); null in produzione o se disattivato. */
+  readonly devQuickLogin: DevQuickLoginService | null;
   readonly codeGenerator: CodeGenerator;
   readonly queueService: QueueService;
   readonly manualIntakeService: ManualIntakeService;
@@ -236,6 +239,22 @@ export function createContainer(overrides: ContainerOverrides = {}): Container {
     secret: sessionSecret,
     ttlHours: SESSION_TTL_HOURS,
   });
+  const devQuickLogin =
+    env.devQuickLogin && env.nodeEnv !== 'production'
+      ? new DevQuickLoginService({
+          operators: repos.operators,
+          referenceData: repos.referenceData,
+          claims: repos.workstationClaims,
+          auth: authService,
+          clock,
+          logger,
+        })
+      : null;
+  if (devQuickLogin !== null) {
+    logger.info(
+      '[Auth] accesso veloce di sviluppo attivo (DEV_QUICK_LOGIN): pulsanti senza credenziali nella pagina di login, account dev.*',
+    );
+  }
 
   const codeGenerator = new CodeGenerator(repos.appointments, {
     sitePrefix: env.codePrefix,
@@ -404,6 +423,7 @@ export function createContainer(overrides: ContainerOverrides = {}): Container {
     repos,
     notificationOrchestrator,
     authService,
+    devQuickLogin,
     codeGenerator,
     queueService,
     manualIntakeService,

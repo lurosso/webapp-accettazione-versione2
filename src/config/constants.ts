@@ -28,6 +28,9 @@ export const DEFAULT_REMINDER_SAME_DAY_HOUR = '07:30';
 /** Prefisso del codice progressivo F001 (default di `CODE_PREFIX`). */
 export const DEFAULT_CODE_PREFIX = 'F';
 
+/** Prefisso dei codici delle riconsegne (R001…): sequenza separata da quella della coda. */
+export const RETURN_CODE_PREFIX = 'R';
+
 /**
  * Cartella dei file caricati quando lo storage media è `local` (env MEDIA_STORAGE_DIR).
  * Sta sotto `.data/` come lo snapshot della giornata: è stato locale dell'officina, non codice,

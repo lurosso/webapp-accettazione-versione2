@@ -4,6 +4,7 @@ import type { Metadata } from 'next';
 import { Suspense } from 'react';
 import { requireSession } from '@/app/_server/session';
 import { getContainer } from '@/config/container';
+import { canAccess } from '@/lib/navigation';
 import { QueueDashboard } from '@/modules/reception/QueueDashboard';
 import type { QueueView } from '@/modules/reception/types';
 
@@ -26,8 +27,14 @@ export default async function AccettazionePage({ searchParams }: PageProps) {
     session.workstationId,
   );
   const homeDeskId = workstation?.deskId ?? session.deskIds[0] ?? null;
-  const initialView: QueueView = single(params['view']) === 'global' ? 'global' : 'desk';
+  const richiesta = single(params['view']);
+  const initialView: QueueView =
+    richiesta === 'global' ? 'global' : richiesta === 'returns' ? 'returns' : 'desk';
   const initialDeskId = single(params['deskId']) ?? homeDeskId;
+  // L'inserimento manuale nasce a monte in Infinity (BDC): il pulsante si mostra secondo UI_MANUAL_INTAKE.
+  const manualIntakeEnabled =
+    container.env.uiManualIntake === 'all' ||
+    (container.env.uiManualIntake === 'managers' && canAccess('manager', session.role));
 
   return (
     <Suspense fallback={<p className="text-sm text-slate-500">Caricamento della coda…</p>}>
@@ -36,6 +43,7 @@ export default async function AccettazionePage({ searchParams }: PageProps) {
         homeDeskId={homeDeskId}
         initialView={initialView}
         initialDeskId={initialDeskId}
+        manualIntakeEnabled={manualIntakeEnabled}
       />
     </Suspense>
   );

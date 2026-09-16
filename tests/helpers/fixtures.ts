@@ -162,6 +162,8 @@ export function makeAppointment(overrides: Partial<Appointment> = {}): Appointme
     id,
     externalRef: `INF-${counter}`,
     source: 'INFINITY',
+    flow: 'INTAKE',
+    workOrderRef: null,
     businessDate: TEST_DATE,
     scheduledAt: `2026-09-10T0${6 + (counter % 3)}:00:00.000Z` as IsoDateTime,
     rescheduledAt: null,

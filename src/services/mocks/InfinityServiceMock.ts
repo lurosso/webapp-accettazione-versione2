@@ -268,6 +268,8 @@ export class InfinityServiceMock implements IInfinityService {
           deskCode: desk?.code ?? null,
           cancelled: false,
           closedInDms: false,
+          flow: 'INTAKE',
+          workOrderRef: null,
           updatedAt,
         };
         out.push({ dto, cancelOnSecondCall: rng.chance(0.05) });

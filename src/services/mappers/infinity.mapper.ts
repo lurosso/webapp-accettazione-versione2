@@ -2,6 +2,7 @@
 // gli errori di mapping emergono ora, non in M7. Non assegna il codice progressivo
 // (compete al CodeGenerator/QueueService in M1).
 
+import type { AppointmentFlow } from '@/domain/entities/appointment';
 import { FALLBACK_BRAND_CODE, type Brand } from '@/domain/entities/brand';
 import type { Customer } from '@/domain/entities/customer';
 import type { Desk } from '@/domain/entities/desk';
@@ -34,6 +35,10 @@ export interface AppointmentDraft {
   readonly cancelled: boolean;
   /** Già chiusa in ordine di lavoro nel DMS: nasce completata e non riceve promemoria. */
   readonly completedInDms: boolean;
+  /** Accettazione in entrata o riconsegna del veicolo. */
+  readonly flow: AppointmentFlow;
+  /** Ordine di lavoro / commessa in Infinity, se aperto. */
+  readonly workOrderRef: string | null;
 }
 
 /** Contesto del mapping: dati di riferimento e generatore id. */
@@ -157,6 +162,8 @@ export function mapInfinityAppointment(
     serviceDescription: dto.serviceDescription,
     cancelled: dto.cancelled,
     completedInDms: dto.closedInDms,
+    flow: dto.flow,
+    workOrderRef: dto.workOrderRef,
   });
 }
 

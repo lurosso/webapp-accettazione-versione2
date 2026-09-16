@@ -8,6 +8,7 @@ import {
   type Appointment,
   type AppointmentStatus,
 } from '@/domain/entities/appointment';
+import type { AppointmentFlow } from '@/domain/entities/appointment';
 import type { Bay } from '@/domain/entities/bay';
 import type { Desk } from '@/domain/entities/desk';
 import { RELEASING_DISPLAY_MS } from '@/config/constants';
@@ -71,6 +72,8 @@ export interface QueueQuery {
   readonly businessDate: IsoDate;
   readonly deskId: DeskId | null;
   readonly globalView: boolean;
+  /** INTAKE (default): la coda. RETURN: la scheda Riconsegne, che non è divisa per sportello. */
+  readonly flow?: AppointmentFlow;
 }
 
 /** Chi esegue l'azione (dalla sessione) e con quale correlazione. */
@@ -119,11 +122,13 @@ export class QueueService {
    * (Infinity non sempre indica il deskCode).
    */
   async getQueue(query: QueueQuery): Promise<readonly QueueRowView[]> {
+    const flow = query.flow ?? 'INTAKE';
     const all = await this.deps.appointments.listByDate(query.businessDate, {
       includeCancelled: true,
+      flow,
     });
     const desk =
-      query.globalView || query.deskId === null
+      flow === 'RETURN' || query.globalView || query.deskId === null
         ? null
         : await this.deps.referenceData.findDeskById(query.deskId);
     const visible = desk === null ? all : all.filter((a) => this.belongsToDesk(a, desk));

@@ -1,6 +1,10 @@
 // Persistenza delle pratiche: interfaccia identica per in-memory (oggi) e Prisma (domani).
 
-import type { Appointment, AppointmentStatus } from '@/domain/entities/appointment';
+import type {
+  Appointment,
+  AppointmentFlow,
+  AppointmentStatus,
+} from '@/domain/entities/appointment';
 import type { DomainError } from '@/domain/errors';
 import type { AppointmentId, BrandId, DeskId } from '@/domain/ids';
 import type { Result } from '@/domain/result';
@@ -15,6 +19,18 @@ export interface AppointmentFilter {
   readonly statuses?: readonly AppointmentStatus[];
   /** Le CANCELLED sono escluse per default (salvo `statuses` che le include). */
   readonly includeCancelled?: boolean;
+  /**
+   * Flusso: per default SOLO le accettazioni in entrata (INTAKE), così coda, monitor, promemoria,
+   * portale e chiusura giornata non vedono mai le riconsegne; 'RETURN' per la scheda Riconsegne,
+   * 'ALL' per la sync, che riconcilia entrambi i flussi.
+   */
+  readonly flow?: AppointmentFlow | 'ALL';
+}
+
+/** Ricerca nello storico: per targa (normalizzata, anche parziale) e/o per codice pratica. */
+export interface AppointmentHistoryQuery {
+  readonly plate?: string;
+  readonly code?: string;
 }
 
 /** Riepilogo di una reconciliation (usato dal SyncService in M1). */
@@ -31,7 +47,13 @@ export interface IAppointmentRepository {
   findById(id: AppointmentId): Promise<Appointment | null>;
   findByExternalRef(externalRef: string, businessDate: IsoDate): Promise<Appointment | null>;
   findByCode(code: QueueCode, businessDate: IsoDate): Promise<Appointment | null>;
+  /** Pratiche in entrata (INTAKE) della targa nella giornata: è la ricerca del portale cliente. */
   findByPlate(plate: PlateNumber, businessDate: IsoDate): Promise<readonly Appointment[]>;
+  /**
+   * Storico su tutte le giornate e i flussi, dalla più recente: la storia di un veicolo (o una
+   * pratica per codice) per l'archivio. Con targa e codice vuoti non restituisce nulla.
+   */
+  searchHistory(query: AppointmentHistoryQuery, limit: number): Promise<readonly Appointment[]>;
   /**
    * Pratiche della giornata ordinate per (scheduledAt, sequence). Le CANCELLED sono escluse
    * salvo `includeCancelled` oppure `statuses` che le richiede esplicitamente (`statuses` è autoritativo).
