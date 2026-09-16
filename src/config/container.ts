@@ -106,7 +106,8 @@ function assertNoDemoCredentialsOutsideMock(env: AppEnv, seed: SeedData, logger:
   if (anyReal && hasDemoCredentials(seed)) {
     const message =
       'Configurazione rifiutata: il seed contiene credenziali demo (password "plain:" o token display prevedibili) ' +
-      'ma NODE_ENV=production oppure un provider è impostato su "real"/"prisma". Sostituire il seed (M1) o tornare a mock.';
+      'ma NODE_ENV=production oppure un provider è impostato su "real"/"prisma". Impostare SEED_PROFILE=real con ' +
+      'SEED_ADMIN_PASSWORD_HASH e SEED_DISPLAY_TOKEN_SECRET (npm run seed:credenziali) oppure tornare a mock.';
     logger.error(`[Container] ${message}`);
     throw new ConfigurationError(message);
   }
@@ -120,7 +121,7 @@ export function createContainer(overrides: ContainerOverrides = {}): Container {
     overrides.logger ?? new ConsoleLogger('', env.nodeEnv === 'production' ? 'info' : 'debug');
   const eventBus = new InProcessEventBus();
   const store = overrides.store ?? InMemoryStore.getGlobal();
-  const seed = buildSeedData();
+  const seed = buildSeedData(env);
 
   assertNoDemoCredentialsOutsideMock(env, seed, logger);
   const sessionSecret = overrides.sessionSecret ?? resolveSessionSecret(env);

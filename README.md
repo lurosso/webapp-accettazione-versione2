@@ -28,11 +28,11 @@ Ogni mattina alle 06:00 il sistema acquisisce l'agenda degli appuntamenti dal DM
 assegna a ogni pratica un codice progressivo univoco (`F001`, `F002`, …) in ordine di prenotazione e
 la mette in coda. Gli accettatori lavorano su una dashboard monopagina con tre azioni rapide:
 
-| Azione                | Stato risultante            | Effetto                                              |
-| --------------------- | --------------------------- | ---------------------------------------------------- |
-| **Prendi in carico**  | In carico (evidenza gialla) | Assegna l'operatore e una postazione di accettazione libera |
-| **Salta**             | Saltata                     | Pospone la pratica lasciandola al proprio orario     |
-| **Completato**        | Completata (evidenza verde) | Libera l'accettazione; la pratica esce dalla vista attiva |
+| Azione               | Stato risultante            | Effetto                                                     |
+| -------------------- | --------------------------- | ----------------------------------------------------------- |
+| **Prendi in carico** | In carico (evidenza gialla) | Assegna l'operatore e una postazione di accettazione libera |
+| **Salta**            | Saltata                     | Pospone la pratica lasciandola al proprio orario            |
+| **Completato**       | Completata (evidenza verde) | Libera l'accettazione; la pratica esce dalla vista attiva   |
 
 Chi era atteso da più di dieci minuti e non è ancora stato preso in carico finisce nel blocco
 **In ritardo / assenti**, dove l'accettatore lo rimette in coda quando arriva, oppure lo segnala
@@ -130,13 +130,19 @@ Password unica per tutti: `demo`. Gli account sono definiti nel seed (`src/confi
 container **rifiuta di avviarsi** con queste credenziali se un provider è impostato su `real` o se
 `NODE_ENV=production`.
 
-| Utente          | Ruolo          | Sportello abituale                   |
-| --------------- | -------------- | ------------------------------------ |
-| `admin`         | Amministratore | tutti                                |
-| `responsabile`  | Responsabile   | tutti                                |
-| `mario.rossi`   | Accettatore    | S1 · Stellantis Italia (Fiat, Lancia)|
-| `laura.bianchi` | Accettatore    | S2 · Jeep / Alfa Romeo               |
-| `andrea.conti`  | Accettatore    | S3 · Peugeot / Citroën / Opel        |
+Per lavorare sui dati veri si passa al profilo `real` (`SEED_PROFILE=real` in `.env.local`, con
+`SEED_ADMIN_PASSWORD_HASH`, `SEED_DISPLAY_TOKEN_SECRET` e `SESSION_SECRET` generati da
+`npm run seed:credenziali`): due sportelli con i marchi del planning di Bari più «Altri marchi», un
+solo account `admin` con password provvisoria da cambiare al primo accesso, accettatori creati da
+`/admin`.
+
+| Utente          | Ruolo          | Sportello abituale                    |
+| --------------- | -------------- | ------------------------------------- |
+| `admin`         | Amministratore | tutti                                 |
+| `responsabile`  | Responsabile   | tutti                                 |
+| `mario.rossi`   | Accettatore    | S1 · Stellantis Italia (Fiat, Lancia) |
+| `laura.bianchi` | Accettatore    | S2 · Jeep / Alfa Romeo                |
+| `andrea.conti`  | Accettatore    | S3 · Peugeot / Citroën / Opel         |
 
 Gli account si gestiscono da `/admin` (vedi sotto): l'amministratore ne crea di nuovi, li modifica,
 li disattiva e azzera le password senza toccare il seed. Esiste anche il ruolo **Kiosk** per gli
@@ -152,19 +158,19 @@ anche il server, quindi due login sullo stesso posto non passano nemmeno chiaman
 
 ## Le dashboard
 
-| Percorso              | Destinatario   | Stato          | Contenuto                                                                                 |
-| --------------------- | -------------- | -------------- | ----------------------------------------------------------------------------------------- |
-| `/login`              | Accettatore    | disponibile    | Credenziali, scelta sportello/brand e postazione                                          |
-| `/accettazione`       | Accettatore    | disponibile    | Coda ordinata per orario con codici F001…, azioni rapide, blocco **In ritardo / assenti**, banner sync, **vista globale** per prendere in carico pratiche di altri sportelli, aggiornamento ogni 3 s; il clic su una riga apre i dati del cliente; **Nuovo cliente (senza appuntamento)** mette in coda un walk-in con targa, nome, telefono, marca e lavorazione; dal dettaglio di una pratica completata si può **riaprirla**; le righe con l'orario superato da meno di dieci minuti sono **gialle** e un cliente segnato assente che si presenta si **riattiva** ("Arrivato in ritardo": torna in coda dopo i presenti, con lo stesso codice) |
-| `/sistema`            | Responsabile / IT | disponibile | Stato delle porte esterne (Infinity, Spoki, SMS Hosting, CRM) e, per gli amministratori, la coda di uscita verso il CRM con "Forza riprova" |
-| `/cliente` (`/qr`)    | Cliente (QR)   | disponibile    | Ricerca per targa e stato del turno in tempo reale: codice, clienti in attesa, messaggio per stato; nessuna autenticazione e nessun dato personale |
-| `/display/sala-attesa` | Sala d'attesa | disponibile    | Tabellone stile ufficio pubblico: codici chiamati con l'accettazione a cui presentarsi e prossimi turni |
-| `/manager`            | BDC / Responsabile | disponibile | Cruscotto del back office: clienti segnati assenti da ricontattare, con telefono richiamabile e chiusura del lead con esito; da qui si esegue anche la chiusura di giornata |
-| `/comunicazioni`      | Responsabile   | pianificato    | Registro degli invii WhatsApp e SMS con conferma manuale (l'invio automatico funziona già) |
-| `/display/1` … `/4`   | Monitor        | disponibile    | Schermo a tutto campo per i monitor sopra le postazioni: codice e targa in servizio, oppure invito verde ad avanzare; si aggiorna ogni 2 secondi |
-| `/check-in`           | Tablet         | disponibile    | Check-in veicolo a tutto schermo, senza l'intestazione del sito: le pratiche del proprio sportello in due schede grandi, giro fotografico a slot, note con annotazioni rapide, comandi fissi in basso (il vecchio `/tablet` rimanda qui) |
-| `/accettazione/archivio` | Accettatore | disponibile    | Archivio delle ispezioni: ricerca per targa o codice, schede con le foto per categoria; i file oltre la retention risultano eliminati ma la scheda resta |
-| `/admin`              | Amministratore | disponibile    | Gestione operatori (crea, modifica, disattiva, reset password), strumenti di assistenza (accettazioni occupate, pratiche in carico da troppo tempo, rimetti in coda o annulla) e integrazione Spoki (stato, messaggio di prova, registro dei payload) |
+| Percorso                 | Destinatario       | Stato       | Contenuto                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                         |
+| ------------------------ | ------------------ | ----------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `/login`                 | Accettatore        | disponibile | Credenziali, scelta sportello/brand e postazione                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                  |
+| `/accettazione`          | Accettatore        | disponibile | Coda ordinata per orario con codici F001…, azioni rapide, blocco **In ritardo / assenti**, banner sync, **vista globale** per prendere in carico pratiche di altri sportelli, aggiornamento ogni 3 s; il clic su una riga apre i dati del cliente; **Nuovo cliente (senza appuntamento)** mette in coda un walk-in con targa, nome, telefono, marca e lavorazione; dal dettaglio di una pratica completata si può **riaprirla**; le righe con l'orario superato da meno di dieci minuti sono **gialle** e un cliente segnato assente che si presenta si **riattiva** ("Arrivato in ritardo": torna in coda dopo i presenti, con lo stesso codice) |
+| `/sistema`               | Responsabile / IT  | disponibile | Stato delle porte esterne (Infinity, Spoki, SMS Hosting, CRM) e, per gli amministratori, la coda di uscita verso il CRM con "Forza riprova"                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                       |
+| `/cliente` (`/qr`)       | Cliente (QR)       | disponibile | Ricerca per targa e stato del turno in tempo reale: codice, clienti in attesa, messaggio per stato; nessuna autenticazione e nessun dato personale                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                |
+| `/display/sala-attesa`   | Sala d'attesa      | disponibile | Tabellone stile ufficio pubblico: codici chiamati con l'accettazione a cui presentarsi e prossimi turni                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                           |
+| `/manager`               | BDC / Responsabile | disponibile | Cruscotto del back office: clienti segnati assenti da ricontattare, con telefono richiamabile e chiusura del lead con esito; da qui si esegue anche la chiusura di giornata                                                                                                                                                                                                                                                                                                                                                                                                                                                                       |
+| `/comunicazioni`         | Responsabile       | pianificato | Registro degli invii WhatsApp e SMS con conferma manuale (l'invio automatico funziona già)                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                        |
+| `/display/1` … `/4`      | Monitor            | disponibile | Schermo a tutto campo per i monitor sopra le postazioni: codice e targa in servizio, oppure invito verde ad avanzare; si aggiorna ogni 2 secondi                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                  |
+| `/check-in`              | Tablet             | disponibile | Check-in veicolo a tutto schermo, senza l'intestazione del sito: le pratiche del proprio sportello in due schede grandi, giro fotografico a slot, note con annotazioni rapide, comandi fissi in basso (il vecchio `/tablet` rimanda qui)                                                                                                                                                                                                                                                                                                                                                                                                          |
+| `/accettazione/archivio` | Accettatore        | disponibile | Archivio delle ispezioni: ricerca per targa o codice, schede con le foto per categoria; i file oltre la retention risultano eliminati ma la scheda resta                                                                                                                                                                                                                                                                                                                                                                                                                                                                                          |
+| `/admin`                 | Amministratore     | disponibile | Gestione operatori (crea, modifica, disattiva, reset password), strumenti di assistenza (accettazioni occupate, pratiche in carico da troppo tempo, rimetti in coda o annulla) e integrazione Spoki (stato, messaggio di prova, registro dei payload)                                                                                                                                                                                                                                                                                                                                                                                             |
 
 API principali (JSON, autenticate via cookie di sessione): `GET /api/v1/queue`,
 `POST /api/v1/appointments/{id}/actions`, `POST /api/v1/appointments/{id}/media` (foto, multipart),
@@ -209,7 +215,7 @@ pulsanti grandi da usare in piedi accanto alla vettura.
 
 1. **Inizia check-in** prende in carico la pratica e apre a tutto schermo la scheda di ispezione.
 2. **Giro del veicolo**: sei slot, uno per parte. **Frontale, Posteriore, Fiancata sinistra e
-   Fiancata destra sono obbligatorie**; *Interni* e *Dettaglio danni* sono facoltative e accettano
+   Fiancata destra sono obbligatorie**; _Interni_ e _Dettaglio danni_ sono facoltative e accettano
    più scatti. Toccando uno slot si apre la fotocamera posteriore del tablet (su un computer si
    sceglie un file); l'anteprima compare subito con la rotella di attesa e resta nello slot a
    caricamento concluso. Il file finisce dietro `IMediaStorage`, cioè in
@@ -262,8 +268,8 @@ Serve un account con ruolo responsabile: `responsabile` / `demo`. Dalla dashboar
 segna assente un cliente del blocco **In ritardo / assenti**, poi apri
 <http://localhost:3000/manager>: la riga compare subito nel cruscotto con nome, numero richiamabile
 con un tocco, targa, veicolo, motivo e ora dell'assenza. **Segna come ricontattato** chiude il lead
-(con **Con esito** si aggiunge una nota, per esempio "richiama lunedì"), e la spunta *Mostra anche i
-già ricontattati* fa rivedere chi l'ha chiuso e quando.
+(con **Con esito** si aggiunge una nota, per esempio "richiama lunedì"), e la spunta _Mostra anche i
+già ricontattati_ fa rivedere chi l'ha chiuso e quando.
 
 La chiusura del lead è indipendente dal CRM: con `MOCK_CRM_MODE=error` la riga dice "CRM non
 raggiungibile", ma il BDC può comunque telefonare e chiudere: l'evento resta in coda per il rinvio.
@@ -352,9 +358,9 @@ agenda che oggi produce il mock: sync, coda e dashboard non sanno da dove arriva
   giornata diversa da oggi) stampa a terminale la connessione, la **verifica dei permessi** con i
   `GRANT` da richiedere all'IT del gestionale e il planning letto davvero: ora, documento, targa,
   cliente, telefono mascherato, veicolo, accettatore, stato, ore, lavorazioni, note.
-- `INFINITY_PROVIDER=real` attiva l'adapter nell'applicazione; richiede `SESSION_SECRET` e un seed
-  senza credenziali demo, quindi arriva con il pilota (M9). Fino ad allora `.env.local` tiene il
-  DSN pronto e il provider su `mock`.
+- `INFINITY_PROVIDER=real` attiva l'adapter nell'applicazione; richiede `SESSION_SECRET` e il profilo
+  di seed `real` (vedi «Account dimostrativi»). Dal 2026-09-16 l'app di sviluppo gira così sui dati
+  veri di `infinity01`: la coda del giorno è il planning dell'officina di Bari.
 
 Mappatura delle tabelle, analisi della query nativa del planning, permessi e `GRANT`, limiti
 riscontrati su `infinity02` (targhe solo dagli invii FAL) e procedura per `infinity01` sono in
@@ -391,7 +397,7 @@ tipo, niente inclusione in pagine esterne, fotocamera solo per la stessa origine
 
 ## Fine giornata e coda verso il CRM
 
-**Chiusura giornata.** A officina chiusa il responsabile preme *Esegui chiusura giornata* nel
+**Chiusura giornata.** A officina chiusa il responsabile preme _Esegui chiusura giornata_ nel
 cruscotto BDC e conferma. Chi era ancora in coda viene segnato **assente** e compare subito fra i
 lead da ricontattare (con l'evento verso il CRM); le accettazioni rimaste **in carico** vengono
 chiuse **d'ufficio**: risultano completate ma "da confermare", perché a quell'ora un veicolo in
@@ -426,11 +432,11 @@ riconosce, quindi un doppio invio non genera un doppio lead.
 ## Amministrazione, archivio foto e retention
 
 **Operatori.** In `/admin` l'amministratore vede tutti gli account con nome, utente, ruolo
-(Accettatore, Manager, Amministratore, Kiosk), sportelli assegnati e stato. *Nuovo operatore*
+(Accettatore, Manager, Amministratore, Kiosk), sportelli assegnati e stato. _Nuovo operatore_
 chiede nome utente (minuscolo, senza spazi), nome da mostrare, ruolo, sportelli, postazione
-abituale e password iniziale (almeno 8 caratteri); *Modifica* cambia tutto tranne il nome utente;
-*Disattiva* è reversibile e non cancella nulla, così i registri restano leggibili. *Reset
-password* genera una provvisoria nel formato `XXXX-XXXX-XXXX`, senza caratteri ambigui perché va
+abituale e password iniziale (almeno 8 caratteri); _Modifica_ cambia tutto tranne il nome utente;
+_Disattiva_ è reversibile e non cancella nulla, così i registri restano leggibili. _Reset
+password_ genera una provvisoria nel formato `XXXX-XXXX-XXXX`, senza caratteri ambigui perché va
 dettata a voce, e la mostra una volta sola: da quel momento esiste solo il suo hash. Il server
 rifiuta di disattivare o degradare chi sta operando e l'ultimo amministratore attivo: l'officina
 non può restare chiusa fuori.
@@ -444,11 +450,11 @@ pagina è raggiungibile anche di propria iniziativa. Nel pannello la riga mostra
 provvisoria" finché il cambio non è avvenuto.
 
 **Assistenza.** Sotto l'elenco ci sono le quattro accettazioni con la pratica che le occupa e da
-quanti minuti, più tutte le pratiche in carico. *Libera accettazione* e *Rimetti in coda* fanno la
+quanti minuti, più tutte le pratiche in carico. _Libera accettazione_ e _Rimetti in coda_ fanno la
 stessa cosa (la pratica torna in attesa, l'accettazione si libera) e sono reversibili, quindi
-bastano un tocco; *Annulla pratica* chiude definitivamente e chiede un secondo tocco.
+bastano un tocco; _Annulla pratica_ chiude definitivamente e chiede un secondo tocco.
 
-**Archivio ispezioni.** Da *Archivio* nell'intestazione si cerca un check-in per targa (anche
+**Archivio ispezioni.** Da _Archivio_ nell'intestazione si cerca un check-in per targa (anche
 scritta con spazi o in minuscolo) o per codice pratica: la scheda mostra veicolo, cliente, stato,
 note e le foto raggruppate per parte del veicolo. Serve al ritiro, quando un cliente contesta un
 danno.
@@ -476,16 +482,16 @@ apre con un doppio clic.
 
 ## Script disponibili
 
-| Comando                 | Descrizione                                                     |
-| ----------------------- | --------------------------------------------------------------- |
-| `npm run dev`           | Server di sviluppo su <http://localhost:3000>                   |
-| `npm run build`         | Build di produzione (output `standalone`)                       |
-| `npm start`             | Avvio della build                                               |
-| `npm run typecheck`     | TypeScript strict senza emissione                               |
-| `npm run lint`          | ESLint (con guardia architetturale) e controllo encoding UTF-8/LF |
-| `npm run format`        | Prettier su sorgenti, test e configurazioni                     |
-| `npm test`              | Test unitari con Vitest                                         |
-| `npm run test:coverage` | Test con copertura                                              |
+| Comando                  | Descrizione                                                                           |
+| ------------------------ | ------------------------------------------------------------------------------------- |
+| `npm run dev`            | Server di sviluppo su <http://localhost:3000>                                         |
+| `npm run build`          | Build di produzione (output `standalone`)                                             |
+| `npm start`              | Avvio della build                                                                     |
+| `npm run typecheck`      | TypeScript strict senza emissione                                                     |
+| `npm run lint`           | ESLint (con guardia architetturale) e controllo encoding UTF-8/LF                     |
+| `npm run format`         | Prettier su sorgenti, test e configurazioni                                           |
+| `npm test`               | Test unitari con Vitest                                                               |
+| `npm run test:coverage`  | Test con copertura                                                                    |
 | `npm run infinity:check` | Lettura di prova del planning dal database Infinity reale (serve `INFINITY_ODBC_DSN`) |
 
 ## Struttura del repository

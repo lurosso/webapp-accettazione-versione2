@@ -8,8 +8,11 @@
 // Sorgente del planning (`planningSource`): la procedura nativa `sp_off_docs_planning` (la stessa
 // del planning di Infinity, vede anche cancellate e chiuse) oppure le tabelle (`tdo_pre`…); in
 // `auto` si prova la procedura e, se l'utenza del DSN non ha il GRANT, si ripiega sulle tabelle
-// avvisando una volta sola. `checkAccess` elenca oggetto per oggetto cosa l'utenza può leggere e
-// quali GRANT chiedere: è ciò che `npm run infinity:check` stampa prima del passaggio a infinity01.
+// avvisando una volta sola. Secondo ripiego, indipendente: se la vista `clienti` (o `anagrafica`
+// sotto di lei) richiama funzioni non concesse, il planning si rilegge SENZA anagrafica (clienti
+// "Cliente <id>", cellulare solo da `telefono`): l'officina non si ferma per un GRANT. `checkAccess`
+// elenca oggetto per oggetto cosa l'utenza può leggere e quali GRANT chiedere: è ciò che
+// `npm run infinity:check` stampa prima del passaggio a infinity01.
 //
 // Il database si sceglie con l'ambiente (`INFINITY_ODBC_DSN=Infinity02` → `Infinity01`): questa
 // classe non conosce nessun indirizzo.
@@ -123,6 +126,15 @@ export function isPermissionDenied(error: unknown): boolean {
   return /permission denied|non hai il permesso|-121\b/i.test(messageOf(error));
 }
 
+/**
+ * Nome della procedura o funzione che il diniego dice di non poter eseguire, se il messaggio la
+ * nomina (es. `permission to execute the procedure "fn_getidutenticoll_doc"`); altrimenti null.
+ */
+export function deniedProcedureIn(message: string): string | null {
+  const m = /execute the procedure\s+"([^"]+)"/i.exec(message);
+  return m?.[1] ?? null;
+}
+
 export class InfinityServiceOdbc implements IInfinityService {
   readonly name = 'INFINITY' as const;
 
@@ -132,6 +144,9 @@ export class InfinityServiceOdbc implements IInfinityService {
   private procedureUnavailable = false;
 
   private lastSource: InfinityPlanningSourceInUse | null = null;
+
+  /** Vista clienti negata: si legge senza anagrafica finché il processo vive (avviso una volta sola). */
+  private customerUnavailable = false;
 
   private sediCache: readonly string[] | null = null;
 
@@ -146,6 +161,11 @@ export class InfinityServiceOdbc implements IInfinityService {
   /** Sorgente usata dall'ultima lettura (null prima della prima lettura). */
   get planningSourceInUse(): InfinityPlanningSourceInUse | null {
     return this.lastSource;
+  }
+
+  /** false quando il planning si legge senza la vista clienti (GRANT mancanti): nomi e telefoni parziali. */
+  get customerDataAvailable(): boolean {
+    return !this.customerUnavailable;
   }
 
   async fetchDailyAgenda(
@@ -164,6 +184,7 @@ export class InfinityServiceOdbc implements IInfinityService {
       this.log.info('agenda letta da Infinity', {
         businessDate,
         sorgente: this.lastSource,
+        anagrafica: this.customerUnavailable ? 'non leggibile' : 'ok',
         appuntamenti: agenda.appointments.length,
         annullati: records.filter((r) => r.annullata).length,
         senzaTarga: records.filter((r) => r.targa === null).length,
@@ -213,7 +234,7 @@ export class InfinityServiceOdbc implements IInfinityService {
         status: 'UP',
         checkedAt: this.deps.clock.nowIso(),
         latencyMs,
-        detail: `${this.config.dbType} · DSN ${this.config.dsn} · db ${String(riga['db'] ?? '?')} · versione ${String(riga['versione'] ?? '?')} · utente ${String(riga['utente'] ?? '?')} · planning ${sorgente}`,
+        detail: `${this.config.dbType} · DSN ${this.config.dsn} · db ${String(riga['db'] ?? '?')} · versione ${String(riga['versione'] ?? '?')} · utente ${String(riga['utente'] ?? '?')} · planning ${sorgente}${this.customerUnavailable ? ' · anagrafica non leggibile' : ''}`,
         implementation: 'real',
       };
     } catch (error) {
@@ -302,8 +323,8 @@ export class InfinityServiceOdbc implements IInfinityService {
       tab(
         'clienti',
         'codice_cliente',
-        'ragione sociale, cognome/nome, telefoni',
-        'obbligatorio',
+        'ragione sociale, cognome/nome, telefoni (senza: clienti come "Cliente <id>")',
+        'consigliato',
         'vista',
       ),
       tab('contatti', 'codice_contatto', 'referente della prenotazione', 'facoltativo'),
@@ -340,9 +361,9 @@ export class InfinityServiceOdbc implements IInfinityService {
       {
         oggetto: 'anagrafica',
         tipo: 'tabella' as const,
-        livello: 'facoltativo' as const,
+        livello: 'consigliato' as const,
         scopo:
-          "lettura diretta dell'anagrafica (la vista clienti basta); usa fn_rimuovi_doppi_spazi",
+          'tabella sotto la vista clienti: la colonna calcolata ipp_search richiede fn_rimuovi_doppi_spazi, che serve quindi anche per leggere clienti',
         sql: sel('anagrafica', 'id_anagrafica'),
         params: [] as OdbcParam[],
         grant: `GRANT EXECUTE ON ${s}.fn_rimuovi_doppi_spazi TO ${utente};`,
@@ -354,12 +375,30 @@ export class InfinityServiceOdbc implements IInfinityService {
         await this.deps.client.query(prova.sql, prova.params);
         esiti.push({ ...senzaSql(prova), ok: true, errore: null });
       } catch (error) {
-        esiti.push({ ...senzaSql(prova), ok: false, errore: messageOf(error) });
+        const errore = messageOf(error);
+        // Se il diniego nomina una procedura (colonna calcolata o vista che la richiama), il GRANT
+        // giusto è l'EXECUTE su quella, non la SELECT sulla tabella: il messaggio lo dice.
+        const funzione = deniedProcedureIn(errore);
+        esiti.push({
+          ...senzaSql(prova),
+          ok: false,
+          errore,
+          grant:
+            funzione === null || funzione.toLowerCase() === prova.oggetto.toLowerCase()
+              ? prova.grant
+              : `GRANT EXECUTE ON ${s}.${funzione} TO ${utente};  -- richiamata leggendo ${prova.oggetto}`,
+        });
       }
     }
     return esiti;
   }
 
+  /**
+   * Righe di testata del planning, con due ripieghi indipendenti e un solo avviso ciascuno:
+   * procedura → tabelle (GRANT sulla procedura mancante, solo in `auto`) e con → senza anagrafica
+   * (vista clienti negata). Entrambi restano attivi per la vita del processo: un GRANT nuovo vale
+   * dal riavvio.
+   */
   private async fetchPlanningRows(
     businessDate: IsoDate,
     plate: string | null,
@@ -367,7 +406,7 @@ export class InfinityServiceOdbc implements IInfinityService {
     const source = this.config.planningSource;
     if (source !== 'tables' && !this.procedureUnavailable) {
       try {
-        const rows = await this.rowsFromProcedure(businessDate, plate);
+        const rows = await this.rowsWithCustomerFallback(businessDate, plate, 'procedure');
         this.lastSource = 'procedure';
         return rows;
       } catch (error) {
@@ -382,18 +421,63 @@ export class InfinityServiceOdbc implements IInfinityService {
         );
       }
     }
-    const rows = await this.rowsFromTables(businessDate, plate);
+    const rows = await this.rowsWithCustomerFallback(businessDate, plate, 'tables');
     this.lastSource = 'tables';
     return rows;
+  }
+
+  /**
+   * Legge la sorgente indicata con il join sull'anagrafica; se il database nega una funzione
+   * richiamata da quel join (vista clienti, colonna calcolata di anagrafica) riprova senza e da lì
+   * in avanti legge sempre così. Un diniego sulla procedura stessa o sulla testata non c'entra con
+   * l'anagrafica: il secondo tentativo fallisce e vale l'errore originale.
+   */
+  private async rowsWithCustomerFallback(
+    businessDate: IsoDate,
+    plate: string | null,
+    source: InfinityPlanningSourceInUse,
+  ): Promise<readonly OdbcRow[]> {
+    const leggi = (withCustomer: boolean): Promise<readonly OdbcRow[]> =>
+      source === 'procedure'
+        ? this.rowsFromProcedure(businessDate, plate, withCustomer)
+        : this.rowsFromTables(businessDate, plate, withCustomer);
+    if (this.customerUnavailable) {
+      return leggi(false);
+    }
+    try {
+      return await leggi(true);
+    } catch (error) {
+      const funzione = deniedProcedureIn(messageOf(error));
+      if (!isPermissionDenied(error) || funzione?.toLowerCase() === 'sp_off_docs_planning') {
+        throw error;
+      }
+      let rows: readonly OdbcRow[];
+      try {
+        rows = await leggi(false);
+      } catch {
+        throw error;
+      }
+      this.customerUnavailable = true;
+      this.log.warn(
+        `anagrafica clienti non leggibile (${funzione === null ? 'vista clienti negata' : `funzione ${funzione} negata`}): planning letto senza nomi, i clienti compaiono come "Cliente <id>" e il cellulare arriva solo dalla tabella telefono. ` +
+          `Richiedere l'EXECUTE sulle funzioni della vista clienti (npm run infinity:check elenca i GRANT).`,
+        { dettaglio: messageOf(error), sorgente: source },
+      );
+      return rows;
+    }
   }
 
   private async rowsFromProcedure(
     businessDate: IsoDate,
     plate: string | null,
+    withCustomer: boolean,
   ): Promise<readonly OdbcRow[]> {
     const sedi = this.config.sede === null ? await this.resolveSedi() : [this.config.sede];
     const docTypes = this.config.bookingDocTypes;
-    const sql = planningProcedureSql(this.config.schema, docTypes.length, plate !== null);
+    const sql = planningProcedureSql(this.config.schema, docTypes.length, plate !== null, {
+      withCustomer,
+      includeWorkOrders: this.config.includeWorkOrders,
+    });
     const risultati: OdbcRow[] = [];
     for (const sede of sedi) {
       const params: OdbcParam[] = [businessDate, sede, ...docTypes];
@@ -408,6 +492,7 @@ export class InfinityServiceOdbc implements IInfinityService {
   private async rowsFromTables(
     businessDate: IsoDate,
     plate: string | null,
+    withCustomer: boolean,
   ): Promise<readonly OdbcRow[]> {
     const docTypes = this.config.bookingDocTypes;
     const params: OdbcParam[] = [businessDate, ...docTypes];
@@ -415,7 +500,7 @@ export class InfinityServiceOdbc implements IInfinityService {
       params.push(plate);
     }
     return this.deps.client.query(
-      planningTablesSql(this.config.schema, docTypes.length, plate !== null),
+      planningTablesSql(this.config.schema, docTypes.length, plate !== null, { withCustomer }),
       params,
     );
   }

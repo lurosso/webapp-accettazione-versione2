@@ -2,7 +2,7 @@
 // gli errori di mapping emergono ora, non in M7. Non assegna il codice progressivo
 // (compete al CodeGenerator/QueueService in M1).
 
-import type { Brand } from '@/domain/entities/brand';
+import { FALLBACK_BRAND_CODE, type Brand } from '@/domain/entities/brand';
 import type { Customer } from '@/domain/entities/customer';
 import type { Desk } from '@/domain/entities/desk';
 import type { Vehicle } from '@/domain/entities/vehicle';
@@ -58,15 +58,21 @@ export interface InfinityAgendaMapping {
 
 /**
  * Converte un appuntamento Infinity in bozza di dominio.
- * Targa non valida, orario non interpretabile, brand sconosciuto o orario fuori dalla
- * giornata dell'agenda → VALIDATION (finisce fra i `rejected`, la sync diventa PARTIAL).
+ * Targa non valida, orario non interpretabile o orario fuori dalla giornata dell'agenda →
+ * VALIDATION (finisce fra i `rejected`, la sync diventa PARTIAL).
+ * Marchio non in elenco → marchio di ripiego «Altri marchi» (FALLBACK_BRAND_CODE) se il seed lo
+ * prevede, con la marca vera davanti al modello; altrimenti VALIDATION.
  * Telefono non valido → null (la notifica diventerà NO_RECIPIENT, la pratica non si perde).
  */
 export function mapInfinityAppointment(
   dto: InfinityAppointmentDto,
   ctx: InfinityAppointmentMappingContext,
 ): Result<AppointmentDraft, DomainError> {
-  const brand = ctx.brands.find((b) => sameReferenceCode(b.code, dto.brandCode));
+  // Marca non in elenco (Hyundai, Foton…): va sul marchio di ripiego, se il seed lo prevede, e la
+  // marca vera resta leggibile davanti al modello. Una pratica non si scarta per il marchio.
+  const brandEsatto = ctx.brands.find((b) => sameReferenceCode(b.code, dto.brandCode));
+  const brand =
+    brandEsatto ?? ctx.brands.find((b) => sameReferenceCode(b.code, FALLBACK_BRAND_CODE));
   if (brand === undefined) {
     return err(
       domainError('VALIDATION', `Marchio sconosciuto: "${dto.brandCode}".`, {
@@ -131,7 +137,10 @@ export function mapInfinityAppointment(
     id: ctx.ids.nextAs(asVehicleId),
     plate: plate.value,
     brandId: brand.id,
-    model: dto.vehicleModel.trim(),
+    model:
+      brandEsatto === undefined
+        ? `${dto.brandCode.replace(/_/g, ' ')} ${dto.vehicleModel.trim()}`.trim()
+        : dto.vehicleModel.trim(),
     vin: dto.vin,
   };
 

@@ -7,6 +7,7 @@ import {
   brandCodeFromDescription,
   buildConnectionString,
   classifyOdbcError,
+  deniedProcedureIn,
   customerNameOf,
   describeConnection,
   parseLineRows,
@@ -31,6 +32,7 @@ const CONFIG: InfinityOdbcConfig = {
   dbType: 'sql_anywhere_12',
   uid: null,
   pwd: null,
+  extra: null,
   schema: 'DBA',
   bookingDocTypes: ['PR01'],
   planningSource: 'auto',
@@ -220,9 +222,26 @@ interface FakeOptions {
   readonly procedureError?: Error;
   /** Errore lanciato dalla lettura delle tabelle. */
   readonly tablesError?: Error;
+  /** Errore lanciato da entrambe le sorgenti quando la SQL include il join sulla vista clienti. */
+  readonly customerError?: Error;
   readonly procedureRows?: readonly OdbcRow[];
   readonly tableRows?: readonly OdbcRow[];
 }
+
+/** Colonne che il database restituisce a NULL quando la SQL non fa il join sull'anagrafica. */
+const COLONNE_ANAGRAFICA = [
+  'cliente',
+  'cliente_cognome',
+  'cliente_nome',
+  'cons_privacy',
+  'pref_invio_notifiche',
+  'indirizzo_notifiche',
+  'tel_cliente1',
+  'tel_cliente2',
+  'tel_cliente3',
+  'contatto',
+  'contatto_cellulare',
+] as const;
 
 /** Client finto: risponde in base al testo della query e registra le chiamate. */
 class FakeOdbcClient implements IOdbcClient {
@@ -230,19 +249,36 @@ class FakeOdbcClient implements IOdbcClient {
 
   constructor(private readonly options: FakeOptions = {}) {}
 
+  /** Righe di testata: come il database, con o senza il join sull'anagrafica. */
+  private planning(
+    sql: string,
+    params: readonly OdbcParam[],
+    righe: readonly OdbcRow[] | undefined,
+    errore: Error | undefined,
+  ): readonly OdbcRow[] {
+    if (errore !== undefined) {
+      throw errore;
+    }
+    const filtrate = filtraTarga(righe ?? RIGHE_PLANNING, sql, params);
+    if (sql.includes('DBA.clienti')) {
+      if (this.options.customerError !== undefined) {
+        throw this.options.customerError;
+      }
+      return filtrate;
+    }
+    return filtrate.map((r) => ({
+      ...r,
+      ...Object.fromEntries(COLONNE_ANAGRAFICA.map((c) => [c, null])),
+    }));
+  }
+
   async query(sql: string, params: readonly OdbcParam[] = []): Promise<readonly OdbcRow[]> {
     this.calls.push({ sql, params });
     if (sql.includes('sp_off_docs_planning(')) {
-      if (this.options.procedureError !== undefined) {
-        throw this.options.procedureError;
-      }
-      return filtraTarga(this.options.procedureRows ?? RIGHE_PLANNING, sql, params);
+      return this.planning(sql, params, this.options.procedureRows, this.options.procedureError);
     }
     if (sql.includes('FROM DBA.tdo_pre p')) {
-      if (this.options.tablesError !== undefined) {
-        throw this.options.tablesError;
-      }
-      return filtraTarga(this.options.tableRows ?? RIGHE_PLANNING, sql, params);
+      return this.planning(sql, params, this.options.tableRows, this.options.tablesError);
     }
     if (sql.includes('FROM DBA.tipi_doc td')) {
       return [{ sede: '01' }];
@@ -292,13 +328,21 @@ function build(client: IOdbcClient, config: InfinityOdbcConfig = CONFIG) {
 }
 
 describe('Infinity ODBC: configurazione', () => {
-  it('la stringa di connessione porta solo il DSN quando le credenziali stanno nel DSN', () => {
-    expect(buildConnectionString(CONFIG)).toBe('DSN=Infinity02');
+  it('la stringa di connessione porta il DSN e il CharSet UTF-8 quando le credenziali stanno nel DSN', () => {
+    // CharSet=UTF-8 fa convertire al driver le stringhe windows-1252 del database: senza, le
+    // lettere accentate arrivano al modulo odbc come U+FFFD.
+    expect(buildConnectionString(CONFIG)).toBe('DSN=Infinity02;CharSet=UTF-8');
   });
 
   it('con utente e password li aggiunge, con le graffe se contengono caratteri speciali', () => {
     const s = buildConnectionString({ ...CONFIG, uid: 'app', pwd: 'p;w}d' });
-    expect(s).toBe('DSN=Infinity02;UID=app;PWD={p;w}}d}');
+    expect(s).toBe('DSN=Infinity02;UID=app;PWD={p;w}}d};CharSet=UTF-8');
+  });
+
+  it('un CharSet indicato negli attributi aggiuntivi non viene raddoppiato', () => {
+    expect(buildConnectionString({ ...CONFIG, extra: 'Host=x:2638;CharSet=cp1252' })).toBe(
+      'DSN=Infinity02;Host=x:2638;CharSet=cp1252',
+    );
   });
 
   it('la descrizione per i log non contiene mai la password', () => {
@@ -312,7 +356,7 @@ describe('Infinity ODBC: configurazione', () => {
   it('le due SQL del planning usano lo schema configurato, i segnaposto e solo SELECT', () => {
     const proc = planningProcedureSql('DBA', 2, true);
     expect(proc).toContain("FROM DBA.sp_off_docs_planning(?, ?, 'T', NULL, 0, 0) tab");
-    expect(proc).toContain('tab.tipo_doc IN (?, ?)');
+    expect(proc).toContain('WHERE COALESCE(p.tipo_doc, tab.tipo_doc) IN (?, ?)');
     expect(proc).toContain("UPPER(REPLACE(tab.targa, ' ', '')) = ?");
     expect(proc).toContain('LEFT JOIN DBA.clienti c ON c.codice_cliente = tab.id_cliente');
     const tabelle = planningTablesSql('DBA', 1);
@@ -324,6 +368,8 @@ describe('Infinity ODBC: configurazione', () => {
       tabelle,
       planningProcedureSql('DBA', 1),
       planningTablesSql('DBA', 3, true),
+      planningProcedureSql('DBA', 1, false, { withCustomer: false, includeWorkOrders: true }),
+      planningTablesSql('DBA', 2, true, { withCustomer: false }),
     ]) {
       expect(sql).not.toMatch(/\b(insert|update|delete|drop|alter)\b/i);
       expect(sql.startsWith('SELECT')).toBe(true);
@@ -335,6 +381,42 @@ describe('Infinity ODBC: configurazione', () => {
       }
       expect(elenco.at(-1)?.trim().endsWith(',')).toBe(false);
     }
+  });
+
+  it('senza anagrafica le SQL non toccano clienti/contatti ma restituiscono le stesse colonne, a NULL', () => {
+    for (const sql of [
+      planningProcedureSql('DBA', 1, false, { withCustomer: false }),
+      planningTablesSql('DBA', 1, true, { withCustomer: false }),
+    ]) {
+      expect(sql).not.toContain('DBA.clienti');
+      expect(sql).not.toContain('DBA.contatti');
+      expect(sql).toContain('CAST(NULL AS VARCHAR(80)) AS cliente,');
+      expect(sql).toContain('AS indirizzo_notifiche,');
+      expect(sql).toContain('AS contatto_cellulare,');
+      expect(sql).toContain('.codice_contatto,');
+    }
+    expect(planningProcedureSql('DBA', 1)).toContain('LEFT JOIN DBA.contatti ct');
+  });
+
+  it('la procedura filtra sul tipo documento della PRENOTAZIONE: già in commessa, resta in agenda', () => {
+    // Sui dati veri la procedura riporta LO01 (commessa) per una PR01 già accettata: senza il
+    // COALESCE su tdo_pre la pratica sparirebbe e la sync la annullerebbe.
+    const sql = planningProcedureSql('DBA', 1);
+    expect(sql).toContain('WHERE COALESCE(p.tipo_doc, tab.tipo_doc) IN (?)');
+    expect(sql).not.toContain("tab.genere_doc = 'L'");
+    // Anche tipo, numero, anno e data in uscita sono quelli della prenotazione, e tipi_doc si
+    // aggancia su quello: la pratica resta "PR01 5721/2026" come sul planning di Infinity.
+    expect(sql).toContain('COALESCE(p.tipo_doc, tab.tipo_doc) AS tipo_doc');
+    expect(sql).toContain('COALESCE(p.num_doc, tab.num_doc) AS num_doc');
+    expect(sql).toContain('COALESCE(p.anno, tab.anno) AS anno');
+    expect(sql).toContain('JOIN DBA.tipi_doc td ON td.codice = COALESCE(p.tipo_doc, tab.tipo_doc)');
+    expect(sql.indexOf('LEFT JOIN DBA.tdo_pre p')).toBeLessThan(
+      sql.indexOf('JOIN DBA.tipi_doc td'),
+    );
+    expect(planningTablesSql('DBA', 1)).toContain('p.tipo_doc AS tipo_doc, td.descrizione');
+    expect(planningProcedureSql('DBA', 2, false, { includeWorkOrders: true })).toContain(
+      "WHERE (tab.genere_doc = 'L' OR COALESCE(p.tipo_doc, tab.tipo_doc) IN (?, ?))",
+    );
   });
 });
 
@@ -425,6 +507,20 @@ describe('Infinity ODBC: mappatura del planning', () => {
       businessDate: GIORNATA,
     });
     expect(emailNotifiche[0]?.telefono).toBe('3330001111');
+  });
+
+  it('arrotonda le ore stimate a due decimali (somme di decimali binari)', () => {
+    const [r] = toPlanningRecords({
+      rows: [RIGHE_PLANNING[0]!],
+      lines: [],
+      tempi: parseTempoRows([
+        { id_documento: 41001, codice: 'A', descrizione: 'A', ore: 0.1, numero: 1 },
+        { id_documento: 41001, codice: 'B', descrizione: 'B', ore: 0.2, numero: 1 },
+      ]),
+      phones: [],
+      businessDate: GIORNATA,
+    });
+    expect(r?.tempoStimatoOre).toBe(0.3);
   });
 
   it('il cliente generico della sede prende il nome dalle note cliente', () => {
@@ -601,6 +697,48 @@ describe('InfinityServiceOdbc', () => {
     expect(client.calls.filter((c) => c.sql.includes('FROM DBA.tdo_pre p')).length).toBe(2);
   });
 
+  it("se la vista clienti richiama una funzione non concessa rilegge senza anagrafica, una volta sola, e l'officina non si ferma", async () => {
+    const client = new FakeOdbcClient({ customerError: permessoNegato('fn_get_cons_privacy') });
+    const service = build(client);
+    const result = await service.fetchDailyAgenda(GIORNATA);
+    expect(result.ok).toBe(true);
+    if (result.ok) {
+      expect(result.value.appointments).toHaveLength(2);
+      const [a, b] = result.value.appointments;
+      expect(a?.customer.lastName).toBe('Cliente 5001');
+      expect(a?.customer.firstName).toBe('');
+      expect(a?.customer.phone).toBe('3332222222'); // dalla tabella telefono, ancora leggibile
+      expect(b?.customer.phone).toBeNull(); // il telefono in anagrafica non c'è più
+      expect(a?.plate).toBe('AB123CD');
+      expect(a?.serviceDescription).toBe('TAGLIANDO DI MANUTENZIONE · 6338 - SW RADIO');
+      expect(result.value.partial).toBe(false);
+    }
+    expect(service.planningSourceInUse).toBe('procedure');
+    expect(service.customerDataAvailable).toBe(false);
+    const procedura = client.calls.filter((c) => c.sql.includes('sp_off_docs_planning('));
+    expect(procedura.map((c) => c.sql.includes('DBA.clienti'))).toEqual([true, false]);
+    // La procedura non viene data per indisponibile: il problema era l'anagrafica.
+    expect(client.calls.some((c) => c.sql.includes('FROM DBA.tdo_pre p'))).toBe(false);
+
+    await service.fetchDailyAgenda(GIORNATA);
+    expect(client.calls.filter((c) => c.sql.includes('DBA.clienti'))).toHaveLength(1);
+    expect((await service.healthCheck()).detail).toContain('anagrafica non leggibile');
+  });
+
+  it("un diniego sulla testata stessa non viene scambiato per l'anagrafica: resta un errore AUTH", async () => {
+    const client = new FakeOdbcClient({
+      procedureError: permessoNegato('fn_getidutenticoll_doc'),
+      tablesError: permessoNegato('fn_getidutenticoll_doc'),
+    });
+    const service = build(client);
+    const result = await service.fetchDailyAgenda(GIORNATA);
+    expect(result.ok).toBe(false);
+    if (!result.ok) {
+      expect(result.error.code).toBe('AUTH');
+    }
+    expect(service.customerDataAvailable).toBe(true);
+  });
+
   it('con planningSource=procedure un errore della procedura non viene nascosto', async () => {
     const client = new FakeOdbcClient({ procedureError: permessoNegato('sp_off_docs_planning') });
     const result = await build(client, {
@@ -748,5 +886,58 @@ describe('SqlAnywhereOdbcClient', () => {
       'query:SELECT KO',
       'close',
     ]);
+  });
+});
+
+describe('Verifica accessi: il GRANT proposto segue il messaggio del database', () => {
+  it("quando il diniego nomina una funzione richiamata dalla tabella propone l'EXECUTE su quella", async () => {
+    class ColonneCalcolate extends FakeOdbcClient {
+      override async query(sql: string, params: readonly OdbcParam[] = []) {
+        if (sql.includes('FROM DBA.tdo_pre')) {
+          throw new Error(
+            '[42000] [Sybase][ODBC Driver][SQL Anywhere]Permission denied: you do not have permission to execute the procedure "fn_getidutenticoll_doc"',
+          );
+        }
+        if (sql.includes('FROM DBA.clienti')) {
+          throw new Error(
+            '[42000] [Sybase][ODBC Driver][SQL Anywhere]Permission denied: you do not have permission to execute the procedure "fn_get_last_email"',
+          );
+        }
+        if (sql.includes('FROM DBA.contatti')) {
+          throw new Error(
+            '[42501] [Sybase][ODBC Driver][SQL Anywhere]Permission denied: you do not have permission to select from "contatti"',
+          );
+        }
+        return super.query(sql, params);
+      }
+    }
+    const esiti = await build(new ColonneCalcolate(), {
+      ...CONFIG,
+      planningSource: 'tables',
+    }).checkAccess(GIORNATA);
+    expect(esiti.find((e) => e.oggetto === 'tdo_pre')?.grant).toBe(
+      'GRANT EXECUTE ON DBA.fn_getidutenticoll_doc TO <utente_dsn>;  -- richiamata leggendo tdo_pre',
+    );
+    expect(esiti.find((e) => e.oggetto === 'clienti')?.grant).toContain('fn_get_last_email');
+    // Diniego senza funzione nominata: resta la SELECT sulla tabella.
+    expect(esiti.find((e) => e.oggetto === 'contatti')?.grant).toBe(
+      'GRANT SELECT ON DBA.contatti TO <utente_dsn>;',
+    );
+    expect(
+      deniedProcedureIn('Permission denied: you do not have permission to select from "x"'),
+    ).toBeNull();
+  });
+
+  it('gli attributi aggiuntivi si appendono alla stringa di connessione e si descrivono senza password', () => {
+    const conExtra = {
+      ...CONFIG,
+      dsn: 'Infinity01',
+      extra: 'Host=10.10.193.18:2638;PWD=segretissima',
+    };
+    expect(buildConnectionString(conExtra)).toBe(
+      'DSN=Infinity01;Host=10.10.193.18:2638;PWD=segretissima;CharSet=UTF-8',
+    );
+    expect(describeConnection(conExtra)).toContain('Host=10.10.193.18:2638;PWD=***');
+    expect(describeConnection(conExtra)).not.toContain('segretissima');
   });
 });

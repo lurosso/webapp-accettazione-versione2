@@ -11,8 +11,10 @@
 // Arricchimenti comuni (sola SELECT):
 // - clienti (vista)     ragione sociale, cognome/nome, recapito per le notifiche
 //                       (indirizzo_notifiche con pref_invio_notifiche 'S' = cellulare), telefoni,
-//                       consenso privacy. Leggibile anche dove `anagrafica` non lo è (colonna
-//                       calcolata con funzione non concessa).
+//                       consenso privacy. Su infinity01 la vista richiama `fn_get_cons_privacy` e
+//                       poggia su `anagrafica` (colonna calcolata con `fn_rimuovi_doppi_spazi`):
+//                       senza quei GRANT il planning si legge SENZA anagrafica (`withCustomer`
+//                       false: colonne cliente a NULL, nomi "Cliente <id>", cellulare da `telefono`).
 // - contatti            referente della prenotazione (codice_contatto).
 // - o_operai            accettatore: matricola → nome.
 // - off_marche / off_modelli   descrizione di marca e modello.
@@ -106,27 +108,54 @@ function placeholders(n: number): string {
   return Array.from({ length: Math.max(1, n) }, () => '?').join(', ');
 }
 
-/** Colonne di arricchimento comuni alle due sorgenti; `x` è l'alias della riga di testata. */
-function commonColumns(x: string): string {
-  return `
-  ${x}.anno, ${x}.tipo_doc, td.descrizione AS tipo_doc_descr, TRIM(td.sede_cont) AS sede,
-  (SELECT MAX(dg.id_cliente_def) FROM {s}.default_generali dg WHERE dg.codice = td.sede_cont) AS id_cliente_generico,
-  ${x}.num_doc, ${x}.data_doc, ${x}.id_cliente,
+/** Varianti della SQL del planning. */
+export interface PlanningSqlOptions {
+  /** false = nessun join su clienti/contatti (vista negata): stesse colonne cliente, a NULL. Default true. */
+  readonly withCustomer?: boolean;
+  /** true = anche le commesse senza prenotazione (genere L). Default false. */
+  readonly includeWorkOrders?: boolean;
+}
+
+/**
+ * Colonne di arricchimento comuni alle due sorgenti; `x` è l'alias della riga di testata e `doc`
+ * dice da dove leggere tipo, numero, anno e data del documento (per la procedura: dalla
+ * prenotazione in tdo_pre, che per una pratica già in commessa differiscono dalla riga).
+ */
+function commonColumns(
+  x: string,
+  withCustomer: boolean,
+  doc: (col: string) => string = (col) => `${x}.${col}`,
+): string {
+  // Senza anagrafica le colonne restano, a NULL: il parser è uno solo.
+  const cliente = withCustomer
+    ? `
   c.ragione_sociale AS cliente, c.cognome AS cliente_cognome, c.nome AS cliente_nome, c.cons_privacy,
   c.pref_invio_notifiche, c.indirizzo_notifiche,
   c.telefono1 AS tel_cliente1, c.telefono2 AS tel_cliente2, c.telefono3 AS tel_cliente3,
-  ${x}.codice_contatto, ct.ragione_sociale AS contatto, ct.cellulare AS contatto_cellulare,
+  ${x}.codice_contatto, ct.ragione_sociale AS contatto, ct.cellulare AS contatto_cellulare,`
+    : `
+  CAST(NULL AS VARCHAR(80)) AS cliente, CAST(NULL AS VARCHAR(80)) AS cliente_cognome, CAST(NULL AS VARCHAR(80)) AS cliente_nome, CAST(NULL AS CHAR(1)) AS cons_privacy,
+  CAST(NULL AS CHAR(1)) AS pref_invio_notifiche, CAST(NULL AS VARCHAR(80)) AS indirizzo_notifiche,
+  CAST(NULL AS VARCHAR(30)) AS tel_cliente1, CAST(NULL AS VARCHAR(30)) AS tel_cliente2, CAST(NULL AS VARCHAR(30)) AS tel_cliente3,
+  ${x}.codice_contatto, CAST(NULL AS VARCHAR(80)) AS contatto, CAST(NULL AS VARCHAR(30)) AS contatto_cellulare,`;
+  return `
+  ${doc('anno')} AS anno, ${doc('tipo_doc')} AS tipo_doc, td.descrizione AS tipo_doc_descr, TRIM(td.sede_cont) AS sede,
+  (SELECT MAX(dg.id_cliente_def) FROM {s}.default_generali dg WHERE dg.codice = td.sede_cont) AS id_cliente_generico,
+  ${doc('num_doc')} AS num_doc, ${doc('data_doc')} AS data_doc, ${x}.id_cliente,${cliente}
   TRIM(${x}.accettatore_prenotazione) AS accettatore_cod, op.nome AS accettatore_nome,
   ${x}.tipo_intervento, ti.descrizione AS tipo_intervento_descr,
   ${x}.confermato, ${x}.flag_clienteinsala, ${x}.id_stato_doc, sd.descrizione AS stato_doc_descr, ${x}.order_id,
   ${x}.note_doc, ${x}.note_cliente,`;
 }
 
-function commonJoins(x: string): string {
-  return `
-JOIN {s}.tipi_doc td ON td.codice = ${x}.tipo_doc
+function commonJoins(x: string, withCustomer: boolean, tipoDoc = `${x}.tipo_doc`): string {
+  const anagrafica = withCustomer
+    ? `
 LEFT JOIN {s}.clienti c ON c.codice_cliente = ${x}.id_cliente
-LEFT JOIN {s}.contatti ct ON ct.codice_contatto = ${x}.codice_contatto
+LEFT JOIN {s}.contatti ct ON ct.codice_contatto = ${x}.codice_contatto`
+    : '';
+  return `
+JOIN {s}.tipi_doc td ON td.codice = ${tipoDoc}${anagrafica}
 LEFT JOIN {s}.o_operai op ON TRIM(op.matricola) = TRIM(${x}.accettatore_prenotazione)
 LEFT JOIN {s}.off_tipi_intervento ti ON ti.codice = ${x}.tipo_intervento
 LEFT JOIN {s}.off_stati_doc sd ON sd.id = ${x}.id_stato_doc`;
@@ -157,33 +186,45 @@ export function isStatoChiuso(id: number | null, descrizione: string | null): bo
  * Planning dalla PROCEDURA nativa. Parametri posizionali: giornata, sede, poi i tipi documento,
  * poi l'eventuale targa. `as_accettatore = 'T'` (tutti), nessun punto vendita, gruppo qualifica 0,
  * `ai_aperte = 0` (solo la giornata richiesta), come i default dichiarati dalla procedura.
+ *
+ * Per una prenotazione già trasformata in commessa (veicolo accettato in Infinity) la procedura
+ * riporta tipo, numero, anno e data della COMMESSA (LO01 266158/2026…), non della prenotazione:
+ * filtro e colonne di testata leggono quelli della prenotazione in `tdo_pre` (COALESCE con la riga,
+ * per le commesse senza prenotazione), così la pratica non sparisce dall'agenda quando il cliente
+ * arriva e resta `PR01 5721/2026` come sul planning.
  */
 export function planningProcedureSql(
   schema: string,
   docTypesCount: number,
   withPlateFilter = false,
+  options: PlanningSqlOptions = {},
 ): string {
+  const withCustomer = options.withCustomer !== false;
+  const doc = (col: string): string => `COALESCE(p.${col}, tab.${col})`;
+  const tipoDoc = `${doc('tipo_doc')} IN (${placeholders(docTypesCount)})`;
+  const filtro =
+    options.includeWorkOrders === true ? `(tab.genere_doc = 'L' OR ${tipoDoc})` : tipoDoc;
   return `
 SELECT
   tab.genere_doc, tab.id_documento, tab.id_commessa, tab.tipo AS tipo_riga,
   tab.data_prenotazione, tab.ora_prenotazione,
   COALESCE(tab.doc_data_prevcons, tab.data_prevcons) AS data_prevcons,
-  COALESCE(tab.doc_ora_prevcons, tab.ora_prevcons) AS ora_prevcons,${commonColumns('tab')}
+  COALESCE(tab.doc_ora_prevcons, tab.ora_prevcons) AS ora_prevcons,${commonColumns('tab', withCustomer, doc)}
   tab.proprietario, tab.closed, tab.deleted, tab.pren_closed,
   p.ordine_lavoro, p.data_modifica, p.data_creazione,
   tab.id_veicolo, tab.targa, tab.telaio, tab.cod_marca, m.descrizione AS marca_descr,
   tab.cod_modello, mo.descrizione AS modello_descr, CAST(NULL AS VARCHAR(80)) AS modello_comm
-FROM {s}.sp_off_docs_planning(?, ?, 'T', NULL, 0, 0) tab${commonJoins('tab')}
-LEFT JOIN {s}.tdo_pre p ON p.id_documento = tab.id_documento
+FROM {s}.sp_off_docs_planning(?, ?, 'T', NULL, 0, 0) tab
+LEFT JOIN {s}.tdo_pre p ON p.id_documento = tab.id_documento${commonJoins('tab', withCustomer, doc('tipo_doc'))}
 LEFT JOIN {s}.off_marche m ON m.cod_marca = tab.cod_marca
 LEFT JOIN {s}.off_modelli mo ON mo.cod_marca = tab.cod_marca AND mo.cod_modello = tab.cod_modello
-WHERE tab.tipo_doc IN (${placeholders(docTypesCount)})${
+WHERE ${filtro}${
     withPlateFilter
       ? `
   AND UPPER(REPLACE(tab.targa, ' ', '')) = ?`
       : ''
   }
-ORDER BY COALESCE(tab.ora_prenotazione, tab.doc_ora_prevcons), tab.num_doc`
+ORDER BY COALESCE(tab.ora_prenotazione, tab.doc_ora_prevcons), ${doc('num_doc')}`
     .replace(/\{s\}/g, schema)
     .trim();
 }
@@ -197,11 +238,13 @@ export function planningTablesSql(
   schema: string,
   docTypesCount: number,
   withPlateFilter = false,
+  options: PlanningSqlOptions = {},
 ): string {
+  const withCustomer = options.withCustomer !== false;
   return `
 SELECT
   'Z' AS genere_doc, p.id_documento, CAST(NULL AS INTEGER) AS id_commessa, CAST(NULL AS VARCHAR(1)) AS tipo_riga,
-  p.data_prenotazione, p.ora_prenotazione, p.data_prevcons, p.ora_prevcons,${commonColumns('p')}
+  p.data_prenotazione, p.ora_prenotazione, p.data_prevcons, p.ora_prevcons,${commonColumns('p', withCustomer)}
   CAST(NULL AS INTEGER) AS proprietario, 0 AS closed, 0 AS deleted, 0 AS pren_closed,
   p.ordine_lavoro, p.data_modifica, p.data_creazione,
   COALESCE(v1.id_veicolo, v2.id_veicolo) AS id_veicolo,
@@ -210,7 +253,7 @@ SELECT
   COALESCE(v1.cod_marca, v2.cod_marca) AS cod_marca, m.descrizione AS marca_descr,
   COALESCE(v1.cod_modello, v2.cod_modello) AS cod_modello, mo.descrizione AS modello_descr,
   COALESCE(v1.modello_comm, v2.modello_comm) AS modello_comm
-FROM {s}.tdo_pre p${commonJoins('p')}
+FROM {s}.tdo_pre p${commonJoins('p', withCustomer)}
 LEFT JOIN {s}.off_veicoli v1 ON v1.id_veicolo = p.id_veicoliofficina
 LEFT JOIN (
   SELECT f.id_documento, MAX(f.id) AS id
@@ -296,6 +339,11 @@ function integer(v: unknown): number | null {
   }
   const n = typeof v === 'number' ? v : Number.parseInt(String(v), 10);
   return Number.isFinite(n) ? n : null;
+}
+
+/** Somme di decimali binari (0.1 + 0.2) riportate a due cifre. */
+function round2(n: number): number {
+  return Math.round(n * 100) / 100;
 }
 
 function decimal(v: unknown): number | null {
@@ -481,7 +529,7 @@ export function toPlanningRecords(input: PlanningRecordsInput): readonly Infinit
       .reduce((acc, l) => acc + (l.ore ?? 0), 0);
     const oreTempi = tempi.reduce((acc, t) => acc + t.ore, 0);
     const tempoStimatoOre =
-      tempi.length > 0 ? oreTempi : lavorazioni.length > 0 ? oreLavorazioni : null;
+      tempi.length > 0 ? round2(oreTempi) : lavorazioni.length > 0 ? round2(oreLavorazioni) : null;
     // Ordine: cellulare marcato per le notifiche in `telefono`; recapito notifiche in anagrafica
     // (pref_invio_notifiche 'S' = SMS/cellulare); altro cellulare in `telefono`; telefoni generici;
     // cellulare del referente.

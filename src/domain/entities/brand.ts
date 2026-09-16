@@ -15,3 +15,10 @@ export interface Brand {
   readonly colorToken: string;
   readonly isActive: boolean;
 }
+
+/**
+ * Codice del marchio di ripiego («Altri marchi»): il mapper vi assegna le prenotazioni di marche non
+ * in elenco (Hyundai, Foton…), così una pratica non viene mai scartata per il marchio. Esiste solo
+ * nei profili di seed che lo prevedono (real); senza, il marchio sconosciuto resta un rifiuto.
+ */
+export const FALLBACK_BRAND_CODE = 'ALTRO';

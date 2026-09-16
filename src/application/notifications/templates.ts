@@ -98,8 +98,11 @@ export function buildTemplateVars(
   portalToken: string | null = null,
 ): TemplateVars {
   const scheduled = new Date(appointment.scheduledAt);
+  // Aziende e clienti senza nome (dati reali di Infinity): il saluto usa la ragione sociale, così
+  // il messaggio non esce come "Buongiorno , le ricordiamo…".
+  const nome = appointment.customer.firstName.trim();
   return {
-    firstName: appointment.customer.firstName,
+    firstName: nome !== '' ? nome : appointment.customer.lastName.trim(),
     lastName: appointment.customer.lastName,
     email: appointment.customer.email ?? '',
     code: appointment.code,

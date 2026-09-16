@@ -14,6 +14,7 @@ describe('resolveInfinityRealConfig', () => {
       dbType: 'sql_anywhere_12',
       uid: null,
       pwd: null,
+      extra: null,
       schema: 'DBA',
       bookingDocTypes: ['PR01'],
       planningSource: 'auto',

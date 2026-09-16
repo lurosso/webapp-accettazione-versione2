@@ -25,6 +25,8 @@ export interface InfinityRealConfig {
   readonly dbType: InfinityDbType;
   readonly uid: string | null;
   readonly pwd: string | null;
+  /** Attributi ODBC aggiuntivi (`INFINITY_ODBC_EXTRA`, es. `Host=10.10.193.18:2638`). */
+  readonly extra: string | null;
   readonly schema: string;
   readonly bookingDocTypes: readonly string[];
   readonly planningSource: InfinityPlanningSource;
@@ -129,6 +131,7 @@ export function resolveInfinityRealConfig(
     dbType,
     uid: trimmed(source, 'INFINITY_ODBC_UID'),
     pwd: trimmed(source, 'INFINITY_ODBC_PWD'),
+    extra: trimmed(source, 'INFINITY_ODBC_EXTRA'),
     schema,
     bookingDocTypes: docTypes,
     planningSource: enumValue(source, 'INFINITY_PLANNING_SOURCE', PLANNING_SOURCES, 'auto'),

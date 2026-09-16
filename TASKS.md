@@ -72,6 +72,8 @@ Sempre il 2026-09-15, **promemoria Spoki con blocco di sicurezza** (M8-T10). Il 
 
 Il 2026-09-16, **portale cliente mobile** (M8-T11): `/portal?targa=…&t=…` è la pagina aperta dal link WhatsApp, mobile-first e brandizzata: codice e targa in grande, barra a quattro tappe (In attesa → In accettazione → In lavorazione → Pronta per il ritiro), quanti clienti ci sono prima nella stessa fila, orario previsto, accettatore e sede. Il pulsante **"Sto arrivando in ritardo (+10 min)"** avvisa l'accettazione con un tocco: la pratica registra l'avviso e l'arrivo dichiarato, il bus pubblica `CUSTOMER_LATE_NOTICE` (attore cliente), la riga della dashboard diventa ambra con l'orario di arrivo e il cliente non finisce fra gli assenti prima di quell'ora; codice e posizione in coda non cambiano. Accesso senza login per targa (QR) o con il token unico della pratica (HMAC del segreto di sessione, nel link dei messaggi); targa sconosciuta, token non valido o pratica conclusa da oltre 24 ore mostrano una schermata cortese.
 
+Sempre il 2026-09-16, **l'app sui dati reali di Infinity01** (M8-T09-S10…S12). Ottenuti i grant, `npm run infinity:check` legge il planning vero di Bari (40 prenotazioni con nomi, 36 cellulari, sorgente `procedure`). Tre correzioni nate dal dato vero: per le prenotazioni già accettate la procedura riporta tipo e numero della commessa (filtro e testata ora su `tdo_pre`, altrimenti 19 pratiche su 40 sparivano a metà giornata); il database è windows-1252 e il modulo `odbc` leggeva UTF-8 (`CharSet=UTF-8` sempre in connessione); con la vista `clienti` negata l'adapter rilegge senza anagrafica invece di fermarsi. Poi il profilo di seed `real` (`SEED_PROFILE`, hash scrypt dell'amministratore e segreto dei token display da `npm run seed:credenziali`, `SESSION_SECRET`): due sportelli di Bari ricavati dal planning (Fiat/Lancia/Alfa/Jeep/EMC/Leapmotor; Peugeot/Citroën/DS/XEV), «Altri marchi» di ripiego nel mapper, un solo `admin` con password provvisoria. Prima esecuzione: health Infinity `real` UP, sync 40 ricevute / 38 create / 0 scartate, coda reale in `/accettazione`, promemoria in DRY-RUN verso il mock SMS (nessun cliente contattato).
+
 - [x] **M0-T01** Documenti di setup: `CLAUDE.md` (regole, Regola d'Oro Mock-First, priorità P1..P5) e `docs/ANALISI_REQUISITI.md` (moduli A–F) (commit `68c07e1`).
 - [x] **M0-T02** `ARCHITECTURE.md`: stack, albero cartelle, modello di dominio, porte/adapter, strategia mock, flusso dati e stato server-side, regola dei codici, tabella sintetica ADR-001..014 (§8; i file in `docs/adr/` arrivano con M0-T12).
 - [x] **M0-T03** `TASKS.md` (questo file): milestone M0..M7 con task granulari.
@@ -90,7 +92,9 @@ Il 2026-09-16, **portale cliente mobile** (M8-T11): `/portal?targa=…&t=…` è
 - **Dipendenze**: M0-T01..T05.
 
 ### M0-T06 — package.json, npm e tsconfig definitivo
+
 Rendere installabile il progetto senza `create-next-app`, con versioni pinnate.
+
 - [x] M0-T06-S01 Creato `package.json` (name `webapp-accettazione`, `"private": true`, `engines.node >=22`) con script `dev`, `build`, `start`, `typecheck`. Decisioni: package manager **npm** (scelta del PO, nessun campo `packageManager`); nessun `"type": "module"` (non necessario a Next 16; `postcss.config.mjs` è ESM per estensione). Gli script `lint`, `lint:fix`, `format`, `format:check` arrivano con M0-T08, `test`/`test:watch` con M0-T09, `test:e2e` con M1-T17.
 - [x] M0-T06-S02 Dipendenze pinnate (verifica del 2026-09-10): `next@16.3.4`, `react@19.3.0`, `react-dom@19.3.0`; dev `typescript@5.9.3` (TypeScript 7 è già sul registry ma **non adottato**: si attende il supporto del plugin Next e di typescript-eslint), `@types/node@24.13.4`, `@types/react@19.3.0`, `@types/react-dom@19.3.0`, `tailwindcss@4.3.3`, `@tailwindcss/postcss@4.3.3`, `postcss@8.5.28`. Le altre dipendenze si installano nel task che le usa: `@tanstack/react-query`, `zustand`, `lucide-react`, shadcn → M0-T07; `eslint`, `eslint-config-next`, `typescript-eslint`, `prettier`, `prettier-plugin-tailwindcss` → M0-T08; `vitest`, `@testing-library/react` → M0-T09; `zod` → M0-T10; `jose` → M1-T07. `ARCHITECTURE.md` §2 allineato.
 - [x] M0-T06-S03 `npm install` (46 pacchetti) e `package-lock.json` (lockfileVersion 3) versionato; `node_modules` ignorato da `.gitignore` (voci del package manager precedente rimosse).
@@ -100,7 +104,9 @@ Rendere installabile il progetto senza `create-next-app`, con versioni pinnate.
 - [x] M0-T06-S07 Il commit per task previsto (`chore(M0-T06): …`) è sostituito dal commit unico richiesto dal PO `feat(setup): bootstrap Next.js, fix gitattributes e architettura iniziale`, che copre M0-T06, M0-T11 (parziale) e `.gitattributes`; spuntare con l'hash dopo `git log -1`.
 
 ### M0-T07 — Tailwind 4, shadcn/ui, editorconfig, env.example
+
 Base grafica e configurazione d'ambiente.
+
 - [x] M0-T07-S01 `postcss.config.mjs` (`@tailwindcss/postcss`) e `src/app/globals.css` (`@import 'tailwindcss'`) esistono dal bootstrap: aggiungere in `globals.css` i token colore per gli stati pratica (`--status-waiting`, `--status-in-progress`, `--status-skipped`, `--status-completed`, `--status-no-show`, `--status-cancelled`) definiti in `@theme`. **Fatto 2026-09-10**: token `--color-status-*`, `--color-brand-*` e `--spacing-touch` in `@theme` (globals.css).
 - [x] M0-T07-S02 Inizializzare shadcn/ui (`components.json`, alias `@/components/ui`) e aggiungere `Button`, `Badge`, `Table`, `Dialog`, `Toast`/`Sonner`, `Select`, `Input`, `Tooltip`; nessun lock-in (codice nel repo). **Fatto 2026-09-10**: CLI shadcn NON inizializzata (nessun `components.json`): primitive scritte a mano con la stessa convenzione in `components/ui` (Button, Badge, Card, Input, Label, Select, Table, Alert, Dialog); Tooltip e Toast/Sonner rinviati a quando serviranno.
 - [x] M0-T07-S03 `.editorconfig` (UTF-8, LF, 2 spazi, `insert_final_newline`); `.prettierrc`/`prettier.config.mjs` con `endOfLine: 'lf'` e plugin Tailwind. Nota: il fine riga LF è già imposto lato Git da `.gitattributes` (`* text=auto eol=lf`, fatto nel bootstrap); `.editorconfig` e Prettier lo garantiscono anche in editor. **Fatto 2026-09-10**: `.editorconfig` e `prettier.config.mjs` (printWidth 100, singleQuote, endOfLine lf, plugin Tailwind).
@@ -108,7 +114,9 @@ Base grafica e configurazione d'ambiente.
 - [x] M0-T07-S05 Commit `chore(M0-T07): Tailwind 4, shadcn/ui, editorconfig ed env.example`. **Fatto 2026-09-10**: commit unico `feat(accettazione): completamento setup M0, README e sviluppo dashboard M1` (hash con `git log -1`).
 
 ### M0-T08 — ESLint 9 flat config e Prettier con guardia architetturale
+
 Rendere meccanica la Regola d'Oro.
+
 - [x] M0-T08-S01 `eslint.config.mjs` flat con `eslint-config-next` e `typescript-eslint` (regole `consistent-type-imports`, `no-floating-promises`, `switch-exhaustiveness-check`). **Fatto 2026-09-10**: `eslint.config.mjs` con `eslint-config-next` (core-web-vitals + typescript), `projectService`, regole `consistent-type-imports`, `no-floating-promises`, `switch-exhaustiveness-check`, `no-unused-vars` con `^_`.
 - [x] M0-T08-S02 Regola `no-restricted-imports` per `src/app/**`, `src/modules/**`, `src/components/**`, `src/hooks/**`, `src/application/**`: vietati `@/services/mocks*`, `@/services/real*`, `@/repositories/in-memory*`, `@/repositories/prisma*` con messaggio in italiano che rimanda ai factory. Decisione di layering (bootstrap): `application/` importa solo da `domain`, `services/interfaces`, `repositories/interfaces`, `config/constants`, MAI dai factory (nemmeno `import type`): `application/health/check-health.ts` definisce localmente `ExternalHealthPorts` e `providerKindsFromEnv()` con tipi strutturali; la regola ESLint può quindi vietare anche `@/services/factory` e `@/repositories/factory` in `src/application/**`. **Fatto 2026-09-10**: due blocchi `no-restricted-imports`: implementazioni concrete vietate in app/modules/components/hooks/application/proxy/instrumentation; factory e container vietati anche in modules/components/hooks/application/domain/lib.
 - [x] M0-T08-S03 Test negativo della regola: file temporaneo in `src/app` che importa `InfinityServiceMock` → `npm run lint` fallisce; rimuovere il file. **Fatto 2026-09-10**: eseguito: file di prova in `src/app` con import di `InfinityServiceMock` → 1 errore `no-restricted-imports`; file rimosso.
@@ -117,7 +125,9 @@ Rendere meccanica la Regola d'Oro.
 - [x] M0-T08-S06 Commit `chore(M0-T08): ESLint flat config, Prettier e guardia no-restricted-imports`. **Fatto 2026-09-10**: commit unico `feat(accettazione): completamento setup M0, README e sviluppo dashboard M1` (hash con `git log -1`).
 
 ### M0-T09 — Vitest e primi test dello scaffold
+
 Verificare che lo scaffold sia corretto, non solo tipizzato.
+
 - [x] M0-T09-S01 `vitest.config.ts` con alias `@/`, `environment: 'node'` di default, `include: ['tests/**/*.test.ts', 'tests/**/*.contract.ts']`, coverage v8; aggiungere `tests/**/*.ts` all'`include` di `tsconfig.json` e rimuovere `tests` da `exclude` (rinviato da M0-T06-S04 perché la cartella non esisteva ancora). **Fatto 2026-09-10**: `vitest.config.ts` (Vitest 5, ambiente node, alias `@/`, coverage v8); `tests/**/*.ts`, `next.config.ts` e `vitest.config.ts` inclusi in `tsconfig.json`, `exclude` ridotto a `node_modules`.
 - [x] M0-T09-S02 `tests/unit/appointment-state-machine.test.ts`: tutte le transizioni consentite/vietate di `ALLOWED_TRANSITIONS`, `assertTransition` → `INVALID_TRANSITION`. **Fatto 2026-09-10**: `tests/unit/appointment-state-machine.test.ts`.
 - [x] M0-T09-S03 `tests/unit/queue-code.test.ts`: `formatQueueCode('F', 1) === 'F001'`, padding oltre 999 (`F1000`), `parseQueueCode`, `compareByScheduleThenSequence`. **Fatto 2026-09-10**: `tests/unit/queue-code.test.ts`.
@@ -128,7 +138,9 @@ Verificare che lo scaffold sia corretto, non solo tipizzato.
 - [x] M0-T09-S08 Commit `test(M0-T09): Vitest e test unitari dello scaffold`. **Fatto 2026-09-10**: commit unico `feat(accettazione): completamento setup M0, README e sviluppo dashboard M1` (hash con `git log -1`); fixture condivise in `tests/helpers/fixtures.ts` (TestClock, buildTestEnv, makeAppointment).
 
 ### M0-T10 — Zod al posto dei type guard manuali
+
 Un solo linguaggio di schema per env, DTO e body HTTP.
+
 - [ ] M0-T10-S01 `src/config/env.schema.ts`: schema Zod di `AppEnv` con default sicuri e `coerce` per numeri; `parseEnv()` usa `safeParse`, logga warning per valori non validi e ricade sui default (mai throw all'avvio in modalità mock).
 - [ ] M0-T10-S02 `src/services/dto/infinity.dto.ts`: `InfinityAppointmentDtoSchema`, `InfinityAgendaDtoSchema`; tipi esportati con `z.infer` mantenendo gli stessi nomi; `isInfinityAppointmentDto` reimplementato su `safeParse`.
 - [ ] M0-T10-S03 Schemi Zod per `spoki.dto.ts`, `sms-hosting.dto.ts`, `crm.dto.ts` (usati in M3/M6/M7 dai Route Handler e dai contract test).
@@ -136,7 +148,9 @@ Un solo linguaggio di schema per env, DTO e body HTTP.
 - [ ] M0-T10-S05 Commit `refactor(M0-T10): schemi Zod per env e DTO`.
 
 ### M0-T11 — App Router minimo e /api/v1/health
+
 Primo avvio dell'app con il container reale.
+
 - [x] M0-T11-S01 `src/app/layout.tsx` (lang `it`, font di sistema, `globals.css`, metadata in italiano).
 - [ ] M0-T11-S01b `src/app/providers.tsx` (client component) con `QueryClientProvider` e `Toaster`/`Sonner`: rinviato perché `@tanstack/react-query` e shadcn non sono ancora installati; dipende da M0-T07-S02 e va completato al più tardi in M1-T09 (prima di `useQueue`).
 - [x] M0-T11-S02 `src/app/page.tsx`: Server Component (`force-dynamic`) con titolo, tabella Tailwind dell'`healthCheck` delle quattro porte esterne (badge con etichette italiane e codice tecnico nel `title`, `<th scope="col">`, implementazione, dettaglio, "Ultimo controllo" formattato in `APP_TIMEZONE` con `lib/dates.ts::formatDateTimeIt`) e link a `/api/v1/health`; se il container non è costruibile (`ConfigurationError`/`NotImplementedError`) mostra un pannello in italiano con il suggerimento `SERVICES_PROVIDER=mock`. Il redirect verso `/accettazione`/`/login` arriva in M1-T10-S02.
@@ -147,6 +161,7 @@ Primo avvio dell'app con il container reale.
 - [x] M0-T11-S06 Commit per task sostituito dal commit unico `feat(setup): bootstrap Next.js, fix gitattributes e architettura iniziale` (vedi M0-T06-S07); spuntare con l'hash.
 
 ### M0-T12 — Documentazione di bootstrap
+
 - [x] M0-T12-S01 `README.md`: avvio (`npm install`, `npm run dev`), variabili env, vincolo processo singolo (mai serverless/multi-istanza in fase mock), tabella "ultima cifra telefono → esito" dei mock, credenziali demo. **Fatto 2026-09-10**: README.md principale (descrizione, architettura Mock-First, avvio, account demo, dashboard, script, struttura).
 - [ ] M0-T12-S02 `docs/GLOSSARIO.md` generato da `src/domain/glossary.ts` con script `scripts/gen-glossary.mts` (aggiunto a `npm run docs`).
 - [ ] M0-T12-S03 `docs/adr/ADR-001..014.md` (un file per decisione, template: contesto, decisione, motivazione, alternative, conseguenze); aggiornare i rimandi in `ARCHITECTURE.md` (§ intestazione) e in questo file.
@@ -155,6 +170,7 @@ Primo avvio dell'app con il container reale.
 - [ ] M0-T12-S05 Commit `docs(M0-T12): README, glossario e ADR`.
 
 ### M0-T13 — Continuous Integration
+
 - [ ] M0-T13-S01 `.github/workflows/ci.yml`: trigger push/PR su `main`, Node 24, npm con cache (`actions/setup-node` con `cache: npm`), passi `npm ci`, `npm run typecheck`, `npm run lint`, `npm test`, `npm run build`.
 - [ ] M0-T13-S02 Badge CI nel `README.md`.
 - [ ] M0-T13-S02b Protezione del branch `main` (PR obbligatoria, CI verde richiesta) attivata nelle impostazioni del repository e documentata nella sezione «Flusso di lavoro Git» del `README.md` (branch `feature/M<n>-<slug>`, commit atomici, nessun push diretto su `main`).
@@ -170,19 +186,24 @@ Primo avvio dell'app con il container reale.
 - **Dipendenze**: M0 completo.
 
 ### M1-T01 — Pianificazione del modulo A e fixture
+
 - [ ] M1-T01-S01 Rileggere `docs/ANALISI_REQUISITI.md` §A e `ARCHITECTURE.md`; annotare qui le decisioni prese sulle domande aperte n. 1, 3, 7 (default: `CODE_SEQUENCE_SCOPE=SITE`, campata proposta = `Workstation.defaultBayId` modificabile, Salta = resta al proprio orario evidenziata).
 - [ ] M1-T01-S02 `tests/fixtures/agenda-2026-09-10.json` e `agenda-vuota.json`: agende congelate generate da `InfinityServiceMock` per asserzioni deterministiche.
 - [ ] M1-T01-S03 Branch `feature/M1-core-dashboard`; commit `docs(M1-T01): pianificazione modulo A e fixture agenda`.
 
 ### M1-T02 — CodeGenerator (application/queue)
+
 Assegnazione del codice progressivo F001… come identità immutabile.
+
 - [x] M1-T02-S01 `src/application/queue/CodeGenerator.ts`: `assign(input: { businessDate, brand }): Promise<QueueCode & { sequence }>` che usa `IAppointmentRepository.reserveNextSequence(businessDate, prefix)` + `formatQueueCode`. **Fatto 2026-09-10**: `CodeGenerator.next(businessDate, brand)` → `{ code, sequence, prefix }` con `reserveNextSequence`.
 - [x] M1-T02-S02 Strategie `SITE` (prefisso `CODE_PREFIX`, un contatore per giornata) e `BRAND` (`Brand.codePrefix`, un contatore per brand e giornata) selezionate da `env.codeSequenceScope`. **Fatto 2026-09-10**: opzioni `{ sitePrefix, scope: SITE|BRAND }` dal container (`CODE_PREFIX`, `CODE_SEQUENCE_SCOPE`).
 - [x] M1-T02-S03 Test `tests/unit/code-generator.test.ts`: F001, F002…, cambio giornata azzera, nessun riutilizzo dopo `CANCELLED`, strategia BRAND (F001/J001), overflow F1000. **Fatto 2026-09-10**: `tests/unit/code-generator.test.ts` copre SITE e BRAND; cambio giornata e nessun riutilizzo dopo CANCELLED da aggiungere.
 - [x] M1-T02-S04 Commit `feat(M1-T02): CodeGenerator con strategia SITE|BRAND`. **Fatto 2026-09-10**: commit unico `feat(accettazione): completamento setup M0, README e sviluppo dashboard M1` (hash con `git log -1`).
 
 ### M1-T03 — QueueService: letture e transizioni di stato
+
 Cuore del modulo A; dipende solo da interfacce.
+
 - [x] M1-T03-S01 `src/application/queue/QueueService.ts` con deps `{ appointments, referenceData, operators, crmOutbox, eventBus, clock, ids, logger, codeGenerator, env }`; tipo `QueueQuery { businessDate; deskId: DeskId | null; globalView: boolean }`. **Fatto 2026-09-10**: deps `{ appointments, referenceData, operators, eventBus, clock, ids, logger }` (crmOutbox/codeGenerator/env non ancora necessari); `QueueQuery` come da piano.
 - [x] M1-T03-S02 `getQueue(query): Promise<readonly QueueRowView[]>`: `listByDate` ordinata per (scheduledAt, sequence), filtro per `deskId`/brand dello sportello se `!globalView`, arricchimento `operatorName` e `bayCode`. **Fatto 2026-09-10**: filtro sportello: pratiche con `deskId` uguale oppure senza sportello ma di un marchio servito; arricchimento `operatorName`/`bayCode`.
 - [x] M1-T03-S03 `takeInCharge({ appointmentId, operatorId, workstationId, bayId, expectedVersion })`: `assertTransition(WAITING|SKIPPED → IN_PROGRESS)`, invariante "una sola IN_PROGRESS per bayId" (→ `BAY_BUSY` con elenco campate libere in `details`), set `bayId`, `operatorId`, `takenAt`, `repo.update(expectedVersion)` → `VERSION_CONFLICT` con la pratica aggiornata in `details`. **Fatto 2026-09-10**: campata richiesta occupata → `BAY_BUSY` con `freeBays`; senza richiesta: predefinita della postazione, altrimenti prima libera, altrimenti senza campata (mai blocco).
@@ -192,18 +213,20 @@ Cuore del modulo A; dipende solo da interfacce.
 - [x] M1-T03-S06b `restore({ appointmentId, operatorId, expectedVersion })`: `SKIPPED → WAITING` ("Ripristina"), azzera `skippedAt` lasciando `skipCount` invariato (serve all'anomalia EXCESSIVE_SKIPS). **Fatto 2026-09-10.**
 - [x] M1-T03-S07 `markNoShow({ appointmentId, operatorId, expectedVersion, reason })`: `WAITING|SKIPPED → NO_SHOW`, `noShowAt`, scrittura `CrmOutboxEvent { type: 'NO_SHOW', status: 'PENDING' }` con `idempotencyKey = buildNoShowIdempotencyKey(appointment)` (`${appointmentId}:NO_SHOW:${businessDate}`, helper già in `services/mappers/crm.mapper.ts`); `reopenNoShow` (`NO_SHOW → WAITING`) riservato a `SUPERVISOR|ADMIN` (ruolo riverificato). **Fatto 2026-09-11**: `markNoShow({ appointmentId, expectedVersion, reason })`: WAITING|SKIPPED → NO_SHOW e scrittura in `ICrmOutboxRepository` con chiave `<id>:NO_SHOW:<giornata>` (nessun doppione). Un errore sulla outbox non annulla il no-show: la pratica è chiusa e l'officina va avanti, l'anomalia resta nei log. Lo svuotamento verso il CRM è M6.
 - [x] M1-T03-S08 Pubblicazione `APPOINTMENT_STATUS_CHANGED` (con `actor OPERATOR`, `correlationId`) su ogni transizione riuscita; log info in italiano. **Fatto 2026-09-10**: evento `APPOINTMENT_STATUS_CHANGED` con attore OPERATOR e correlationId; log info in italiano.
-- [ ] M1-T03-S09 *(annullato: anticipava P2/P4 dentro P1; `getPublicPositionByPlate` è ora M2-T03-S01 e `getBayDisplay` è M4-T02-S01, unici proprietari delle rispettive regole)*.
+- [ ] M1-T03-S09 _(annullato: anticipava P2/P4 dentro P1; `getPublicPositionByPlate` è ora M2-T03-S01 e `getBayDisplay` è M4-T02-S01, unici proprietari delle rispettive regole)_.
 - [x] M1-T03-S09b `getBayOccupancy(businessDate)`: per ogni campata attiva la pratica `IN_PROGRESS` che la occupa (o `null`), derivata da `Appointment.bayId + status`; serve all'invariante di `takeInCharge` e a `BaySelectDialog` (M1-T13-S02). Nessuno stato di display (RELEASING/OFFLINE: M4). **Fatto 2026-09-10**: `getBayOccupancy(businessDate)` derivata da `IN_PROGRESS + bayId`.
 - [x] M1-T03-S10 Test `tests/unit/queue-service.test.ts`: ogni transizione consentita/vietata (incluse `restore` e `reopenNoShow` con ruolo), `BAY_BUSY`, `VERSION_CONFLICT`, evento pubblicato, outbox NO_SHOW scritta con la chiave corretta, filtro sportello vs vista globale, `getBayOccupancy`. **Fatto 2026-09-10**: `tests/unit/queue-service.test.ts`: take (campata predefinita/prima libera/BAY_BUSY), skip/restore/complete, INVALID_TRANSITION, VERSION_CONFLICT, filtro sportello vs globale; mancano `markNoShow`/`reopen`.
 - [x] M1-T03-S11 Commit `feat(M1-T03): QueueService con state machine, versioning e invariante campata`. **Fatto 2026-09-10**: commit unico `feat(accettazione): completamento setup M0, README e sviluppo dashboard M1` (hash con `git log -1`).
 
 ### M1-T04 — Inserimento manuale pratica (fallback Infinity)
+
 - [ ] M1-T04-S01 `QueueService.addManualAppointment(input: ManualAppointmentInput, operatorId)`: validazione targa/telefono con i value object, `source: 'MANUAL'`, `externalRef: null`, codice dal `CodeGenerator` (stesso contatore della sync), `insert` con propagazione del `Result` (`VALIDATION` su duplicato), evento `APPOINTMENT_CREATED` e `APPOINTMENT_CODE_ASSIGNED`.
 - [ ] M1-T04-S02 Duplicati: stessa targa già presente oggi → `VALIDATION` con messaggio "Targa già presente nell'agenda di oggi (codice F0xx)" e possibilità di forzare (`allowDuplicate`).
 - [ ] M1-T04-S03 Test: codice progressivo coerente con la sync successiva (manuale F001, poi sync assegna F002…), pratiche MANUAL mai toccate dalla reconciliation.
 - [ ] M1-T04-S04 Commit `feat(M1-T04): inserimento manuale pratica con codice dal contatore condiviso`.
 
 ### M1-T05 — SyncService: sincronizzazione idempotente e non distruttiva
+
 - [x] M1-T05-S01 `src/application/sync/SyncService.ts`: `runDailySync(businessDate, trigger, operatorId?): Promise<SyncRun>`; crea `SyncRun RUNNING`, chiama `infinity.fetchDailyAgenda` con `CallOptions { timeoutMs: 10000, correlationId }`, mappa con `mapInfinityAgenda` (restituisce `Result`: agenda con `businessDate` non valida → `SyncRun FAILED`, nessuna pratica creata), poi `reconcile`. **Fatto 2026-09-10**: `SyncService.runDailySync(businessDate, trigger, operatorId)` con `SyncRun RUNNING`, timeout 10 s, `mapInfinityAgenda`.
 - [x] M1-T05-S02 `reconcile(drafts, rejected, syncRunId)`: upsert per `externalRef`; nuove pratiche ordinate per (`scheduledAt`, `externalRef`) e codificate via `CodeGenerator`, inserite con `IAppointmentRepository.insert` (che restituisce `Result`: un duplicato → conteggiato in `rejected`, mai sovrascritto); aggiornamento dati cliente/veicolo/orario delle esistenti senza regressione di stato; annullate in Infinity → `CANCELLED` solo se `WAITING|SKIPPED`; mai delete, mai rinumerazione; `counters` popolati. **Fatto 2026-09-10**: reconcile: nuove ordinate per (scheduledAt, externalRef) con codice dal CodeGenerator; WAITING aggiornate se cambiate; sparite/annullate → CANCELLED solo da WAITING/SKIPPED; agenda parziale → nessuna cancellazione per assenza.
 - [x] M1-T05-S03 Esiti: agenda `partial=true` → `SyncRun PARTIAL`; `ProviderResult` err → `SyncRun FAILED` con `errorCode`/`errorMessage`; `rejected` > 0 → PARTIAL con dettaglio; evento `SYNC_RUN_FINISHED`. **Fatto 2026-09-10**: SUCCESS / PARTIAL (agenda parziale o scarti) / FAILED (ProviderError, mapping o eccezione) + evento `SYNC_RUN_FINISHED`.
@@ -212,6 +235,7 @@ Cuore del modulo A; dipende solo da interfacce.
 - [x] M1-T05-S06 Commit `feat(M1-T05): SyncService idempotente con reconciliation`. **Fatto 2026-09-10**: commit unico `feat(accettazione): completamento setup M0, README e sviluppo dashboard M1` (hash con `git log -1`).
 
 ### M1-T06 — SyncScheduler, bootstrap e snapshot dello stato
+
 - [x] M1-T06-S01 `src/application/sync/SyncScheduler.ts`: `tick()` ogni 30 s che esegue `runDailySync(today, 'SCHEDULED')` la prima volta in cui l'ora locale Europe/Rome supera `SYNC_HOUR_LOCAL` per una `businessDate` senza `SyncRun` SUCCESS/PARTIAL (catch-up dopo riavvio); `start()`/`stop()`; guard su `globalThis.__accettazioneScheduler` (un solo scheduler anche con HMR). **Fatto 2026-09-10**: `SyncScheduler` con tick ogni 60 s (non 30), sync SCHEDULED alla prima ora ≥ `SYNC_HOUR_LOCAL` senza sync nella giornata, catch-up BOOTSTRAP all'avvio; test rinviato (S04).
 - [x] M1-T06-S02 `src/instrumentation.ts` (`register()` solo su runtime `nodejs`; il file esiste dal bootstrap e chiama già `getContainer()` per il fail-fast all'avvio): ripristino snapshot, `runDailySync(today, 'BOOTSTRAP')` se la giornata non è sincronizzata, avvio scheduler; stesso bootstrap idempotente alla prima richiesta che chiama `getContainer()`. **Fatto 2026-09-10**: `instrumentation.ts` costruisce il container e avvia lo scheduler una sola volta per processo (flag su globalThis).
 - [ ] M1-T06-S03 `src/repositories/in-memory/SnapshotPersistence.ts` (importato solo da `repositories/factory.ts`): `InMemoryStore.toSnapshot()` → scrittura debounced (2 s) atomica `tmp + rename` in `.data/state.json`; `loadSnapshot` validato con Zod all'avvio.
@@ -220,6 +244,7 @@ Cuore del modulo A; dipende solo da interfacce.
 - [ ] M1-T06-S05 Commit `feat(M1-T06): scheduler con catch-up, bootstrap e snapshot atomico`.
 
 ### M1-T07 — Autenticazione locale (mock auth) e protezione rotte
+
 - [x] M1-T07-S01 `src/application/auth/IAuthService.ts`: `login(username, password, workstationId): Promise<Result<Session, DomainError>>`, `verify(token): Promise<Result<Session, DomainError>>`, `logout(token)`; `Session { operatorId; role; displayName; workstationId; deskIds; expiresAt }`. **Fatto 2026-09-10**: `IAuthService` con `login`, `verify`, `switchWorkstation`; `Session` come da piano più `username`, `issuedAt`.
 - [x] M1-T07-S02a `src/lib/hash-password.ts`: `hashPassword(plain)` / `verifyPassword(plain, hash)` con `scrypt` di `node:crypto` (sale casuale, confronto a tempo costante, formato `scrypt$<params>$<salt>$<hash>`); test `tests/unit/hash-password.test.ts`. **Fatto 2026-09-10**: `lib/hash-password.ts` (scrypt, formato `scrypt$N=,r=,p=$salt$hash`, confronto a tempo costante, prefisso demo `plain:`); test `hash-password.test.ts`.
 - [x] M1-T07-S02b `src/application/auth/LocalAuthService.ts` — `login`: `IOperatorRepository.findByUsername`, `verifyPassword`, utente disattivato o password errata → stesso messaggio generico "Credenziali non valide" (nessuna enumerazione utenti). **Fatto 2026-09-10**: `LocalAuthService.login` con messaggio unico "Credenziali non valide.".
@@ -233,6 +258,7 @@ Cuore del modulo A; dipende solo da interfacce.
 - [x] M1-T07-S07 Commit `feat(M1-T07): autenticazione locale con JWT e guard delle rotte`. **Fatto 2026-09-10**: commit unico `feat(accettazione): completamento setup M0, README e sviluppo dashboard M1` (hash con `git log -1`).
 
 ### M1-T08 — Helper HTTP e Route Handler della coda
+
 - [x] M1-T08-S01 `src/lib/http/respond.ts`: `jsonOk`, `jsonError`, mappatura `DomainError → HTTP` (`NOT_FOUND` 404, `VERSION_CONFLICT`/`BAY_BUSY` 409, `INVALID_TRANSITION`/`VALIDATION` 422, `INTERNAL` 500) con corpo `{ error: { code, message, details } }` e `x-correlation-id`. **Fatto 2026-09-10**: realizzato come `lib/http/api-error.ts` (`httpStatusFor`, `domainErrorResponse`, 401/403/400).
 - [x] M1-T08-S02 `src/lib/http/with-auth.ts` (sessione + ruolo minimo; `/api/v1/system/**` richiede ADMIN), `with-validation.ts` (Zod su query/body, 400 con dettagli), `idempotency.ts` (cache in memoria per `Idempotency-Key` con TTL 10 min: stessa chiave → stessa risposta), `rate-limit.ts` (finestra scorrevole in memoria per chiave arbitraria, riusato dal login in M1-T07-S04b e dal portale in M2-T02-S02). **Fatto 2026-09-10**: sessione via `app/_server/session.ts` (`readSession`, `requireSession`, `readApiSession`, cookie); validazione Zod inline nei Route Handler; nessun `/api/v1/system/**` ancora.
 - [ ] M1-T08-S02b `src/lib/http/with-logging.ts`: log strutturato per richiesta (metodo, path, status, durata ms, `correlationId`, `operatorId`, `action`, esito/`errorCode`) tramite `ILogger`; è l'audit trail di "chi ha preso in carico cosa"; test `tests/unit/http/with-logging.test.ts` con `NoopLogger` spia. Il formato JSON (`JsonConsoleLogger`/pino) arriva in M6-T05-S03b.
@@ -244,29 +270,33 @@ Cuore del modulo A; dipende solo da interfacce.
 - [x] M1-T08-S08 Commit `feat(M1-T08): Route Handler coda, azioni, inserimento manuale e sync`. **Fatto 2026-09-10**: commit unico `feat(accettazione): completamento setup M0, README e sviluppo dashboard M1` (hash con `git log -1`).
 
 ### M1-T09 — Client API, hook e store delle preferenze UI
+
 - [x] M1-T09-S01 `src/lib/api-client/client.ts` (fetch tipizzato con `zod` sulle risposte, `AbortSignal.timeout(8000)`, header `Idempotency-Key` con `crypto.randomUUID()`) e `query-keys.ts` (`queueKeys.list(date, deskId, view)`, `syncKeys.recent`). **Fatto 2026-09-10**: `lib/api-client/client.ts` (apiFetch con timeout 8 s, `ApiError`, redirect al login su 401) e `query-keys.ts`; senza Zod sulle risposte né Idempotency-Key.
 - [x] M1-T09-S02 `src/hooks/useQueue.ts`: `useQuery` con `refetchInterval: POLLING_MS.dashboard`, `refetchIntervalInBackground`, espone `dataUpdatedAt` e `isStale`. **Fatto 2026-09-10**: `hooks/useQueue.ts` (refetchInterval 3 s, `refetchIntervalInBackground`, `keepPreviousData`).
 - [x] M1-T09-S03 `src/hooks/useAppointmentActions.ts`: `useMutation` pessimistiche (`take`, `skip`, `complete`, `release`, `noShow`) con invalidazione della coda, gestione `409` → callback `onConflict(appointment)`, `BAY_BUSY` → `onBayBusy(freeBays)`, timeout → toast "Riprova". **Fatto 2026-09-10**: `hooks/useAppointmentActions.ts`: mutazione pessimistica, invalidazione coda, esiti `version-conflict` (con pratica aggiornata), `bay-busy` (campate libere), `error`.
 - [x] M1-T09-S04 `src/hooks/useStaleIndicator.ts`: `true` se `now - dataUpdatedAt > STALE_WARNING_MS`. **Fatto 2026-09-10**: indicatore "Dati non aggiornati" inline in `QueueDashboard` (`STALE_WARNING_MS`).
-- [ ] M1-T09-S05 `src/store/ui-store.ts` (zustand `persist`): `workstationId`, `globalView`, `brandFilter`, `deskFilter`, `compactRows`; nessun dato di coda nello store. *(nota 2026-09-10: decisione: nessuno store zustand per ora, vista e sportello vivono nei search param dell'URL (M1-T11-S04))*
+- [ ] M1-T09-S05 `src/store/ui-store.ts` (zustand `persist`): `workstationId`, `globalView`, `brandFilter`, `deskFilter`, `compactRows`; nessun dato di coda nello store. _(nota 2026-09-10: decisione: nessuno store zustand per ora, vista e sportello vivono nei search param dell'URL (M1-T11-S04))_
 - [ ] M1-T09-S06 Test hook con Testing Library e `QueryClient` di test (mock `fetch`): `tests/components/use-queue.test.tsx` (polling, `isStale`), `tests/components/use-appointment-actions.test.tsx` (409 → `onConflict`, `BAY_BUSY` → `onBayBusy`, timeout → toast), `tests/unit/ui-store.test.ts` (persistenza preferenze, nessun dato di coda).
 - [ ] M1-T09-S07 Commit `feat(M1-T09): client API tipizzato, hook useQueue/useAppointmentActions e store UI`.
 
 ### M1-T10 — Pagina di login e scelta postazione
+
 - [x] M1-T10-S01 `src/app/(auth)/login/page.tsx` + `modules/reception/LoginForm.tsx`: username, password, `Select` postazione (da `GET /api/v1/auth/workstations`, M1-T07-S04, o props del Server Component), errore in italiano, gestione del focus, `Enter` per inviare. **Fatto 2026-09-10**: `(auth)/login/page.tsx` + `modules/reception/LoginForm.tsx`: username, password, select Sportello/Brand (chip dei marchi) e Postazione filtrata, errore in italiano, Invio per inviare, account demo cliccabili.
 - [x] M1-T10-S02 Redirect post-login a `/accettazione` (o a `next=`); `src/app/page.tsx` reindirizza a `/accettazione` se sessione valida, altrimenti `/login` (sostituisce la pagina di verifica dell'health del bootstrap). Decidere qui l'attivazione di `typedRoutes: true` in `next.config.ts` (rinviata da M0-T06-S05): verificare che `Link`/`redirect()` restino verdi con `npm run typecheck` e `npm run build`. **Fatto 2026-09-10**: `/` reindirizza a `/accettazione` o `/login`; redirect post-login a `next` (solo percorsi interni); `typedRoutes` non attivato.
 - [ ] M1-T10-S03 Test componente `LoginForm` (validazione campi, messaggio errore) e e2e login riuscito/fallito.
 - [x] M1-T10-S04 Commit `feat(M1-T10): pagina login con scelta postazione`. **Fatto 2026-09-10**: commit unico `feat(accettazione): completamento setup M0, README e sviluppo dashboard M1` (hash con `git log -1`).
 
 ### M1-T11 — Shell operatore e vista multi-postazione
+
 - [x] M1-T11-S01 `src/app/(operator)/layout.tsx` + `components/layout/AppShell.tsx`, `Header.tsx` (nome operatore, postazione corrente, orologio Europe/Rome, logout), `StaleDataIndicator`, `SystemStatusBanner` (placeholder alimentato da `/api/v1/health` da M6). **Fatto 2026-09-10**: `(operator)/layout.tsx` + `components/layout/AppShell.tsx`, `Header.tsx` (nome, ruolo, postazione, sportello, orologio Europe/Rome, navigazione, logout); `SystemStatusBanner`/`StaleDataIndicator` rinviati.
-- [ ] M1-T11-S02 `modules/reception/WorkstationSwitcher.tsx`: cambio postazione senza logout (aggiorna sessione via `POST /api/v1/auth/workstation` e store). *(nota 2026-09-11: cambio postazione non ancora fatto; l'intestazione mostra però nome, ruolo e iniziali di chi è collegato (`OperatorChip`))*
+- [ ] M1-T11-S02 `modules/reception/WorkstationSwitcher.tsx`: cambio postazione senza logout (aggiorna sessione via `POST /api/v1/auth/workstation` e store). _(nota 2026-09-11: cambio postazione non ancora fatto; l'intestazione mostra però nome, ruolo e iniziali di chi è collegato (`OperatorChip`))_
 - [x] M1-T11-S03 `modules/reception/DeskBrandFilter.tsx`: filtro predefinito sullo sportello della postazione, chip dei brand dello sportello; `GlobalViewToggle.tsx` "Vista globale" che rimuove il filtro (persistito nello store, indicato nell'header con badge). **Fatto 2026-09-10**: select dello sportello (predefinito quello della postazione) + pulsante "Vista globale" / "Torna al mio sportello"; chip dei brand rinviati.
 - [x] M1-T11-S04 Filtri nei search param dell'URL (`?date=&deskId=&view=`) sincronizzati con lo store, così un link è condivisibile fra postazioni. **Fatto 2026-09-10**: `?view=desk|global&deskId=` nell'URL (`router.replace`), link condivisibile fra postazioni.
 - [ ] M1-T11-S05 Test componente: toggle vista globale aggiorna query key e URL.
 - [x] M1-T11-S06 Commit `feat(M1-T11): shell operatore, switch postazione e vista globale`. **Fatto 2026-09-10**: commit unico `feat(accettazione): completamento setup M0, README e sviluppo dashboard M1` (hash con `git log -1`).
 
 ### M1-T12 — Tabella della coda
+
 - [x] M1-T12-S08 Blocco "In ritardo / assenti" nella coda: raccoglie le pratiche attese da oltre `LATE_GRACE_MINUTES` (10 min) e non ancora prese in carico, con i minuti di ritardo accanto all'orario e due azioni dedicate, "Rimetti in coda" e "Segna assente". La regola vive nel dominio (`isLate`, `effectiveScheduleTime`) e usa l'ora del server, non quella del client. **Fatto 2026-09-11.**
 - [x] M1-T12-S09 Nuovo campo `Appointment.rescheduledAt`: "Rimetti in coda" sposta l'orario atteso ad adesso lasciando intatto `scheduledAt` (dato di Infinity), così una sincronizzazione successiva non annulla la decisione dell'accettatore e l'orario originale resta leggibile. Ordinamento della coda e conteggio del portale usano l'orario effettivo. **Fatto 2026-09-11.**
 - [x] M1-T12-S10 Colonna Cliente ripulita su richiesta del committente: l'esito del promemoria non è più nella tabella ma nel pannello di dettaglio, dove serve davvero (accanto al telefono, quando si decide se chiamare), con una riga che dice cosa fare. **Fatto 2026-09-11.**
@@ -280,6 +310,7 @@ Cuore del modulo A; dipende solo da interfacce.
 - [x] M1-T12-S07 Commit `feat(M1-T12): QueueTable con righe, badge di stato e sezioni`. **Fatto 2026-09-10**: commit unico `feat(accettazione): completamento setup M0, README e sviluppo dashboard M1` (hash con `git log -1`).
 
 ### M1-T13 — Pulsanti azione, assegnazione campata e conflitti
+
 - [x] M1-T13-S01 `modules/reception/ActionButtons.tsx`: pulsanti visibili in base a `ALLOWED_TRANSITIONS` (Prendi in carico, Salta, Ripristina, Completato, Rilascia, No-show; Riapri solo per SUPERVISOR/ADMIN); mai disabilitati da guasti esterni, solo dalle regole di transizione; stato pessimistico con spinner, timeout 8 s e "Riprova"; target touch 48 px. **Fatto 2026-09-10**: `ActionButtons.tsx` guidato da `canTransition` (Prendi in carico, Salta, Ripristina, Completato, Rilascia), disabilitati solo durante l'azione sulla stessa riga; No-show/Riapri rinviati.
 - [x] M1-T13-S02 `BaySelectDialog.tsx`: alla presa in carico propone `Workstation.defaultBayId`, mostra le 4 campate con occupazione derivata (codice in servizio), consente "Assegna campata manualmente"; presa in carico diretta con un solo click se la campata predefinita è libera. **Fatto 2026-09-10**: scelta automatica della campata lato server (predefinita della postazione o prima libera); dialog di scelta solo su `BAY_BUSY` con le campate libere e opzione "Senza campata".
 - [x] M1-T13-S03 `ConflictDialog.tsx`: su `409 VERSION_CONFLICT` mostra "Presa in carico da {operatore} alla postazione {P}" con la pratica aggiornata e pulsante "Aggiorna"; su `BAY_BUSY` propone le campate libere. **Fatto 2026-09-10**: dialog "Pratica modificata da un'altra postazione" con codice/stato/cliente aggiornati e pulsante Aggiorna; dialog "Campata occupata" con le libere.
@@ -288,6 +319,7 @@ Cuore del modulo A; dipende solo da interfacce.
 - [x] M1-T13-S06 Commit `feat(M1-T13): azioni pessimistiche, scelta campata e ConflictDialog`. **Fatto 2026-09-10**: commit unico `feat(accettazione): completamento setup M0, README e sviluppo dashboard M1` (hash con `git log -1`).
 
 ### M1-T14 — Banner sync e fallback inserimento manuale in UI
+
 - [x] M1-T14-S01 `modules/reception/SyncBanner.tsx`: legge `lastSync` dalla risposta di `/api/v1/queue`; `FAILED` → rosso con "Riprova sync" e "Inserisci pratica manualmente"; `PARTIAL` → giallo con conteggio scartati; `RUNNING` → indicatore; nessuna sync oggi → avviso con CTA. **Fatto 2026-09-10**: `SyncBanner.tsx`: nessuna sync (giallo + Sincronizza ora), FAILED (rosso + Riprova), PARTIAL (giallo + conteggi), RUNNING, SUCCESS (riga discreta).
 - [ ] M1-T14-S02a Schema Zod `ManualAppointmentInput` condiviso client/server in `modules/reception/manual-appointment.schema.ts` (targa via `parsePlate`, telefono opzionale via `parsePhoneE164`, brand, modello, cognome/nome, orario prenotazione, sportello, note) con messaggi in italiano; test `tests/unit/manual-appointment-schema.test.ts`.
 - [ ] M1-T14-S02b `ManualAppointmentForm.tsx` in `src/app/(operator)/accettazione/nuova/page.tsx`: campi con maiuscola automatica sulla targa, select brand/sportello, orario predefinito "adesso", errori inline dallo schema; invio a `POST /api/v1/appointments`.
@@ -297,13 +329,15 @@ Cuore del modulo A; dipende solo da interfacce.
 - [ ] M1-T14-S05 Commit `feat(M1-T14): SyncBanner e inserimento manuale pratica`.
 
 ### M1-T15 — Dettaglio pratica, storico e pagina Sistema
-- [ ] M1-T15-S01 `src/app/(operator)/accettazione/pratiche/[id]/page.tsx`: dati pratica, cliente, veicolo, timeline dagli eventi del bus (`IEventBus.listSince(0)` filtrati per `appointmentId`; decisione: in M1 nessuna cronologia persistita, la timeline copre gli eventi in memoria del processo; la cronologia persistita è nel backlog), note modificabili, azioni. *(nota 2026-09-11: anticipato come pannello laterale sulla coda (`AppointmentDetailPanel`), aperto dal clic sulla riga: cliente con telefono chiamabile (`tel:`), veicolo, lavorazione, note, sportello, campata, chi ha preso in carico e cronologia della giornata. Resta da fare la pagina di dettaglio con la storia degli eventi)*
+
+- [ ] M1-T15-S01 `src/app/(operator)/accettazione/pratiche/[id]/page.tsx`: dati pratica, cliente, veicolo, timeline dagli eventi del bus (`IEventBus.listSince(0)` filtrati per `appointmentId`; decisione: in M1 nessuna cronologia persistita, la timeline copre gli eventi in memoria del processo; la cronologia persistita è nel backlog), note modificabili, azioni. _(nota 2026-09-11: anticipato come pannello laterale sulla coda (`AppointmentDetailPanel`), aperto dal clic sulla riga: cliente con telefono chiamabile (`tel:`), veicolo, lavorazione, note, sportello, campata, chi ha preso in carico e cronologia della giornata. Resta da fare la pagina di dettaglio con la storia degli eventi)_
 - [ ] M1-T15-S02 `GET /api/v1/appointments/[id]` e `PATCH /api/v1/appointments/[id]/notes`.
-- [ ] M1-T15-S03 `src/app/(operator)/sistema/page.tsx` (ADMIN): ultime 20 `SyncRun` con counters, "Sincronizza ora", modalità mock attive (`env.mock*`), stato snapshot (ultimo salvataggio), versione build. *(nota 2026-09-10: `sistema/page.tsx` mostra oggi solo lo stato delle porte (erede della pagina di bootstrap); SyncRun, modalità mock e snapshot ancora da fare)*
+- [ ] M1-T15-S03 `src/app/(operator)/sistema/page.tsx` (ADMIN): ultime 20 `SyncRun` con counters, "Sincronizza ora", modalità mock attive (`env.mock*`), stato snapshot (ultimo salvataggio), versione build. _(nota 2026-09-10: `sistema/page.tsx` mostra oggi solo lo stato delle porte (erede della pagina di bootstrap); SyncRun, modalità mock e snapshot ancora da fare)_
 - [ ] M1-T15-S04 Test e2e navigazione riga → dettaglio; test accesso `/sistema` negato ad ADVISOR (403).
 - [ ] M1-T15-S05 Commit `feat(M1-T15): dettaglio pratica e pagina Sistema`.
 
 ### M1-T16 — Accessibilità e usabilità monopagina
+
 - [ ] M1-T16-S01a Scorciatoie da tastiera in `modules/reception/useQueueShortcuts.ts` (frecce per navigare le righe, `P` prendi in carico, `S` salta, `C` completato) con focus visibile sulla riga selezionata; test `tests/components/use-queue-shortcuts.test.tsx`.
 - [ ] M1-T16-S01b Legenda scorciatoie (`?` apre `ShortcutsHelpDialog.tsx`) e regione `aria-live="polite"` per aggiornamenti della coda e toast (`components/shared/LiveAnnouncer.tsx`).
 - [ ] M1-T16-S02a Contrasto dei badge di stato verificato con axe-core (`@axe-core/playwright`): 0 violazioni `color-contrast` (AA) sulla dashboard con tutti i sei stati presenti.
@@ -313,37 +347,43 @@ Cuore del modulo A; dipende solo da interfacce.
 - [ ] M1-T16-S05 Commit `feat(M1-T16): accessibilità, scorciatoie e banner offline`.
 
 ### M1-T17 — Test di contratto ed e2e del modulo A
+
 - [ ] M1-T17-S01 `tests/contracts/infinity-service.contract.ts` (`runInfinityServiceContract(label, factory)`): mai throw, `Result.err` in `error`/`timeout`, rispetto di `signal`, forma DTO valida (Zod), determinismo per `businessDate`, `healthCheck` (rispetta `timeoutMs`/`signal` di `CallOptions`: oggi i mock li ignorano e `check-health.ts` applica un timer locale di 2000 ms); eseguita su `InfinityServiceMock`.
 - [ ] M1-T17-S02 `tests/contracts/appointment-repository.contract.ts`: ordinamento, `VERSION_CONFLICT`, `reserveNextSequence` mai riutilizzato, `countAhead` per scope; eseguita su `InMemoryAppointmentRepository` (Prisma in M7).
 - [ ] M1-T17-S03 `playwright.config.ts` + `tests/e2e/smoke.spec.ts`: login → coda con F001 → prendi in carico (campata C1) → completato; `tests/e2e/conflict.spec.ts`: due contesti browser, stessa pratica → `ConflictDialog`.
 - [ ] M1-T17-S04 Script `test:e2e` in CI con server avviato in modalità mock e `FixedClock` via env `MOCK_FIXED_NOW`.
 - [ ] M1-T17-S05 Commit `test(M1-T17): contract suite Infinity/repository ed e2e smoke`.
 
-### M1-T22 — Stati di caricamento, vuoti ed errori *(nuovo 2026-09-14, revisione generale)*
+### M1-T22 — Stati di caricamento, vuoti ed errori _(nuovo 2026-09-14, revisione generale)_
+
 - [x] M1-T22-S01 `components/ui/skeleton.tsx` (`Skeleton`, `TableSkeleton`, `CardSkeleton`): segnaposto animati che ripetono la forma di ciò che sta per comparire, con testo per gli screen reader. Usati da coda, tablet, cruscotto BDC e coda CRM al posto delle scritte "Caricamento…". **Fatto 2026-09-14.**
 - [x] M1-T22-S02 `components/shared/EmptyState.tsx`: un solo stato vuoto per tutta l'applicazione, con titolo, spiegazione e azioni (sincronizza, vista globale). Un elenco vuoto non è un errore e non deve sembrarlo. **Fatto 2026-09-14.**
 - [x] M1-T22-S03 Error boundary per area: `app/(operator)/error.tsx` (si resta nell'intestazione, con "Riprova" e "Torna alla coda") e `app/(display)/error.tsx` (schermo giallo "MONITOR IN RIPRISTINO" che riprova da solo dopo 20 s: nessuno preme pulsanti su uno schermo appeso al muro). **Fatto 2026-09-14.**
 - [x] M1-T22-S04 Conferma a due tocchi in linea su "Segna assente" (`ActionButtons`): primo tocco → "Confermi assente?" + "Annulla", decade da solo dopo 6 s; secondo tocco → azione. Scelta ristretta a questa azione perché genera un lead BDC e un evento CRM non annullabili dall'accettatore; prendi in carico, salta e completato restano a un tocco. La chiusura di giornata ha già la sua finestra di conferma. **Fatto 2026-09-14.**
 
-### M1-T21 — Flusso responsive e ottimizzazione touch *(nuovo 2026-09-11, richiesta del committente)*
+### M1-T21 — Flusso responsive e ottimizzazione touch _(nuovo 2026-09-11, richiesta del committente)_
+
 - [x] M1-T21-S01 `src/hooks/useMediaQuery.ts`: `useMediaQuery` e `useIsTouchLayout()` (soglia `TOUCH_LAYOUT_MAX_WIDTH` = 1024 px, che comprende i tablet in orizzontale ed esclude i monitor delle postazioni). Il valore parte da `false` e si calcola dopo il montaggio: il server non conosce la larghezza del dispositivo e un'ipotesi sbagliata farebbe lampeggiare la pagina; fino ad allora vale il comportamento da scrivania, che non porta l'operatore altrove senza che l'abbia chiesto. **Fatto 2026-09-11.**
 - [x] M1-T21-S02 `useAppointmentActions.run` accetta `onSuccess`: la dashboard decide dove andare **solo quando il server ha confermato** la presa in carico, così un conflitto fra postazioni non trascina l'operatore in un'altra schermata. Su tablet → `checkInPath(id)` (`/tablet?pratica=`), su schermo grande → apertura del pannello di dettaglio. Vale anche per la presa in carico che passa dalla scelta dell'accettazione libera. **Fatto 2026-09-11.**
 - [x] M1-T21-S03 Vie d'uscita in entrambe le direzioni: pulsante "Passa al check-in / Ispeziona" nel pannello di dettaglio (pratiche in carico) per chi lavora al banco, e "Salta foto per ora" nella schermata di ispezione, che riporta alla coda lasciando la pratica in carico e le foto già scattate nel fascicolo (serve quando piove o la vettura va spostata subito). **Fatto 2026-09-11.**
 - [x] M1-T21-S04 Coda a misura di dito: celle `px-4 py-3`, azioni di riga alla nuova misura `size="touch"` (≥ 44 × 44 px), riga con `touch-manipulation` (niente ritardo di 300 ms) e `select-none` (il tocco prolungato apre il dettaglio invece di selezionare il testo), codice con area di tocco piena altezza. **Fatto 2026-09-11.**
 - [x] M1-T21-S05 La vista tablet legge ora la coda completa e filtra lo sportello lato client: senza, l'ispezione aperta dalla vista globale su una pratica di un altro sportello non avrebbe trovato la riga. Se la pratica richiesta non è più in elenco la schermata lo dice, invece di restare vuota. Test `tests/unit/navigation.test.ts` per `checkInPath`. **Fatto 2026-09-11.**
 
-### M1-T20 — Identità visiva Autoclub Group *(nuovo 2026-09-11, richiesta del committente)*
+### M1-T20 — Identità visiva Autoclub Group _(nuovo 2026-09-11, richiesta del committente)_
+
 - [x] M1-T20-S01 Token di marca in `src/app/globals.css`: `--color-brand-blue` (#0065A0), `--color-brand-blue-dark` (#00466F), `--color-brand-blue-light` (#0180CA), `--color-brand-lime` (#87BD22), `--color-brand-lime-dark`, `--color-brand-ink` (#2E2E2E). I valori non sono stati scelti a occhio: sono le variabili CSS pubblicate dal sito aziendale (`--color__primary`, `--color__secondary`, …). **Fatto 2026-09-11.**
 - [x] M1-T20-S02 Scala neutra `slate` ritinta verso il blu istituzionale nello stesso blocco `@theme`: le trenta e più schermate già scritte cambiano tono senza toccare una classe, e il codice nuovo continua a usare `slate-*`. I colori di stato (in attesa, in carico, completata, assente) restano invariati perché sono semantici. **Fatto 2026-09-11.**
 - [x] M1-T20-S03 `components/layout/BrandMark.tsx`: marchio testuale "AUTOCLUB" + riquadro verde "GROUP", in CSS e non come immagine (resta nitido su un monitor 4K e non aggiunge un file da caricare). Usato in intestazione operatore, login, portale cliente, tabellone e monitor. Il logo ufficiale potrà sostituirlo quando verrà fornito. **Fatto 2026-09-11.**
 - [x] M1-T20-S04 Superfici aggiornate: barra dell'area operatore blu con bordo verde e voce attiva evidenziata, pulsante primario blu istituzionale (nuova variante `onDark` per i fondi scuri), `OperatorChip` con variante chiara, sfondo dell'area operatore grigio chiaro, monitor blu in servizio e verde marchio quando l'accettazione è libera, tabellone con intestazione e chiamata in verde Autoclub. **Fatto 2026-09-11.**
 
-### M1-T19 — Terminologia rivolta al cliente *(nuovo 2026-09-11, richiesta del committente)*
+### M1-T19 — Terminologia rivolta al cliente _(nuovo 2026-09-11, richiesta del committente)_
+
 - [x] M1-T19-S01 A schermo "campata" diventa **Accettazione**: intestazione della coda, dialog dell'accettazione occupata, pannello di dettaglio, tabellone della sala d'attesa ("→ ACCETTAZIONE 1"), monitor ("ACCETTAZIONE 1", "ACCETTAZIONE LIBERA / AVANZARE", titolo della scheda), portale cliente ("Procedi all'accettazione 1"), messaggi d'errore del `QueueService`, nomi delle campate nel seed e descrizione del sito. **Fatto 2026-09-11**: "campata" è gergo di officina e a un cliente non dice nulla.
 - [x] M1-T19-S02 Dominio, dati e URL restano invariati (`Bay`, `bayId`, `/display/[campata]`, parametro `?campata=`): un rename tecnico avrebbe toccato state machine, API pubbliche dei monitor e documentazione senza portare nulla al cliente. La scelta è annotata in `src/domain/glossary.ts`. **Fatto 2026-09-11.**
 - [x] M1-T19-S03 Sul monitor la riga del rilascio dice ora "PRATICA F011 COMPLETATA" invece di "Accettazione F011 completata": con l'intestazione "ACCETTAZIONE LIBERA" la vecchia dicitura si leggeva come il nome della postazione. **Fatto 2026-09-11.**
 
 ### M1-T18 — Documentazione e chiusura M1
+
 - [ ] M1-T18-S01 Aggiornare `README.md` (flusso operatore, credenziali demo, interruttori mock utili per la demo), `ARCHITECTURE.md` e `docs/GLOSSARIO.md`; ADR nuovi se emerse deviazioni (es. semantica di Salta).
 - [ ] M1-T18-S02 Verifica dei criteri di completamento di M1 con checklist manuale (due browser, riavvio server, `MOCK_INFINITY_MODE=error`) annotata qui.
 - [ ] M1-T18-S03 Aggiornare `TASKS.md`, PR `feature/M1-core-dashboard` → `main`; commit `docs(M1-T18): chiusura milestone M1`.
@@ -358,10 +398,12 @@ Cuore del modulo A; dipende solo da interfacce.
 - **Dipendenze**: M1 (`QueueService`, `IAppointmentRepository.countAhead`, stato condiviso).
 
 ### M2-T01 — Pianificazione modulo B
+
 - [x] M2-T01-S01 Decidere e annotare qui le regole di default per le domande aperte n. 5 e 6 (`QUEUE_AHEAD_SCOPE=SITE`, SKIPPED contate come in attesa, sola targa con rate limit; secondo fattore in backlog). **Fatto 2026-09-11**: default confermati: `QUEUE_AHEAD_SCOPE=SITE`, pratiche SKIPPED contate come in attesa, ricerca con la sola targa protetta da limiti di frequenza; secondo fattore resta in backlog.
 - [ ] M2-T01-S02 Branch `feature/M2-portale-cliente`; commit `docs(M2-T01): pianificazione modulo B`.
 
 ### M2-T02 — API pubblica di stato con rate limit
+
 - [x] M2-T02-S01 `GET /api/v1/public/status?plate=`: `normalizePlate` + `parsePlate` (422 "Formato targa non valido"), `getPublicPositionByPlate(plate, today)` → `QueuePositionView`; 404 con messaggio "Targa non trovata nell'agenda di oggi. Rivolgiti allo sportello."; `Cache-Control: no-store`. **Fatto 2026-09-11**: `GET /api/v1/public/status?targa=` (alias `plate=`) con `parsePlate` (400 invece di 422, coerente con gli altri endpoint), `getPublicPositionByPlate`, 404 con rimando allo sportello, `cache-control: no-store`.
 - [x] M2-T02-S02 `src/lib/http/rate-limit.ts`: sliding window in memoria per IP (es. 30 richieste/min) e per targa (10/min) → 429 con `Retry-After`; esclusione degli IP interni configurabile (`RATE_LIMIT_ALLOWLIST`). **Fatto 2026-09-11**: `src/lib/http/rate-limit.ts` (finestra scorrevole su globalThis, `hitRateLimit`, `clientIpFrom`): 240 richieste/min per indirizzo e 30/min per targa, valori in `config/constants.ts` perché devono restare sopra il polling legittimo (un test lo verifica). Allowlist degli IP interni non necessaria con questi limiti.
 - [x] M2-T02-S03 Pratiche `CANCELLED`/`COMPLETED`: risposta con stato e messaggio dedicato ("Accettazione completata", "Appuntamento annullato: rivolgiti allo sportello"). **Fatto 2026-09-11**: pratiche chiuse gestite dal messaggio di stato: COMPLETED "Accettazione completata", CANCELLED e NO_SHOW rimandano allo sportello.
@@ -369,12 +411,14 @@ Cuore del modulo A; dipende solo da interfacce.
 - [x] M2-T02-S05 Commit `feat(M2-T02): endpoint pubblico di stato con rate limit`. **Fatto 2026-09-11**: commit unico `feat(portale): sviluppo portale web cliente per QR code M2`.
 
 ### M2-T03 — Regola "clienti prima di te"
+
 - [x] M2-T03-S01 `QueueService.getPublicPositionByPlate(plate, businessDate)` → `QueuePositionView` (unico proprietario della regola "clienti prima di te", spostato qui da M1-T03-S09): usa `IAppointmentRepository.countAhead(appointment, scope)` con `QUEUE_AHEAD_SCOPE=DESK|SITE` e flag `QUEUE_AHEAD_INCLUDE_SKIPPED` (default true) letto in `env.ts` e passato al repository; documentare in README. **Fatto 2026-09-11**: `QueueService.getPublicPositionByPlate(plate, businessDate)` con `countAhead` e `queueAheadScope` dal container; fra più pratiche con la stessa targa vince quella aperta. **Corretto 2026-09-11**: il conteggio considera solo le pratiche in coda dello STESSO sportello (prima sommava tutta l'officina). Lo sportello è quello indicato da Infinity oppure, quando manca, quello che serve il marchio della vettura: la stessa regola con cui la dashboard raggruppa la coda. L'interruttore `QUEUE_AHEAD_SCOPE` e il metodo `IAppointmentRepository.countAhead` sono stati rimossi perché la regola non è più configurabile.
 - [x] M2-T03-S02 `aheadCount` = 0 e `bayNumber` quando `IN_PROGRESS` ("È il tuo turno: campata N"). **Fatto 2026-09-11**: `aheadCount` 0 e numero di campata quando la pratica è IN_PROGRESS.
 - [x] M2-T03-S03 Test unit `tests/unit/queue-position.test.ts`: `countAhead` su fixture con SKIPPED incluse/escluse, sportelli diversi, pratiche chiuse; nessun campo personale nella view. **Fatto 2026-09-11**: `tests/unit/queue-position.test.ts`: conteggio con SKIPPED, ambito DESK vs SITE, in carico, pratiche chiuse, targa non valida e non trovata, nessun campo personale.
 - [x] M2-T03-S04 Commit `feat(M2-T03): regola configurabile del conteggio in attesa`. **Fatto 2026-09-11**: commit unico `feat(portale): sviluppo portale web cliente per QR code M2`.
 
 ### M2-T04 — UI portale: ricerca targa
+
 - [x] M2-T04-S01 `src/app/(public)/layout.tsx` (mobile-first, logo neutro, nessuna navigazione operatore) e `src/app/(public)/cliente/page.tsx`. **Fatto 2026-09-11**: `src/app/(public)/layout.tsx` (mobile-first, intestazione neutra) e `cliente/page.tsx`; aggiunto `src/app/qr/page.tsx` come alias breve da stampare sui cartelli.
 - [x] M2-T04-S02 `modules/customer-portal/PlateSearchForm.tsx`: input con `autocapitalize="characters"`, `inputmode`, formattazione live, validazione client con `parsePlate`, pulsante grande, messaggi in italiano; invio → `/cliente/stato?targa=`. **Fatto 2026-09-11**: `PlateSearchForm.tsx` con `autocapitalize="characters"`, formattazione live (`formatPlateInput`), validazione con `parsePlate`, campo alto 4rem e pulsante da 3rem; invio a `/cliente/stato?targa=`.
 - [x] M2-T04-S03 Informativa breve privacy (testo placeholder da validare col PO) e link "Non trovi la tua targa? Rivolgiti allo sportello". **Fatto 2026-09-11**: nota sulla privacy sotto il form e rimando allo sportello nel piè di pagina del layout pubblico.
@@ -382,6 +426,7 @@ Cuore del modulo A; dipende solo da interfacce.
 - [x] M2-T04-S05 Commit `feat(M2-T04): form ricerca targa mobile-first`. **Fatto 2026-09-11**: commit unico `feat(portale): sviluppo portale web cliente per QR code M2`.
 
 ### M2-T05 — UI portale: esito e stato in tempo reale
+
 - [x] M2-T05-S01 `src/hooks/usePublicStatus.ts`: `useQuery` con `refetchInterval: POLLING_MS.portal`, retry limitato, `retryOnMount`. **Fatto 2026-09-11**: `src/hooks/usePublicStatus.ts` con `POLLING_MS.portal` (5 s), `keepPreviousData` e nessun tentativo ripetuto sugli errori definitivi.
 - [x] M2-T05-S02 `modules/customer-portal/QueuePositionCard.tsx`: codice enorme, "Clienti prima di te: N", stato leggibile, campata quando in carico, ora ultimo aggiornamento; `src/app/(public)/cliente/stato/page.tsx`. **Fatto 2026-09-11**: `QueuePositionCard.tsx`: codice a 4.5rem, conteggio in `aria-live`, orario dell'appuntamento, campata quando in carico, ora dell'ultimo aggiornamento; `cliente/stato/page.tsx`.
 - [x] M2-T05-S03 `ServiceUnavailableCard.tsx`: su errore rete/5xx "Servizio momentaneamente non disponibile, rivolgiti allo sportello" mantenendo l'ultimo stato noto; su 404 card "Targa non trovata" con pulsante "Cerca di nuovo"; su 429 "Troppe richieste, riprova tra poco". **Fatto 2026-09-11**: `ServiceUnavailableCard.tsx` per targa non trovata, targa non valida, troppe richieste e servizio non disponibile. Solo un guasto di rete conserva l'ultimo stato noto: un 404 sopravvenuto (agenda cambiata) mostra subito il motivo, altrimenti il cliente resterebbe in attesa di una chiamata mai prevista.
@@ -391,12 +436,14 @@ Cuore del modulo A; dipende solo da interfacce.
 - [x] M2-T05-S05 Commit `feat(M2-T05): card stato coda con polling, fallback e accessibilità`. **Fatto 2026-09-11**: commit unico `feat(portale): sviluppo portale web cliente per QR code M2`.
 
 ### M2-T06 — QR code stampabili
-- [ ] M2-T06-S01 Script `scripts/gen-qr.mts` (libreria `qrcode`, dev dependency) che genera `public/qr/corsia-<n>.svg` e un PDF/HTML stampabile A4 con URL `PUBLIC_BASE_URL/cliente?src=corsia<n>`. *(nota 2026-09-11: generazione dei QR stampabili non ancora fatta: la rotta `/qr` esiste ed è pronta a essere codificata nel QR)*
-- [ ] M2-T06-S02 Parametro `src` tracciato nel log (nessun dato personale) per capire quale corsia genera più accessi. *(nota 2026-09-11: parametro `src` già propagato da `/qr` a `/cliente` e al form; log dedicato rinviato)*
+
+- [ ] M2-T06-S01 Script `scripts/gen-qr.mts` (libreria `qrcode`, dev dependency) che genera `public/qr/corsia-<n>.svg` e un PDF/HTML stampabile A4 con URL `PUBLIC_BASE_URL/cliente?src=corsia<n>`. _(nota 2026-09-11: generazione dei QR stampabili non ancora fatta: la rotta `/qr` esiste ed è pronta a essere codificata nel QR)_
+- [ ] M2-T06-S02 Parametro `src` tracciato nel log (nessun dato personale) per capire quale corsia genera più accessi. _(nota 2026-09-11: parametro `src` già propagato da `/qr` a `/cliente` e al form; log dedicato rinviato)_
 - [ ] M2-T06-S03 README: come rigenerare e stampare i QR.
 - [ ] M2-T06-S04 Commit `feat(M2-T06): generazione QR code stampabili`.
 
 ### M2-T07 — Test e chiusura M2
+
 - [ ] M2-T07-S01 `tests/e2e/portale.spec.ts` (viewport mobile): targa mock → codice e conteggio; operatore prende in carico la pratica precedente → conteggio scende entro 5 s; targa sconosciuta → messaggio.
 - [ ] M2-T07-S02 Test di sicurezza: risposta pubblica non contiene `customer`/`vehicle.model`; enumerazione di 50 targhe in un minuto → 429.
 - [ ] M2-T07-S03 Aggiornare `README.md`, `ARCHITECTURE.md`, `TASKS.md`; PR → `main`; commit `docs(M2-T07): chiusura milestone M2`.
@@ -411,15 +458,18 @@ Cuore del modulo A; dipende solo da interfacce.
 - **Dipendenze**: M1 (SyncService, scheduler), `NotificationOrchestrator` dello scaffold.
 
 ### M3-T01 — Pianificazione modulo C
-- [ ] M3-T01-S01 Annotare qui le decisioni sulla domanda aperta n. 9 (default: invio subito dopo la sync riuscita, template placeholder, mittente SMS "Autoclub"); `YOUR_TURN`/`VEHICLE_READY` restano nel backlog. *(nota 2026-09-11: testi dei template già presenti in `application/notifications/templates.ts` (promemoria, è il tuo turno, vettura pronta); da far validare al committente prima dei template reali Meta)*
+
+- [ ] M3-T01-S01 Annotare qui le decisioni sulla domanda aperta n. 9 (default: invio subito dopo la sync riuscita, template placeholder, mittente SMS "Autoclub"); `YOUR_TURN`/`VEHICLE_READY` restano nel backlog. _(nota 2026-09-11: testi dei template già presenti in `application/notifications/templates.ts` (promemoria, è il tuo turno, vettura pronta); da far validare al committente prima dei template reali Meta)_
 - [ ] M3-T01-S02 Branch `feature/M3-comunicazioni`; commit `docs(M3-T01): pianificazione modulo C`.
 
 ### M3-T02 — Template messaggi
+
 - [ ] M3-T02-S01 Rivedere `src/application/notifications/templates.ts`: `REMINDER_MORNING` con variabili `{firstName, code, scheduledTime, plate, brandName}`, versione WhatsApp (template key Spoki) e versione SMS entro un singolo segmento GSM-7 (160 caratteri, verificata con `smsSegments` di `sms-hosting.dto.ts`; `renderSms` accorcia il testo senza spezzare il codice).
 - [ ] M3-T02-S02 Test snapshot dei testi renderizzati con accenti corretti; test lunghezza SMS.
 - [ ] M3-T02-S03 Commit `feat(M3-T02): template promemoria WhatsApp e SMS`.
 
 ### M3-T03 — Estensione NotificationOrchestrator
+
 - [x] M3-T03-S01 `sendMorningReminders(businessDate, correlationId)`: per ogni pratica `WAITING` con telefono crea/riprende il job (`idempotencyKey`), chiamata da `SyncService` su `SyncRun SUCCESS|PARTIAL` (solo prima sync riuscita del giorno; le re-sync creano job solo per pratiche nuove). **Fatto 2026-09-11**: `NotificationOrchestrator.sendMorningReminders({ appointments, brands, correlationId })`: invii in sequenza (un provider reale limita la frequenza), un errore su una pratica non ferma le altre, log riassuntivo con i conteggi per esito.
 - [ ] M3-T03-S02 Politica retry (evoluzione del comportamento dello scaffold descritto in `ARCHITECTURE.md` §3.3): errori `retryable` (TIMEOUT, NETWORK, RATE_LIMIT, UNAVAILABLE) → job `FAILED` con `nextAttemptAt` a backoff esponenziale (30 s, 2 min, 10 min), max 3 tentativi WhatsApp e 2 SMS prima di passare al canale successivo o a `MANUAL_REQUIRED`; errori non retryable → passaggio immediato al canale successivo (come oggi).
 - [ ] M3-T03-S03 `refreshDeliveryStatuses(businessDate)`: per job `SENT` interroga `getDeliveryStatus`; `DELIVERED/READ` → `DELIVERED`; `UNDELIVERABLE/FAILED` → fallback SMS.
@@ -429,12 +479,14 @@ Cuore del modulo A; dipende solo da interfacce.
 - [ ] M3-T03-S07 Commit `feat(M3-T03): promemoria post-sync, retry con backoff e tracciamento consegna`.
 
 ### M3-T04 — Resilienza delle porte esterne
+
 - [ ] M3-T04-S01 `src/services/resilience/with-timeout.ts` (`AbortSignal.timeout` + `CallOptions.signal` combinati, → `ProviderError TIMEOUT`) e `retry.ts` (tentativi con jitter solo su `retryable`).
 - [ ] M3-T04-S02 `src/services/resilience/decorators.ts`: wrapper `withResilience(service)` applicato in `services/factory.ts` a tutte le porte (mock e reali) con timeout 5 s di default.
 - [ ] M3-T04-S03 Test unit: timeout scatta con `InfinityServiceMock` in modalità `timeout`; retry rispetta il massimo; `signal` esterno interrompe.
 - [ ] M3-T04-S04 Commit `feat(M3-T04): decoratori withTimeout e retry sulle porte esterne`.
 
 ### M3-T05 — Scheduler: svuotamento dell'outbox notifiche
+
 - [x] M3-T05-S00 Aggancio dell'invio alla sincronizzazione: `SyncService` chiama `sendMorningReminders` per le pratiche appena create, senza attenderne l'esito (con decine di clienti l'invio dura secondi e la coda deve essere subito utilizzabile). Gli esiti finiscono nei log e sul job di ogni notifica. **Fatto 2026-09-11.**
 - [ ] M3-T05-S01a Creare `src/application/scheduler/Scheduler.ts` generico con job registrabili (`register(name, everyMs, run)`, lock per job, `start()`/`stop()`, guard su `globalThis`); test `tests/unit/scheduler.test.ts` con `FixedClock`.
 - [ ] M3-T05-S01b Refactor deciso: `SyncScheduler` (M1) diventa il job `syncJob` registrato sullo `Scheduler` generico; il file `SyncScheduler.ts` viene rimosso e i suoi test migrano in `tests/unit/sync-job.test.ts` (nessun comportamento cambia).
@@ -444,6 +496,7 @@ Cuore del modulo A; dipende solo da interfacce.
 - [ ] M3-T05-S04 Commit `feat(M3-T05): scheduler generico e svuotamento outbox notifiche`.
 
 ### M3-T06 — Route Handler notifiche e webhook stub
+
 - [ ] M3-T06-S01 `GET /api/v1/notifications?date=&status=` (job con tentativi), `GET /api/v1/notifications/[id]`.
 - [ ] M3-T06-S02 `POST /api/v1/notifications/[id]/manual-confirm` (body `{ note }`, ruolo ADVISOR+) → `confirmManual`; `POST /api/v1/notifications/[id]/retry` → `retry`; `POST /api/v1/notifications/send` per invio singolo `CUSTOM` (SUPERVISOR).
 - [ ] M3-T06-S03 `POST /api/v1/webhooks/spoki`: `parseWebhook` del mock, aggiornamento stato job per `providerMessageId`; firma verificata in M7.
@@ -451,7 +504,8 @@ Cuore del modulo A; dipende solo da interfacce.
 - [ ] M3-T06-S05 Commit `feat(M3-T06): Route Handler notifiche e webhook Spoki stub`.
 
 ### M3-T07 — UI Comunicazioni
-- [ ] M3-T07-S01 `src/app/(operator)/comunicazioni/page.tsx` + `modules/notifications/NotificationStatusList.tsx`: tabella job (codice, cliente, canale, stato, tentativi, ultimo errore), filtri "Da contattare a mano", "Falliti", "Consegnati"; polling 5 s. *(nota 2026-09-11: in dashboard l'esito del contatto è visibile accanto al nome del cliente (`NotificationBadge`), con distinzione fra WhatsApp, SMS di ripiego, da ritentare, da chiamare e senza recapito. La pagina `/comunicazioni` con il registro completo resta da fare)*
+
+- [ ] M3-T07-S01 `src/app/(operator)/comunicazioni/page.tsx` + `modules/notifications/NotificationStatusList.tsx`: tabella job (codice, cliente, canale, stato, tentativi, ultimo errore), filtri "Da contattare a mano", "Falliti", "Consegnati"; polling 5 s. _(nota 2026-09-11: in dashboard l'esito del contatto è visibile accanto al nome del cliente (`NotificationBadge`), con distinzione fra WhatsApp, SMS di ripiego, da ritentare, da chiamare e senza recapito. La pagina `/comunicazioni` con il registro completo resta da fare)_
 - [ ] M3-T07-S02 `ManualConfirmDialog.tsx`: nota obbligatoria ("Contattato telefonicamente alle 08:10"), esito `MANUAL_CONFIRMED` con operatore; pulsante "Riprova invio".
 - [ ] M3-T07-S03 Badge stato invio nella riga della coda (`QueueRowView.notificationStatus`) con tooltip e link alla pagina Comunicazioni.
 - [ ] M3-T07-S03b Avvolgere la pagina `/comunicazioni` in `ErrorBoundary` (messaggio e azione "Ricarica"); test che un errore di render della lista non spegne l'header della shell.
@@ -459,12 +513,14 @@ Cuore del modulo A; dipende solo da interfacce.
 - [ ] M3-T07-S05 Commit `feat(M3-T07): pagina Comunicazioni con conferma contatto manuale`.
 
 ### M3-T08 — Pannello modalità mock a runtime
+
 - [ ] M3-T08-S01 `src/config/runtime-mock-settings.ts` (solo `NODE_ENV !== 'production'`): override in memoria di `mockSpokiMode`, `mockSmsMode`, `mockInfinityMode`, `mockCrmMode`, `mockLatencyMs`; letti dai mock a ogni chiamata.
 - [ ] M3-T08-S02 `PATCH /api/v1/system/mock-settings` (ADMIN) e pannello in `/sistema` con interruttori e avviso "Solo ambienti di demo".
 - [ ] M3-T08-S03 Test: cambio `mockSpokiMode=down` → invii successivi via SMS.
 - [ ] M3-T08-S04 Commit `feat(M3-T08): pannello modalità mock a runtime`.
 
 ### M3-T09 — Test di contratto e chiusura M3
+
 - [ ] M3-T09-S01 `tests/contracts/spoki-service.contract.ts` e `sms-hosting-service.contract.ts`: mai throw, idempotenza per `idempotencyKey`, esiti per suffisso, `healthCheck` (rispetta `timeoutMs`/`signal`), `getDeliveryStatus`, credito.
 - [ ] M3-T09-S02 README: tabella regole cifre finali e interruttori `MOCK_*`, flusso demo comunicazioni.
 - [ ] M3-T09-S03 Aggiornare `ARCHITECTURE.md`, ADR-010 se necessario, `TASKS.md`; PR → `main`; commit `docs(M3-T09): chiusura milestone M3`.
@@ -478,37 +534,42 @@ Cuore del modulo A; dipende solo da interfacce.
 - **Criteri di completamento**: quattro browser in kiosk mode mostrano entro 2 s il codice in servizio sulla propria campata, la segnalazione di libero dopo Completato (RELEASING per `RELEASING_DISPLAY_MS`, poi FREE) e un overlay chiaro se il server non risponde; token campata obbligatorio; test e2e verdi.
 - **Dipendenze**: M1 (`QueueService.getBayOccupancy`, occupazione derivata).
 
-### M3-T09 — Messaggi al cliente guidati dagli eventi *(nuovo 2026-09-14, revisione generale)*
+### M3-T09 — Messaggi al cliente guidati dagli eventi _(nuovo 2026-09-14, revisione generale)_
+
 - [x] M3-T09-S01 `application/notifications/CustomerMessagingPolicy.ts`: ascolta il bus e manda `BOOKING_CONFIRMED` (pratica inserita a mano; quelle dell'agenda hanno il promemoria), `TURN_APPROACHING` (al massimo `TURN_APPROACHING_AHEAD` = 2 pratiche davanti nello stesso sportello, una volta per giornata grazie all'idempotenza del job) e `APPOINTMENT_CANCELLED` (solo se ad annullare è una persona: la chiusura automatica non manda messaggi alle 19:00). Il lavoro parte al giro successivo dell'event loop: chi ha pubblicato l'evento non aspetta WhatsApp. Un record guasto non ferma gli avvisi agli altri. Interruttore `MESSAGING_TRIGGERS_ENABLED`. **Fatto 2026-09-14.**
 - [x] M3-T09-S02 Nuovi tipi in `NotificationKind` e template Spoki `booking_confirmed_v1`, `turn_approaching_v1`, `appointment_cancelled_v1` (testi italiani per SMS e log). La regola dei "clienti prima di te" è stata portata nel dominio (`domain/queue-position.ts`) ed è la stessa usata dal portale e dalla coda. **Fatto 2026-09-14.**
 - [x] M3-T09-S03 Test `tests/unit/messaging-policy.test.ts` (7 prove, incluse "non lavora dentro la pubblicazione" e "spenta dalla configurazione"). Verificato dal vivo: un cambio di stato ha fatto partire "il turno si avvicina" ai primi tre clienti di ciascun sportello, con ripiego SMS dove previsto. **Fatto 2026-09-14.**
 
 ### M4-T01 — Pianificazione modulo D
-- [ ] M4-T01-S01 Confermare col PO hardware display (domanda n. 13) e durata `RELEASING_DISPLAY_MS`; annotare qui. *(nota 2026-09-11: durata del messaggio "campata libera" confermata a `RELEASING_DISPLAY_MS` (20 s); hardware dei monitor ancora da confermare col committente, la pagina è indipendente dal dispositivo perché usa unità viewport)*
+
+- [ ] M4-T01-S01 Confermare col PO hardware display (domanda n. 13) e durata `RELEASING_DISPLAY_MS`; annotare qui. _(nota 2026-09-11: durata del messaggio "campata libera" confermata a `RELEASING_DISPLAY_MS` (20 s); hardware dei monitor ancora da confermare col committente, la pagina è indipendente dal dispositivo perché usa unità viewport)_
 - [ ] M4-T01-S02 Branch `feature/M4-display-campate`; commit `docs(M4-T01): pianificazione modulo D`.
 
 ### M4-T02 — API display e autenticazione per campata
+
 - [x] M4-T02-S01 `QueueService.getBayDisplay(bayCode)` → `BayDisplayView` calcolata (unico proprietario della regola, spostato qui da M1-T03-S09; ADR-008): SERVING se pratica `IN_PROGRESS` con quel `bayId` (da `getBayOccupancy`); RELEASING se `completedAt` entro `RELEASING_DISPLAY_MS`; altrimenti FREE, con `lastCompletedCode`; test `tests/unit/bay-display.test.ts` con `FixedClock`. **Fatto 2026-09-11**: `QueueService.getBayDisplay(bayRef, businessDate)`: accetta numero ("1") o codice ("C1"); `SERVING` con codice e targa, `RELEASING` entro `RELEASING_DISPLAY_MS` dal completamento, poi `FREE`. `OFFLINE` non arriva dal server: lo decide il monitor quando il polling smette di rispondere.
 - [x] M4-T02-S01b `GET /api/v1/public/bays/[bayCode]` → `BayDisplayView`; `Cache-Control: no-store`. **Fatto 2026-09-11**: realizzato come `GET /api/v1/public/display?campata=1` (alias `bay`/`bayCode`; valori "1" o "C1") invece del percorso con segmento: un URL con parametro è più facile da scrivere sul kiosk. `cache-control: no-store`, 404 campata sconosciuta, 429 oltre il tetto.
-- [ ] M4-T02-S02 `src/proxy.ts`: `/display/[bayCode]?token=` verifica `Bay.displayToken`, imposta cookie kiosk `HttpOnly` 30 giorni; richieste API display accettate solo con cookie o token valido (403 altrimenti). *(nota 2026-09-11: il token della campata è verificato dall'endpoint quando il monitor lo passa (`?token=` → 403 se errato), senza cookie kiosk: l'obbligatorietà e il cookie restano per l'hardening di M6)*
-- [ ] M4-T02-S03 `GET /api/v1/system/bays` (ADMIN; sotto `system/`, non `public/`, perché `/api/v1/public/**` è anonimo per regola) per lo stato di tutti i display con `lastPollAt` registrato in memoria. *(nota 2026-09-11: pannello display in `/sistema` non ancora realizzato)*
+- [ ] M4-T02-S02 `src/proxy.ts`: `/display/[bayCode]?token=` verifica `Bay.displayToken`, imposta cookie kiosk `HttpOnly` 30 giorni; richieste API display accettate solo con cookie o token valido (403 altrimenti). _(nota 2026-09-11: il token della campata è verificato dall'endpoint quando il monitor lo passa (`?token=` → 403 se errato), senza cookie kiosk: l'obbligatorietà e il cookie restano per l'hardening di M6)_
+- [ ] M4-T02-S03 `GET /api/v1/system/bays` (ADMIN; sotto `system/`, non `public/`, perché `/api/v1/public/**` è anonimo per regola) per lo stato di tutti i display con `lastPollAt` registrato in memoria. _(nota 2026-09-11: pannello display in `/sistema` non ancora realizzato)_
 - [x] M4-T02-S04 Test unit: calcolo stati, token errato → 403, cookie valido → 200. **Fatto 2026-09-11**: `tests/unit/bay-display.test.ts` copre il calcolo degli stati (libera, in servizio, invito ad avanzare, ritorno a libera, rilascio, campata sconosciuta); il 403 sul token è verificato a mano, il test HTTP arriva con la suite dei Route Handler.
 - [x] M4-T02-S05 Commit `feat(M4-T02): endpoint display campata con token`. **Fatto 2026-09-11**: commit unico `fix(accettazione): dettagli cliente e operatori + feat(display): monitor campate M4`.
 
 ### M4-T03 — UI kiosk
+
 - [x] M4-T03-S07 Tabellone della sala d'attesa `/display/sala-attesa` (richiesta del committente, stile tabellone degli uffici pubblici): `QueueService.getWaitingBoard`, `GET /api/v1/public/board?prossimi=`, `WaitingBoardScreen` con i codici chiamati e la campata in evidenza più i prossimi turni; polling ogni 2 s. Solo codici: né targhe né nomi, perché lo schermo è visibile a tutta la sala. **Fatto 2026-09-11.**
 - [x] M4-T03-S08 Display di campata: la dicitura in servizio è ora rivolta al cliente ("SERVIAMO IL CODICE" sopra il codice, targa sotto). **Fatto 2026-09-11.**
 - [x] M4-T03-S01 `src/hooks/useBayDisplay.ts`: polling `POLLING_MS.display`, contatore poll falliti consecutivi → stato `OFFLINE` dopo 3, conserva ultimo dato. **Fatto 2026-09-11**: `src/hooks/useBayDisplay.ts`: polling `POLLING_MS.display` (2 s), `refetchIntervalInBackground`, stato scollegato dopo 3 tentativi falliti.
 - [x] M4-T03-S02 `src/app/(display)/layout.tsx` (nessuna shell, `cursor: none`, full-screen) e `src/app/(display)/display/[bayCode]/page.tsx`. **Fatto 2026-09-11**: `src/app/(display)/layout.tsx` (nessuna intestazione, niente scorrimento) e `src/app/(display)/display/[campata]/page.tsx` (segmento in italiano, coerente con gli altri URL).
 - [x] M4-T03-S03 `modules/bay-displays/BayDisplayBoard.tsx`: codice enorme ad alto contrasto, numero campata, colore brand, orologio; `FreeBayScreen.tsx` con animazione "Campata libera" e ultimo codice servito; transizione RELEASING "Uscita" con animazione. **Fatto 2026-09-11**: `modules/bay-displays/BayDisplayBoard.tsx`: codice in unità viewport (stessa resa su 1080p e 4K), targa, numero di campata, orologio dell'officina; sfondo scuro in servizio, verde "CAMPATA LIBERA / AVANZARE" dopo il completamento.
 - [x] M4-T03-S04 `ConnectionLostOverlay.tsx`: "Connessione assente" sopra l'ultimo stato noto, tentativo automatico; reload completo della pagina ogni `DISPLAY_RELOAD_HOURS` (default 6) per prevenire memory leak; wake lock/`noSleep` dove supportato. **Fatto 2026-09-11**: lo stato scollegato è integrato nella stessa schermata (giallo, "MONITOR SCOLLEGATO", invito a rivolgersi all'accettazione) invece di un overlay separato: a monitor spento non serve l'ultimo stato noto, serve sapere che il dato non è attendibile.
-- [ ] M4-T03-S04b Avvolgere la pagina `/display/[bayCode]` in `ErrorBoundary` che mostra l'ultimo stato noto con overlay "Errore di visualizzazione, ricarico…" e ricarica automatica dopo 30 s; test che un errore di render non lascia lo schermo bianco. *(nota 2026-09-11: error boundary dedicato al display ancora da aggiungere)*
-- [ ] M4-T03-S05 Test `tests/components/bay-display-board.test.tsx` per i quattro stati; verifica leggibilità a 1920×1080 e 4K (Playwright con `viewport`). *(nota 2026-09-11: test del componente e verifica su monitor reali ancora da fare)*
+- [ ] M4-T03-S04b Avvolgere la pagina `/display/[bayCode]` in `ErrorBoundary` che mostra l'ultimo stato noto con overlay "Errore di visualizzazione, ricarico…" e ricarica automatica dopo 30 s; test che un errore di render non lascia lo schermo bianco. _(nota 2026-09-11: error boundary dedicato al display ancora da aggiungere)_
+- [ ] M4-T03-S05 Test `tests/components/bay-display-board.test.tsx` per i quattro stati; verifica leggibilità a 1920×1080 e 4K (Playwright con `viewport`). _(nota 2026-09-11: test del componente e verifica su monitor reali ancora da fare)_
 - [x] M4-T03-S06 Commit `feat(M4-T03): pagina kiosk campata con overlay offline`. **Fatto 2026-09-11**: commit unico `fix(accettazione): dettagli cliente e operatori + feat(display): monitor campate M4`.
 
 ### M4-T04 — Integrazione in Sistema, test e chiusura
-- [ ] M4-T04-S01 Sezione "Display" in `/sistema`: 4 card con stato, ultimo poll, link con token (ADMIN), pulsante "Rigenera token". *(nota 2026-09-11: sezione Display in `/sistema` ancora da fare)*
-- [ ] M4-T04-S02 `tests/e2e/display.spec.ts`: prendi in carico → display C1 mostra il codice ≤ 2 s; completato → RELEASING → FREE; token errato → 403. *(nota 2026-09-11: test end-to-end del display ancora da fare)*
+
+- [ ] M4-T04-S01 Sezione "Display" in `/sistema`: 4 card con stato, ultimo poll, link con token (ADMIN), pulsante "Rigenera token". _(nota 2026-09-11: sezione Display in `/sistema` ancora da fare)_
+- [ ] M4-T04-S02 `tests/e2e/display.spec.ts`: prendi in carico → display C1 mostra il codice ≤ 2 s; completato → RELEASING → FREE; token errato → 403. _(nota 2026-09-11: test end-to-end del display ancora da fare)_
 - [x] M4-T04-S03 README (setup kiosk Chromium), `ARCHITECTURE.md`, `TASKS.md`; PR → `main`; commit `docs(M4-T04): chiusura milestone M4`. **Fatto 2026-09-11**: `README.md` (indirizzo dei monitor e uso del token), `ARCHITECTURE.md` e `TASKS.md` aggiornati; commit unico `fix(accettazione): dettagli cliente e operatori + feat(display): monitor campate M4`.
 
 ---
@@ -521,32 +582,36 @@ Cuore del modulo A; dipende solo da interfacce.
 - **Dipendenze**: M1 (dettaglio pratica, auth).
 
 ### M5-T01 — Pianificazione modulo E
+
 - [ ] M5-T01-S01 Confermare col PO limiti (default 10 MB foto, 30 s/50 MB video), retention (default 90 giorni) e hardware tablet (domande n. 13, 14); annotare qui.
 - [ ] M5-T01-S02 Branch `feature/M5-ispezione-media`; commit `docs(M5-T01): pianificazione modulo E`.
 
 ### M5-T02 — Storage e MediaService
+
 - [x] M5-T02-S01 `src/services/real/MediaStorageLocalDisk.ts` (convenzione `<Porta><Implementazione>`, `ARCHITECTURE.md` §7, scrittura atomica, `MEDIA_STORAGE_PROVIDER=local`) selezionato in `services/factory.ts`; `MediaStorageMock` resta per i test; suite `tests/contracts/media-storage.contract.ts` eseguita su entrambe. **Fatto 2026-09-11**: cartella `.data/uploads/<giornata>/<codice>/<id>.<est>` (env `MEDIA_STORAGE_DIR`) invece di `<yyyy-mm>`: sfogliando l'archivio si ritrova la pratica del cliente senza aprire il database. Scrittura atomica (file `.part` + rename), chiavi convalidate e confinate nella cartella base (niente `..`, niente percorsi assoluti), tipo ricavato dall'estensione — che `put` aggiunge se manca. `local` è ora il valore predefinito: le foto sopravvivono al riavvio. La porta `IMediaStorage` ha un metodo `read` in più, così la rotta di lettura non deve più conoscere il mock.
 - [ ] M5-T02-S02a Decisione presa: le thumbnail sono generate lato client (canvas, max 320 px) e caricate insieme all'originale; nessuna dipendenza nativa (`sharp`) nel server (resta nel backlog). Annotare l'ADR "Storage media e retention" (M5-T04-S02).
 - [x] M5-T02-S02b `src/application/media/MediaService.ts`: `upload({ appointmentId, operatorId, bytes, thumbnailBytes, mimeType, note })` con validazione tipo/dimensione (limiti da M5-T01), salvataggio via `IMediaStorage`, `MediaAsset` in `IMediaRepository`; test `tests/unit/media-service.test.ts` (limiti). **Fatto 2026-09-11**: realizzato come `src/application/media/InspectionService.ts` (`addPhoto`, `listPhotos`, `completeCheckIn`): il nome dice il caso d'uso, non il tipo di file. Solo immagini (`image/jpeg|png|webp|heic`) fino a `MAX_PHOTO_BYTES` (8 MB), nessuna thumbnail (arriva con S02a) e nessun video (backlog). Test in `tests/unit/inspection-check-in.test.ts`.
-- [ ] M5-T02-S02c `MediaService.list(appointmentId)` e `delete(id, operatorId)` (solo autore o SUPERVISOR, `Result` con `NOT_FOUND`/`VALIDATION`); test permessi. *(2026-09-11: `listPhotos(appointmentId)` c'è e restituisce l'indirizzo di lettura di ogni foto; l'eliminazione con i permessi resta da fare, oggi una foto sbagliata si riscatta e resta nel fascicolo)*
+- [ ] M5-T02-S02c `MediaService.list(appointmentId)` e `delete(id, operatorId)` (solo autore o SUPERVISOR, `Result` con `NOT_FOUND`/`VALIDATION`); test permessi. _(2026-09-11: `listPhotos(appointmentId)` c'è e restituisce l'indirizzo di lettura di ogni foto; l'eliminazione con i permessi resta da fare, oggi una foto sbagliata si riscatta e resta nel fascicolo)_
 - [x] M5-T02-S03 `POST /api/v1/media` (multipart, limite body), `GET /api/v1/media/[id]` (stream con autenticazione), `DELETE /api/v1/media/[id]`. **Fatto 2026-09-11**: `POST|GET /api/v1/appointments/[id]/media` (la foto nasce sempre dentro una pratica: l'id nel percorso evita che il client possa sbagliare pratica) e `GET /api/v1/media/[key]` per rileggere il file con la sessione attiva. `POST /api/v1/appointments/[id]/check-in` chiude l'accettazione con le note. La `DELETE` arriva con S02c.
-- [ ] M5-T02-S04 Test unit MediaService (limiti, permessi) e test Route Handler upload/lettura. *(2026-09-11: `tests/unit/inspection-check-in.test.ts` copre formati rifiutati, foto vuota, foto oltre il limite, pratica inesistente, chiusura del check-in con note e foto, conflitto di versione e CRM guasto; `tests/unit/crm-service-mock.test.ts` copre il mock CRM. I test dei Route Handler arrivano con la suite HTTP)*
+- [ ] M5-T02-S04 Test unit MediaService (limiti, permessi) e test Route Handler upload/lettura. _(2026-09-11: `tests/unit/inspection-check-in.test.ts` copre formati rifiutati, foto vuota, foto oltre il limite, pratica inesistente, chiusura del check-in con note e foto, conflitto di versione e CRM guasto; `tests/unit/crm-service-mock.test.ts` copre il mock CRM. I test dei Route Handler arrivano con la suite HTTP)_
 - [x] M5-T02-S05 Commit `feat(M5-T02): storage locale, MediaService e API media`. **Fatto 2026-09-11**: commit unico `feat(tablet): interfaccia M5 per ispezione veicolo, fotocamera mock e setup CRM mock` richiesto dal PO; lo storage su disco resta in S02-S01.
 
 ### M5-T03 — UI tablet e fascicolo
+
 - [x] M5-T03-S01 `src/app/(operator)/ispezione/[appointmentId]/page.tsx` con layout tablet (pulsanti grandi, orientamento libero); pulsante "Ispezione" accanto a "Prendi in carico" e nel dettaglio pratica. **Fatto 2026-09-11**: realizzato come `src/app/(operator)/tablet/page.tsx` + `modules/inspection-media/TabletQueue.tsx`: l'accettatore in piedi non digita un indirizzo con l'id della pratica, apre `/tablet` e trova solo le pratiche del proprio sportello in due schede ("In attesa", "Le mie prese in carico"); la scheda di ispezione si apre a tutto schermo sopra l'elenco (`CheckInScreen`). Rotta protetta in `src/proxy.ts` e voce "Tablet" nell'intestazione (`AREA_ROLES.tablet`). Il pulsante nel dettaglio pratica della dashboard resta da aggiungere.
 - [x] M5-T03-S02a `modules/inspection-media/MediaCapture.tsx`: `<input capture>` con fallback `getUserMedia`, anteprima, nota per file, generazione thumbnail lato client (M5-T02-S02a); test `tests/components/media-capture.test.tsx`. **Fatto 2026-09-11**: `modules/inspection-media/PhotoCapture.tsx` con `<input type="file" accept="image/*" capture="environment">` nascosto dietro un pulsante grande: sui tablet apre direttamente la fotocamera posteriore. L'anteprima locale (`createObjectURL`) compare subito con la rotella di attesa mentre il caricamento è in corso, e la foto resta nella griglia con la dimensione in kB. Restano: ripiego `getUserMedia` per i portatili senza app fotocamera, nota per singola foto, thumbnail lato client e test del componente.
-- [ ] M5-T03-S02b `modules/inspection-media/UploadQueue.tsx` + `upload-queue.ts`: coda in memoria con riprova automatica a backoff quando `fetch` fallisce e indicatore "N file in attesa di invio"; test `tests/components/upload-queue.test.tsx` (`fetch` fallito → riprova → inviato). *(nota 2026-09-11: oggi un caricamento fallito toglie l'anteprima e mostra il motivo sotto il pulsante, così l'accettatore riscatta subito; la coda con riprova automatica resta da fare)*
+- [ ] M5-T03-S02b `modules/inspection-media/UploadQueue.tsx` + `upload-queue.ts`: coda in memoria con riprova automatica a backoff quando `fetch` fallisce e indicatore "N file in attesa di invio"; test `tests/components/upload-queue.test.tsx` (`fetch` fallito → riprova → inviato). _(nota 2026-09-11: oggi un caricamento fallito toglie l'anteprima e mostra il motivo sotto il pulsante, così l'accettatore riscatta subito; la coda con riprova automatica resta da fare)_
 - [ ] M5-T03-S02c Persistenza della coda in IndexedDB (`idb-keyval` o API nativa) per sopravvivere a chiusura del browser e offline prolungato; ripresa all'apertura; test con `fake-indexeddb`.
-- [x] M5-T03-S02e *(nuovo 2026-09-11, richiesta del committente)* Slot fotografici al posto del pulsante generico: sei caselle (Frontale, Posteriore, Fiancata sinistra, Fiancata destra obbligatorie; Interni e Dettaglio danni facoltative), ognuna con suggerimento di inquadratura, anteprima dello scatto, contatore degli scatti aggiuntivi e stato "fatta". Il contatore in testa dice "N di 4 foto obbligatorie" e "Completa check-in" resta disabilitato con l'elenco di cosa manca finché il giro non è completo. La stessa regola è applicata da `InspectionService.completeCheckIn` (`missingRequiredCategories`), perché un secondo tablet o una chiamata diretta all'API non devono poter chiudere un'accettazione a metà. **Fatto 2026-09-11.**
-- [x] M5-T03-S02f *(nuovo 2026-09-11)* `MediaAsset.category` nel dominio (`FRONT`, `REAR`, `LEFT`, `RIGHT`, `INTERIOR`, `DAMAGE`, con etichette italiane e elenco delle obbligatorie), categoria richiesta dalla rotta di caricamento (campo `categoria`), inclusa nella chiave di archiviazione (`front-<id>.jpg`), nel payload CRM di check-in e nella galleria della dashboard, dove le foto sono raggruppate per parte del veicolo. Le foto precedenti restano valide con categoria `null` ("Senza categoria" in galleria). **Fatto 2026-09-11.**
-- [x] M5-T03-S02d *(nuovo 2026-09-11, richiesta del committente)* `modules/inspection-media/CheckInScreen.tsx`: scheda di ispezione a tutto schermo con i dati della pratica, la fotocamera, l'area "Note veicolo / danni rilevati" (2000 caratteri) e il pulsante finale "Completa check-in" che chiude la pratica e libera la campata. Le note sono salvate **prima** della chiusura (`InspectionService.completeCheckIn`): se un'altra postazione ha toccato la pratica nel frattempo, il conflitto è segnalato ma il giro del veicolo non va perso. **Fatto 2026-09-11**.
+- [x] M5-T03-S02e _(nuovo 2026-09-11, richiesta del committente)_ Slot fotografici al posto del pulsante generico: sei caselle (Frontale, Posteriore, Fiancata sinistra, Fiancata destra obbligatorie; Interni e Dettaglio danni facoltative), ognuna con suggerimento di inquadratura, anteprima dello scatto, contatore degli scatti aggiuntivi e stato "fatta". Il contatore in testa dice "N di 4 foto obbligatorie" e "Completa check-in" resta disabilitato con l'elenco di cosa manca finché il giro non è completo. La stessa regola è applicata da `InspectionService.completeCheckIn` (`missingRequiredCategories`), perché un secondo tablet o una chiamata diretta all'API non devono poter chiudere un'accettazione a metà. **Fatto 2026-09-11.**
+- [x] M5-T03-S02f _(nuovo 2026-09-11)_ `MediaAsset.category` nel dominio (`FRONT`, `REAR`, `LEFT`, `RIGHT`, `INTERIOR`, `DAMAGE`, con etichette italiane e elenco delle obbligatorie), categoria richiesta dalla rotta di caricamento (campo `categoria`), inclusa nella chiave di archiviazione (`front-<id>.jpg`), nel payload CRM di check-in e nella galleria della dashboard, dove le foto sono raggruppate per parte del veicolo. Le foto precedenti restano valide con categoria `null` ("Senza categoria" in galleria). **Fatto 2026-09-11.**
+- [x] M5-T03-S02d _(nuovo 2026-09-11, richiesta del committente)_ `modules/inspection-media/CheckInScreen.tsx`: scheda di ispezione a tutto schermo con i dati della pratica, la fotocamera, l'area "Note veicolo / danni rilevati" (2000 caratteri) e il pulsante finale "Completa check-in" che chiude la pratica e libera la campata. Le note sono salvate **prima** della chiusura (`InspectionService.completeCheckIn`): se un'altra postazione ha toccato la pratica nel frattempo, il conflitto è segnalato ma il giro del veicolo non va perso. **Fatto 2026-09-11**.
 - [x] M5-T03-S03 `MediaGallery.tsx` nel dettaglio pratica: griglia thumbnail, lightbox, eliminazione con conferma; test `tests/components/media-gallery.test.tsx`. **Fatto 2026-09-11**: sezione "Ispezione al veicolo" nel pannello di dettaglio con le note dell'ispezione e la griglia delle foto, ingrandibili a tutto schermo (chiusura con Esc o clic fuori). La sezione resta invisibile finché non c'è nulla da mostrare. Restano: eliminazione con conferma (M5-T02-S02c) e test del componente.
 - [ ] M5-T03-S03b Avvolgere la pagina `/ispezione/[appointmentId]` in `ErrorBoundary` con messaggio e azione "Torna alla pratica"; test che un errore della galleria non blocca l'acquisizione.
 - [ ] M5-T03-S04 Test e2e `tests/e2e/ispezione.spec.ts` con file fixture.
 - [ ] M5-T03-S05 Commit `feat(M5-T03): acquisizione media da tablet e galleria fascicolo`.
 
 ### M5-T04 — Retention, documentazione e chiusura
+
 - [x] M5-T04-S01 Job scheduler `mediaRetentionJob` (giornaliero) che elimina asset oltre `MEDIA_RETENTION_DAYS`; log riepilogo. **Fatto 2026-09-14** come `InspectionArchiveService.purgeExpired` (M8-T02): la variabile si chiama `PHOTO_RETENTION_DAYS` (default 30) e il record resta con `archivedAt`.
 - [ ] M5-T04-S02 ADR "Storage media e retention"; README (tablet, limiti); `TASKS.md`; PR → `main`; commit `docs(M5-T04): chiusura milestone M5`.
 
@@ -560,10 +625,12 @@ Cuore del modulo A; dipende solo da interfacce.
 - **Dipendenze**: M1 (outbox NO_SHOW), M3 (NOTIFICATION_FAILED, scheduler).
 
 ### M6-T01 — Pianificazione modulo F
+
 - [ ] M6-T01-S01 Confermare col PO le anomalie in scope e il canale CRM (domanda n. 10), orario chiusura giornata e regola no-show automatico (domanda n. 8); annotare qui.
 - [ ] M6-T01-S02 Branch `feature/M6-crm-bdc`; commit `docs(M6-T01): pianificazione modulo F`.
 
-### M6-T08 — Resilienza verso Infinity *(nuovo 2026-09-14, revisione generale)*
+### M6-T08 — Resilienza verso Infinity _(nuovo 2026-09-14, revisione generale)_
+
 - [x] M6-T08-S01 `services/resilience/`: `CircuitBreaker` (chiuso → aperto dopo N guasti ritentabili → semi-aperto con una sola chiamata di prova), `withRetry` (ripetizione con attesa raddoppiata e jitter, solo sugli errori `retryable`), decoratore `InfinityServiceResilient` che avvolge qualunque implementazione della porta. Gli errori del chiamante (richiesta non valida) non aprono il circuito. **Fatto 2026-09-14.**
 - [x] M6-T08-S02 Il factory avvolge l'adapter Infinity scelto (mock oggi, HTTP domani) con `INFINITY_RESILIENCE` (timeout 8 s, 2 ripetizioni, 3 guasti → circuito aperto 60 s). L'health check riporta DOWN a circuito aperto senza chiamare il DMS. **Fatto 2026-09-14.**
 - [x] M6-T08-S03 `SyncScheduler`: una sync fallita viene ritentata da sola dopo 2, 5, 10 e 30 minuti (`SYNC_RETRY_BACKOFF_MINUTES`), poi resta il pulsante "Riprova". Prima una sync fallita alle 06:00 restava tale finché qualcuno non se ne accorgeva. **Fatto 2026-09-14.**
@@ -572,6 +639,7 @@ Cuore del modulo A; dipende solo da interfacce.
 ### M6-T02 — AnomalyReporter e svuotamento dell'outbox CRM
 
 > Anticipato in M5 (2026-09-11): `src/application/crm/CrmNotifier.ts` è il punto unico da cui passano gli eventi verso il CRM. Scrive PRIMA la riga nella coda di uscita e POI tenta la consegna: se il CRM risponde la riga diventa `SENT` con l'identificativo restituito, se non risponde resta `PENDING` con tentativo e ultimo errore, pronta per il rinvio di M6-T02-S02. Nessun guasto del CRM può impedire di segnare un assente o di chiudere un'accettazione. `QueueService.markNoShow` e `InspectionService.completeCheckIn` lo usano già; `CrmServiceMock` è idempotente per `idempotencyKey`, registra i payload in memoria (`received`, per i test) e li stampa in console con il prefisso `[MOCK][Crm]`. Restano di questo task le regole delle anomalie, lo svuotamento periodico con attesa progressiva e la chiusura manuale.
+
 - [ ] M6-T02-S01a `src/application/crm/AnomalyReporter.ts`: sottoscrizione a `IEventBus`, scheletro con `registerRule`, scrittura `CrmOutboxEvent { type: 'ANOMALY', status: 'PENDING' }` idempotente per `idempotencyKey` (`${appointmentId}:${anomalyKind}:${businessDate}`); test `tests/unit/anomaly-reporter.test.ts` (idempotenza).
 - [ ] M6-T02-S01b Regola `EXCESSIVE_SKIPS` su `APPOINTMENT_STATUS_CHANGED` → `SKIPPED` con `skipCount ≥ MAX_SKIPS_BEFORE_ANOMALY`; test dedicato.
 - [ ] M6-T02-S01c Regola `MANUAL_APPOINTMENT` su `APPOINTMENT_CREATED` con `source: 'MANUAL'`; test dedicato.
@@ -583,22 +651,25 @@ Cuore del modulo A; dipende solo da interfacce.
 - [ ] M6-T02-S06 Commit `feat(M6-T02): AnomalyReporter e svuotamento outbox CRM con retry`.
 
 ### M6-T03 — Chiusura giornata e no-show automatici
+
 - [x] M6-T03-S01 `QueueService.closeBusinessDay(businessDate, actor SYSTEM)`: pratiche `WAITING|SKIPPED` residue → `NO_SHOW` con outbox; eseguito manualmente. **Fatto 2026-09-11**: azione del responsabile dal cruscotto BDC (`POST /api/v1/system/close-day`), con conferma. Oltre agli assenti chiude anche le prese in carico rimaste aperte, portandole a `CANCELLED` (transizione `IN_PROGRESS → CANCELLED` aggiunta alla state machine per questo): a officina chiusa non può restare nulla di aperto. L'operazione non si ferma al primo conflitto: la riga che non si chiude viene contata e segnalata. L'esecuzione automatica a `CLOSE_HOUR_LOCAL` resta da fare (S02).
-- [x] M6-T03-S02b *(nuovo 2026-09-11)* Chiusura automatica a fine turno agganciata allo scheduler esistente: `SyncScheduler` apre la giornata (sync 06:00) e la chiude (`BUSINESS_DAY_END_TIME`, default 19:00). Una volta sola al giorno e solo se resta qualcosa di aperto: se il responsabile ha già chiuso, il temporizzatore non aggiunge un secondo evento. `ActionContext.actorKind = 'SYSTEM'` (con `SYSTEM_ACTOR_ID`) fa sì che nel registro eventi resti scritto che non è stata una persona. Test `tests/unit/business-day-end.test.ts` (6 prove). **Fatto 2026-09-11.**
+- [x] M6-T03-S02b _(nuovo 2026-09-11)_ Chiusura automatica a fine turno agganciata allo scheduler esistente: `SyncScheduler` apre la giornata (sync 06:00) e la chiude (`BUSINESS_DAY_END_TIME`, default 19:00). Una volta sola al giorno e solo se resta qualcosa di aperto: se il responsabile ha già chiuso, il temporizzatore non aggiunge un secondo evento. `ActionContext.actorKind = 'SYSTEM'` (con `SYSTEM_ACTOR_ID`) fa sì che nel registro eventi resti scritto che non è stata una persona. Test `tests/unit/business-day-end.test.ts` (6 prove). **Fatto 2026-09-11.**
 - [ ] M6-T03-S02 Regola opzionale `NO_SHOW_AFTER_MINUTES` (proposta in UI, mai automatica in orario di apertura senza conferma del PO).
 - [x] M6-T03-S03 Test unit con `FixedClock`; e2e "chiudi giornata" da Sistema. **Fatto 2026-09-11**: `tests/unit/close-business-day.test.ts` (7 prove: assenti e annullate, pratiche già chiuse intatte, lead per il BDC con evento al CRM, monitor e tabellone vuoti, evento `BUSINESS_DAY_CLOSED`, giornata vuota, chiusura ripetuta senza doppioni). Il test end-to-end resta con la suite Playwright.
 - [ ] M6-T03-S04 Commit `feat(M6-T03): chiusura giornata con no-show automatici`.
 
 ### M6-T04 — API e UI outbox CRM
-- [x] M6-T04-S05 *(nuovo 2026-09-11, richiesta del committente)* Cruscotto BDC su `/manager`: `GET /api/v1/crm/leads?giornata=&gestiti=` e `POST /api/v1/crm/leads/[id]/contacted` (SUPERVISOR/ADMIN), `application/crm/BdcLeadService` che unisce l'evento in coda ai dati della pratica, `modules/crm/BdcDashboard` + `BdcLeadsTable` con polling di 10 s. La riga porta nome, telefono richiamabile con un tocco, veicolo, motivo e ora dell'assenza; "Segna come ricontattato" (con esito facoltativo) chiude il lead scrivendo stato `MANUAL`, operatore e istante sull'evento. Deliberatamente indipendente dal CRM: se il CRM è giù il lead si chiude lo stesso e l'evento resta da rinviare. **Fatto 2026-09-11.**
-- [x] M6-T04-S06 *(nuovo 2026-09-11)* Test `tests/unit/bdc-leads.test.ts`: nascita del lead dall'assenza, pratica completata che non genera lead, chiusura con operatore/ora/esito, doppia chiusura idempotente, lead inesistente, filtro per giornata, CRM guasto. **Fatto 2026-09-11.**
+
+- [x] M6-T04-S05 _(nuovo 2026-09-11, richiesta del committente)_ Cruscotto BDC su `/manager`: `GET /api/v1/crm/leads?giornata=&gestiti=` e `POST /api/v1/crm/leads/[id]/contacted` (SUPERVISOR/ADMIN), `application/crm/BdcLeadService` che unisce l'evento in coda ai dati della pratica, `modules/crm/BdcDashboard` + `BdcLeadsTable` con polling di 10 s. La riga porta nome, telefono richiamabile con un tocco, veicolo, motivo e ora dell'assenza; "Segna come ricontattato" (con esito facoltativo) chiude il lead scrivendo stato `MANUAL`, operatore e istante sull'evento. Deliberatamente indipendente dal CRM: se il CRM è giù il lead si chiude lo stesso e l'evento resta da rinviare. **Fatto 2026-09-11.**
+- [x] M6-T04-S06 _(nuovo 2026-09-11)_ Test `tests/unit/bdc-leads.test.ts`: nascita del lead dall'assenza, pratica completata che non genera lead, chiusura con operatore/ora/esito, doppia chiusura idempotente, lead inesistente, filtro per giornata, CRM guasto. **Fatto 2026-09-11.**
 - [x] M6-T04-S01 `GET /api/v1/crm/outbox?stato=` e `POST /api/v1/crm/outbox/[id]/retry` (ADMIN). **Fatto 2026-09-11**: la chiusura a mano di un lead resta l'azione del BDC su `/manager` (S05), qui c'è la vista tecnica. Il payload espandibile riga per riga resta da fare.
 - [x] M6-T04-S02 `modules/crm/CrmOutboxTable.tsx` nella pagina `/sistema`: data/ora, evento, pratica, stato, tentativi, ultimo errore e "Forza riprova"; filtro "solo quelli da risolvere", conteggi per stato, aggiornamento ogni 15 s. **Fatto 2026-09-11**: visibile ai soli ADMIN (contiene messaggi d'errore e chiavi tecniche). `AnomalyLog` e il payload espandibile arrivano con M6-T02-S01.
 - [ ] M6-T04-S02b Avvolgere la pagina `/sistema` (e ciascuna scheda: SyncRun, display, CRM/BDC) in `ErrorBoundary` per scheda; test che un errore nella tabella CRM non spegne "Sincronizza ora".
 - [ ] M6-T04-S03 Test `tests/components/crm-outbox-table.test.tsx` e Route Handler `tests/unit/http/crm-outbox.test.ts` (403 per ADVISOR).
 - [ ] M6-T04-S04 Commit `feat(M6-T04): vista supervisor outbox CRM`.
 
-### M6-T07 — Hardening del perimetro pubblico *(nuovo 2026-09-14, revisione generale)*
+### M6-T07 — Hardening del perimetro pubblico _(nuovo 2026-09-14, revisione generale)_
+
 - [x] M6-T07-S01 Verifica del perimetro: nessun handler POST/PATCH/DELETE sotto `api/v1/public/`; il proxy protegge tutto il resto; gli identificativi sono UUID (non enumerabili) e il portale cerca per targa, mai per codice o id; le risposte pubbliche non contengono nomi né telefoni; la rotta media richiede la sessione e confina le chiavi nella cartella base. **Fatto 2026-09-14.**
 - [x] M6-T07-S02 Login con limiti di frequenza (`LOGIN_RATE_LIMIT`: 30/min per indirizzo, 8/min per utente) → 429 con `Retry-After`. Verificato dal vivo: al nono tentativo errato sullo stesso utente la risposta è 429. **Fatto 2026-09-14.**
 - [x] M6-T07-S03 `lib/realtime/connection-guard.ts`: tetto alle connessioni SSE per indirizzo (6 pubbliche, 12 per operatore) e complessive (200/300) → 503 e il client resta sul polling. Verificato con curl: sesta connessione aperta, settima 503, dopo il rilascio di nuovo 200. **Fatto 2026-09-14.**
@@ -606,8 +677,9 @@ Cuore del modulo A; dipende solo da interfacce.
 - [x] M6-T07-S05 Intestazioni di sicurezza in `next.config.ts` (`X-Content-Type-Options`, `X-Frame-Options: SAMEORIGIN`, `Referrer-Policy`, `Permissions-Policy` con fotocamera consentita alla sola origine). Content-Security-Policy rinviata: richiede i nonce sugli script di Next e una fase report-only. **Fatto 2026-09-14.**
 
 ### M6-T05 — SSE e indicatori di stato sistema
-- [x] M6-T05-S01b *(nuovo 2026-09-11)* `src/lib/realtime/sse.ts` + `GET /api/v1/events/stream` (sessione) e `GET /api/v1/public/events/stream` (kiosk): flusso `text/event-stream` dal bus con `id: seq`, resume via `Last-Event-ID`, battito ogni 15 s e chiusura pulita su `signal`. Sul filo viaggia un segnale (tipo, seq, istante; l'id della pratica solo sul canale autenticato), non i dati: chi riceve rilegge dal proprio endpoint. L'arretrato si rispedisce solo a chi si riconnette con un `Last-Event-ID`. **Fatto 2026-09-11.**
-- [x] M6-T05-S02b *(nuovo 2026-09-11)* `src/hooks/useLiveUpdates.ts`: `EventSource` per tipo di evento, invalidazione delle query TanStack, stato `live`/`polling` mostrato in dashboard come "In diretta" / "Aggiornamento periodico". Agganciato a coda, tabellone e monitor; il polling resta attivo come rete di sicurezza. Verificato: il tabellone si aggiorna 253 ms dopo l'azione, contro i 2 s del polling. **Fatto 2026-09-11.**
+
+- [x] M6-T05-S01b _(nuovo 2026-09-11)_ `src/lib/realtime/sse.ts` + `GET /api/v1/events/stream` (sessione) e `GET /api/v1/public/events/stream` (kiosk): flusso `text/event-stream` dal bus con `id: seq`, resume via `Last-Event-ID`, battito ogni 15 s e chiusura pulita su `signal`. Sul filo viaggia un segnale (tipo, seq, istante; l'id della pratica solo sul canale autenticato), non i dati: chi riceve rilegge dal proprio endpoint. L'arretrato si rispedisce solo a chi si riconnette con un `Last-Event-ID`. **Fatto 2026-09-11.**
+- [x] M6-T05-S02b _(nuovo 2026-09-11)_ `src/hooks/useLiveUpdates.ts`: `EventSource` per tipo di evento, invalidazione delle query TanStack, stato `live`/`polling` mostrato in dashboard come "In diretta" / "Aggiornamento periodico". Agganciato a coda, tabellone e monitor; il polling resta attivo come rete di sicurezza. Verificato: il tabellone si aggiorna 253 ms dopo l'azione, contro i 2 s del polling. **Fatto 2026-09-11.**
 - [ ] M6-T05-S01 `src/lib/realtime/sse-server.ts` + `GET /api/v1/events?since=<seq>`: stream `text/event-stream` dal `IEventBus` con `id: seq`, replay via `listSince`, heartbeat 15 s, chiusura pulita su `signal`.
 - [ ] M6-T05-S02 `src/lib/realtime/use-sse.ts` + `src/hooks/useLiveUpdates.ts`: `EventSource` con `Last-Event-ID`, invalidazione delle query per tipo evento; badge "live"/"polling" nell'header; il polling resta attivo come fallback.
 - [ ] M6-T05-S03 `SystemStatusBanner` alimentato da `/api/v1/health` ogni 30 s (legge `status` e `providers` dal body: l'endpoint risponde sempre 200 come liveness, il 503 è riservato a `?probe=dependencies`): giallo = degradato con fallback attivo, rosso = dipendenza giù, con azione manuale suggerita per porta; `StaleDataIndicator` unificato. Richiede la memoizzazione dell'health nel container (M3-T05-S02) per non moltiplicare le chiamate ai provider reali.
@@ -616,6 +688,7 @@ Cuore del modulo A; dipende solo da interfacce.
 - [ ] M6-T05-S05 Commit `feat(M6-T05): SSE con resume, live updates e banner stato sistema`.
 
 ### M6-T06 — Runbook, Docker e chiusura M6
+
 - [ ] M6-T06-S01 `docs/RUNBOOK_OPERATIVO.md`: cosa fa l'officina quando Infinity/Spoki/SMS/CRM sono giù, fallback cartaceo, riavvio del servizio, ripristino manuale dello snapshot (`state.json` corrotto → copia di `state.prev.json` o dell'archivio `.data/archive/<businessDate>.json`, verifica del contatore codici prima di riaprire la giornata; M1-T06-S03b), contatti.
 - [ ] M6-T06-S02 `Dockerfile` multi-stage (`output: 'standalone'`, utente non root, `TZ=Europe/Rome` per i log di sistema e `APP_TIMEZONE=Europe/Rome` per l'applicazione) e `docker-compose.yml` con volume `.data`, healthcheck sul probe di **liveness** `GET /api/v1/health` (sempre 200 finché il processo risponde: una dipendenza esterna giù non deve far riavviare il container; `?probe=dependencies` resta per il monitoraggio delle dipendenze), `restart: unless-stopped`; guida per servizio Windows alternativo.
 - [ ] M6-T06-S03 `tests/contracts/crm-service.contract.ts`; `tests/e2e/no-show.spec.ts` (no-show → outbox → SENT).
@@ -623,7 +696,7 @@ Cuore del modulo A; dipende solo da interfacce.
 
 ---
 
-## M7bis — Reportistica della giornata *(nuovo 2026-09-11, richiesta del committente)*
+## M7bis — Reportistica della giornata _(nuovo 2026-09-11, richiesta del committente)_
 
 - [x] M7bis-T01-S01 `src/application/reporting/DailyReportService.ts`: attesa media (dall'orario effettivo alla presa in carico), durata media dell'accettazione (dalla presa in carico alla chiusura), attesa massima, conteggi per stato e percentuali di esito. Le medie si calcolano solo sulle pratiche che hanno davvero i due istanti, e il numero di pratiche su cui sono calcolate viaggia insieme al valore: una media su tre pratiche non è un indicatore. I numeri sono ricalcolati dalle pratiche, non accumulati in contatori che prima o poi divergono. **Fatto 2026-09-11.**
 - [x] M7bis-T01-S02 `GET /api/v1/reports/daily` e `GET /api/v1/reports/daily/csv` (SUPERVISOR/ADMIN); il CSV ha separatore `;`, virgola decimale, ritorni a capo CRLF e BOM iniziale, cioè quello che serve perché Excel italiano lo apra con un doppio clic. Le pratiche annullate rientrano nel conteggio (`includeCancelled`), altrimenti la percentuale di annullate sarebbe sempre zero. **Fatto 2026-09-11.**
@@ -642,6 +715,7 @@ Cuore del modulo A; dipende solo da interfacce.
 - **Dipendenze**: M1..M6; accesso a specifiche/sandbox dei fornitori.
 
 ### M7-T01 — Raccolta specifiche reali
+
 - [ ] M7-T01-S01 Infinity: modalità di accesso (API REST, vista DB, export), id stabile, campi telefono/consenso, frequenza aggiornamenti; aggiornare `infinity.dto.ts` + Zod + `infinity.mapper.ts` con fixture reali anonimizzate.
 - [ ] M7-T01-S02 Spoki: template approvati Meta, autenticazione, formato webhook e firma; aggiornare `spoki.dto.ts`.
 - [ ] M7-T01-S03 SMS Hosting: endpoint, autenticazione, mittente, esiti; aggiornare `sms-hosting.dto.ts`.
@@ -649,6 +723,7 @@ Cuore del modulo A; dipende solo da interfacce.
 - [ ] M7-T01-S05 ADR "Specifiche reali dei fornitori e impatti sul dominio"; commit `docs(M7-T01): specifiche reali e aggiornamento DTO`.
 
 ### M7-T02 — Adapter reali
+
 - [ ] M7-T02-S00 `src/services/real/http-client.ts`: client `fetch` condiviso con `CallOptions` (`signal`, `timeoutMs`), header `x-correlation-id`, mapping degli errori HTTP/rete → `ProviderError` (`AUTH` 401/403, `RATE_LIMIT` 429, `NOT_FOUND` 404, `UNAVAILABLE` 5xx, `TIMEOUT`, `NETWORK`), secrets letti da env; test `tests/unit/http-client.test.ts` con `fetch` finto.
 - [ ] M7-T02-S01a `src/services/real/InfinityServiceHttp.ts` — `fetchDailyAgenda` (env `INFINITY_BASE_URL`, `INFINITY_API_KEY`) con validazione Zod della risposta e `withResilience`; test con MSW su fixture reali anonimizzate.
 - [ ] M7-T02-S01b `InfinityServiceHttp` — `fetchAppointmentByPlate` e `healthCheck`.
@@ -662,11 +737,13 @@ Cuore del modulo A; dipende solo da interfacce.
 - [ ] M7-T02-S06 Commit per adapter: `feat(M7-T02): adapter reale <X>`.
 
 ### M7-T03 — Contract test sugli adapter reali
+
 - [ ] M7-T03-S01 Le suite `tests/contracts/*.contract.ts` girano con `CONTRACT_TARGET=real` su sandbox/fixture registrate (MSW o registrazioni HTTP), skippate altrimenti; job CI separato manuale.
 - [ ] M7-T03-S02 `POST /api/v1/webhooks/spoki` reale con verifica firma e test di replay.
 - [ ] M7-T03-S03 Commit `test(M7-T03): contract suite sugli adapter reali`.
 
 ### M7-T04 — Persistenza Prisma
+
 - [ ] M7-T04-S01a `prisma/schema.prisma` (PostgreSQL, fallback SQLite per on-premise) allineato alle entità del dominio (`Appointment` con `customer`/`vehicle` embedded come colonne o JSON, `NotificationJob` + `NotificationAttempt`, `SyncRun`, `CrmOutboxEvent`, `MediaAsset`, dati di riferimento, tabella `sequences`); prima migrazione.
 - [ ] M7-T04-S01b `src/repositories/prisma/PrismaAppointmentRepository.ts`: `update` con confronto-e-scambio su `version` (`updateMany where version = expected`), `reserveNextSequence` in transazione, `insert` con vincoli di unicità → `VALIDATION`; verde su `appointment-repository.contract`.
 - [ ] M7-T04-S01c `PrismaOperatorRepository`, `PrismaReferenceDataRepository` (seed via migrazione) verdi sulle rispettive suite di contratto.
@@ -677,18 +754,20 @@ Cuore del modulo A; dipende solo da interfacce.
 - [ ] M7-T04-S05 Commit `feat(M7-T04): repository Prisma e migrazione snapshot`.
 
 ### M7-T05 — Attivazione graduale e chiusura
+
 - [ ] M7-T05-S01a `docs/ATTIVAZIONE_GRADUALE.md`: checklist di attivazione per porta (ordine: Infinity, poi Spoki/SMS, poi CRM), criteri di uscita da ogni fase di staging (es. 5 giornate consecutive con sync SUCCESS e health UP, zero `MANUAL_REQUIRED` imputabili all'adapter), procedura di rollback via env (`<X>_PROVIDER=mock`) e responsabili.
 - [ ] M7-T05-S01b Configurazione dello staging con `INFINITY_PROVIDER=real` (altri mock), monitoraggio via `SystemStatusBanner`/`/api/v1/health`; l'esercizio settimanale non è un task di sviluppo: si annota qui la data di inizio e l'esito secondo la checklist.
 - [ ] M7-T05-S02 Aggiornare `README.md`, `ARCHITECTURE.md`, `RUNBOOK_OPERATIVO.md`, `TASKS.md`; commit `docs(M7-T05): chiusura fase reale`.
 
 ---
 
-## M8 — Amministrazione, archivio ispezioni e palette *(nuovo 2026-09-14, richiesta del committente)*
+## M8 — Amministrazione, archivio ispezioni e palette _(nuovo 2026-09-14, richiesta del committente)_
 
 - **Obiettivo**: chiudere il perimetro funzionale prima del passaggio ai servizi reali: gestione degli utenti senza toccare il seed, sblocco delle situazioni incagliate, storico fotografico ricercabile con retention automatica, palette coerente col significato delle azioni.
 - **Criteri di completamento**: un amministratore crea, modifica, disattiva e azzera la password di un operatore da `/admin`; libera un'accettazione o annulla una pratica dimenticata; l'archivio trova un check-in per targa o codice; dopo `PHOTO_RETENTION_DAYS` i file spariscono e la scheda resta; verde solo su completamento; test unitari verdi.
 
 ### M8-T01 — Gestione utenti e assistenza (`/admin`)
+
 - [x] M8-T01-S01 `OperatorRole` con `KIOSK` (etichette Accettatore/Manager/Amministratore/Kiosk in `OperatorChip`; `homePathForRole` → tabellone; il layout operatore rimanda i KIOSK alla loro pagina). `IOperatorRepository.listAll/insert/update`.
 - [x] M8-T01-S02 `application/admin/OperatorAdminService`: `list`, `create` (utente minuscolo `^[a-z0-9][a-z0-9._-]{2,63}# TASKS.md — Piano di lavoro "Gestione Accettazione e Flussi Officina"
 
@@ -764,7 +843,9 @@ Il 2026-09-14, revisione generale e consolidamento su tre pilastri. **Interfacci
 - **Dipendenze**: M0-T01..T05.
 
 ### M0-T06 — package.json, npm e tsconfig definitivo
+
 Rendere installabile il progetto senza `create-next-app`, con versioni pinnate.
+
 - [x] M0-T06-S01 Creato `package.json` (name `webapp-accettazione`, `"private": true`, `engines.node >=22`) con script `dev`, `build`, `start`, `typecheck`. Decisioni: package manager **npm** (scelta del PO, nessun campo `packageManager`); nessun `"type": "module"` (non necessario a Next 16; `postcss.config.mjs` è ESM per estensione). Gli script `lint`, `lint:fix`, `format`, `format:check` arrivano con M0-T08, `test`/`test:watch` con M0-T09, `test:e2e` con M1-T17.
 - [x] M0-T06-S02 Dipendenze pinnate (verifica del 2026-09-10): `next@16.3.4`, `react@19.3.0`, `react-dom@19.3.0`; dev `typescript@5.9.3` (TypeScript 7 è già sul registry ma **non adottato**: si attende il supporto del plugin Next e di typescript-eslint), `@types/node@24.13.4`, `@types/react@19.3.0`, `@types/react-dom@19.3.0`, `tailwindcss@4.3.3`, `@tailwindcss/postcss@4.3.3`, `postcss@8.5.28`. Le altre dipendenze si installano nel task che le usa: `@tanstack/react-query`, `zustand`, `lucide-react`, shadcn → M0-T07; `eslint`, `eslint-config-next`, `typescript-eslint`, `prettier`, `prettier-plugin-tailwindcss` → M0-T08; `vitest`, `@testing-library/react` → M0-T09; `zod` → M0-T10; `jose` → M1-T07. `ARCHITECTURE.md` §2 allineato.
 - [x] M0-T06-S03 `npm install` (46 pacchetti) e `package-lock.json` (lockfileVersion 3) versionato; `node_modules` ignorato da `.gitignore` (voci del package manager precedente rimosse).
@@ -774,7 +855,9 @@ Rendere installabile il progetto senza `create-next-app`, con versioni pinnate.
 - [x] M0-T06-S07 Il commit per task previsto (`chore(M0-T06): …`) è sostituito dal commit unico richiesto dal PO `feat(setup): bootstrap Next.js, fix gitattributes e architettura iniziale`, che copre M0-T06, M0-T11 (parziale) e `.gitattributes`; spuntare con l'hash dopo `git log -1`.
 
 ### M0-T07 — Tailwind 4, shadcn/ui, editorconfig, env.example
+
 Base grafica e configurazione d'ambiente.
+
 - [x] M0-T07-S01 `postcss.config.mjs` (`@tailwindcss/postcss`) e `src/app/globals.css` (`@import 'tailwindcss'`) esistono dal bootstrap: aggiungere in `globals.css` i token colore per gli stati pratica (`--status-waiting`, `--status-in-progress`, `--status-skipped`, `--status-completed`, `--status-no-show`, `--status-cancelled`) definiti in `@theme`. **Fatto 2026-09-10**: token `--color-status-*`, `--color-brand-*` e `--spacing-touch` in `@theme` (globals.css).
 - [x] M0-T07-S02 Inizializzare shadcn/ui (`components.json`, alias `@/components/ui`) e aggiungere `Button`, `Badge`, `Table`, `Dialog`, `Toast`/`Sonner`, `Select`, `Input`, `Tooltip`; nessun lock-in (codice nel repo). **Fatto 2026-09-10**: CLI shadcn NON inizializzata (nessun `components.json`): primitive scritte a mano con la stessa convenzione in `components/ui` (Button, Badge, Card, Input, Label, Select, Table, Alert, Dialog); Tooltip e Toast/Sonner rinviati a quando serviranno.
 - [x] M0-T07-S03 `.editorconfig` (UTF-8, LF, 2 spazi, `insert_final_newline`); `.prettierrc`/`prettier.config.mjs` con `endOfLine: 'lf'` e plugin Tailwind. Nota: il fine riga LF è già imposto lato Git da `.gitattributes` (`* text=auto eol=lf`, fatto nel bootstrap); `.editorconfig` e Prettier lo garantiscono anche in editor. **Fatto 2026-09-10**: `.editorconfig` e `prettier.config.mjs` (printWidth 100, singleQuote, endOfLine lf, plugin Tailwind).
@@ -782,7 +865,9 @@ Base grafica e configurazione d'ambiente.
 - [x] M0-T07-S05 Commit `chore(M0-T07): Tailwind 4, shadcn/ui, editorconfig ed env.example`. **Fatto 2026-09-10**: commit unico `feat(accettazione): completamento setup M0, README e sviluppo dashboard M1` (hash con `git log -1`).
 
 ### M0-T08 — ESLint 9 flat config e Prettier con guardia architetturale
+
 Rendere meccanica la Regola d'Oro.
+
 - [x] M0-T08-S01 `eslint.config.mjs` flat con `eslint-config-next` e `typescript-eslint` (regole `consistent-type-imports`, `no-floating-promises`, `switch-exhaustiveness-check`). **Fatto 2026-09-10**: `eslint.config.mjs` con `eslint-config-next` (core-web-vitals + typescript), `projectService`, regole `consistent-type-imports`, `no-floating-promises`, `switch-exhaustiveness-check`, `no-unused-vars` con `^_`.
 - [x] M0-T08-S02 Regola `no-restricted-imports` per `src/app/**`, `src/modules/**`, `src/components/**`, `src/hooks/**`, `src/application/**`: vietati `@/services/mocks*`, `@/services/real*`, `@/repositories/in-memory*`, `@/repositories/prisma*` con messaggio in italiano che rimanda ai factory. Decisione di layering (bootstrap): `application/` importa solo da `domain`, `services/interfaces`, `repositories/interfaces`, `config/constants`, MAI dai factory (nemmeno `import type`): `application/health/check-health.ts` definisce localmente `ExternalHealthPorts` e `providerKindsFromEnv()` con tipi strutturali; la regola ESLint può quindi vietare anche `@/services/factory` e `@/repositories/factory` in `src/application/**`. **Fatto 2026-09-10**: due blocchi `no-restricted-imports`: implementazioni concrete vietate in app/modules/components/hooks/application/proxy/instrumentation; factory e container vietati anche in modules/components/hooks/application/domain/lib.
 - [x] M0-T08-S03 Test negativo della regola: file temporaneo in `src/app` che importa `InfinityServiceMock` → `npm run lint` fallisce; rimuovere il file. **Fatto 2026-09-10**: eseguito: file di prova in `src/app` con import di `InfinityServiceMock` → 1 errore `no-restricted-imports`; file rimosso.
@@ -791,7 +876,9 @@ Rendere meccanica la Regola d'Oro.
 - [x] M0-T08-S06 Commit `chore(M0-T08): ESLint flat config, Prettier e guardia no-restricted-imports`. **Fatto 2026-09-10**: commit unico `feat(accettazione): completamento setup M0, README e sviluppo dashboard M1` (hash con `git log -1`).
 
 ### M0-T09 — Vitest e primi test dello scaffold
+
 Verificare che lo scaffold sia corretto, non solo tipizzato.
+
 - [x] M0-T09-S01 `vitest.config.ts` con alias `@/`, `environment: 'node'` di default, `include: ['tests/**/*.test.ts', 'tests/**/*.contract.ts']`, coverage v8; aggiungere `tests/**/*.ts` all'`include` di `tsconfig.json` e rimuovere `tests` da `exclude` (rinviato da M0-T06-S04 perché la cartella non esisteva ancora). **Fatto 2026-09-10**: `vitest.config.ts` (Vitest 5, ambiente node, alias `@/`, coverage v8); `tests/**/*.ts`, `next.config.ts` e `vitest.config.ts` inclusi in `tsconfig.json`, `exclude` ridotto a `node_modules`.
 - [x] M0-T09-S02 `tests/unit/appointment-state-machine.test.ts`: tutte le transizioni consentite/vietate di `ALLOWED_TRANSITIONS`, `assertTransition` → `INVALID_TRANSITION`. **Fatto 2026-09-10**: `tests/unit/appointment-state-machine.test.ts`.
 - [x] M0-T09-S03 `tests/unit/queue-code.test.ts`: `formatQueueCode('F', 1) === 'F001'`, padding oltre 999 (`F1000`), `parseQueueCode`, `compareByScheduleThenSequence`. **Fatto 2026-09-10**: `tests/unit/queue-code.test.ts`.
@@ -802,7 +889,9 @@ Verificare che lo scaffold sia corretto, non solo tipizzato.
 - [x] M0-T09-S08 Commit `test(M0-T09): Vitest e test unitari dello scaffold`. **Fatto 2026-09-10**: commit unico `feat(accettazione): completamento setup M0, README e sviluppo dashboard M1` (hash con `git log -1`); fixture condivise in `tests/helpers/fixtures.ts` (TestClock, buildTestEnv, makeAppointment).
 
 ### M0-T10 — Zod al posto dei type guard manuali
+
 Un solo linguaggio di schema per env, DTO e body HTTP.
+
 - [ ] M0-T10-S01 `src/config/env.schema.ts`: schema Zod di `AppEnv` con default sicuri e `coerce` per numeri; `parseEnv()` usa `safeParse`, logga warning per valori non validi e ricade sui default (mai throw all'avvio in modalità mock).
 - [ ] M0-T10-S02 `src/services/dto/infinity.dto.ts`: `InfinityAppointmentDtoSchema`, `InfinityAgendaDtoSchema`; tipi esportati con `z.infer` mantenendo gli stessi nomi; `isInfinityAppointmentDto` reimplementato su `safeParse`.
 - [ ] M0-T10-S03 Schemi Zod per `spoki.dto.ts`, `sms-hosting.dto.ts`, `crm.dto.ts` (usati in M3/M6/M7 dai Route Handler e dai contract test).
@@ -810,7 +899,9 @@ Un solo linguaggio di schema per env, DTO e body HTTP.
 - [ ] M0-T10-S05 Commit `refactor(M0-T10): schemi Zod per env e DTO`.
 
 ### M0-T11 — App Router minimo e /api/v1/health
+
 Primo avvio dell'app con il container reale.
+
 - [x] M0-T11-S01 `src/app/layout.tsx` (lang `it`, font di sistema, `globals.css`, metadata in italiano).
 - [ ] M0-T11-S01b `src/app/providers.tsx` (client component) con `QueryClientProvider` e `Toaster`/`Sonner`: rinviato perché `@tanstack/react-query` e shadcn non sono ancora installati; dipende da M0-T07-S02 e va completato al più tardi in M1-T09 (prima di `useQueue`).
 - [x] M0-T11-S02 `src/app/page.tsx`: Server Component (`force-dynamic`) con titolo, tabella Tailwind dell'`healthCheck` delle quattro porte esterne (badge con etichette italiane e codice tecnico nel `title`, `<th scope="col">`, implementazione, dettaglio, "Ultimo controllo" formattato in `APP_TIMEZONE` con `lib/dates.ts::formatDateTimeIt`) e link a `/api/v1/health`; se il container non è costruibile (`ConfigurationError`/`NotImplementedError`) mostra un pannello in italiano con il suggerimento `SERVICES_PROVIDER=mock`. Il redirect verso `/accettazione`/`/login` arriva in M1-T10-S02.
@@ -821,6 +912,7 @@ Primo avvio dell'app con il container reale.
 - [x] M0-T11-S06 Commit per task sostituito dal commit unico `feat(setup): bootstrap Next.js, fix gitattributes e architettura iniziale` (vedi M0-T06-S07); spuntare con l'hash.
 
 ### M0-T12 — Documentazione di bootstrap
+
 - [x] M0-T12-S01 `README.md`: avvio (`npm install`, `npm run dev`), variabili env, vincolo processo singolo (mai serverless/multi-istanza in fase mock), tabella "ultima cifra telefono → esito" dei mock, credenziali demo. **Fatto 2026-09-10**: README.md principale (descrizione, architettura Mock-First, avvio, account demo, dashboard, script, struttura).
 - [ ] M0-T12-S02 `docs/GLOSSARIO.md` generato da `src/domain/glossary.ts` con script `scripts/gen-glossary.mts` (aggiunto a `npm run docs`).
 - [ ] M0-T12-S03 `docs/adr/ADR-001..014.md` (un file per decisione, template: contesto, decisione, motivazione, alternative, conseguenze); aggiornare i rimandi in `ARCHITECTURE.md` (§ intestazione) e in questo file.
@@ -829,6 +921,7 @@ Primo avvio dell'app con il container reale.
 - [ ] M0-T12-S05 Commit `docs(M0-T12): README, glossario e ADR`.
 
 ### M0-T13 — Continuous Integration
+
 - [ ] M0-T13-S01 `.github/workflows/ci.yml`: trigger push/PR su `main`, Node 24, npm con cache (`actions/setup-node` con `cache: npm`), passi `npm ci`, `npm run typecheck`, `npm run lint`, `npm test`, `npm run build`.
 - [ ] M0-T13-S02 Badge CI nel `README.md`.
 - [ ] M0-T13-S02b Protezione del branch `main` (PR obbligatoria, CI verde richiesta) attivata nelle impostazioni del repository e documentata nella sezione «Flusso di lavoro Git» del `README.md` (branch `feature/M<n>-<slug>`, commit atomici, nessun push diretto su `main`).
@@ -844,19 +937,24 @@ Primo avvio dell'app con il container reale.
 - **Dipendenze**: M0 completo.
 
 ### M1-T01 — Pianificazione del modulo A e fixture
+
 - [ ] M1-T01-S01 Rileggere `docs/ANALISI_REQUISITI.md` §A e `ARCHITECTURE.md`; annotare qui le decisioni prese sulle domande aperte n. 1, 3, 7 (default: `CODE_SEQUENCE_SCOPE=SITE`, campata proposta = `Workstation.defaultBayId` modificabile, Salta = resta al proprio orario evidenziata).
 - [ ] M1-T01-S02 `tests/fixtures/agenda-2026-09-10.json` e `agenda-vuota.json`: agende congelate generate da `InfinityServiceMock` per asserzioni deterministiche.
 - [ ] M1-T01-S03 Branch `feature/M1-core-dashboard`; commit `docs(M1-T01): pianificazione modulo A e fixture agenda`.
 
 ### M1-T02 — CodeGenerator (application/queue)
+
 Assegnazione del codice progressivo F001… come identità immutabile.
+
 - [x] M1-T02-S01 `src/application/queue/CodeGenerator.ts`: `assign(input: { businessDate, brand }): Promise<QueueCode & { sequence }>` che usa `IAppointmentRepository.reserveNextSequence(businessDate, prefix)` + `formatQueueCode`. **Fatto 2026-09-10**: `CodeGenerator.next(businessDate, brand)` → `{ code, sequence, prefix }` con `reserveNextSequence`.
 - [x] M1-T02-S02 Strategie `SITE` (prefisso `CODE_PREFIX`, un contatore per giornata) e `BRAND` (`Brand.codePrefix`, un contatore per brand e giornata) selezionate da `env.codeSequenceScope`. **Fatto 2026-09-10**: opzioni `{ sitePrefix, scope: SITE|BRAND }` dal container (`CODE_PREFIX`, `CODE_SEQUENCE_SCOPE`).
 - [x] M1-T02-S03 Test `tests/unit/code-generator.test.ts`: F001, F002…, cambio giornata azzera, nessun riutilizzo dopo `CANCELLED`, strategia BRAND (F001/J001), overflow F1000. **Fatto 2026-09-10**: `tests/unit/code-generator.test.ts` copre SITE e BRAND; cambio giornata e nessun riutilizzo dopo CANCELLED da aggiungere.
 - [x] M1-T02-S04 Commit `feat(M1-T02): CodeGenerator con strategia SITE|BRAND`. **Fatto 2026-09-10**: commit unico `feat(accettazione): completamento setup M0, README e sviluppo dashboard M1` (hash con `git log -1`).
 
 ### M1-T03 — QueueService: letture e transizioni di stato
+
 Cuore del modulo A; dipende solo da interfacce.
+
 - [x] M1-T03-S01 `src/application/queue/QueueService.ts` con deps `{ appointments, referenceData, operators, crmOutbox, eventBus, clock, ids, logger, codeGenerator, env }`; tipo `QueueQuery { businessDate; deskId: DeskId | null; globalView: boolean }`. **Fatto 2026-09-10**: deps `{ appointments, referenceData, operators, eventBus, clock, ids, logger }` (crmOutbox/codeGenerator/env non ancora necessari); `QueueQuery` come da piano.
 - [x] M1-T03-S02 `getQueue(query): Promise<readonly QueueRowView[]>`: `listByDate` ordinata per (scheduledAt, sequence), filtro per `deskId`/brand dello sportello se `!globalView`, arricchimento `operatorName` e `bayCode`. **Fatto 2026-09-10**: filtro sportello: pratiche con `deskId` uguale oppure senza sportello ma di un marchio servito; arricchimento `operatorName`/`bayCode`.
 - [x] M1-T03-S03 `takeInCharge({ appointmentId, operatorId, workstationId, bayId, expectedVersion })`: `assertTransition(WAITING|SKIPPED → IN_PROGRESS)`, invariante "una sola IN_PROGRESS per bayId" (→ `BAY_BUSY` con elenco campate libere in `details`), set `bayId`, `operatorId`, `takenAt`, `repo.update(expectedVersion)` → `VERSION_CONFLICT` con la pratica aggiornata in `details`. **Fatto 2026-09-10**: campata richiesta occupata → `BAY_BUSY` con `freeBays`; senza richiesta: predefinita della postazione, altrimenti prima libera, altrimenti senza campata (mai blocco).
@@ -866,18 +964,20 @@ Cuore del modulo A; dipende solo da interfacce.
 - [x] M1-T03-S06b `restore({ appointmentId, operatorId, expectedVersion })`: `SKIPPED → WAITING` ("Ripristina"), azzera `skippedAt` lasciando `skipCount` invariato (serve all'anomalia EXCESSIVE_SKIPS). **Fatto 2026-09-10.**
 - [x] M1-T03-S07 `markNoShow({ appointmentId, operatorId, expectedVersion, reason })`: `WAITING|SKIPPED → NO_SHOW`, `noShowAt`, scrittura `CrmOutboxEvent { type: 'NO_SHOW', status: 'PENDING' }` con `idempotencyKey = buildNoShowIdempotencyKey(appointment)` (`${appointmentId}:NO_SHOW:${businessDate}`, helper già in `services/mappers/crm.mapper.ts`); `reopenNoShow` (`NO_SHOW → WAITING`) riservato a `SUPERVISOR|ADMIN` (ruolo riverificato). **Fatto 2026-09-11**: `markNoShow({ appointmentId, expectedVersion, reason })`: WAITING|SKIPPED → NO_SHOW e scrittura in `ICrmOutboxRepository` con chiave `<id>:NO_SHOW:<giornata>` (nessun doppione). Un errore sulla outbox non annulla il no-show: la pratica è chiusa e l'officina va avanti, l'anomalia resta nei log. Lo svuotamento verso il CRM è M6.
 - [x] M1-T03-S08 Pubblicazione `APPOINTMENT_STATUS_CHANGED` (con `actor OPERATOR`, `correlationId`) su ogni transizione riuscita; log info in italiano. **Fatto 2026-09-10**: evento `APPOINTMENT_STATUS_CHANGED` con attore OPERATOR e correlationId; log info in italiano.
-- [ ] M1-T03-S09 *(annullato: anticipava P2/P4 dentro P1; `getPublicPositionByPlate` è ora M2-T03-S01 e `getBayDisplay` è M4-T02-S01, unici proprietari delle rispettive regole)*.
+- [ ] M1-T03-S09 _(annullato: anticipava P2/P4 dentro P1; `getPublicPositionByPlate` è ora M2-T03-S01 e `getBayDisplay` è M4-T02-S01, unici proprietari delle rispettive regole)_.
 - [x] M1-T03-S09b `getBayOccupancy(businessDate)`: per ogni campata attiva la pratica `IN_PROGRESS` che la occupa (o `null`), derivata da `Appointment.bayId + status`; serve all'invariante di `takeInCharge` e a `BaySelectDialog` (M1-T13-S02). Nessuno stato di display (RELEASING/OFFLINE: M4). **Fatto 2026-09-10**: `getBayOccupancy(businessDate)` derivata da `IN_PROGRESS + bayId`.
 - [x] M1-T03-S10 Test `tests/unit/queue-service.test.ts`: ogni transizione consentita/vietata (incluse `restore` e `reopenNoShow` con ruolo), `BAY_BUSY`, `VERSION_CONFLICT`, evento pubblicato, outbox NO_SHOW scritta con la chiave corretta, filtro sportello vs vista globale, `getBayOccupancy`. **Fatto 2026-09-10**: `tests/unit/queue-service.test.ts`: take (campata predefinita/prima libera/BAY_BUSY), skip/restore/complete, INVALID_TRANSITION, VERSION_CONFLICT, filtro sportello vs globale; mancano `markNoShow`/`reopen`.
 - [x] M1-T03-S11 Commit `feat(M1-T03): QueueService con state machine, versioning e invariante campata`. **Fatto 2026-09-10**: commit unico `feat(accettazione): completamento setup M0, README e sviluppo dashboard M1` (hash con `git log -1`).
 
 ### M1-T04 — Inserimento manuale pratica (fallback Infinity)
+
 - [ ] M1-T04-S01 `QueueService.addManualAppointment(input: ManualAppointmentInput, operatorId)`: validazione targa/telefono con i value object, `source: 'MANUAL'`, `externalRef: null`, codice dal `CodeGenerator` (stesso contatore della sync), `insert` con propagazione del `Result` (`VALIDATION` su duplicato), evento `APPOINTMENT_CREATED` e `APPOINTMENT_CODE_ASSIGNED`.
 - [ ] M1-T04-S02 Duplicati: stessa targa già presente oggi → `VALIDATION` con messaggio "Targa già presente nell'agenda di oggi (codice F0xx)" e possibilità di forzare (`allowDuplicate`).
 - [ ] M1-T04-S03 Test: codice progressivo coerente con la sync successiva (manuale F001, poi sync assegna F002…), pratiche MANUAL mai toccate dalla reconciliation.
 - [ ] M1-T04-S04 Commit `feat(M1-T04): inserimento manuale pratica con codice dal contatore condiviso`.
 
 ### M1-T05 — SyncService: sincronizzazione idempotente e non distruttiva
+
 - [x] M1-T05-S01 `src/application/sync/SyncService.ts`: `runDailySync(businessDate, trigger, operatorId?): Promise<SyncRun>`; crea `SyncRun RUNNING`, chiama `infinity.fetchDailyAgenda` con `CallOptions { timeoutMs: 10000, correlationId }`, mappa con `mapInfinityAgenda` (restituisce `Result`: agenda con `businessDate` non valida → `SyncRun FAILED`, nessuna pratica creata), poi `reconcile`. **Fatto 2026-09-10**: `SyncService.runDailySync(businessDate, trigger, operatorId)` con `SyncRun RUNNING`, timeout 10 s, `mapInfinityAgenda`.
 - [x] M1-T05-S02 `reconcile(drafts, rejected, syncRunId)`: upsert per `externalRef`; nuove pratiche ordinate per (`scheduledAt`, `externalRef`) e codificate via `CodeGenerator`, inserite con `IAppointmentRepository.insert` (che restituisce `Result`: un duplicato → conteggiato in `rejected`, mai sovrascritto); aggiornamento dati cliente/veicolo/orario delle esistenti senza regressione di stato; annullate in Infinity → `CANCELLED` solo se `WAITING|SKIPPED`; mai delete, mai rinumerazione; `counters` popolati. **Fatto 2026-09-10**: reconcile: nuove ordinate per (scheduledAt, externalRef) con codice dal CodeGenerator; WAITING aggiornate se cambiate; sparite/annullate → CANCELLED solo da WAITING/SKIPPED; agenda parziale → nessuna cancellazione per assenza.
 - [x] M1-T05-S03 Esiti: agenda `partial=true` → `SyncRun PARTIAL`; `ProviderResult` err → `SyncRun FAILED` con `errorCode`/`errorMessage`; `rejected` > 0 → PARTIAL con dettaglio; evento `SYNC_RUN_FINISHED`. **Fatto 2026-09-10**: SUCCESS / PARTIAL (agenda parziale o scarti) / FAILED (ProviderError, mapping o eccezione) + evento `SYNC_RUN_FINISHED`.
@@ -886,6 +986,7 @@ Cuore del modulo A; dipende solo da interfacce.
 - [x] M1-T05-S06 Commit `feat(M1-T05): SyncService idempotente con reconciliation`. **Fatto 2026-09-10**: commit unico `feat(accettazione): completamento setup M0, README e sviluppo dashboard M1` (hash con `git log -1`).
 
 ### M1-T06 — SyncScheduler, bootstrap e snapshot dello stato
+
 - [x] M1-T06-S01 `src/application/sync/SyncScheduler.ts`: `tick()` ogni 30 s che esegue `runDailySync(today, 'SCHEDULED')` la prima volta in cui l'ora locale Europe/Rome supera `SYNC_HOUR_LOCAL` per una `businessDate` senza `SyncRun` SUCCESS/PARTIAL (catch-up dopo riavvio); `start()`/`stop()`; guard su `globalThis.__accettazioneScheduler` (un solo scheduler anche con HMR). **Fatto 2026-09-10**: `SyncScheduler` con tick ogni 60 s (non 30), sync SCHEDULED alla prima ora ≥ `SYNC_HOUR_LOCAL` senza sync nella giornata, catch-up BOOTSTRAP all'avvio; test rinviato (S04).
 - [x] M1-T06-S02 `src/instrumentation.ts` (`register()` solo su runtime `nodejs`; il file esiste dal bootstrap e chiama già `getContainer()` per il fail-fast all'avvio): ripristino snapshot, `runDailySync(today, 'BOOTSTRAP')` se la giornata non è sincronizzata, avvio scheduler; stesso bootstrap idempotente alla prima richiesta che chiama `getContainer()`. **Fatto 2026-09-10**: `instrumentation.ts` costruisce il container e avvia lo scheduler una sola volta per processo (flag su globalThis).
 - [ ] M1-T06-S03 `src/repositories/in-memory/SnapshotPersistence.ts` (importato solo da `repositories/factory.ts`): `InMemoryStore.toSnapshot()` → scrittura debounced (2 s) atomica `tmp + rename` in `.data/state.json`; `loadSnapshot` validato con Zod all'avvio.
@@ -894,6 +995,7 @@ Cuore del modulo A; dipende solo da interfacce.
 - [ ] M1-T06-S05 Commit `feat(M1-T06): scheduler con catch-up, bootstrap e snapshot atomico`.
 
 ### M1-T07 — Autenticazione locale (mock auth) e protezione rotte
+
 - [x] M1-T07-S01 `src/application/auth/IAuthService.ts`: `login(username, password, workstationId): Promise<Result<Session, DomainError>>`, `verify(token): Promise<Result<Session, DomainError>>`, `logout(token)`; `Session { operatorId; role; displayName; workstationId; deskIds; expiresAt }`. **Fatto 2026-09-10**: `IAuthService` con `login`, `verify`, `switchWorkstation`; `Session` come da piano più `username`, `issuedAt`.
 - [x] M1-T07-S02a `src/lib/hash-password.ts`: `hashPassword(plain)` / `verifyPassword(plain, hash)` con `scrypt` di `node:crypto` (sale casuale, confronto a tempo costante, formato `scrypt$<params>$<salt>$<hash>`); test `tests/unit/hash-password.test.ts`. **Fatto 2026-09-10**: `lib/hash-password.ts` (scrypt, formato `scrypt$N=,r=,p=$salt$hash`, confronto a tempo costante, prefisso demo `plain:`); test `hash-password.test.ts`.
 - [x] M1-T07-S02b `src/application/auth/LocalAuthService.ts` — `login`: `IOperatorRepository.findByUsername`, `verifyPassword`, utente disattivato o password errata → stesso messaggio generico "Credenziali non valide" (nessuna enumerazione utenti). **Fatto 2026-09-10**: `LocalAuthService.login` con messaggio unico "Credenziali non valide.".
@@ -907,6 +1009,7 @@ Cuore del modulo A; dipende solo da interfacce.
 - [x] M1-T07-S07 Commit `feat(M1-T07): autenticazione locale con JWT e guard delle rotte`. **Fatto 2026-09-10**: commit unico `feat(accettazione): completamento setup M0, README e sviluppo dashboard M1` (hash con `git log -1`).
 
 ### M1-T08 — Helper HTTP e Route Handler della coda
+
 - [x] M1-T08-S01 `src/lib/http/respond.ts`: `jsonOk`, `jsonError`, mappatura `DomainError → HTTP` (`NOT_FOUND` 404, `VERSION_CONFLICT`/`BAY_BUSY` 409, `INVALID_TRANSITION`/`VALIDATION` 422, `INTERNAL` 500) con corpo `{ error: { code, message, details } }` e `x-correlation-id`. **Fatto 2026-09-10**: realizzato come `lib/http/api-error.ts` (`httpStatusFor`, `domainErrorResponse`, 401/403/400).
 - [x] M1-T08-S02 `src/lib/http/with-auth.ts` (sessione + ruolo minimo; `/api/v1/system/**` richiede ADMIN), `with-validation.ts` (Zod su query/body, 400 con dettagli), `idempotency.ts` (cache in memoria per `Idempotency-Key` con TTL 10 min: stessa chiave → stessa risposta), `rate-limit.ts` (finestra scorrevole in memoria per chiave arbitraria, riusato dal login in M1-T07-S04b e dal portale in M2-T02-S02). **Fatto 2026-09-10**: sessione via `app/_server/session.ts` (`readSession`, `requireSession`, `readApiSession`, cookie); validazione Zod inline nei Route Handler; nessun `/api/v1/system/**` ancora.
 - [ ] M1-T08-S02b `src/lib/http/with-logging.ts`: log strutturato per richiesta (metodo, path, status, durata ms, `correlationId`, `operatorId`, `action`, esito/`errorCode`) tramite `ILogger`; è l'audit trail di "chi ha preso in carico cosa"; test `tests/unit/http/with-logging.test.ts` con `NoopLogger` spia. Il formato JSON (`JsonConsoleLogger`/pino) arriva in M6-T05-S03b.
@@ -918,29 +1021,33 @@ Cuore del modulo A; dipende solo da interfacce.
 - [x] M1-T08-S08 Commit `feat(M1-T08): Route Handler coda, azioni, inserimento manuale e sync`. **Fatto 2026-09-10**: commit unico `feat(accettazione): completamento setup M0, README e sviluppo dashboard M1` (hash con `git log -1`).
 
 ### M1-T09 — Client API, hook e store delle preferenze UI
+
 - [x] M1-T09-S01 `src/lib/api-client/client.ts` (fetch tipizzato con `zod` sulle risposte, `AbortSignal.timeout(8000)`, header `Idempotency-Key` con `crypto.randomUUID()`) e `query-keys.ts` (`queueKeys.list(date, deskId, view)`, `syncKeys.recent`). **Fatto 2026-09-10**: `lib/api-client/client.ts` (apiFetch con timeout 8 s, `ApiError`, redirect al login su 401) e `query-keys.ts`; senza Zod sulle risposte né Idempotency-Key.
 - [x] M1-T09-S02 `src/hooks/useQueue.ts`: `useQuery` con `refetchInterval: POLLING_MS.dashboard`, `refetchIntervalInBackground`, espone `dataUpdatedAt` e `isStale`. **Fatto 2026-09-10**: `hooks/useQueue.ts` (refetchInterval 3 s, `refetchIntervalInBackground`, `keepPreviousData`).
 - [x] M1-T09-S03 `src/hooks/useAppointmentActions.ts`: `useMutation` pessimistiche (`take`, `skip`, `complete`, `release`, `noShow`) con invalidazione della coda, gestione `409` → callback `onConflict(appointment)`, `BAY_BUSY` → `onBayBusy(freeBays)`, timeout → toast "Riprova". **Fatto 2026-09-10**: `hooks/useAppointmentActions.ts`: mutazione pessimistica, invalidazione coda, esiti `version-conflict` (con pratica aggiornata), `bay-busy` (campate libere), `error`.
 - [x] M1-T09-S04 `src/hooks/useStaleIndicator.ts`: `true` se `now - dataUpdatedAt > STALE_WARNING_MS`. **Fatto 2026-09-10**: indicatore "Dati non aggiornati" inline in `QueueDashboard` (`STALE_WARNING_MS`).
-- [ ] M1-T09-S05 `src/store/ui-store.ts` (zustand `persist`): `workstationId`, `globalView`, `brandFilter`, `deskFilter`, `compactRows`; nessun dato di coda nello store. *(nota 2026-09-10: decisione: nessuno store zustand per ora, vista e sportello vivono nei search param dell'URL (M1-T11-S04))*
+- [ ] M1-T09-S05 `src/store/ui-store.ts` (zustand `persist`): `workstationId`, `globalView`, `brandFilter`, `deskFilter`, `compactRows`; nessun dato di coda nello store. _(nota 2026-09-10: decisione: nessuno store zustand per ora, vista e sportello vivono nei search param dell'URL (M1-T11-S04))_
 - [ ] M1-T09-S06 Test hook con Testing Library e `QueryClient` di test (mock `fetch`): `tests/components/use-queue.test.tsx` (polling, `isStale`), `tests/components/use-appointment-actions.test.tsx` (409 → `onConflict`, `BAY_BUSY` → `onBayBusy`, timeout → toast), `tests/unit/ui-store.test.ts` (persistenza preferenze, nessun dato di coda).
 - [ ] M1-T09-S07 Commit `feat(M1-T09): client API tipizzato, hook useQueue/useAppointmentActions e store UI`.
 
 ### M1-T10 — Pagina di login e scelta postazione
+
 - [x] M1-T10-S01 `src/app/(auth)/login/page.tsx` + `modules/reception/LoginForm.tsx`: username, password, `Select` postazione (da `GET /api/v1/auth/workstations`, M1-T07-S04, o props del Server Component), errore in italiano, gestione del focus, `Enter` per inviare. **Fatto 2026-09-10**: `(auth)/login/page.tsx` + `modules/reception/LoginForm.tsx`: username, password, select Sportello/Brand (chip dei marchi) e Postazione filtrata, errore in italiano, Invio per inviare, account demo cliccabili.
 - [x] M1-T10-S02 Redirect post-login a `/accettazione` (o a `next=`); `src/app/page.tsx` reindirizza a `/accettazione` se sessione valida, altrimenti `/login` (sostituisce la pagina di verifica dell'health del bootstrap). Decidere qui l'attivazione di `typedRoutes: true` in `next.config.ts` (rinviata da M0-T06-S05): verificare che `Link`/`redirect()` restino verdi con `npm run typecheck` e `npm run build`. **Fatto 2026-09-10**: `/` reindirizza a `/accettazione` o `/login`; redirect post-login a `next` (solo percorsi interni); `typedRoutes` non attivato.
 - [ ] M1-T10-S03 Test componente `LoginForm` (validazione campi, messaggio errore) e e2e login riuscito/fallito.
 - [x] M1-T10-S04 Commit `feat(M1-T10): pagina login con scelta postazione`. **Fatto 2026-09-10**: commit unico `feat(accettazione): completamento setup M0, README e sviluppo dashboard M1` (hash con `git log -1`).
 
 ### M1-T11 — Shell operatore e vista multi-postazione
+
 - [x] M1-T11-S01 `src/app/(operator)/layout.tsx` + `components/layout/AppShell.tsx`, `Header.tsx` (nome operatore, postazione corrente, orologio Europe/Rome, logout), `StaleDataIndicator`, `SystemStatusBanner` (placeholder alimentato da `/api/v1/health` da M6). **Fatto 2026-09-10**: `(operator)/layout.tsx` + `components/layout/AppShell.tsx`, `Header.tsx` (nome, ruolo, postazione, sportello, orologio Europe/Rome, navigazione, logout); `SystemStatusBanner`/`StaleDataIndicator` rinviati.
-- [ ] M1-T11-S02 `modules/reception/WorkstationSwitcher.tsx`: cambio postazione senza logout (aggiorna sessione via `POST /api/v1/auth/workstation` e store). *(nota 2026-09-11: cambio postazione non ancora fatto; l'intestazione mostra però nome, ruolo e iniziali di chi è collegato (`OperatorChip`))*
+- [ ] M1-T11-S02 `modules/reception/WorkstationSwitcher.tsx`: cambio postazione senza logout (aggiorna sessione via `POST /api/v1/auth/workstation` e store). _(nota 2026-09-11: cambio postazione non ancora fatto; l'intestazione mostra però nome, ruolo e iniziali di chi è collegato (`OperatorChip`))_
 - [x] M1-T11-S03 `modules/reception/DeskBrandFilter.tsx`: filtro predefinito sullo sportello della postazione, chip dei brand dello sportello; `GlobalViewToggle.tsx` "Vista globale" che rimuove il filtro (persistito nello store, indicato nell'header con badge). **Fatto 2026-09-10**: select dello sportello (predefinito quello della postazione) + pulsante "Vista globale" / "Torna al mio sportello"; chip dei brand rinviati.
 - [x] M1-T11-S04 Filtri nei search param dell'URL (`?date=&deskId=&view=`) sincronizzati con lo store, così un link è condivisibile fra postazioni. **Fatto 2026-09-10**: `?view=desk|global&deskId=` nell'URL (`router.replace`), link condivisibile fra postazioni.
 - [ ] M1-T11-S05 Test componente: toggle vista globale aggiorna query key e URL.
 - [x] M1-T11-S06 Commit `feat(M1-T11): shell operatore, switch postazione e vista globale`. **Fatto 2026-09-10**: commit unico `feat(accettazione): completamento setup M0, README e sviluppo dashboard M1` (hash con `git log -1`).
 
 ### M1-T12 — Tabella della coda
+
 - [x] M1-T12-S08 Blocco "In ritardo / assenti" nella coda: raccoglie le pratiche attese da oltre `LATE_GRACE_MINUTES` (10 min) e non ancora prese in carico, con i minuti di ritardo accanto all'orario e due azioni dedicate, "Rimetti in coda" e "Segna assente". La regola vive nel dominio (`isLate`, `effectiveScheduleTime`) e usa l'ora del server, non quella del client. **Fatto 2026-09-11.**
 - [x] M1-T12-S09 Nuovo campo `Appointment.rescheduledAt`: "Rimetti in coda" sposta l'orario atteso ad adesso lasciando intatto `scheduledAt` (dato di Infinity), così una sincronizzazione successiva non annulla la decisione dell'accettatore e l'orario originale resta leggibile. Ordinamento della coda e conteggio del portale usano l'orario effettivo. **Fatto 2026-09-11.**
 - [x] M1-T12-S10 Colonna Cliente ripulita su richiesta del committente: l'esito del promemoria non è più nella tabella ma nel pannello di dettaglio, dove serve davvero (accanto al telefono, quando si decide se chiamare), con una riga che dice cosa fare. **Fatto 2026-09-11.**
@@ -954,6 +1061,7 @@ Cuore del modulo A; dipende solo da interfacce.
 - [x] M1-T12-S07 Commit `feat(M1-T12): QueueTable con righe, badge di stato e sezioni`. **Fatto 2026-09-10**: commit unico `feat(accettazione): completamento setup M0, README e sviluppo dashboard M1` (hash con `git log -1`).
 
 ### M1-T13 — Pulsanti azione, assegnazione campata e conflitti
+
 - [x] M1-T13-S01 `modules/reception/ActionButtons.tsx`: pulsanti visibili in base a `ALLOWED_TRANSITIONS` (Prendi in carico, Salta, Ripristina, Completato, Rilascia, No-show; Riapri solo per SUPERVISOR/ADMIN); mai disabilitati da guasti esterni, solo dalle regole di transizione; stato pessimistico con spinner, timeout 8 s e "Riprova"; target touch 48 px. **Fatto 2026-09-10**: `ActionButtons.tsx` guidato da `canTransition` (Prendi in carico, Salta, Ripristina, Completato, Rilascia), disabilitati solo durante l'azione sulla stessa riga; No-show/Riapri rinviati.
 - [x] M1-T13-S02 `BaySelectDialog.tsx`: alla presa in carico propone `Workstation.defaultBayId`, mostra le 4 campate con occupazione derivata (codice in servizio), consente "Assegna campata manualmente"; presa in carico diretta con un solo click se la campata predefinita è libera. **Fatto 2026-09-10**: scelta automatica della campata lato server (predefinita della postazione o prima libera); dialog di scelta solo su `BAY_BUSY` con le campate libere e opzione "Senza campata".
 - [x] M1-T13-S03 `ConflictDialog.tsx`: su `409 VERSION_CONFLICT` mostra "Presa in carico da {operatore} alla postazione {P}" con la pratica aggiornata e pulsante "Aggiorna"; su `BAY_BUSY` propone le campate libere. **Fatto 2026-09-10**: dialog "Pratica modificata da un'altra postazione" con codice/stato/cliente aggiornati e pulsante Aggiorna; dialog "Campata occupata" con le libere.
@@ -962,6 +1070,7 @@ Cuore del modulo A; dipende solo da interfacce.
 - [x] M1-T13-S06 Commit `feat(M1-T13): azioni pessimistiche, scelta campata e ConflictDialog`. **Fatto 2026-09-10**: commit unico `feat(accettazione): completamento setup M0, README e sviluppo dashboard M1` (hash con `git log -1`).
 
 ### M1-T14 — Banner sync e fallback inserimento manuale in UI
+
 - [x] M1-T14-S01 `modules/reception/SyncBanner.tsx`: legge `lastSync` dalla risposta di `/api/v1/queue`; `FAILED` → rosso con "Riprova sync" e "Inserisci pratica manualmente"; `PARTIAL` → giallo con conteggio scartati; `RUNNING` → indicatore; nessuna sync oggi → avviso con CTA. **Fatto 2026-09-10**: `SyncBanner.tsx`: nessuna sync (giallo + Sincronizza ora), FAILED (rosso + Riprova), PARTIAL (giallo + conteggi), RUNNING, SUCCESS (riga discreta).
 - [ ] M1-T14-S02a Schema Zod `ManualAppointmentInput` condiviso client/server in `modules/reception/manual-appointment.schema.ts` (targa via `parsePlate`, telefono opzionale via `parsePhoneE164`, brand, modello, cognome/nome, orario prenotazione, sportello, note) con messaggi in italiano; test `tests/unit/manual-appointment-schema.test.ts`.
 - [ ] M1-T14-S02b `ManualAppointmentForm.tsx` in `src/app/(operator)/accettazione/nuova/page.tsx`: campi con maiuscola automatica sulla targa, select brand/sportello, orario predefinito "adesso", errori inline dallo schema; invio a `POST /api/v1/appointments`.
@@ -971,13 +1080,15 @@ Cuore del modulo A; dipende solo da interfacce.
 - [ ] M1-T14-S05 Commit `feat(M1-T14): SyncBanner e inserimento manuale pratica`.
 
 ### M1-T15 — Dettaglio pratica, storico e pagina Sistema
-- [ ] M1-T15-S01 `src/app/(operator)/accettazione/pratiche/[id]/page.tsx`: dati pratica, cliente, veicolo, timeline dagli eventi del bus (`IEventBus.listSince(0)` filtrati per `appointmentId`; decisione: in M1 nessuna cronologia persistita, la timeline copre gli eventi in memoria del processo; la cronologia persistita è nel backlog), note modificabili, azioni. *(nota 2026-09-11: anticipato come pannello laterale sulla coda (`AppointmentDetailPanel`), aperto dal clic sulla riga: cliente con telefono chiamabile (`tel:`), veicolo, lavorazione, note, sportello, campata, chi ha preso in carico e cronologia della giornata. Resta da fare la pagina di dettaglio con la storia degli eventi)*
+
+- [ ] M1-T15-S01 `src/app/(operator)/accettazione/pratiche/[id]/page.tsx`: dati pratica, cliente, veicolo, timeline dagli eventi del bus (`IEventBus.listSince(0)` filtrati per `appointmentId`; decisione: in M1 nessuna cronologia persistita, la timeline copre gli eventi in memoria del processo; la cronologia persistita è nel backlog), note modificabili, azioni. _(nota 2026-09-11: anticipato come pannello laterale sulla coda (`AppointmentDetailPanel`), aperto dal clic sulla riga: cliente con telefono chiamabile (`tel:`), veicolo, lavorazione, note, sportello, campata, chi ha preso in carico e cronologia della giornata. Resta da fare la pagina di dettaglio con la storia degli eventi)_
 - [ ] M1-T15-S02 `GET /api/v1/appointments/[id]` e `PATCH /api/v1/appointments/[id]/notes`.
-- [ ] M1-T15-S03 `src/app/(operator)/sistema/page.tsx` (ADMIN): ultime 20 `SyncRun` con counters, "Sincronizza ora", modalità mock attive (`env.mock*`), stato snapshot (ultimo salvataggio), versione build. *(nota 2026-09-10: `sistema/page.tsx` mostra oggi solo lo stato delle porte (erede della pagina di bootstrap); SyncRun, modalità mock e snapshot ancora da fare)*
+- [ ] M1-T15-S03 `src/app/(operator)/sistema/page.tsx` (ADMIN): ultime 20 `SyncRun` con counters, "Sincronizza ora", modalità mock attive (`env.mock*`), stato snapshot (ultimo salvataggio), versione build. _(nota 2026-09-10: `sistema/page.tsx` mostra oggi solo lo stato delle porte (erede della pagina di bootstrap); SyncRun, modalità mock e snapshot ancora da fare)_
 - [ ] M1-T15-S04 Test e2e navigazione riga → dettaglio; test accesso `/sistema` negato ad ADVISOR (403).
 - [ ] M1-T15-S05 Commit `feat(M1-T15): dettaglio pratica e pagina Sistema`.
 
 ### M1-T16 — Accessibilità e usabilità monopagina
+
 - [ ] M1-T16-S01a Scorciatoie da tastiera in `modules/reception/useQueueShortcuts.ts` (frecce per navigare le righe, `P` prendi in carico, `S` salta, `C` completato) con focus visibile sulla riga selezionata; test `tests/components/use-queue-shortcuts.test.tsx`.
 - [ ] M1-T16-S01b Legenda scorciatoie (`?` apre `ShortcutsHelpDialog.tsx`) e regione `aria-live="polite"` per aggiornamenti della coda e toast (`components/shared/LiveAnnouncer.tsx`).
 - [ ] M1-T16-S02a Contrasto dei badge di stato verificato con axe-core (`@axe-core/playwright`): 0 violazioni `color-contrast` (AA) sulla dashboard con tutti i sei stati presenti.
@@ -987,37 +1098,43 @@ Cuore del modulo A; dipende solo da interfacce.
 - [ ] M1-T16-S05 Commit `feat(M1-T16): accessibilità, scorciatoie e banner offline`.
 
 ### M1-T17 — Test di contratto ed e2e del modulo A
+
 - [ ] M1-T17-S01 `tests/contracts/infinity-service.contract.ts` (`runInfinityServiceContract(label, factory)`): mai throw, `Result.err` in `error`/`timeout`, rispetto di `signal`, forma DTO valida (Zod), determinismo per `businessDate`, `healthCheck` (rispetta `timeoutMs`/`signal` di `CallOptions`: oggi i mock li ignorano e `check-health.ts` applica un timer locale di 2000 ms); eseguita su `InfinityServiceMock`.
 - [ ] M1-T17-S02 `tests/contracts/appointment-repository.contract.ts`: ordinamento, `VERSION_CONFLICT`, `reserveNextSequence` mai riutilizzato, `countAhead` per scope; eseguita su `InMemoryAppointmentRepository` (Prisma in M7).
 - [ ] M1-T17-S03 `playwright.config.ts` + `tests/e2e/smoke.spec.ts`: login → coda con F001 → prendi in carico (campata C1) → completato; `tests/e2e/conflict.spec.ts`: due contesti browser, stessa pratica → `ConflictDialog`.
 - [ ] M1-T17-S04 Script `test:e2e` in CI con server avviato in modalità mock e `FixedClock` via env `MOCK_FIXED_NOW`.
 - [ ] M1-T17-S05 Commit `test(M1-T17): contract suite Infinity/repository ed e2e smoke`.
 
-### M1-T22 — Stati di caricamento, vuoti ed errori *(nuovo 2026-09-14, revisione generale)*
+### M1-T22 — Stati di caricamento, vuoti ed errori _(nuovo 2026-09-14, revisione generale)_
+
 - [x] M1-T22-S01 `components/ui/skeleton.tsx` (`Skeleton`, `TableSkeleton`, `CardSkeleton`): segnaposto animati che ripetono la forma di ciò che sta per comparire, con testo per gli screen reader. Usati da coda, tablet, cruscotto BDC e coda CRM al posto delle scritte "Caricamento…". **Fatto 2026-09-14.**
 - [x] M1-T22-S02 `components/shared/EmptyState.tsx`: un solo stato vuoto per tutta l'applicazione, con titolo, spiegazione e azioni (sincronizza, vista globale). Un elenco vuoto non è un errore e non deve sembrarlo. **Fatto 2026-09-14.**
 - [x] M1-T22-S03 Error boundary per area: `app/(operator)/error.tsx` (si resta nell'intestazione, con "Riprova" e "Torna alla coda") e `app/(display)/error.tsx` (schermo giallo "MONITOR IN RIPRISTINO" che riprova da solo dopo 20 s: nessuno preme pulsanti su uno schermo appeso al muro). **Fatto 2026-09-14.**
 - [x] M1-T22-S04 Conferma a due tocchi in linea su "Segna assente" (`ActionButtons`): primo tocco → "Confermi assente?" + "Annulla", decade da solo dopo 6 s; secondo tocco → azione. Scelta ristretta a questa azione perché genera un lead BDC e un evento CRM non annullabili dall'accettatore; prendi in carico, salta e completato restano a un tocco. La chiusura di giornata ha già la sua finestra di conferma. **Fatto 2026-09-14.**
 
-### M1-T21 — Flusso responsive e ottimizzazione touch *(nuovo 2026-09-11, richiesta del committente)*
+### M1-T21 — Flusso responsive e ottimizzazione touch _(nuovo 2026-09-11, richiesta del committente)_
+
 - [x] M1-T21-S01 `src/hooks/useMediaQuery.ts`: `useMediaQuery` e `useIsTouchLayout()` (soglia `TOUCH_LAYOUT_MAX_WIDTH` = 1024 px, che comprende i tablet in orizzontale ed esclude i monitor delle postazioni). Il valore parte da `false` e si calcola dopo il montaggio: il server non conosce la larghezza del dispositivo e un'ipotesi sbagliata farebbe lampeggiare la pagina; fino ad allora vale il comportamento da scrivania, che non porta l'operatore altrove senza che l'abbia chiesto. **Fatto 2026-09-11.**
 - [x] M1-T21-S02 `useAppointmentActions.run` accetta `onSuccess`: la dashboard decide dove andare **solo quando il server ha confermato** la presa in carico, così un conflitto fra postazioni non trascina l'operatore in un'altra schermata. Su tablet → `checkInPath(id)` (`/tablet?pratica=`), su schermo grande → apertura del pannello di dettaglio. Vale anche per la presa in carico che passa dalla scelta dell'accettazione libera. **Fatto 2026-09-11.**
 - [x] M1-T21-S03 Vie d'uscita in entrambe le direzioni: pulsante "Passa al check-in / Ispeziona" nel pannello di dettaglio (pratiche in carico) per chi lavora al banco, e "Salta foto per ora" nella schermata di ispezione, che riporta alla coda lasciando la pratica in carico e le foto già scattate nel fascicolo (serve quando piove o la vettura va spostata subito). **Fatto 2026-09-11.**
 - [x] M1-T21-S04 Coda a misura di dito: celle `px-4 py-3`, azioni di riga alla nuova misura `size="touch"` (≥ 44 × 44 px), riga con `touch-manipulation` (niente ritardo di 300 ms) e `select-none` (il tocco prolungato apre il dettaglio invece di selezionare il testo), codice con area di tocco piena altezza. **Fatto 2026-09-11.**
 - [x] M1-T21-S05 La vista tablet legge ora la coda completa e filtra lo sportello lato client: senza, l'ispezione aperta dalla vista globale su una pratica di un altro sportello non avrebbe trovato la riga. Se la pratica richiesta non è più in elenco la schermata lo dice, invece di restare vuota. Test `tests/unit/navigation.test.ts` per `checkInPath`. **Fatto 2026-09-11.**
 
-### M1-T20 — Identità visiva Autoclub Group *(nuovo 2026-09-11, richiesta del committente)*
+### M1-T20 — Identità visiva Autoclub Group _(nuovo 2026-09-11, richiesta del committente)_
+
 - [x] M1-T20-S01 Token di marca in `src/app/globals.css`: `--color-brand-blue` (#0065A0), `--color-brand-blue-dark` (#00466F), `--color-brand-blue-light` (#0180CA), `--color-brand-lime` (#87BD22), `--color-brand-lime-dark`, `--color-brand-ink` (#2E2E2E). I valori non sono stati scelti a occhio: sono le variabili CSS pubblicate dal sito aziendale (`--color__primary`, `--color__secondary`, …). **Fatto 2026-09-11.**
 - [x] M1-T20-S02 Scala neutra `slate` ritinta verso il blu istituzionale nello stesso blocco `@theme`: le trenta e più schermate già scritte cambiano tono senza toccare una classe, e il codice nuovo continua a usare `slate-*`. I colori di stato (in attesa, in carico, completata, assente) restano invariati perché sono semantici. **Fatto 2026-09-11.**
 - [x] M1-T20-S03 `components/layout/BrandMark.tsx`: marchio testuale "AUTOCLUB" + riquadro verde "GROUP", in CSS e non come immagine (resta nitido su un monitor 4K e non aggiunge un file da caricare). Usato in intestazione operatore, login, portale cliente, tabellone e monitor. Il logo ufficiale potrà sostituirlo quando verrà fornito. **Fatto 2026-09-11.**
 - [x] M1-T20-S04 Superfici aggiornate: barra dell'area operatore blu con bordo verde e voce attiva evidenziata, pulsante primario blu istituzionale (nuova variante `onDark` per i fondi scuri), `OperatorChip` con variante chiara, sfondo dell'area operatore grigio chiaro, monitor blu in servizio e verde marchio quando l'accettazione è libera, tabellone con intestazione e chiamata in verde Autoclub. **Fatto 2026-09-11.**
 
-### M1-T19 — Terminologia rivolta al cliente *(nuovo 2026-09-11, richiesta del committente)*
+### M1-T19 — Terminologia rivolta al cliente _(nuovo 2026-09-11, richiesta del committente)_
+
 - [x] M1-T19-S01 A schermo "campata" diventa **Accettazione**: intestazione della coda, dialog dell'accettazione occupata, pannello di dettaglio, tabellone della sala d'attesa ("→ ACCETTAZIONE 1"), monitor ("ACCETTAZIONE 1", "ACCETTAZIONE LIBERA / AVANZARE", titolo della scheda), portale cliente ("Procedi all'accettazione 1"), messaggi d'errore del `QueueService`, nomi delle campate nel seed e descrizione del sito. **Fatto 2026-09-11**: "campata" è gergo di officina e a un cliente non dice nulla.
 - [x] M1-T19-S02 Dominio, dati e URL restano invariati (`Bay`, `bayId`, `/display/[campata]`, parametro `?campata=`): un rename tecnico avrebbe toccato state machine, API pubbliche dei monitor e documentazione senza portare nulla al cliente. La scelta è annotata in `src/domain/glossary.ts`. **Fatto 2026-09-11.**
 - [x] M1-T19-S03 Sul monitor la riga del rilascio dice ora "PRATICA F011 COMPLETATA" invece di "Accettazione F011 completata": con l'intestazione "ACCETTAZIONE LIBERA" la vecchia dicitura si leggeva come il nome della postazione. **Fatto 2026-09-11.**
 
 ### M1-T18 — Documentazione e chiusura M1
+
 - [ ] M1-T18-S01 Aggiornare `README.md` (flusso operatore, credenziali demo, interruttori mock utili per la demo), `ARCHITECTURE.md` e `docs/GLOSSARIO.md`; ADR nuovi se emerse deviazioni (es. semantica di Salta).
 - [ ] M1-T18-S02 Verifica dei criteri di completamento di M1 con checklist manuale (due browser, riavvio server, `MOCK_INFINITY_MODE=error`) annotata qui.
 - [ ] M1-T18-S03 Aggiornare `TASKS.md`, PR `feature/M1-core-dashboard` → `main`; commit `docs(M1-T18): chiusura milestone M1`.
@@ -1032,10 +1149,12 @@ Cuore del modulo A; dipende solo da interfacce.
 - **Dipendenze**: M1 (`QueueService`, `IAppointmentRepository.countAhead`, stato condiviso).
 
 ### M2-T01 — Pianificazione modulo B
+
 - [x] M2-T01-S01 Decidere e annotare qui le regole di default per le domande aperte n. 5 e 6 (`QUEUE_AHEAD_SCOPE=SITE`, SKIPPED contate come in attesa, sola targa con rate limit; secondo fattore in backlog). **Fatto 2026-09-11**: default confermati: `QUEUE_AHEAD_SCOPE=SITE`, pratiche SKIPPED contate come in attesa, ricerca con la sola targa protetta da limiti di frequenza; secondo fattore resta in backlog.
 - [ ] M2-T01-S02 Branch `feature/M2-portale-cliente`; commit `docs(M2-T01): pianificazione modulo B`.
 
 ### M2-T02 — API pubblica di stato con rate limit
+
 - [x] M2-T02-S01 `GET /api/v1/public/status?plate=`: `normalizePlate` + `parsePlate` (422 "Formato targa non valido"), `getPublicPositionByPlate(plate, today)` → `QueuePositionView`; 404 con messaggio "Targa non trovata nell'agenda di oggi. Rivolgiti allo sportello."; `Cache-Control: no-store`. **Fatto 2026-09-11**: `GET /api/v1/public/status?targa=` (alias `plate=`) con `parsePlate` (400 invece di 422, coerente con gli altri endpoint), `getPublicPositionByPlate`, 404 con rimando allo sportello, `cache-control: no-store`.
 - [x] M2-T02-S02 `src/lib/http/rate-limit.ts`: sliding window in memoria per IP (es. 30 richieste/min) e per targa (10/min) → 429 con `Retry-After`; esclusione degli IP interni configurabile (`RATE_LIMIT_ALLOWLIST`). **Fatto 2026-09-11**: `src/lib/http/rate-limit.ts` (finestra scorrevole su globalThis, `hitRateLimit`, `clientIpFrom`): 240 richieste/min per indirizzo e 30/min per targa, valori in `config/constants.ts` perché devono restare sopra il polling legittimo (un test lo verifica). Allowlist degli IP interni non necessaria con questi limiti.
 - [x] M2-T02-S03 Pratiche `CANCELLED`/`COMPLETED`: risposta con stato e messaggio dedicato ("Accettazione completata", "Appuntamento annullato: rivolgiti allo sportello"). **Fatto 2026-09-11**: pratiche chiuse gestite dal messaggio di stato: COMPLETED "Accettazione completata", CANCELLED e NO_SHOW rimandano allo sportello.
@@ -1043,12 +1162,14 @@ Cuore del modulo A; dipende solo da interfacce.
 - [x] M2-T02-S05 Commit `feat(M2-T02): endpoint pubblico di stato con rate limit`. **Fatto 2026-09-11**: commit unico `feat(portale): sviluppo portale web cliente per QR code M2`.
 
 ### M2-T03 — Regola "clienti prima di te"
+
 - [x] M2-T03-S01 `QueueService.getPublicPositionByPlate(plate, businessDate)` → `QueuePositionView` (unico proprietario della regola "clienti prima di te", spostato qui da M1-T03-S09): usa `IAppointmentRepository.countAhead(appointment, scope)` con `QUEUE_AHEAD_SCOPE=DESK|SITE` e flag `QUEUE_AHEAD_INCLUDE_SKIPPED` (default true) letto in `env.ts` e passato al repository; documentare in README. **Fatto 2026-09-11**: `QueueService.getPublicPositionByPlate(plate, businessDate)` con `countAhead` e `queueAheadScope` dal container; fra più pratiche con la stessa targa vince quella aperta. **Corretto 2026-09-11**: il conteggio considera solo le pratiche in coda dello STESSO sportello (prima sommava tutta l'officina). Lo sportello è quello indicato da Infinity oppure, quando manca, quello che serve il marchio della vettura: la stessa regola con cui la dashboard raggruppa la coda. L'interruttore `QUEUE_AHEAD_SCOPE` e il metodo `IAppointmentRepository.countAhead` sono stati rimossi perché la regola non è più configurabile.
 - [x] M2-T03-S02 `aheadCount` = 0 e `bayNumber` quando `IN_PROGRESS` ("È il tuo turno: campata N"). **Fatto 2026-09-11**: `aheadCount` 0 e numero di campata quando la pratica è IN_PROGRESS.
 - [x] M2-T03-S03 Test unit `tests/unit/queue-position.test.ts`: `countAhead` su fixture con SKIPPED incluse/escluse, sportelli diversi, pratiche chiuse; nessun campo personale nella view. **Fatto 2026-09-11**: `tests/unit/queue-position.test.ts`: conteggio con SKIPPED, ambito DESK vs SITE, in carico, pratiche chiuse, targa non valida e non trovata, nessun campo personale.
 - [x] M2-T03-S04 Commit `feat(M2-T03): regola configurabile del conteggio in attesa`. **Fatto 2026-09-11**: commit unico `feat(portale): sviluppo portale web cliente per QR code M2`.
 
 ### M2-T04 — UI portale: ricerca targa
+
 - [x] M2-T04-S01 `src/app/(public)/layout.tsx` (mobile-first, logo neutro, nessuna navigazione operatore) e `src/app/(public)/cliente/page.tsx`. **Fatto 2026-09-11**: `src/app/(public)/layout.tsx` (mobile-first, intestazione neutra) e `cliente/page.tsx`; aggiunto `src/app/qr/page.tsx` come alias breve da stampare sui cartelli.
 - [x] M2-T04-S02 `modules/customer-portal/PlateSearchForm.tsx`: input con `autocapitalize="characters"`, `inputmode`, formattazione live, validazione client con `parsePlate`, pulsante grande, messaggi in italiano; invio → `/cliente/stato?targa=`. **Fatto 2026-09-11**: `PlateSearchForm.tsx` con `autocapitalize="characters"`, formattazione live (`formatPlateInput`), validazione con `parsePlate`, campo alto 4rem e pulsante da 3rem; invio a `/cliente/stato?targa=`.
 - [x] M2-T04-S03 Informativa breve privacy (testo placeholder da validare col PO) e link "Non trovi la tua targa? Rivolgiti allo sportello". **Fatto 2026-09-11**: nota sulla privacy sotto il form e rimando allo sportello nel piè di pagina del layout pubblico.
@@ -1056,6 +1177,7 @@ Cuore del modulo A; dipende solo da interfacce.
 - [x] M2-T04-S05 Commit `feat(M2-T04): form ricerca targa mobile-first`. **Fatto 2026-09-11**: commit unico `feat(portale): sviluppo portale web cliente per QR code M2`.
 
 ### M2-T05 — UI portale: esito e stato in tempo reale
+
 - [x] M2-T05-S01 `src/hooks/usePublicStatus.ts`: `useQuery` con `refetchInterval: POLLING_MS.portal`, retry limitato, `retryOnMount`. **Fatto 2026-09-11**: `src/hooks/usePublicStatus.ts` con `POLLING_MS.portal` (5 s), `keepPreviousData` e nessun tentativo ripetuto sugli errori definitivi.
 - [x] M2-T05-S02 `modules/customer-portal/QueuePositionCard.tsx`: codice enorme, "Clienti prima di te: N", stato leggibile, campata quando in carico, ora ultimo aggiornamento; `src/app/(public)/cliente/stato/page.tsx`. **Fatto 2026-09-11**: `QueuePositionCard.tsx`: codice a 4.5rem, conteggio in `aria-live`, orario dell'appuntamento, campata quando in carico, ora dell'ultimo aggiornamento; `cliente/stato/page.tsx`.
 - [x] M2-T05-S03 `ServiceUnavailableCard.tsx`: su errore rete/5xx "Servizio momentaneamente non disponibile, rivolgiti allo sportello" mantenendo l'ultimo stato noto; su 404 card "Targa non trovata" con pulsante "Cerca di nuovo"; su 429 "Troppe richieste, riprova tra poco". **Fatto 2026-09-11**: `ServiceUnavailableCard.tsx` per targa non trovata, targa non valida, troppe richieste e servizio non disponibile. Solo un guasto di rete conserva l'ultimo stato noto: un 404 sopravvenuto (agenda cambiata) mostra subito il motivo, altrimenti il cliente resterebbe in attesa di una chiamata mai prevista.
@@ -1065,12 +1187,14 @@ Cuore del modulo A; dipende solo da interfacce.
 - [x] M2-T05-S05 Commit `feat(M2-T05): card stato coda con polling, fallback e accessibilità`. **Fatto 2026-09-11**: commit unico `feat(portale): sviluppo portale web cliente per QR code M2`.
 
 ### M2-T06 — QR code stampabili
-- [ ] M2-T06-S01 Script `scripts/gen-qr.mts` (libreria `qrcode`, dev dependency) che genera `public/qr/corsia-<n>.svg` e un PDF/HTML stampabile A4 con URL `PUBLIC_BASE_URL/cliente?src=corsia<n>`. *(nota 2026-09-11: generazione dei QR stampabili non ancora fatta: la rotta `/qr` esiste ed è pronta a essere codificata nel QR)*
-- [ ] M2-T06-S02 Parametro `src` tracciato nel log (nessun dato personale) per capire quale corsia genera più accessi. *(nota 2026-09-11: parametro `src` già propagato da `/qr` a `/cliente` e al form; log dedicato rinviato)*
+
+- [ ] M2-T06-S01 Script `scripts/gen-qr.mts` (libreria `qrcode`, dev dependency) che genera `public/qr/corsia-<n>.svg` e un PDF/HTML stampabile A4 con URL `PUBLIC_BASE_URL/cliente?src=corsia<n>`. _(nota 2026-09-11: generazione dei QR stampabili non ancora fatta: la rotta `/qr` esiste ed è pronta a essere codificata nel QR)_
+- [ ] M2-T06-S02 Parametro `src` tracciato nel log (nessun dato personale) per capire quale corsia genera più accessi. _(nota 2026-09-11: parametro `src` già propagato da `/qr` a `/cliente` e al form; log dedicato rinviato)_
 - [ ] M2-T06-S03 README: come rigenerare e stampare i QR.
 - [ ] M2-T06-S04 Commit `feat(M2-T06): generazione QR code stampabili`.
 
 ### M2-T07 — Test e chiusura M2
+
 - [ ] M2-T07-S01 `tests/e2e/portale.spec.ts` (viewport mobile): targa mock → codice e conteggio; operatore prende in carico la pratica precedente → conteggio scende entro 5 s; targa sconosciuta → messaggio.
 - [ ] M2-T07-S02 Test di sicurezza: risposta pubblica non contiene `customer`/`vehicle.model`; enumerazione di 50 targhe in un minuto → 429.
 - [ ] M2-T07-S03 Aggiornare `README.md`, `ARCHITECTURE.md`, `TASKS.md`; PR → `main`; commit `docs(M2-T07): chiusura milestone M2`.
@@ -1085,15 +1209,18 @@ Cuore del modulo A; dipende solo da interfacce.
 - **Dipendenze**: M1 (SyncService, scheduler), `NotificationOrchestrator` dello scaffold.
 
 ### M3-T01 — Pianificazione modulo C
-- [ ] M3-T01-S01 Annotare qui le decisioni sulla domanda aperta n. 9 (default: invio subito dopo la sync riuscita, template placeholder, mittente SMS "Autoclub"); `YOUR_TURN`/`VEHICLE_READY` restano nel backlog. *(nota 2026-09-11: testi dei template già presenti in `application/notifications/templates.ts` (promemoria, è il tuo turno, vettura pronta); da far validare al committente prima dei template reali Meta)*
+
+- [ ] M3-T01-S01 Annotare qui le decisioni sulla domanda aperta n. 9 (default: invio subito dopo la sync riuscita, template placeholder, mittente SMS "Autoclub"); `YOUR_TURN`/`VEHICLE_READY` restano nel backlog. _(nota 2026-09-11: testi dei template già presenti in `application/notifications/templates.ts` (promemoria, è il tuo turno, vettura pronta); da far validare al committente prima dei template reali Meta)_
 - [ ] M3-T01-S02 Branch `feature/M3-comunicazioni`; commit `docs(M3-T01): pianificazione modulo C`.
 
 ### M3-T02 — Template messaggi
+
 - [ ] M3-T02-S01 Rivedere `src/application/notifications/templates.ts`: `REMINDER_MORNING` con variabili `{firstName, code, scheduledTime, plate, brandName}`, versione WhatsApp (template key Spoki) e versione SMS entro un singolo segmento GSM-7 (160 caratteri, verificata con `smsSegments` di `sms-hosting.dto.ts`; `renderSms` accorcia il testo senza spezzare il codice).
 - [ ] M3-T02-S02 Test snapshot dei testi renderizzati con accenti corretti; test lunghezza SMS.
 - [ ] M3-T02-S03 Commit `feat(M3-T02): template promemoria WhatsApp e SMS`.
 
 ### M3-T03 — Estensione NotificationOrchestrator
+
 - [x] M3-T03-S01 `sendMorningReminders(businessDate, correlationId)`: per ogni pratica `WAITING` con telefono crea/riprende il job (`idempotencyKey`), chiamata da `SyncService` su `SyncRun SUCCESS|PARTIAL` (solo prima sync riuscita del giorno; le re-sync creano job solo per pratiche nuove). **Fatto 2026-09-11**: `NotificationOrchestrator.sendMorningReminders({ appointments, brands, correlationId })`: invii in sequenza (un provider reale limita la frequenza), un errore su una pratica non ferma le altre, log riassuntivo con i conteggi per esito.
 - [ ] M3-T03-S02 Politica retry (evoluzione del comportamento dello scaffold descritto in `ARCHITECTURE.md` §3.3): errori `retryable` (TIMEOUT, NETWORK, RATE_LIMIT, UNAVAILABLE) → job `FAILED` con `nextAttemptAt` a backoff esponenziale (30 s, 2 min, 10 min), max 3 tentativi WhatsApp e 2 SMS prima di passare al canale successivo o a `MANUAL_REQUIRED`; errori non retryable → passaggio immediato al canale successivo (come oggi).
 - [ ] M3-T03-S03 `refreshDeliveryStatuses(businessDate)`: per job `SENT` interroga `getDeliveryStatus`; `DELIVERED/READ` → `DELIVERED`; `UNDELIVERABLE/FAILED` → fallback SMS.
@@ -1103,12 +1230,14 @@ Cuore del modulo A; dipende solo da interfacce.
 - [ ] M3-T03-S07 Commit `feat(M3-T03): promemoria post-sync, retry con backoff e tracciamento consegna`.
 
 ### M3-T04 — Resilienza delle porte esterne
+
 - [ ] M3-T04-S01 `src/services/resilience/with-timeout.ts` (`AbortSignal.timeout` + `CallOptions.signal` combinati, → `ProviderError TIMEOUT`) e `retry.ts` (tentativi con jitter solo su `retryable`).
 - [ ] M3-T04-S02 `src/services/resilience/decorators.ts`: wrapper `withResilience(service)` applicato in `services/factory.ts` a tutte le porte (mock e reali) con timeout 5 s di default.
 - [ ] M3-T04-S03 Test unit: timeout scatta con `InfinityServiceMock` in modalità `timeout`; retry rispetta il massimo; `signal` esterno interrompe.
 - [ ] M3-T04-S04 Commit `feat(M3-T04): decoratori withTimeout e retry sulle porte esterne`.
 
 ### M3-T05 — Scheduler: svuotamento dell'outbox notifiche
+
 - [x] M3-T05-S00 Aggancio dell'invio alla sincronizzazione: `SyncService` chiama `sendMorningReminders` per le pratiche appena create, senza attenderne l'esito (con decine di clienti l'invio dura secondi e la coda deve essere subito utilizzabile). Gli esiti finiscono nei log e sul job di ogni notifica. **Fatto 2026-09-11.**
 - [ ] M3-T05-S01a Creare `src/application/scheduler/Scheduler.ts` generico con job registrabili (`register(name, everyMs, run)`, lock per job, `start()`/`stop()`, guard su `globalThis`); test `tests/unit/scheduler.test.ts` con `FixedClock`.
 - [ ] M3-T05-S01b Refactor deciso: `SyncScheduler` (M1) diventa il job `syncJob` registrato sullo `Scheduler` generico; il file `SyncScheduler.ts` viene rimosso e i suoi test migrano in `tests/unit/sync-job.test.ts` (nessun comportamento cambia).
@@ -1118,6 +1247,7 @@ Cuore del modulo A; dipende solo da interfacce.
 - [ ] M3-T05-S04 Commit `feat(M3-T05): scheduler generico e svuotamento outbox notifiche`.
 
 ### M3-T06 — Route Handler notifiche e webhook stub
+
 - [ ] M3-T06-S01 `GET /api/v1/notifications?date=&status=` (job con tentativi), `GET /api/v1/notifications/[id]`.
 - [ ] M3-T06-S02 `POST /api/v1/notifications/[id]/manual-confirm` (body `{ note }`, ruolo ADVISOR+) → `confirmManual`; `POST /api/v1/notifications/[id]/retry` → `retry`; `POST /api/v1/notifications/send` per invio singolo `CUSTOM` (SUPERVISOR).
 - [ ] M3-T06-S03 `POST /api/v1/webhooks/spoki`: `parseWebhook` del mock, aggiornamento stato job per `providerMessageId`; firma verificata in M7.
@@ -1125,7 +1255,8 @@ Cuore del modulo A; dipende solo da interfacce.
 - [ ] M3-T06-S05 Commit `feat(M3-T06): Route Handler notifiche e webhook Spoki stub`.
 
 ### M3-T07 — UI Comunicazioni
-- [ ] M3-T07-S01 `src/app/(operator)/comunicazioni/page.tsx` + `modules/notifications/NotificationStatusList.tsx`: tabella job (codice, cliente, canale, stato, tentativi, ultimo errore), filtri "Da contattare a mano", "Falliti", "Consegnati"; polling 5 s. *(nota 2026-09-11: in dashboard l'esito del contatto è visibile accanto al nome del cliente (`NotificationBadge`), con distinzione fra WhatsApp, SMS di ripiego, da ritentare, da chiamare e senza recapito. La pagina `/comunicazioni` con il registro completo resta da fare)*
+
+- [ ] M3-T07-S01 `src/app/(operator)/comunicazioni/page.tsx` + `modules/notifications/NotificationStatusList.tsx`: tabella job (codice, cliente, canale, stato, tentativi, ultimo errore), filtri "Da contattare a mano", "Falliti", "Consegnati"; polling 5 s. _(nota 2026-09-11: in dashboard l'esito del contatto è visibile accanto al nome del cliente (`NotificationBadge`), con distinzione fra WhatsApp, SMS di ripiego, da ritentare, da chiamare e senza recapito. La pagina `/comunicazioni` con il registro completo resta da fare)_
 - [ ] M3-T07-S02 `ManualConfirmDialog.tsx`: nota obbligatoria ("Contattato telefonicamente alle 08:10"), esito `MANUAL_CONFIRMED` con operatore; pulsante "Riprova invio".
 - [ ] M3-T07-S03 Badge stato invio nella riga della coda (`QueueRowView.notificationStatus`) con tooltip e link alla pagina Comunicazioni.
 - [ ] M3-T07-S03b Avvolgere la pagina `/comunicazioni` in `ErrorBoundary` (messaggio e azione "Ricarica"); test che un errore di render della lista non spegne l'header della shell.
@@ -1133,12 +1264,14 @@ Cuore del modulo A; dipende solo da interfacce.
 - [ ] M3-T07-S05 Commit `feat(M3-T07): pagina Comunicazioni con conferma contatto manuale`.
 
 ### M3-T08 — Pannello modalità mock a runtime
+
 - [ ] M3-T08-S01 `src/config/runtime-mock-settings.ts` (solo `NODE_ENV !== 'production'`): override in memoria di `mockSpokiMode`, `mockSmsMode`, `mockInfinityMode`, `mockCrmMode`, `mockLatencyMs`; letti dai mock a ogni chiamata.
 - [ ] M3-T08-S02 `PATCH /api/v1/system/mock-settings` (ADMIN) e pannello in `/sistema` con interruttori e avviso "Solo ambienti di demo".
 - [ ] M3-T08-S03 Test: cambio `mockSpokiMode=down` → invii successivi via SMS.
 - [ ] M3-T08-S04 Commit `feat(M3-T08): pannello modalità mock a runtime`.
 
 ### M3-T09 — Test di contratto e chiusura M3
+
 - [ ] M3-T09-S01 `tests/contracts/spoki-service.contract.ts` e `sms-hosting-service.contract.ts`: mai throw, idempotenza per `idempotencyKey`, esiti per suffisso, `healthCheck` (rispetta `timeoutMs`/`signal`), `getDeliveryStatus`, credito.
 - [ ] M3-T09-S02 README: tabella regole cifre finali e interruttori `MOCK_*`, flusso demo comunicazioni.
 - [ ] M3-T09-S03 Aggiornare `ARCHITECTURE.md`, ADR-010 se necessario, `TASKS.md`; PR → `main`; commit `docs(M3-T09): chiusura milestone M3`.
@@ -1152,37 +1285,42 @@ Cuore del modulo A; dipende solo da interfacce.
 - **Criteri di completamento**: quattro browser in kiosk mode mostrano entro 2 s il codice in servizio sulla propria campata, la segnalazione di libero dopo Completato (RELEASING per `RELEASING_DISPLAY_MS`, poi FREE) e un overlay chiaro se il server non risponde; token campata obbligatorio; test e2e verdi.
 - **Dipendenze**: M1 (`QueueService.getBayOccupancy`, occupazione derivata).
 
-### M3-T09 — Messaggi al cliente guidati dagli eventi *(nuovo 2026-09-14, revisione generale)*
+### M3-T09 — Messaggi al cliente guidati dagli eventi _(nuovo 2026-09-14, revisione generale)_
+
 - [x] M3-T09-S01 `application/notifications/CustomerMessagingPolicy.ts`: ascolta il bus e manda `BOOKING_CONFIRMED` (pratica inserita a mano; quelle dell'agenda hanno il promemoria), `TURN_APPROACHING` (al massimo `TURN_APPROACHING_AHEAD` = 2 pratiche davanti nello stesso sportello, una volta per giornata grazie all'idempotenza del job) e `APPOINTMENT_CANCELLED` (solo se ad annullare è una persona: la chiusura automatica non manda messaggi alle 19:00). Il lavoro parte al giro successivo dell'event loop: chi ha pubblicato l'evento non aspetta WhatsApp. Un record guasto non ferma gli avvisi agli altri. Interruttore `MESSAGING_TRIGGERS_ENABLED`. **Fatto 2026-09-14.**
 - [x] M3-T09-S02 Nuovi tipi in `NotificationKind` e template Spoki `booking_confirmed_v1`, `turn_approaching_v1`, `appointment_cancelled_v1` (testi italiani per SMS e log). La regola dei "clienti prima di te" è stata portata nel dominio (`domain/queue-position.ts`) ed è la stessa usata dal portale e dalla coda. **Fatto 2026-09-14.**
 - [x] M3-T09-S03 Test `tests/unit/messaging-policy.test.ts` (7 prove, incluse "non lavora dentro la pubblicazione" e "spenta dalla configurazione"). Verificato dal vivo: un cambio di stato ha fatto partire "il turno si avvicina" ai primi tre clienti di ciascun sportello, con ripiego SMS dove previsto. **Fatto 2026-09-14.**
 
 ### M4-T01 — Pianificazione modulo D
-- [ ] M4-T01-S01 Confermare col PO hardware display (domanda n. 13) e durata `RELEASING_DISPLAY_MS`; annotare qui. *(nota 2026-09-11: durata del messaggio "campata libera" confermata a `RELEASING_DISPLAY_MS` (20 s); hardware dei monitor ancora da confermare col committente, la pagina è indipendente dal dispositivo perché usa unità viewport)*
+
+- [ ] M4-T01-S01 Confermare col PO hardware display (domanda n. 13) e durata `RELEASING_DISPLAY_MS`; annotare qui. _(nota 2026-09-11: durata del messaggio "campata libera" confermata a `RELEASING_DISPLAY_MS` (20 s); hardware dei monitor ancora da confermare col committente, la pagina è indipendente dal dispositivo perché usa unità viewport)_
 - [ ] M4-T01-S02 Branch `feature/M4-display-campate`; commit `docs(M4-T01): pianificazione modulo D`.
 
 ### M4-T02 — API display e autenticazione per campata
+
 - [x] M4-T02-S01 `QueueService.getBayDisplay(bayCode)` → `BayDisplayView` calcolata (unico proprietario della regola, spostato qui da M1-T03-S09; ADR-008): SERVING se pratica `IN_PROGRESS` con quel `bayId` (da `getBayOccupancy`); RELEASING se `completedAt` entro `RELEASING_DISPLAY_MS`; altrimenti FREE, con `lastCompletedCode`; test `tests/unit/bay-display.test.ts` con `FixedClock`. **Fatto 2026-09-11**: `QueueService.getBayDisplay(bayRef, businessDate)`: accetta numero ("1") o codice ("C1"); `SERVING` con codice e targa, `RELEASING` entro `RELEASING_DISPLAY_MS` dal completamento, poi `FREE`. `OFFLINE` non arriva dal server: lo decide il monitor quando il polling smette di rispondere.
 - [x] M4-T02-S01b `GET /api/v1/public/bays/[bayCode]` → `BayDisplayView`; `Cache-Control: no-store`. **Fatto 2026-09-11**: realizzato come `GET /api/v1/public/display?campata=1` (alias `bay`/`bayCode`; valori "1" o "C1") invece del percorso con segmento: un URL con parametro è più facile da scrivere sul kiosk. `cache-control: no-store`, 404 campata sconosciuta, 429 oltre il tetto.
-- [ ] M4-T02-S02 `src/proxy.ts`: `/display/[bayCode]?token=` verifica `Bay.displayToken`, imposta cookie kiosk `HttpOnly` 30 giorni; richieste API display accettate solo con cookie o token valido (403 altrimenti). *(nota 2026-09-11: il token della campata è verificato dall'endpoint quando il monitor lo passa (`?token=` → 403 se errato), senza cookie kiosk: l'obbligatorietà e il cookie restano per l'hardening di M6)*
-- [ ] M4-T02-S03 `GET /api/v1/system/bays` (ADMIN; sotto `system/`, non `public/`, perché `/api/v1/public/**` è anonimo per regola) per lo stato di tutti i display con `lastPollAt` registrato in memoria. *(nota 2026-09-11: pannello display in `/sistema` non ancora realizzato)*
+- [ ] M4-T02-S02 `src/proxy.ts`: `/display/[bayCode]?token=` verifica `Bay.displayToken`, imposta cookie kiosk `HttpOnly` 30 giorni; richieste API display accettate solo con cookie o token valido (403 altrimenti). _(nota 2026-09-11: il token della campata è verificato dall'endpoint quando il monitor lo passa (`?token=` → 403 se errato), senza cookie kiosk: l'obbligatorietà e il cookie restano per l'hardening di M6)_
+- [ ] M4-T02-S03 `GET /api/v1/system/bays` (ADMIN; sotto `system/`, non `public/`, perché `/api/v1/public/**` è anonimo per regola) per lo stato di tutti i display con `lastPollAt` registrato in memoria. _(nota 2026-09-11: pannello display in `/sistema` non ancora realizzato)_
 - [x] M4-T02-S04 Test unit: calcolo stati, token errato → 403, cookie valido → 200. **Fatto 2026-09-11**: `tests/unit/bay-display.test.ts` copre il calcolo degli stati (libera, in servizio, invito ad avanzare, ritorno a libera, rilascio, campata sconosciuta); il 403 sul token è verificato a mano, il test HTTP arriva con la suite dei Route Handler.
 - [x] M4-T02-S05 Commit `feat(M4-T02): endpoint display campata con token`. **Fatto 2026-09-11**: commit unico `fix(accettazione): dettagli cliente e operatori + feat(display): monitor campate M4`.
 
 ### M4-T03 — UI kiosk
+
 - [x] M4-T03-S07 Tabellone della sala d'attesa `/display/sala-attesa` (richiesta del committente, stile tabellone degli uffici pubblici): `QueueService.getWaitingBoard`, `GET /api/v1/public/board?prossimi=`, `WaitingBoardScreen` con i codici chiamati e la campata in evidenza più i prossimi turni; polling ogni 2 s. Solo codici: né targhe né nomi, perché lo schermo è visibile a tutta la sala. **Fatto 2026-09-11.**
 - [x] M4-T03-S08 Display di campata: la dicitura in servizio è ora rivolta al cliente ("SERVIAMO IL CODICE" sopra il codice, targa sotto). **Fatto 2026-09-11.**
 - [x] M4-T03-S01 `src/hooks/useBayDisplay.ts`: polling `POLLING_MS.display`, contatore poll falliti consecutivi → stato `OFFLINE` dopo 3, conserva ultimo dato. **Fatto 2026-09-11**: `src/hooks/useBayDisplay.ts`: polling `POLLING_MS.display` (2 s), `refetchIntervalInBackground`, stato scollegato dopo 3 tentativi falliti.
 - [x] M4-T03-S02 `src/app/(display)/layout.tsx` (nessuna shell, `cursor: none`, full-screen) e `src/app/(display)/display/[bayCode]/page.tsx`. **Fatto 2026-09-11**: `src/app/(display)/layout.tsx` (nessuna intestazione, niente scorrimento) e `src/app/(display)/display/[campata]/page.tsx` (segmento in italiano, coerente con gli altri URL).
 - [x] M4-T03-S03 `modules/bay-displays/BayDisplayBoard.tsx`: codice enorme ad alto contrasto, numero campata, colore brand, orologio; `FreeBayScreen.tsx` con animazione "Campata libera" e ultimo codice servito; transizione RELEASING "Uscita" con animazione. **Fatto 2026-09-11**: `modules/bay-displays/BayDisplayBoard.tsx`: codice in unità viewport (stessa resa su 1080p e 4K), targa, numero di campata, orologio dell'officina; sfondo scuro in servizio, verde "CAMPATA LIBERA / AVANZARE" dopo il completamento.
 - [x] M4-T03-S04 `ConnectionLostOverlay.tsx`: "Connessione assente" sopra l'ultimo stato noto, tentativo automatico; reload completo della pagina ogni `DISPLAY_RELOAD_HOURS` (default 6) per prevenire memory leak; wake lock/`noSleep` dove supportato. **Fatto 2026-09-11**: lo stato scollegato è integrato nella stessa schermata (giallo, "MONITOR SCOLLEGATO", invito a rivolgersi all'accettazione) invece di un overlay separato: a monitor spento non serve l'ultimo stato noto, serve sapere che il dato non è attendibile.
-- [ ] M4-T03-S04b Avvolgere la pagina `/display/[bayCode]` in `ErrorBoundary` che mostra l'ultimo stato noto con overlay "Errore di visualizzazione, ricarico…" e ricarica automatica dopo 30 s; test che un errore di render non lascia lo schermo bianco. *(nota 2026-09-11: error boundary dedicato al display ancora da aggiungere)*
-- [ ] M4-T03-S05 Test `tests/components/bay-display-board.test.tsx` per i quattro stati; verifica leggibilità a 1920×1080 e 4K (Playwright con `viewport`). *(nota 2026-09-11: test del componente e verifica su monitor reali ancora da fare)*
+- [ ] M4-T03-S04b Avvolgere la pagina `/display/[bayCode]` in `ErrorBoundary` che mostra l'ultimo stato noto con overlay "Errore di visualizzazione, ricarico…" e ricarica automatica dopo 30 s; test che un errore di render non lascia lo schermo bianco. _(nota 2026-09-11: error boundary dedicato al display ancora da aggiungere)_
+- [ ] M4-T03-S05 Test `tests/components/bay-display-board.test.tsx` per i quattro stati; verifica leggibilità a 1920×1080 e 4K (Playwright con `viewport`). _(nota 2026-09-11: test del componente e verifica su monitor reali ancora da fare)_
 - [x] M4-T03-S06 Commit `feat(M4-T03): pagina kiosk campata con overlay offline`. **Fatto 2026-09-11**: commit unico `fix(accettazione): dettagli cliente e operatori + feat(display): monitor campate M4`.
 
 ### M4-T04 — Integrazione in Sistema, test e chiusura
-- [ ] M4-T04-S01 Sezione "Display" in `/sistema`: 4 card con stato, ultimo poll, link con token (ADMIN), pulsante "Rigenera token". *(nota 2026-09-11: sezione Display in `/sistema` ancora da fare)*
-- [ ] M4-T04-S02 `tests/e2e/display.spec.ts`: prendi in carico → display C1 mostra il codice ≤ 2 s; completato → RELEASING → FREE; token errato → 403. *(nota 2026-09-11: test end-to-end del display ancora da fare)*
+
+- [ ] M4-T04-S01 Sezione "Display" in `/sistema`: 4 card con stato, ultimo poll, link con token (ADMIN), pulsante "Rigenera token". _(nota 2026-09-11: sezione Display in `/sistema` ancora da fare)_
+- [ ] M4-T04-S02 `tests/e2e/display.spec.ts`: prendi in carico → display C1 mostra il codice ≤ 2 s; completato → RELEASING → FREE; token errato → 403. _(nota 2026-09-11: test end-to-end del display ancora da fare)_
 - [x] M4-T04-S03 README (setup kiosk Chromium), `ARCHITECTURE.md`, `TASKS.md`; PR → `main`; commit `docs(M4-T04): chiusura milestone M4`. **Fatto 2026-09-11**: `README.md` (indirizzo dei monitor e uso del token), `ARCHITECTURE.md` e `TASKS.md` aggiornati; commit unico `fix(accettazione): dettagli cliente e operatori + feat(display): monitor campate M4`.
 
 ---
@@ -1195,32 +1333,36 @@ Cuore del modulo A; dipende solo da interfacce.
 - **Dipendenze**: M1 (dettaglio pratica, auth).
 
 ### M5-T01 — Pianificazione modulo E
+
 - [ ] M5-T01-S01 Confermare col PO limiti (default 10 MB foto, 30 s/50 MB video), retention (default 90 giorni) e hardware tablet (domande n. 13, 14); annotare qui.
 - [ ] M5-T01-S02 Branch `feature/M5-ispezione-media`; commit `docs(M5-T01): pianificazione modulo E`.
 
 ### M5-T02 — Storage e MediaService
+
 - [x] M5-T02-S01 `src/services/real/MediaStorageLocalDisk.ts` (convenzione `<Porta><Implementazione>`, `ARCHITECTURE.md` §7, scrittura atomica, `MEDIA_STORAGE_PROVIDER=local`) selezionato in `services/factory.ts`; `MediaStorageMock` resta per i test; suite `tests/contracts/media-storage.contract.ts` eseguita su entrambe. **Fatto 2026-09-11**: cartella `.data/uploads/<giornata>/<codice>/<id>.<est>` (env `MEDIA_STORAGE_DIR`) invece di `<yyyy-mm>`: sfogliando l'archivio si ritrova la pratica del cliente senza aprire il database. Scrittura atomica (file `.part` + rename), chiavi convalidate e confinate nella cartella base (niente `..`, niente percorsi assoluti), tipo ricavato dall'estensione — che `put` aggiunge se manca. `local` è ora il valore predefinito: le foto sopravvivono al riavvio. La porta `IMediaStorage` ha un metodo `read` in più, così la rotta di lettura non deve più conoscere il mock.
 - [ ] M5-T02-S02a Decisione presa: le thumbnail sono generate lato client (canvas, max 320 px) e caricate insieme all'originale; nessuna dipendenza nativa (`sharp`) nel server (resta nel backlog). Annotare l'ADR "Storage media e retention" (M5-T04-S02).
 - [x] M5-T02-S02b `src/application/media/MediaService.ts`: `upload({ appointmentId, operatorId, bytes, thumbnailBytes, mimeType, note })` con validazione tipo/dimensione (limiti da M5-T01), salvataggio via `IMediaStorage`, `MediaAsset` in `IMediaRepository`; test `tests/unit/media-service.test.ts` (limiti). **Fatto 2026-09-11**: realizzato come `src/application/media/InspectionService.ts` (`addPhoto`, `listPhotos`, `completeCheckIn`): il nome dice il caso d'uso, non il tipo di file. Solo immagini (`image/jpeg|png|webp|heic`) fino a `MAX_PHOTO_BYTES` (8 MB), nessuna thumbnail (arriva con S02a) e nessun video (backlog). Test in `tests/unit/inspection-check-in.test.ts`.
-- [ ] M5-T02-S02c `MediaService.list(appointmentId)` e `delete(id, operatorId)` (solo autore o SUPERVISOR, `Result` con `NOT_FOUND`/`VALIDATION`); test permessi. *(2026-09-11: `listPhotos(appointmentId)` c'è e restituisce l'indirizzo di lettura di ogni foto; l'eliminazione con i permessi resta da fare, oggi una foto sbagliata si riscatta e resta nel fascicolo)*
+- [ ] M5-T02-S02c `MediaService.list(appointmentId)` e `delete(id, operatorId)` (solo autore o SUPERVISOR, `Result` con `NOT_FOUND`/`VALIDATION`); test permessi. _(2026-09-11: `listPhotos(appointmentId)` c'è e restituisce l'indirizzo di lettura di ogni foto; l'eliminazione con i permessi resta da fare, oggi una foto sbagliata si riscatta e resta nel fascicolo)_
 - [x] M5-T02-S03 `POST /api/v1/media` (multipart, limite body), `GET /api/v1/media/[id]` (stream con autenticazione), `DELETE /api/v1/media/[id]`. **Fatto 2026-09-11**: `POST|GET /api/v1/appointments/[id]/media` (la foto nasce sempre dentro una pratica: l'id nel percorso evita che il client possa sbagliare pratica) e `GET /api/v1/media/[key]` per rileggere il file con la sessione attiva. `POST /api/v1/appointments/[id]/check-in` chiude l'accettazione con le note. La `DELETE` arriva con S02c.
-- [ ] M5-T02-S04 Test unit MediaService (limiti, permessi) e test Route Handler upload/lettura. *(2026-09-11: `tests/unit/inspection-check-in.test.ts` copre formati rifiutati, foto vuota, foto oltre il limite, pratica inesistente, chiusura del check-in con note e foto, conflitto di versione e CRM guasto; `tests/unit/crm-service-mock.test.ts` copre il mock CRM. I test dei Route Handler arrivano con la suite HTTP)*
+- [ ] M5-T02-S04 Test unit MediaService (limiti, permessi) e test Route Handler upload/lettura. _(2026-09-11: `tests/unit/inspection-check-in.test.ts` copre formati rifiutati, foto vuota, foto oltre il limite, pratica inesistente, chiusura del check-in con note e foto, conflitto di versione e CRM guasto; `tests/unit/crm-service-mock.test.ts` copre il mock CRM. I test dei Route Handler arrivano con la suite HTTP)_
 - [x] M5-T02-S05 Commit `feat(M5-T02): storage locale, MediaService e API media`. **Fatto 2026-09-11**: commit unico `feat(tablet): interfaccia M5 per ispezione veicolo, fotocamera mock e setup CRM mock` richiesto dal PO; lo storage su disco resta in S02-S01.
 
 ### M5-T03 — UI tablet e fascicolo
+
 - [x] M5-T03-S01 `src/app/(operator)/ispezione/[appointmentId]/page.tsx` con layout tablet (pulsanti grandi, orientamento libero); pulsante "Ispezione" accanto a "Prendi in carico" e nel dettaglio pratica. **Fatto 2026-09-11**: realizzato come `src/app/(operator)/tablet/page.tsx` + `modules/inspection-media/TabletQueue.tsx`: l'accettatore in piedi non digita un indirizzo con l'id della pratica, apre `/tablet` e trova solo le pratiche del proprio sportello in due schede ("In attesa", "Le mie prese in carico"); la scheda di ispezione si apre a tutto schermo sopra l'elenco (`CheckInScreen`). Rotta protetta in `src/proxy.ts` e voce "Tablet" nell'intestazione (`AREA_ROLES.tablet`). Il pulsante nel dettaglio pratica della dashboard resta da aggiungere.
 - [x] M5-T03-S02a `modules/inspection-media/MediaCapture.tsx`: `<input capture>` con fallback `getUserMedia`, anteprima, nota per file, generazione thumbnail lato client (M5-T02-S02a); test `tests/components/media-capture.test.tsx`. **Fatto 2026-09-11**: `modules/inspection-media/PhotoCapture.tsx` con `<input type="file" accept="image/*" capture="environment">` nascosto dietro un pulsante grande: sui tablet apre direttamente la fotocamera posteriore. L'anteprima locale (`createObjectURL`) compare subito con la rotella di attesa mentre il caricamento è in corso, e la foto resta nella griglia con la dimensione in kB. Restano: ripiego `getUserMedia` per i portatili senza app fotocamera, nota per singola foto, thumbnail lato client e test del componente.
-- [ ] M5-T03-S02b `modules/inspection-media/UploadQueue.tsx` + `upload-queue.ts`: coda in memoria con riprova automatica a backoff quando `fetch` fallisce e indicatore "N file in attesa di invio"; test `tests/components/upload-queue.test.tsx` (`fetch` fallito → riprova → inviato). *(nota 2026-09-11: oggi un caricamento fallito toglie l'anteprima e mostra il motivo sotto il pulsante, così l'accettatore riscatta subito; la coda con riprova automatica resta da fare)*
+- [ ] M5-T03-S02b `modules/inspection-media/UploadQueue.tsx` + `upload-queue.ts`: coda in memoria con riprova automatica a backoff quando `fetch` fallisce e indicatore "N file in attesa di invio"; test `tests/components/upload-queue.test.tsx` (`fetch` fallito → riprova → inviato). _(nota 2026-09-11: oggi un caricamento fallito toglie l'anteprima e mostra il motivo sotto il pulsante, così l'accettatore riscatta subito; la coda con riprova automatica resta da fare)_
 - [ ] M5-T03-S02c Persistenza della coda in IndexedDB (`idb-keyval` o API nativa) per sopravvivere a chiusura del browser e offline prolungato; ripresa all'apertura; test con `fake-indexeddb`.
-- [x] M5-T03-S02e *(nuovo 2026-09-11, richiesta del committente)* Slot fotografici al posto del pulsante generico: sei caselle (Frontale, Posteriore, Fiancata sinistra, Fiancata destra obbligatorie; Interni e Dettaglio danni facoltative), ognuna con suggerimento di inquadratura, anteprima dello scatto, contatore degli scatti aggiuntivi e stato "fatta". Il contatore in testa dice "N di 4 foto obbligatorie" e "Completa check-in" resta disabilitato con l'elenco di cosa manca finché il giro non è completo. La stessa regola è applicata da `InspectionService.completeCheckIn` (`missingRequiredCategories`), perché un secondo tablet o una chiamata diretta all'API non devono poter chiudere un'accettazione a metà. **Fatto 2026-09-11.**
-- [x] M5-T03-S02f *(nuovo 2026-09-11)* `MediaAsset.category` nel dominio (`FRONT`, `REAR`, `LEFT`, `RIGHT`, `INTERIOR`, `DAMAGE`, con etichette italiane e elenco delle obbligatorie), categoria richiesta dalla rotta di caricamento (campo `categoria`), inclusa nella chiave di archiviazione (`front-<id>.jpg`), nel payload CRM di check-in e nella galleria della dashboard, dove le foto sono raggruppate per parte del veicolo. Le foto precedenti restano valide con categoria `null` ("Senza categoria" in galleria). **Fatto 2026-09-11.**
-- [x] M5-T03-S02d *(nuovo 2026-09-11, richiesta del committente)* `modules/inspection-media/CheckInScreen.tsx`: scheda di ispezione a tutto schermo con i dati della pratica, la fotocamera, l'area "Note veicolo / danni rilevati" (2000 caratteri) e il pulsante finale "Completa check-in" che chiude la pratica e libera la campata. Le note sono salvate **prima** della chiusura (`InspectionService.completeCheckIn`): se un'altra postazione ha toccato la pratica nel frattempo, il conflitto è segnalato ma il giro del veicolo non va perso. **Fatto 2026-09-11**.
+- [x] M5-T03-S02e _(nuovo 2026-09-11, richiesta del committente)_ Slot fotografici al posto del pulsante generico: sei caselle (Frontale, Posteriore, Fiancata sinistra, Fiancata destra obbligatorie; Interni e Dettaglio danni facoltative), ognuna con suggerimento di inquadratura, anteprima dello scatto, contatore degli scatti aggiuntivi e stato "fatta". Il contatore in testa dice "N di 4 foto obbligatorie" e "Completa check-in" resta disabilitato con l'elenco di cosa manca finché il giro non è completo. La stessa regola è applicata da `InspectionService.completeCheckIn` (`missingRequiredCategories`), perché un secondo tablet o una chiamata diretta all'API non devono poter chiudere un'accettazione a metà. **Fatto 2026-09-11.**
+- [x] M5-T03-S02f _(nuovo 2026-09-11)_ `MediaAsset.category` nel dominio (`FRONT`, `REAR`, `LEFT`, `RIGHT`, `INTERIOR`, `DAMAGE`, con etichette italiane e elenco delle obbligatorie), categoria richiesta dalla rotta di caricamento (campo `categoria`), inclusa nella chiave di archiviazione (`front-<id>.jpg`), nel payload CRM di check-in e nella galleria della dashboard, dove le foto sono raggruppate per parte del veicolo. Le foto precedenti restano valide con categoria `null` ("Senza categoria" in galleria). **Fatto 2026-09-11.**
+- [x] M5-T03-S02d _(nuovo 2026-09-11, richiesta del committente)_ `modules/inspection-media/CheckInScreen.tsx`: scheda di ispezione a tutto schermo con i dati della pratica, la fotocamera, l'area "Note veicolo / danni rilevati" (2000 caratteri) e il pulsante finale "Completa check-in" che chiude la pratica e libera la campata. Le note sono salvate **prima** della chiusura (`InspectionService.completeCheckIn`): se un'altra postazione ha toccato la pratica nel frattempo, il conflitto è segnalato ma il giro del veicolo non va perso. **Fatto 2026-09-11**.
 - [x] M5-T03-S03 `MediaGallery.tsx` nel dettaglio pratica: griglia thumbnail, lightbox, eliminazione con conferma; test `tests/components/media-gallery.test.tsx`. **Fatto 2026-09-11**: sezione "Ispezione al veicolo" nel pannello di dettaglio con le note dell'ispezione e la griglia delle foto, ingrandibili a tutto schermo (chiusura con Esc o clic fuori). La sezione resta invisibile finché non c'è nulla da mostrare. Restano: eliminazione con conferma (M5-T02-S02c) e test del componente.
 - [ ] M5-T03-S03b Avvolgere la pagina `/ispezione/[appointmentId]` in `ErrorBoundary` con messaggio e azione "Torna alla pratica"; test che un errore della galleria non blocca l'acquisizione.
 - [ ] M5-T03-S04 Test e2e `tests/e2e/ispezione.spec.ts` con file fixture.
 - [ ] M5-T03-S05 Commit `feat(M5-T03): acquisizione media da tablet e galleria fascicolo`.
 
 ### M5-T04 — Retention, documentazione e chiusura
+
 - [x] M5-T04-S01 Job scheduler `mediaRetentionJob` (giornaliero) che elimina asset oltre `MEDIA_RETENTION_DAYS`; log riepilogo. **Fatto 2026-09-14** come `InspectionArchiveService.purgeExpired` (M8-T02): la variabile si chiama `PHOTO_RETENTION_DAYS` (default 30) e il record resta con `archivedAt`.
 - [ ] M5-T04-S02 ADR "Storage media e retention"; README (tablet, limiti); `TASKS.md`; PR → `main`; commit `docs(M5-T04): chiusura milestone M5`.
 
@@ -1234,10 +1376,12 @@ Cuore del modulo A; dipende solo da interfacce.
 - **Dipendenze**: M1 (outbox NO_SHOW), M3 (NOTIFICATION_FAILED, scheduler).
 
 ### M6-T01 — Pianificazione modulo F
+
 - [ ] M6-T01-S01 Confermare col PO le anomalie in scope e il canale CRM (domanda n. 10), orario chiusura giornata e regola no-show automatico (domanda n. 8); annotare qui.
 - [ ] M6-T01-S02 Branch `feature/M6-crm-bdc`; commit `docs(M6-T01): pianificazione modulo F`.
 
-### M6-T08 — Resilienza verso Infinity *(nuovo 2026-09-14, revisione generale)*
+### M6-T08 — Resilienza verso Infinity _(nuovo 2026-09-14, revisione generale)_
+
 - [x] M6-T08-S01 `services/resilience/`: `CircuitBreaker` (chiuso → aperto dopo N guasti ritentabili → semi-aperto con una sola chiamata di prova), `withRetry` (ripetizione con attesa raddoppiata e jitter, solo sugli errori `retryable`), decoratore `InfinityServiceResilient` che avvolge qualunque implementazione della porta. Gli errori del chiamante (richiesta non valida) non aprono il circuito. **Fatto 2026-09-14.**
 - [x] M6-T08-S02 Il factory avvolge l'adapter Infinity scelto (mock oggi, HTTP domani) con `INFINITY_RESILIENCE` (timeout 8 s, 2 ripetizioni, 3 guasti → circuito aperto 60 s). L'health check riporta DOWN a circuito aperto senza chiamare il DMS. **Fatto 2026-09-14.**
 - [x] M6-T08-S03 `SyncScheduler`: una sync fallita viene ritentata da sola dopo 2, 5, 10 e 30 minuti (`SYNC_RETRY_BACKOFF_MINUTES`), poi resta il pulsante "Riprova". Prima una sync fallita alle 06:00 restava tale finché qualcuno non se ne accorgeva. **Fatto 2026-09-14.**
@@ -1246,6 +1390,7 @@ Cuore del modulo A; dipende solo da interfacce.
 ### M6-T02 — AnomalyReporter e svuotamento dell'outbox CRM
 
 > Anticipato in M5 (2026-09-11): `src/application/crm/CrmNotifier.ts` è il punto unico da cui passano gli eventi verso il CRM. Scrive PRIMA la riga nella coda di uscita e POI tenta la consegna: se il CRM risponde la riga diventa `SENT` con l'identificativo restituito, se non risponde resta `PENDING` con tentativo e ultimo errore, pronta per il rinvio di M6-T02-S02. Nessun guasto del CRM può impedire di segnare un assente o di chiudere un'accettazione. `QueueService.markNoShow` e `InspectionService.completeCheckIn` lo usano già; `CrmServiceMock` è idempotente per `idempotencyKey`, registra i payload in memoria (`received`, per i test) e li stampa in console con il prefisso `[MOCK][Crm]`. Restano di questo task le regole delle anomalie, lo svuotamento periodico con attesa progressiva e la chiusura manuale.
+
 - [ ] M6-T02-S01a `src/application/crm/AnomalyReporter.ts`: sottoscrizione a `IEventBus`, scheletro con `registerRule`, scrittura `CrmOutboxEvent { type: 'ANOMALY', status: 'PENDING' }` idempotente per `idempotencyKey` (`${appointmentId}:${anomalyKind}:${businessDate}`); test `tests/unit/anomaly-reporter.test.ts` (idempotenza).
 - [ ] M6-T02-S01b Regola `EXCESSIVE_SKIPS` su `APPOINTMENT_STATUS_CHANGED` → `SKIPPED` con `skipCount ≥ MAX_SKIPS_BEFORE_ANOMALY`; test dedicato.
 - [ ] M6-T02-S01c Regola `MANUAL_APPOINTMENT` su `APPOINTMENT_CREATED` con `source: 'MANUAL'`; test dedicato.
@@ -1257,22 +1402,25 @@ Cuore del modulo A; dipende solo da interfacce.
 - [ ] M6-T02-S06 Commit `feat(M6-T02): AnomalyReporter e svuotamento outbox CRM con retry`.
 
 ### M6-T03 — Chiusura giornata e no-show automatici
+
 - [x] M6-T03-S01 `QueueService.closeBusinessDay(businessDate, actor SYSTEM)`: pratiche `WAITING|SKIPPED` residue → `NO_SHOW` con outbox; eseguito manualmente. **Fatto 2026-09-11**: azione del responsabile dal cruscotto BDC (`POST /api/v1/system/close-day`), con conferma. Oltre agli assenti chiude anche le prese in carico rimaste aperte, portandole a `CANCELLED` (transizione `IN_PROGRESS → CANCELLED` aggiunta alla state machine per questo): a officina chiusa non può restare nulla di aperto. L'operazione non si ferma al primo conflitto: la riga che non si chiude viene contata e segnalata. L'esecuzione automatica a `CLOSE_HOUR_LOCAL` resta da fare (S02).
-- [x] M6-T03-S02b *(nuovo 2026-09-11)* Chiusura automatica a fine turno agganciata allo scheduler esistente: `SyncScheduler` apre la giornata (sync 06:00) e la chiude (`BUSINESS_DAY_END_TIME`, default 19:00). Una volta sola al giorno e solo se resta qualcosa di aperto: se il responsabile ha già chiuso, il temporizzatore non aggiunge un secondo evento. `ActionContext.actorKind = 'SYSTEM'` (con `SYSTEM_ACTOR_ID`) fa sì che nel registro eventi resti scritto che non è stata una persona. Test `tests/unit/business-day-end.test.ts` (6 prove). **Fatto 2026-09-11.**
+- [x] M6-T03-S02b _(nuovo 2026-09-11)_ Chiusura automatica a fine turno agganciata allo scheduler esistente: `SyncScheduler` apre la giornata (sync 06:00) e la chiude (`BUSINESS_DAY_END_TIME`, default 19:00). Una volta sola al giorno e solo se resta qualcosa di aperto: se il responsabile ha già chiuso, il temporizzatore non aggiunge un secondo evento. `ActionContext.actorKind = 'SYSTEM'` (con `SYSTEM_ACTOR_ID`) fa sì che nel registro eventi resti scritto che non è stata una persona. Test `tests/unit/business-day-end.test.ts` (6 prove). **Fatto 2026-09-11.**
 - [ ] M6-T03-S02 Regola opzionale `NO_SHOW_AFTER_MINUTES` (proposta in UI, mai automatica in orario di apertura senza conferma del PO).
 - [x] M6-T03-S03 Test unit con `FixedClock`; e2e "chiudi giornata" da Sistema. **Fatto 2026-09-11**: `tests/unit/close-business-day.test.ts` (7 prove: assenti e annullate, pratiche già chiuse intatte, lead per il BDC con evento al CRM, monitor e tabellone vuoti, evento `BUSINESS_DAY_CLOSED`, giornata vuota, chiusura ripetuta senza doppioni). Il test end-to-end resta con la suite Playwright.
 - [ ] M6-T03-S04 Commit `feat(M6-T03): chiusura giornata con no-show automatici`.
 
 ### M6-T04 — API e UI outbox CRM
-- [x] M6-T04-S05 *(nuovo 2026-09-11, richiesta del committente)* Cruscotto BDC su `/manager`: `GET /api/v1/crm/leads?giornata=&gestiti=` e `POST /api/v1/crm/leads/[id]/contacted` (SUPERVISOR/ADMIN), `application/crm/BdcLeadService` che unisce l'evento in coda ai dati della pratica, `modules/crm/BdcDashboard` + `BdcLeadsTable` con polling di 10 s. La riga porta nome, telefono richiamabile con un tocco, veicolo, motivo e ora dell'assenza; "Segna come ricontattato" (con esito facoltativo) chiude il lead scrivendo stato `MANUAL`, operatore e istante sull'evento. Deliberatamente indipendente dal CRM: se il CRM è giù il lead si chiude lo stesso e l'evento resta da rinviare. **Fatto 2026-09-11.**
-- [x] M6-T04-S06 *(nuovo 2026-09-11)* Test `tests/unit/bdc-leads.test.ts`: nascita del lead dall'assenza, pratica completata che non genera lead, chiusura con operatore/ora/esito, doppia chiusura idempotente, lead inesistente, filtro per giornata, CRM guasto. **Fatto 2026-09-11.**
+
+- [x] M6-T04-S05 _(nuovo 2026-09-11, richiesta del committente)_ Cruscotto BDC su `/manager`: `GET /api/v1/crm/leads?giornata=&gestiti=` e `POST /api/v1/crm/leads/[id]/contacted` (SUPERVISOR/ADMIN), `application/crm/BdcLeadService` che unisce l'evento in coda ai dati della pratica, `modules/crm/BdcDashboard` + `BdcLeadsTable` con polling di 10 s. La riga porta nome, telefono richiamabile con un tocco, veicolo, motivo e ora dell'assenza; "Segna come ricontattato" (con esito facoltativo) chiude il lead scrivendo stato `MANUAL`, operatore e istante sull'evento. Deliberatamente indipendente dal CRM: se il CRM è giù il lead si chiude lo stesso e l'evento resta da rinviare. **Fatto 2026-09-11.**
+- [x] M6-T04-S06 _(nuovo 2026-09-11)_ Test `tests/unit/bdc-leads.test.ts`: nascita del lead dall'assenza, pratica completata che non genera lead, chiusura con operatore/ora/esito, doppia chiusura idempotente, lead inesistente, filtro per giornata, CRM guasto. **Fatto 2026-09-11.**
 - [x] M6-T04-S01 `GET /api/v1/crm/outbox?stato=` e `POST /api/v1/crm/outbox/[id]/retry` (ADMIN). **Fatto 2026-09-11**: la chiusura a mano di un lead resta l'azione del BDC su `/manager` (S05), qui c'è la vista tecnica. Il payload espandibile riga per riga resta da fare.
 - [x] M6-T04-S02 `modules/crm/CrmOutboxTable.tsx` nella pagina `/sistema`: data/ora, evento, pratica, stato, tentativi, ultimo errore e "Forza riprova"; filtro "solo quelli da risolvere", conteggi per stato, aggiornamento ogni 15 s. **Fatto 2026-09-11**: visibile ai soli ADMIN (contiene messaggi d'errore e chiavi tecniche). `AnomalyLog` e il payload espandibile arrivano con M6-T02-S01.
 - [ ] M6-T04-S02b Avvolgere la pagina `/sistema` (e ciascuna scheda: SyncRun, display, CRM/BDC) in `ErrorBoundary` per scheda; test che un errore nella tabella CRM non spegne "Sincronizza ora".
 - [ ] M6-T04-S03 Test `tests/components/crm-outbox-table.test.tsx` e Route Handler `tests/unit/http/crm-outbox.test.ts` (403 per ADVISOR).
 - [ ] M6-T04-S04 Commit `feat(M6-T04): vista supervisor outbox CRM`.
 
-### M6-T07 — Hardening del perimetro pubblico *(nuovo 2026-09-14, revisione generale)*
+### M6-T07 — Hardening del perimetro pubblico _(nuovo 2026-09-14, revisione generale)_
+
 - [x] M6-T07-S01 Verifica del perimetro: nessun handler POST/PATCH/DELETE sotto `api/v1/public/`; il proxy protegge tutto il resto; gli identificativi sono UUID (non enumerabili) e il portale cerca per targa, mai per codice o id; le risposte pubbliche non contengono nomi né telefoni; la rotta media richiede la sessione e confina le chiavi nella cartella base. **Fatto 2026-09-14.**
 - [x] M6-T07-S02 Login con limiti di frequenza (`LOGIN_RATE_LIMIT`: 30/min per indirizzo, 8/min per utente) → 429 con `Retry-After`. Verificato dal vivo: al nono tentativo errato sullo stesso utente la risposta è 429. **Fatto 2026-09-14.**
 - [x] M6-T07-S03 `lib/realtime/connection-guard.ts`: tetto alle connessioni SSE per indirizzo (6 pubbliche, 12 per operatore) e complessive (200/300) → 503 e il client resta sul polling. Verificato con curl: sesta connessione aperta, settima 503, dopo il rilascio di nuovo 200. **Fatto 2026-09-14.**
@@ -1280,8 +1428,9 @@ Cuore del modulo A; dipende solo da interfacce.
 - [x] M6-T07-S05 Intestazioni di sicurezza in `next.config.ts` (`X-Content-Type-Options`, `X-Frame-Options: SAMEORIGIN`, `Referrer-Policy`, `Permissions-Policy` con fotocamera consentita alla sola origine). Content-Security-Policy rinviata: richiede i nonce sugli script di Next e una fase report-only. **Fatto 2026-09-14.**
 
 ### M6-T05 — SSE e indicatori di stato sistema
-- [x] M6-T05-S01b *(nuovo 2026-09-11)* `src/lib/realtime/sse.ts` + `GET /api/v1/events/stream` (sessione) e `GET /api/v1/public/events/stream` (kiosk): flusso `text/event-stream` dal bus con `id: seq`, resume via `Last-Event-ID`, battito ogni 15 s e chiusura pulita su `signal`. Sul filo viaggia un segnale (tipo, seq, istante; l'id della pratica solo sul canale autenticato), non i dati: chi riceve rilegge dal proprio endpoint. L'arretrato si rispedisce solo a chi si riconnette con un `Last-Event-ID`. **Fatto 2026-09-11.**
-- [x] M6-T05-S02b *(nuovo 2026-09-11)* `src/hooks/useLiveUpdates.ts`: `EventSource` per tipo di evento, invalidazione delle query TanStack, stato `live`/`polling` mostrato in dashboard come "In diretta" / "Aggiornamento periodico". Agganciato a coda, tabellone e monitor; il polling resta attivo come rete di sicurezza. Verificato: il tabellone si aggiorna 253 ms dopo l'azione, contro i 2 s del polling. **Fatto 2026-09-11.**
+
+- [x] M6-T05-S01b _(nuovo 2026-09-11)_ `src/lib/realtime/sse.ts` + `GET /api/v1/events/stream` (sessione) e `GET /api/v1/public/events/stream` (kiosk): flusso `text/event-stream` dal bus con `id: seq`, resume via `Last-Event-ID`, battito ogni 15 s e chiusura pulita su `signal`. Sul filo viaggia un segnale (tipo, seq, istante; l'id della pratica solo sul canale autenticato), non i dati: chi riceve rilegge dal proprio endpoint. L'arretrato si rispedisce solo a chi si riconnette con un `Last-Event-ID`. **Fatto 2026-09-11.**
+- [x] M6-T05-S02b _(nuovo 2026-09-11)_ `src/hooks/useLiveUpdates.ts`: `EventSource` per tipo di evento, invalidazione delle query TanStack, stato `live`/`polling` mostrato in dashboard come "In diretta" / "Aggiornamento periodico". Agganciato a coda, tabellone e monitor; il polling resta attivo come rete di sicurezza. Verificato: il tabellone si aggiorna 253 ms dopo l'azione, contro i 2 s del polling. **Fatto 2026-09-11.**
 - [ ] M6-T05-S01 `src/lib/realtime/sse-server.ts` + `GET /api/v1/events?since=<seq>`: stream `text/event-stream` dal `IEventBus` con `id: seq`, replay via `listSince`, heartbeat 15 s, chiusura pulita su `signal`.
 - [ ] M6-T05-S02 `src/lib/realtime/use-sse.ts` + `src/hooks/useLiveUpdates.ts`: `EventSource` con `Last-Event-ID`, invalidazione delle query per tipo evento; badge "live"/"polling" nell'header; il polling resta attivo come fallback.
 - [ ] M6-T05-S03 `SystemStatusBanner` alimentato da `/api/v1/health` ogni 30 s (legge `status` e `providers` dal body: l'endpoint risponde sempre 200 come liveness, il 503 è riservato a `?probe=dependencies`): giallo = degradato con fallback attivo, rosso = dipendenza giù, con azione manuale suggerita per porta; `StaleDataIndicator` unificato. Richiede la memoizzazione dell'health nel container (M3-T05-S02) per non moltiplicare le chiamate ai provider reali.
@@ -1290,6 +1439,7 @@ Cuore del modulo A; dipende solo da interfacce.
 - [ ] M6-T05-S05 Commit `feat(M6-T05): SSE con resume, live updates e banner stato sistema`.
 
 ### M6-T06 — Runbook, Docker e chiusura M6
+
 - [ ] M6-T06-S01 `docs/RUNBOOK_OPERATIVO.md`: cosa fa l'officina quando Infinity/Spoki/SMS/CRM sono giù, fallback cartaceo, riavvio del servizio, ripristino manuale dello snapshot (`state.json` corrotto → copia di `state.prev.json` o dell'archivio `.data/archive/<businessDate>.json`, verifica del contatore codici prima di riaprire la giornata; M1-T06-S03b), contatti.
 - [ ] M6-T06-S02 `Dockerfile` multi-stage (`output: 'standalone'`, utente non root, `TZ=Europe/Rome` per i log di sistema e `APP_TIMEZONE=Europe/Rome` per l'applicazione) e `docker-compose.yml` con volume `.data`, healthcheck sul probe di **liveness** `GET /api/v1/health` (sempre 200 finché il processo risponde: una dipendenza esterna giù non deve far riavviare il container; `?probe=dependencies` resta per il monitoraggio delle dipendenze), `restart: unless-stopped`; guida per servizio Windows alternativo.
 - [ ] M6-T06-S03 `tests/contracts/crm-service.contract.ts`; `tests/e2e/no-show.spec.ts` (no-show → outbox → SENT).
@@ -1297,7 +1447,7 @@ Cuore del modulo A; dipende solo da interfacce.
 
 ---
 
-## M7bis — Reportistica della giornata *(nuovo 2026-09-11, richiesta del committente)*
+## M7bis — Reportistica della giornata _(nuovo 2026-09-11, richiesta del committente)_
 
 - [x] M7bis-T01-S01 `src/application/reporting/DailyReportService.ts`: attesa media (dall'orario effettivo alla presa in carico), durata media dell'accettazione (dalla presa in carico alla chiusura), attesa massima, conteggi per stato e percentuali di esito. Le medie si calcolano solo sulle pratiche che hanno davvero i due istanti, e il numero di pratiche su cui sono calcolate viaggia insieme al valore: una media su tre pratiche non è un indicatore. I numeri sono ricalcolati dalle pratiche, non accumulati in contatori che prima o poi divergono. **Fatto 2026-09-11.**
 - [x] M7bis-T01-S02 `GET /api/v1/reports/daily` e `GET /api/v1/reports/daily/csv` (SUPERVISOR/ADMIN); il CSV ha separatore `;`, virgola decimale, ritorni a capo CRLF e BOM iniziale, cioè quello che serve perché Excel italiano lo apra con un doppio clic. Le pratiche annullate rientrano nel conteggio (`includeCancelled`), altrimenti la percentuale di annullate sarebbe sempre zero. **Fatto 2026-09-11.**
@@ -1316,6 +1466,7 @@ Cuore del modulo A; dipende solo da interfacce.
 - **Dipendenze**: M1..M6; accesso a specifiche/sandbox dei fornitori.
 
 ### M7-T01 — Raccolta specifiche reali
+
 - [ ] M7-T01-S01 Infinity: modalità di accesso (API REST, vista DB, export), id stabile, campi telefono/consenso, frequenza aggiornamenti; aggiornare `infinity.dto.ts` + Zod + `infinity.mapper.ts` con fixture reali anonimizzate.
 - [ ] M7-T01-S02 Spoki: template approvati Meta, autenticazione, formato webhook e firma; aggiornare `spoki.dto.ts`.
 - [ ] M7-T01-S03 SMS Hosting: endpoint, autenticazione, mittente, esiti; aggiornare `sms-hosting.dto.ts`.
@@ -1323,6 +1474,7 @@ Cuore del modulo A; dipende solo da interfacce.
 - [ ] M7-T01-S05 ADR "Specifiche reali dei fornitori e impatti sul dominio"; commit `docs(M7-T01): specifiche reali e aggiornamento DTO`.
 
 ### M7-T02 — Adapter reali
+
 - [ ] M7-T02-S00 `src/services/real/http-client.ts`: client `fetch` condiviso con `CallOptions` (`signal`, `timeoutMs`), header `x-correlation-id`, mapping degli errori HTTP/rete → `ProviderError` (`AUTH` 401/403, `RATE_LIMIT` 429, `NOT_FOUND` 404, `UNAVAILABLE` 5xx, `TIMEOUT`, `NETWORK`), secrets letti da env; test `tests/unit/http-client.test.ts` con `fetch` finto.
 - [ ] M7-T02-S01a `src/services/real/InfinityServiceHttp.ts` — `fetchDailyAgenda` (env `INFINITY_BASE_URL`, `INFINITY_API_KEY`) con validazione Zod della risposta e `withResilience`; test con MSW su fixture reali anonimizzate.
 - [ ] M7-T02-S01b `InfinityServiceHttp` — `fetchAppointmentByPlate` e `healthCheck`.
@@ -1336,11 +1488,13 @@ Cuore del modulo A; dipende solo da interfacce.
 - [ ] M7-T02-S06 Commit per adapter: `feat(M7-T02): adapter reale <X>`.
 
 ### M7-T03 — Contract test sugli adapter reali
+
 - [ ] M7-T03-S01 Le suite `tests/contracts/*.contract.ts` girano con `CONTRACT_TARGET=real` su sandbox/fixture registrate (MSW o registrazioni HTTP), skippate altrimenti; job CI separato manuale.
 - [ ] M7-T03-S02 `POST /api/v1/webhooks/spoki` reale con verifica firma e test di replay.
 - [ ] M7-T03-S03 Commit `test(M7-T03): contract suite sugli adapter reali`.
 
 ### M7-T04 — Persistenza Prisma
+
 - [ ] M7-T04-S01a `prisma/schema.prisma` (PostgreSQL, fallback SQLite per on-premise) allineato alle entità del dominio (`Appointment` con `customer`/`vehicle` embedded come colonne o JSON, `NotificationJob` + `NotificationAttempt`, `SyncRun`, `CrmOutboxEvent`, `MediaAsset`, dati di riferimento, tabella `sequences`); prima migrazione.
 - [ ] M7-T04-S01b `src/repositories/prisma/PrismaAppointmentRepository.ts`: `update` con confronto-e-scambio su `version` (`updateMany where version = expected`), `reserveNextSequence` in transazione, `insert` con vincoli di unicità → `VALIDATION`; verde su `appointment-repository.contract`.
 - [ ] M7-T04-S01c `PrismaOperatorRepository`, `PrismaReferenceDataRepository` (seed via migrazione) verdi sulle rispettive suite di contratto.
@@ -1351,6 +1505,7 @@ Cuore del modulo A; dipende solo da interfacce.
 - [ ] M7-T04-S05 Commit `feat(M7-T04): repository Prisma e migrazione snapshot`.
 
 ### M7-T05 — Attivazione graduale e chiusura
+
 - [ ] M7-T05-S01a `docs/ATTIVAZIONE_GRADUALE.md`: checklist di attivazione per porta (ordine: Infinity, poi Spoki/SMS, poi CRM), criteri di uscita da ogni fase di staging (es. 5 giornate consecutive con sync SUCCESS e health UP, zero `MANUAL_REQUIRED` imputabili all'adapter), procedura di rollback via env (`<X>_PROVIDER=mock`) e responsabili.
 - [ ] M7-T05-S01b Configurazione dello staging con `INFINITY_PROVIDER=real` (altri mock), monitoraggio via `SystemStatusBanner`/`/api/v1/health`; l'esercizio settimanale non è un task di sviluppo: si annota qui la data di inizio e l'esito secondo la checklist.
 - [ ] M7-T05-S02 Aggiornare `README.md`, `ARCHITECTURE.md`, `RUNBOOK_OPERATIVO.md`, `TASKS.md`; commit `docs(M7-T05): chiusura fase reale`.
@@ -1358,12 +1513,14 @@ Cuore del modulo A; dipende solo da interfacce.
 ---
 
 , password >= 8, sportelli e postazione esistenti, hash scrypt), `update` (divieti: sé stessi, ultimo amministratore attivo), `resetPassword` (`generateTemporaryPassword` in `lib/hash-password`). Test `tests/unit/operator-admin.test.ts` (12 casi).
+
 - [x] M8-T01-S03 Rotte `GET|POST /api/v1/admin/operators`, `PATCH /api/v1/admin/operators/[id]`, `POST /api/v1/admin/operators/[id]/reset-password`, `GET /api/v1/admin/assistance` (solo ADMIN, schemi Zod).
 - [x] M8-T01-S04 `application/admin/AssistanceService.overview` (accettazioni occupate ricavate dalle pratiche in carico, minuti trascorsi) e azione `cancel` in `QueueService`/rotta actions (IN_PROGRESS → CANCELLED, solo manager/admin).
 - [x] M8-T01-S05 `modules/admin/{AdminDashboard,OperatorsPanel,AssistancePanel}` e pagina `/admin` (non più segnaposto): tabella, dialog crea/modifica, dialog password provvisoria, schede accettazioni, "Rimetti in coda" a un tocco e "Annulla pratica" a due.
 - [x] M8-T01-S06 Cambio password obbligatorio al primo accesso dopo un reset (`mustChangePassword` sull'operatore, pagina dedicata). **Fatto 2026-09-14**: flag nel dominio e nel claim JWT, guardia nel proxy (redirect a `/cambia-password`, 403 `PASSWORD_CHANGE_REQUIRED` sulle API) e in `requireSession`/`readApiSession`; `LocalAuthService.changePassword` (attuale verificata, minimo `MIN_PASSWORD_LENGTH`, diversa dall'attuale, nuovo token); `POST /api/v1/auth/change-password` con limite di frequenza; `ChangePasswordForm`; badge nel pannello. Test in `tests/unit/local-auth-service.test.ts` (6 casi) e `operator-admin.test.ts`.
 
 ### M8-T02 — Archivio ispezioni e retention
+
 - [x] M8-T02-S01 `MediaAsset.expiresAt`/`archivedAt`; `InspectionService.addPhoto` calcola la scadenza da `retentionDays` (`PHOTO_RETENTION_DAYS`, default 30, `.env.example`); `IMediaRepository.listAll/listExpired/update`.
 - [x] M8-T02-S02 `application/media/InspectionArchiveService`: `search(query)` per targa normalizzata o codice (schede con foto per categoria, `url: null` se archiviata) e `purgeExpired()` (file eliminato, NOT_FOUND vale come fatto, poi record marcato `archivedAt`). Test `tests/unit/media-retention.test.ts` (6 casi).
 - [x] M8-T02-S03 Job agganciato a `SyncScheduler` (una volta al giorno dopo `BUSINESS_DAY_END_TIME`) e `POST /api/v1/system/cron/media-retention` (sessione ADMIN o `x-cron-secret`).
@@ -1371,16 +1528,19 @@ Cuore del modulo A; dipende solo da interfacce.
 - [x] M8-T02-S05 Cancellazione definitiva dei record archiviati dopo un secondo periodo. **Fatto 2026-09-14**: `PHOTO_HARD_DELETE_DAYS` (default 90) in `constants`/`env`/`.env.example`; `IMediaRepository.listArchivedBefore`; secondo passaggio in `InspectionArchiveService.purgeExpired` con `deleted` nel riepilogo. Test: hard delete dopo il periodo, record non ancora archiviato mai eliminato. La paginazione dell'archivio oltre le 50 schede resta nel backlog.
 
 ### M8-T03 — Palette semantica e tablet
+
 - [x] M8-T03-S01 Token `--color-brand-primary` (verde) e `--color-brand-secondary` (blu) in `globals.css`; `Button` `default` blu e `success` verde; verde solo su "Completa check-in", "Completato", "Segna come ricontattato", "Salva e chiudi"; blu su "Prendi in carico", "Passa al check-in", "Inizia check-in", schede e filtri.
 - [x] M8-T03-S02 `QueueDashboard`: il tocco su una riga apre/chiude il dettaglio (`selectedId`, riga evidenziata con anello blu, `aria-selected`); su tablet `AppointmentDetailPanel sheet` = foglio dal basso (85vh, maniglia, cronologia ripiegata).
 - [x] M8-T03-S03 Verifica in browser del 2026-09-14: `/admin` (crea, modifica sportelli, reset, disattiva/riattiva, libera accettazione), `/accettazione/archivio` (ricerca "gb 477 wa"), colori calcolati (Completato #87BD22, Prendi in carico e Passa al check-in #0065A0), foglio dal basso a 768 px (apre al primo tocco, chiude al secondo).
 - [x] M8-T03-S04 Commit `feat: pannello admin utenti, archivio/retention foto DB e tuning UI tablet con colori autoclub` (1165328).
 
 ### M8-T04 — Audit di produzione
+
 - [x] M8-T04-S01 `docs/AUDIT_PRODUZIONE.md`: stato, mancanze per la produzione ordinate per gravità con stime, casi limite del flusso di accettazione, raccomandazione (milestone M9 "Pilota": inserimento manuale, persistenza Prisma/PostgreSQL, Docker+CI+log JSON, adapter Infinity in lettura). **Fatto 2026-09-14.**
 - [x] M8-T04-S02 Commit `feat(security/db): cambio password forzato, hard delete retention e preparazione produzione` (28506c1).
 
-### M8-T05 — Correzioni di usabilità PC / tablet *(nuovo 2026-09-14, segnalazioni del committente)*
+### M8-T05 — Correzioni di usabilità PC / tablet _(nuovo 2026-09-14, segnalazioni del committente)_
+
 - [x] M8-T05-S01 Redirect dopo il cambio password: navigazione completa verso `destinationAfterPasswordChange(next, role)` (`lib/navigation.ts`, test in `navigation.test.ts`); la pagina non lascia mai l'operatore sul cambio password.
 - [x] M8-T05-S02 Nomenclatura "Accettazione 1..4" per le postazioni in login, intestazione, pannello admin e messaggi d'errore (seed `Workstation.name`, `OperatorsPanel`, `LoginForm`, layout operatore); glossario aggiornato.
 - [x] M8-T05-S03 Accettazioni occupate: `domain/entities/workstation-claim.ts`, `IWorkstationClaimRepository` (+ in-memory), `LocalAuthService` registra il posto al login e allo switch, lo rifiuta se occupato da un altro, lo libera con `logout(session)` (rotta `/api/v1/auth/logout`) o alla scadenza; `application/auth/workstation-availability.ts` (libere vs occupate con motivo, veicoli in carico inclusi) usata dalla pagina di login che passa a `LoginForm` solo le libere e la nota sulle occupate. Test: `workstation-availability.test.ts` (5 casi), `local-auth-service.test.ts` (4 casi).
@@ -1388,7 +1548,8 @@ Cuore del modulo A; dipende solo da interfacce.
 - [x] M8-T05-S05 Verifica in browser del 2026-09-14: login con "Accettazione 1/2" e nota "Accettazione 1: in uso da Luca Moretti" per il visitatore anonimo, 400 al login di un secondo operatore sullo stesso posto, intestazione "Accettazione 1 · Sportello …", nessuna voce Tablet e nessun link di check-in sul PC, avviso su `/tablet` da PC, redirect a `/accettazione` dopo il cambio password, finestra centrale del dettaglio e pagina tablet completa con puntatore touch.
 - [x] M8-T05-S06 Commit `fix(ui): redirect cambio password, filtro accettazioni 1-4 al login e pop-up dettagli tablet` (51f0a04).
 
-### M8-T06 — Check-in veicolo a tutto schermo *(nuovo 2026-09-14, richiesta del committente)*
+### M8-T06 — Check-in veicolo a tutto schermo _(nuovo 2026-09-14, richiesta del committente)_
+
 - [x] M8-T06-S01 Rotta `/check-in` nel gruppo `app/(checkin)` con layout proprio (sessione richiesta, KIOSK rimandati, nessuna shell) ed error boundary dedicato; `/tablet` → redirect; `CHECK_IN_PATH`/`checkInPath`, area `check-in` in `AREA_ROLES`, voce "Check-in" nell'intestazione (solo touch), matcher del proxy.
 - [x] M8-T06-S02 `CheckInQueue` (ex `TabletQueue`): barra minima con marchio, operatore, accettazione, "Coda" ed "Esci"; schede segmentate; targa in cornice; avviso da PC.
 - [x] M8-T06-S03 `CheckInScreen` ridisegnata: testata fissa (codice, targa, cliente, veicolo, ora, lavorazione, avanzamento 0/4 a segmenti), corpo scorrevole, comandi fissi in basso con `safe-area-inset-bottom`, annotazioni rapide; `PhotoCapture` con slot numerati, icone a tratto, stati ambra/verde, casella intera toccabile, sezione "Se serve" per le facoltative.
@@ -1396,7 +1557,8 @@ Cuore del modulo A; dipende solo da interfacce.
 - [x] M8-T06-S05 Verifica in browser con puntatore touch: login → coda → riga → finestra dettagli → "Prendi in carico" → `/check-in?pratica=` a tutto schermo senza intestazione → quattro foto caricate dagli slot → "Completa check-in" abilitato → chiusura e ritorno all'elenco; da PC `/check-in` mostra l'avviso e `/tablet` rimanda.
 - [x] M8-T06-S06 Commit `refactor(ui): riprogettazione UX check-in full-screen per tablet e rinominazione rotta` (590ff37).
 
-### M8-T07 — Login unico, bypass check-in, riapertura pratica, inserimento manuale *(nuovo 2026-09-14, richiesta del committente)*
+### M8-T07 — Login unico, bypass check-in, riapertura pratica, inserimento manuale _(nuovo 2026-09-14, richiesta del committente)_
+
 - [x] M8-T07-S01 `application/auth/login-options.ts` (`buildLoginOptions`, `defaultLoginOption`, `deskDisplayName`): un solo menu "Accettazione N · sportello", occupate disabilitate con motivo; `LoginForm` riscritto; pagina di login. Test `login-options.test.ts` (4 casi).
 - [x] M8-T07-S02 Bypass con safety catch: `CompleteCheckInInput.allowMissingPhotos` (server: la mancanza finisce nelle note e nel log), rotta check-in, `CheckInScreen` con dialogo di doppia conferma e pulsante sempre attivo.
 - [x] M8-T07-S03 Riapertura: state machine `COMPLETED → IN_PROGRESS`, `QueueService.reopenCompleted`, azione `reopen-completed` nella rotta actions, pulsante "Riapri pratica / Modifica check-in" nel dettaglio (PC e tablet), chiave CRM del check-in con istante di completamento. Test `queue-reopen.test.ts`.
@@ -1405,7 +1567,8 @@ Cuore del modulo A; dipende solo da interfacce.
 - [x] M8-T07-S06 Verifica in browser del 2026-09-14: menu unico con quattro voci e badge marchi, opzione disabilitata "in uso da Luca Moretti" per il visitatore anonimo; cliente ZZ987YY inserito a mano (F041, badge Manuale, dettaglio aperto); F041 completata → "Riapri pratica" → in carico C1; chiusura giornata → "chiusa d'ufficio · da confermare" → "Conferma chiusura" → flag spento; da tablet "Completa check-in" senza foto → dialogo → completata con la nota di mancanza.
 - [x] M8-T07-S07 Commit `feat(core): unificazione login, bypass check-in con alert, riapertura pratica e inserimento manuale`. (865d173).
 
-### M8-T08 — Ritardi, riattivazione e Spoki in sandbox *(nuovo 2026-09-15, richiesta del committente)*
+### M8-T08 — Ritardi, riattivazione e Spoki in sandbox _(nuovo 2026-09-15, richiesta del committente)_
+
 - [x] M8-T08-S01 Check-in tablet: tocco sulla scheda → `AppointmentDetailPanel` (modal) con `showTake` ("Inizia check-in"); riga gialla `isDueWithinGrace` in coda e nelle schede; `compareQueueOrder` come unica regola d'ordine (QueueTable, CheckInQueue, portale via `countAheadInSameDesk`).
 - [x] M8-T08-S02 Riattivazione: `QueueService.reactivate` (NO_SHOW → WAITING, `rescheduledAt = adesso`, codice invariato), `CrmNotifier.resolveNoShow` (lead BDC chiuso con nota), azione `reactivate` nella rotta actions, pulsante in riga e nel dettaglio. Test `queue-reactivation.test.ts` (6 casi, incluso l'ordine A, B, riattivato, C).
 - [x] M8-T08-S03 `src/infrastructure/messaging/spoki/`: `spoki-config.ts` (template kind, payload snake_case, mappa template Meta → automazione), `SpokiClientAdapter` (simulation: log + 200; live: POST JSON con Bearer, timeout, errori con `retryable`), `SpokiService` (porta `ISpokiService`, idempotenza, consegna simulata DELIVERED), `SpokiActivityLog` (`ISpokiActivityLog`, anello 200 voci). Env: `SPOKI_MODE`, `SPOKI_API_KEY`, `SPOKI_URL_*`, `PUBLIC_BASE_URL`; `.env.local` in sandbox; ESLint vieta `@/infrastructure` fuori dai factory. Test `spoki-adapter.test.ts` (11 casi).
@@ -1414,7 +1577,8 @@ Cuore del modulo A; dipende solo da interfacce.
 - [x] M8-T08-S06 Verifica in browser del 2026-09-15: health Spoki "real / simulazione"; pannello con badge provider real e SIMULAZIONE, invio di prova registrato (booking_confirmed_v1, 200 OK); walk-in con consenso → conferma nel registro con `portal_url`; riga gialla "orario superato" sulla pratica appena inserita; no-show → annullamento nel registro; "Riattiva / Arrivato in ritardo" → In attesa "rimessa in coda"; dal check-in tocco sulla scheda → finestra dettagli → "Inizia check-in" → giro foto.
 - [x] M8-T08-S07 Commit `feat(core+spoki): logica riattivazione ritardi, fix UX tablet e integrazione spoki sandbox`.
 
-### M8-T09 — Adapter Infinity reale via ODBC (SQL Anywhere 12) *(nuovo 2026-09-15, richiesta del committente)*
+### M8-T09 — Adapter Infinity reale via ODBC (SQL Anywhere 12) _(nuovo 2026-09-15, richiesta del committente)_
+
 - [x] M8-T09-S01 Rilevamento del driver e del DSN: registro ODBC a 64 bit → DSN di sistema `Infinity02` (driver "SQL Anywhere 12", host e credenziali nel DSN); connessione provata da PowerShell (`System.Data.Odbc`, `dbping`) e da Node (`odbc@2.5.0`, binario precompilato). Nessuna credenziale richiesta né scritta nel repository.
 - [x] M8-T09-S02 Esplorazione in sola lettura del planning (script temporanei nello scratchpad, poi eliminati): `tdo_pre` + `tipi_doc` + `o_operai` + `off_veicoli`/`off_invii_fal` + `off_marche` + `off_richieste` + `telefono`; SQL validata sul 2023-12-28 (18 prenotazioni `PR01`). `anagrafica` negata all'utenza (`fn_rimuovi_doppi_spazi`): superato in S07 con la vista `clienti`.
 - [x] M8-T09-S03 `src/infrastructure/adapters/infinity/`: `infinity-odbc-config.ts` (config, stringa di connessione con escape, descrizione senza password), `OdbcClient.ts` (`IOdbcClient`, `SqlAnywhereOdbcClient` con import dinamico e connessione per query), `infinity-planning-query.ts` (SQL parametriche, coercizioni, `InfinityPlanningRecord`, `toAgendaDto`, `brandCodeFromDescription`), `InfinityServiceOdbc.ts` (porta, `classifyOdbcError`, nomi cliente degradabili, `healthCheck` con versione motore). `src/config/infinity.ts` (`resolveInfinityRealConfig`, fail-fast). Factory: ramo `real` di Infinity → adapter ODBC. `next.config.ts`: `serverExternalPackages: ['odbc']`. Env: `INFINITY_ODBC_DSN`, `INFINITY_DB_TYPE`, `INFINITY_ODBC_UID/PWD`, `INFINITY_DB_SCHEMA`, `INFINITY_BOOKING_DOC_TYPES`, timeout; `.env.example` e `.env.local` (DSN `Infinity02`, provider ancora `mock`).
@@ -1423,9 +1587,14 @@ Cuore del modulo A; dipende solo da interfacce.
 - [x] M8-T09-S06 Analisi della query nativa del planning (fornita dal committente): catalogo di `sp_off_docs_planning` (8 parametri con default, 34 colonne del result set), oggetti citati e loro permessi (`SYSPROCPERM`: tutte le procedure al gruppo `utenti_infinity`, utenza del DSN solo in `PUBLIC`), vista `clienti` leggibile (132 colonne: `ragione_sociale`, `cognome`, `nome`, `indirizzo_notifiche`, `pref_invio_notifiche`, `cons_privacy`), `mdm_pre_inc` (99,7 % delle prenotazioni con righe), `vs_off_inc_tipoinc`, `off_modelli`, `off_stati_doc` (0 Appuntamento … 3 Chiusa in ODL, 4/18 Annullata), `contatti`. Documentato in `docs/INFINITY_ODBC.md` §5-6.
 - [x] M8-T09-S07 Adapter a due sorgenti: `planningProcedureSql` (`sp_off_docs_planning(?, ?, 'T', NULL, 0, 0)` + join) e `planningTablesSql` (`tdo_pre` + veicolo) con le stesse colonne; arricchimenti comuni (`linesSql` su `mdm_pre_inc`, `tempiSql` su `vs_off_inc_tipoinc`, `phonesSql`); `toPlanningRecords` con dedup prenotazione/commessa, cliente generico, catena dei telefoni, stati documento; `customerNameOf` (cognome/nome dedicati, forme societarie non divise); `InfinityServiceOdbc` con `planningSource` auto/procedure/tables, ripiego con avviso unico, `resolveSedi`, `planningSourceInUse`, `checkAccess` (18 prove con livello e GRANT suggerito). Env `INFINITY_PLANNING_SOURCE`, `INFINITY_SEDE`, `INFINITY_INCLUDE_WORK_ORDERS`. Test unitari portati a 23 + 6 (config), inclusa la verifica che ogni riga dell'elenco colonne chiuda con la virgola (errore trovato solo sul database reale).
 - [x] M8-T09-S08 Esecuzione reale del 2026-09-15 (seconda): verifica accessi 15 OK / 3 negati (solo procedure), sorgente `tables`, 18 prenotazioni con 18 nomi, 17 cellulari, 18 lavorazioni con ore, 9 targhe, 1 annullata (`PRE-52874`, GB471MS, `cancelled: true`).
-- [ ] M8-T09-S09 Per `infinity01`: DSN `Infinity01`, `GRANT EXECUTE ON dba.sp_off_docs_planning` all'utenza del DSN, `npm run infinity:check` (sorgente attesa `procedure`, targhe da `id_veicolo`), poi `INFINITY_PROVIDER=real` con seed reale (M9).
+- [x] M8-T09-S09 Primo collegamento a `infinity01` (2026-09-16): DSN di sistema `Infinity01` presente ma con la porta di `infinity02` (2639) invece della 2638 → nuovo `INFINITY_ODBC_EXTRA` (attributi ODBC che prevalgono sul DSN) e connessione UP (83 ms, utente `lrossi_db`). Lettura del planning ancora negata: colonne calcolate e viste richiamano funzioni concesse solo a `utenti_infinity` (`fn_getidutenticoll_doc` su `tdo_pre`, `fn_getidutenticoll` su `telefono`, `fn_get_last_email` nella vista `clienti`); `contatti` senza SELECT. `checkAccess` ora ricava dal messaggio la funzione negata e propone l'EXECUTE giusto. Grant richiesti in `docs/INFINITY_ODBC.md` §6bis.
+- [x] M8-T09-S10 Seconda verifica su `Infinity01` dopo i primi cinque grant (2026-09-16): `tdo_pre`, `telefono`, `sp_off_docs_planning` OK, sorgente `procedure`, dati veri letti (40 prenotazioni `PR01` il 16/09 di cui 19 già in commessa e 2 annullate, 42 il 17/09, accettatori risolti). Viste `clienti`/`contatti` ancora negate: dal catalogo (`SYSVIEWS`, `SYSTABCOL`, `SYSDEPENDENCY`, `SYSPROCPERM`) mancano solo `fn_get_cons_privacy` (testo della vista) e `fn_rimuovi_doppi_spazi` (colonna calcolata di `anagrafica`, sotto la vista). Adapter reso resiliente: con la vista negata rilegge senza anagrafica («Cliente <id>», cellulare da `telefono`, avviso unico, health «anagrafica non leggibile», `customerDataAvailable`). Fix dal dato reale: per le prenotazioni già in commessa la procedura riporta tipo/numero/anno della commessa (`LO01 266158/2026`) → filtro e colonne di testata su `COALESCE(p.col, tab.col)`, altrimenti 19 pratiche su 40 sparivano a metà giornata; database in windows-1252 letto come UTF-8 dal modulo `odbc` («ANDR�») → `CharSet=UTF-8` sempre nella stringa di connessione; ore stimate arrotondate a due decimali. Test unitari +6. Documentato in `docs/INFINITY_ODBC.md` §6bis.
+- [x] M8-T09-S11 Grant finali ricevuti (2026-09-16): `npm run infinity:check` su Infinity01 → 40 prenotazioni, 40 nomi cliente, 36 cellulari, sorgente `procedure`, «anagrafica clienti: leggibile»; resta negata solo `fn_off_doc_vei_cortesia` (non serve).
+- [x] M8-T09-S12 App sui dati reali (2026-09-16): profilo di seed `real` (`SEED_PROFILE`, `SEED_ADMIN_PASSWORD_HASH` in base64, `SEED_DISPLAY_TOKEN_SECRET` → token HMAC; `npm run seed:credenziali` genera tutto con `SESSION_SECRET`), due sportelli di Bari ricavati dal planning (Giglione/Rusigniuolo/Marzulli su Fiat-Lancia-Alfa-Jeep-EMC-Leapmotor; Brindicci/Cioce/Croce su Peugeot-Citroën-DS-XEV), marchio di ripiego `ALTRO` nel mapper (marca vera davanti al modello), solo `admin` con password provvisoria e cambio obbligatorio, saluto dei messaggi con ragione sociale per le aziende. `INFINITY_PROVIDER=real` in `.env.local`. Prima esecuzione: health Infinity `real` UP (78 ms), sync 40 ricevute / 38 create / 0 scartate, coda reale in `/accettazione`, portale con targa vera, promemoria DRY-RUN verso il mock SMS (nessun cliente contattato). Test +19. Documentato in `docs/INFINITY_ODBC.md` §8bis.
+- [ ] M8-T09-S13 Decisioni sui dati reali: prenotazioni già «Chiusa in ODL» (nascere completate o escluse dai promemoria), creazione degli account accettatori da `/admin`, push del commit.
 
-### M8-T10 — Promemoria Spoki (giorno prima e giorno stesso) con safety lock *(nuovo 2026-09-15, richiesta del committente)*
+### M8-T10 — Promemoria Spoki (giorno prima e giorno stesso) con safety lock _(nuovo 2026-09-15, richiesta del committente)_
+
 - [x] M8-T10-S01 Env e guardrail: `SPOKI_SAFETY_LOCK` (predefinito true), `SPOKI_URL_REMINDER_PREVIOUS_DAY`, `SPOKI_SECRET_REMINDER_PREVIOUS_DAY`, `SPOKI_URL_REMINDER_SAME_DAY`, `SPOKI_SECRET_REMINDER_SAME_DAY`, `REMINDERS_ENABLED`, `REMINDER_PREVIOUS_DAY_HOUR_LOCAL` (18:00), `REMINDER_SAME_DAY_HOUR_LOCAL` (07:30) in `.env.example` (segnaposto) e `.env.local` (valori veri, `SPOKI_PROVIDER=real`, `SPOKI_MODE=simulation`, `SPOKI_SAFETY_LOCK=true`). `canDeliverLive`/`deliveryBlockReason` in `spoki-config.ts`; `SpokiClientAdapter.trigger` non apre alcuna connessione se `mode !== 'live'` o blocco attivo: formatta, logga, registra (`blockedBy` SIMULATION | SAFETY_LOCK) e risponde 200. `CustomerMessagingPolicy.liveDeliveryAllowed`: avviso di dry-run all'avvio e in ogni invio.
 - [x] M8-T10-S02 Payload nel formato Spoki: `{ secret, phone (E.164), first_name, last_name, email, custom_fields: { code, plate, time, date, portal_url } }` (`buildWebhookPayload`); segreto mascherato in log e registro (`payloadForLog`); in live la chiave API va nell'intestazione solo se configurata, l'autenticazione è il segreto nel payload (mancante → `AUTH`, nessuna chiamata).
 - [x] M8-T10-S03 Logica dei due promemoria: `NotificationKind` `REMINDER_PREVIOUS_DAY` e `REMINDER_SAME_DAY` (al posto di `REMINDER_MORNING`), template `reminder_previous_day_v1` (data, ora, targa, codice, link) e `reminder_same_day_v1` (ora, targa, codice), `TemplateVars` con `lastName`, `email`, `scheduledDate`; `AppointmentReminderService` (`sendPreviousDayReminders` anticipa la sync di domani con trigger `REMINDER` e scrive a chi è in attesa domani; `sendSameDayReminders` a chi è in attesa oggi; riepilogo con `dryRun`), `NotificationOrchestrator.sendReminders(kind)`; la sync non manda più promemoria. `SyncScheduler`: giorno prima dalle 18:00 e giorno stesso dalle 07:30 (dopo una sync riuscita), una volta al giorno; la sync anticipata della sera non sostituisce quella delle 06:00 (`startedBefore`). `POST /api/v1/system/cron/reminders?kind=previous-day|same-day`.
@@ -1433,7 +1602,8 @@ Cuore del modulo A; dipende solo da interfacce.
 - [x] M8-T10-S05 Test: `spoki-adapter.test.ts` riscritto (guardrail, safety lock in live, payload formato Spoki, segreto mascherato, live sbloccato), `spoki-reminders.test.ts` (variabili e testi dei due promemoria, payload dal record della pratica con blocco attivo, panoramica e rifiuto del numero di un cliente reale), `appointment-reminders.test.ts` (giorno stesso idempotente e senza chi è in carico, giorno prima con sync anticipata e codici, sync fallita, disattivati, scheduler alle 18:00 / 06:05 / 07:35 con orologio mobile).
 - [ ] M8-T10-S06 Sblocco in produzione (M9): un solo messaggio di prova al proprio numero con `SPOKI_MODE=live` e `SPOKI_SAFETY_LOCK=false`, verifica in Spoki del mapping di `custom_fields`, poi promemoria reali; gli altri template (conferma, turno in arrivo, annullamento) restano fuori dal perimetro finché non decisi.
 
-### M8-T11 — Portale cliente mobile: live tracking e auto-segnalazione ritardo *(nuovo 2026-09-16, richiesta del committente)*
+### M8-T11 — Portale cliente mobile: live tracking e auto-segnalazione ritardo _(nuovo 2026-09-16, richiesta del committente)_
+
 - [x] M8-T11-S01 `PortalStatusView` (read model) e `CustomerPortalService` (`application/portal`): tappa del percorso (`portalStageOf`: 1 in attesa, 2 in accettazione, 3 in lavorazione, 4 pronta per il ritiro riservata allo stato "Veicolo pronto" di Infinity), clienti davanti nella stessa fila, orario previsto, sportello e sede (`SITE_NAME`), accettatore, `canReportDelay`, `expired` (conclusa da oltre `PORTAL_CONCLUDED_AFTER_HOURS` = 24 h o di una giornata passata, cercando anche ieri per targa).
 - [x] M8-T11-S02 Accesso senza login: targa (QR, con i limiti di frequenza) o token unico per pratica (`portal-token.ts`: HMAC-SHA256 del segreto di sessione sull'id, 12 caratteri, confronto a tempo costante, nessuna colonna in più); il link dei messaggi porta `&t=` (`buildPortalUrl`, `NotificationOrchestrator.portalToken`). `GET /api/v1/public/status?targa=&t=` usa il servizio; `/portal` è ora la pagina vera (gruppo `(public)`), `/cliente/stato` la stessa schermata dal QR.
 - [x] M8-T11-S03 Auto-segnalazione ritardo: `Appointment.customerLateNoticeAt`/`customerEtaAt`, `reportDelay` (solo in attesa oggi, +10 min dall'orario atteso o da adesso, cooldown 5 min, minuti 5–120), evento `CUSTOMER_LATE_NOTICE` con attore `CUSTOMER`, `POST /api/v1/public/late-notice` con limiti stretti (`PUBLIC_LATE_NOTICE_RATE_LIMIT`); `expectedArrivalTime` fa sì che chi ha avvisato non finisca fra gli assenti prima dell'orario dichiarato (`isLate`, `isDueWithinGrace`); riga della dashboard ambra con "cliente in ritardo · arrivo ~HH:mm".

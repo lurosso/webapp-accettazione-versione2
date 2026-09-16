@@ -106,8 +106,15 @@ function stampaAccessi(esiti: readonly InfinityAccessCheck[]): void {
     return;
   }
   console.log("GRANT da richiedere all'IT del gestionale (sostituire <utente_dsn>):");
+  // Lo stesso GRANT può emergere da più oggetti (una funzione usata da due viste): una volta sola.
+  const perIstruzione = new Map<string, InfinityAccessCheck[]>();
   for (const e of negati) {
-    console.log(`  ${e.grant}   -- ${e.livello}: ${e.scopo}`);
+    const istruzione = e.grant.split('  --')[0]?.trim() ?? e.grant;
+    perIstruzione.set(istruzione, [...(perIstruzione.get(istruzione) ?? []), e]);
+  }
+  for (const [istruzione, oggetti] of perIstruzione) {
+    const livelli = [...new Set(oggetti.map((e) => e.livello))].join('/');
+    console.log(`  ${istruzione}   -- ${livelli}: ${oggetti.map((e) => e.oggetto).join(', ')}`);
   }
 }
 
@@ -148,7 +155,13 @@ describe.skipIf(DSN === '')('Infinity ODBC (database reale, sola lettura)', () =
 
   it('estrae il planning della giornata con i campi essenziali', async () => {
     const records = await service!.fetchPlanningRecords(giornata);
-    console.log(`\nSorgente del planning: ${service!.planningSourceInUse ?? '?'}`);
+    console.log(
+      `\nSorgente del planning: ${service!.planningSourceInUse ?? '?'} · anagrafica clienti: ${
+        service!.customerDataAvailable
+          ? 'leggibile'
+          : 'NON leggibile (GRANT mancanti: clienti come "Cliente <id>")'
+      }`,
+    );
     stampaPlanning(giornata, records);
     for (const r of records) {
       expect(config!.bookingDocTypes).toContain(r.tipoDoc);
