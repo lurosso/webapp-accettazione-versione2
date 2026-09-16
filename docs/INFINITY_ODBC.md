@@ -288,9 +288,12 @@ Da tenere presente:
 
 - una sync fatta a metà mattina mette subito fra «in ritardo / assenti» le prenotazioni delle 08:00:
   in esercizio la sync delle 06:00 le fa nascere in attesa;
-- le 19 prenotazioni già «Chiusa in ODL» (veicolo accettato in Infinity) entrano come in attesa: il
-  DTO non porta lo stato di chiusura. Decisione da prendere: farle nascere già completate, oppure
-  almeno escluderle dai promemoria;
+- le prenotazioni già «Chiusa in ODL» (veicolo accettato in Infinity) **nascono completate** e non
+  ricevono promemoria (`closedInDms` nel DTO, deciso il 2026-09-16); se la chiusura arriva a metà
+  giornata, alla sync successiva la pratica ancora in attesa (o segnata assente) passa a completata,
+  una presa in carico resta all'operatore;
+- nessun cliente ha l'opt-in WhatsApp in anagrafica: con `SPOKI_OVERRIDE_CONSENT=true` i promemoria
+  (comunicazioni di servizio) tentano comunque WhatsApp; il guardrail degli invii reali non cambia;
 - il saluto dei messaggi per le aziende (nome vuoto in anagrafica) usa ora la ragione sociale.
 
 ## 9. File

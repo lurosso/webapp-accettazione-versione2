@@ -55,6 +55,8 @@ export interface SpokiOverview {
   readonly provider: ProviderKind;
   readonly mode: SpokiMode;
   readonly safetyLock: boolean;
+  /** SPOKI_OVERRIDE_CONSENT: promemoria WhatsApp tentati anche senza opt-in in anagrafica. */
+  readonly consentOverride: boolean;
   /** True solo con provider real, modalità live e blocco tolto. */
   readonly liveDeliveryAllowed: boolean;
   readonly blockReason: SpokiBlockReason;
@@ -77,6 +79,8 @@ export interface SpokiDiagnosticsConfig {
   readonly provider: ProviderKind;
   readonly mode: SpokiMode;
   readonly safetyLock: boolean;
+  /** SPOKI_OVERRIDE_CONSENT (facoltativo nei test). */
+  readonly consentOverride?: boolean;
   readonly apiKey: string | null;
   readonly reminders: {
     readonly previousDay: SpokiReminderTemplateConfig;
@@ -180,6 +184,7 @@ export class SpokiDiagnosticsService {
       provider: c.provider,
       mode: c.mode,
       safetyLock: c.safetyLock,
+      consentOverride: c.consentOverride === true,
       liveDeliveryAllowed: blockReason === null,
       blockReason,
       apiKeyConfigured: c.apiKey !== null,

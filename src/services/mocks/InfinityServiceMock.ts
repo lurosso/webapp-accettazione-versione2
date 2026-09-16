@@ -267,6 +267,7 @@ export class InfinityServiceMock implements IInfinityService {
           serviceDescription: rng.pick(SERVICE_DESCRIPTIONS),
           deskCode: desk?.code ?? null,
           cancelled: false,
+          closedInDms: false,
           updatedAt,
         };
         out.push({ dto, cancelOnSecondCall: rng.chance(0.05) });

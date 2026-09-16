@@ -19,7 +19,8 @@
     "test:watch": "vitest",
     "test:coverage": "vitest run --coverage",
     "infinity:check": "vitest run tests/integration/infinity-odbc.test.ts --reporter=verbose",
-    "seed:credenziali": "node scripts/genera-credenziali.mjs"
+    "seed:credenziali": "node scripts/genera-credenziali.mjs",
+    "rotte": "node scripts/mappa-rotte.mjs"
   },
   "dependencies": {
     "@tanstack/react-query": "5.102.8",

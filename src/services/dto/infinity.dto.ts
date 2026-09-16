@@ -28,6 +28,11 @@ export interface InfinityAppointmentDto {
   readonly serviceDescription: string | null;
   readonly deskCode: string | null;
   readonly cancelled: boolean;
+  /**
+   * Prenotazione già chiusa in ordine di lavoro nel DMS («Chiusa in ODL»: il veicolo è stato
+   * accettato direttamente in Infinity). Nasce completata e non riceve promemoria.
+   */
+  readonly closedInDms: boolean;
   readonly updatedAt: string;
 }
 
@@ -78,6 +83,7 @@ export function isInfinityAppointmentDto(v: unknown): v is InfinityAppointmentDt
     isStringOrNull(v['serviceDescription']) &&
     isStringOrNull(v['deskCode']) &&
     typeof v['cancelled'] === 'boolean' &&
+    typeof v['closedInDms'] === 'boolean' &&
     typeof v['updatedAt'] === 'string'
   );
 }

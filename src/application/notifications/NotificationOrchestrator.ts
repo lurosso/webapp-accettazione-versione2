@@ -63,6 +63,13 @@ export interface NotificationOrchestratorDeps {
   readonly portalToken?: (appointmentId: AppointmentId) => string;
   /** Dopo quanti ms un job IN_FLIGHT è considerato orfano e riprocessabile (default 5 minuti). */
   readonly inFlightStaleMs?: number;
+  /**
+   * SPOKI_OVERRIDE_CONSENT: i promemoria sono comunicazioni di servizio (utility) sull'appuntamento
+   * già preso, quindi si tenta WhatsApp anche senza il consenso esplicito in anagrafica, che in
+   * Infinity non esiste come opt-in WhatsApp. Default false: senza consenso si va diretti all'SMS.
+   * Il ripiego SMS dopo un errore WhatsApp resta identico.
+   */
+  readonly whatsappConsentOverride?: boolean;
 }
 
 /** Input dell'invio di un promemoria. */
@@ -129,7 +136,9 @@ export class NotificationOrchestrator {
       kind,
       idempotencyKey,
       recipientPhone: appointment.customer.phone,
-      whatsappOptIn: appointment.customer.whatsappOptIn,
+      // Canale di partenza: WhatsApp con il consenso in anagrafica oppure con l'override di servizio.
+      whatsappOptIn:
+        appointment.customer.whatsappOptIn || this.deps.whatsappConsentOverride === true,
       code: appointment.code,
       templateVariables: { ...vars },
       renderedText,

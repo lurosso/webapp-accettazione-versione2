@@ -8,16 +8,39 @@
 // era arrivato puntuale.
 import { effectiveScheduleTime, type Appointment } from './entities/appointment';
 import type { Desk } from './entities/desk';
+import type { DeskId } from './ids';
 
-/** Chiave della fila a cui appartiene la pratica (sportello esplicito, marchio, o fila a sé). */
-export function deskKeyOf(a: Appointment, desks: readonly Desk[]): string {
+/** Sportello della pratica: quello assegnato oppure quello che serve il marchio; null se nessuno lo serve. */
+export function deskIdOf(a: Appointment, desks: readonly Desk[]): DeskId | null {
   if (a.deskId !== null) {
     return a.deskId;
   }
-  const desk = desks.find((d) => d.brandIds.includes(a.brandId));
+  return desks.find((d) => d.brandIds.includes(a.brandId))?.id ?? null;
+}
+
+/**
+ * La pratica va mostrata nell'elenco di questo sportello? Con `deskId` null (vista globale) sempre;
+ * una pratica il cui marchio nessuno serve non deve sparire, quindi la vedono tutti gli sportelli.
+ * È la regola del tablet check-in: filtrare sul solo `appointment.deskId` lasciava l'elenco vuoto
+ * con le pratiche della sync di Infinity, che nascono senza sportello.
+ */
+export function visibleOnDesk(
+  a: Appointment,
+  desks: readonly Desk[],
+  deskId: string | null,
+): boolean {
+  if (deskId === null) {
+    return true;
+  }
+  const mio = deskIdOf(a, desks);
+  return mio === null || mio === deskId;
+}
+
+/** Chiave della fila a cui appartiene la pratica (sportello esplicito, marchio, o fila a sé). */
+export function deskKeyOf(a: Appointment, desks: readonly Desk[]): string {
   // Senza sportello né marchio riconosciuto la pratica fa fila a sé: meglio un conteggio prudente
   // che sommare clienti di sportelli diversi.
-  return desk?.id ?? `brand:${a.brandId}`;
+  return deskIdOf(a, desks) ?? `brand:${a.brandId}`;
 }
 
 /**

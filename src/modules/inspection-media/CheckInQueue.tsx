@@ -13,6 +13,7 @@ import {
   effectiveScheduleTime,
   isDueWithinGrace,
 } from '@/domain/entities/appointment';
+import { visibleOnDesk } from '@/domain/queue-position';
 import { LATE_GRACE_MINUTES } from '@/config/constants';
 import type { QueueRowView } from '@/domain/read-models';
 import type { Session } from '@/application/auth/IAuthService';
@@ -70,8 +71,12 @@ export function CheckInQueue({
   const data = queue.data;
 
   const rows = data?.rows ?? [];
+  // Lo sportello di una pratica è quello assegnato oppure quello che serve il marchio (le pratiche
+  // della sync di Infinity nascono senza sportello): la stessa regola della dashboard. Il vecchio
+  // confronto sul solo `deskId` lasciava il tablet vuoto con i dati reali. Le pratiche in attesa
+  // con orario passato restano in elenco: le segna assenti solo l'operatore o la chiusura giornata.
   const delMioSportello = (r: QueueRowView): boolean =>
-    homeDeskId === null || r.appointment.deskId === homeDeskId;
+    visibleOnDesk(r.appointment, data?.desks ?? [], homeDeskId);
   const inAttesa = rows
     .filter(
       (r) =>

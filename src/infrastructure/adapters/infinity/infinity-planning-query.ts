@@ -709,6 +709,8 @@ export function toAppointmentDto(
     serviceDescription: serviceDescriptionOf(r),
     deskCode: null,
     cancelled: r.annullata,
+    // «Chiusa in ODL»: il veicolo è già stato accettato in Infinity (ordine di lavoro aperto).
+    closedInDms: !r.annullata && r.chiusa,
     updatedAt: r.dataModifica ?? fetchedAt,
   };
 }

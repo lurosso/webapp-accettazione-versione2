@@ -32,6 +32,8 @@ export interface AppointmentDraft {
   readonly vehicle: Vehicle;
   readonly serviceDescription: string | null;
   readonly cancelled: boolean;
+  /** Già chiusa in ordine di lavoro nel DMS: nasce completata e non riceve promemoria. */
+  readonly completedInDms: boolean;
 }
 
 /** Contesto del mapping: dati di riferimento e generatore id. */
@@ -154,6 +156,7 @@ export function mapInfinityAppointment(
     vehicle,
     serviceDescription: dto.serviceDescription,
     cancelled: dto.cancelled,
+    completedInDms: dto.closedInDms,
   });
 }
 

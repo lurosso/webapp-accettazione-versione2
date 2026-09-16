@@ -16,6 +16,7 @@ riduce le attese e rende trasparente lo stato della pratica a operatori e client
 - [Avvio rapido](#avvio-rapido)
 - [Account dimostrativi](#account-dimostrativi)
 - [Le dashboard](#le-dashboard)
+- [Mappa delle rotte](#mappa-delle-rotte)
 - [Il planning di Infinity dal database reale (ODBC)](#il-planning-di-infinity-dal-database-reale-odbc)
 - [Amministrazione, archivio foto e retention](#amministrazione-archivio-foto-e-retention)
 - [Script disponibili](#script-disponibili)
@@ -333,6 +334,12 @@ Il file `.env.local` di sviluppo tiene `SPOKI_PROVIDER=real`, `SPOKI_MODE=simula
 (`SPOKI_URL_REMINDER_PREVIOUS_DAY`, `SPOKI_SECRET_REMINDER_PREVIOUS_DAY`,
 `SPOKI_URL_REMINDER_SAME_DAY`, `SPOKI_SECRET_REMINDER_SAME_DAY`).
 
+**Consenso WhatsApp.** L'anagrafica Infinity non porta un opt-in WhatsApp, quindi di norma un cliente
+senza consenso riceve l'SMS. Con `SPOKI_OVERRIDE_CONSENT=true` i promemoria, che sono comunicazioni di
+servizio su un appuntamento già preso, tentano comunque WhatsApp (con lo stesso ripiego SMS in caso
+di errore); il pannello lo segnala con «consenso: override di servizio». Il guardrail degli invii reali
+non cambia: in simulazione o con il blocco attivo non parte nulla.
+
 In `/admin/spoki-test` (e nella stessa sezione di `/admin`) l'amministratore vede provider,
 modalità, blocco di sicurezza, stato di URL e segreti, e può fare un **invio test manuale** dei due
 promemoria a un numero **digitato a mano**: le liste clienti non si usano e il numero di un cliente
@@ -480,19 +487,158 @@ targa, veicolo, cliente, sportello, accettazione, stato, operatore, minuti di at
 lavorazione, foto, note). Il file usa il punto e virgola e la virgola decimale: Excel italiano lo
 apre con un doppio clic.
 
+## Mappa delle rotte
+
+Tutte le pagine e le API dell'applicazione, con descrizione e livello di accesso. La tabella è
+generata da `npm run rotte -- --readme` a partire da `scripts/mappa-rotte.mjs`, che legge `src/app`
+e la incrocia con l'elenco curato delle descrizioni; `npm run rotte` la stampa a console e il test
+`tests/unit/mappa-rotte.test.ts` fallisce se una rotta nuova non è descritta o se il README è
+indietro. I livelli: **Pubblico** (nessuna sessione), **token del monitor** (`?token=`, obbligatorio
+con `DISPLAY_TOKEN_REQUIRED=true`), **Sessione operatore** (Accettatore, Manager, Amministratore),
+**Manager e Amministratore**, **Solo Amministratore**, **Amministratore oppure `x-cron-secret`**
+per i cron esterni.
+
+<!-- mappa-rotte:inizio -->
+
+### Accesso e sessione
+
+| Rotta              | Metodo | Descrizione                                                                                          | Accesso                                            |
+| ------------------ | ------ | ---------------------------------------------------------------------------------------------------- | -------------------------------------------------- |
+| `/`                | pagina | Radice: smista alla home del ruolo (accettazione, manager, admin, tabellone per i kiosk) o al login. | Pubblico                                           |
+| `/login`           | pagina | Login dell'operatore: credenziali e scelta della postazione (Accettazione N · marchi serviti).       | Pubblico                                           |
+| `/cambia-password` | pagina | Cambio password, obbligato dopo creazione account o reset, oppure volontario.                        | Sessione operatore, anche con password provvisoria |
+
+### Dashboard accettazione e postazioni operatore
+
+| Rotta                    | Metodo | Descrizione                                                                                                                        | Accesso                                                   |
+| ------------------------ | ------ | ---------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------- |
+| `/accettazione`          | pagina | Coda della giornata per sportello e vista globale: prendi in carico, salta, completa, riattiva, inserimento manuale, riprova sync. | Sessione operatore (Accettatore, Manager, Amministratore) |
+| `/accettazione/archivio` | pagina | Archivio dei check-in fotografici: ricerca per targa o codice pratica.                                                             | Sessione operatore (Accettatore, Manager, Amministratore) |
+
+### Tablet e check-in veicolo
+
+| Rotta       | Metodo | Descrizione                                                                                                                                                     | Accesso                                                   |
+| ----------- | ------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------- |
+| `/check-in` | pagina | Vista tablet a tutto schermo: pratiche in attesa del mio sportello, prese in carico, giro fotografico e conclusione dell'accettazione. Da PC rimanda alla coda. | Sessione operatore (Accettatore, Manager, Amministratore) |
+| `/tablet`   | pagina | Vecchio indirizzo del tablet: rimanda a /check-in conservando la pratica richiesta.                                                                             | Sessione operatore (Accettatore, Manager, Amministratore) |
+
+### Manager e BDC
+
+| Rotta      | Metodo | Descrizione                                                                                                 | Accesso                  |
+| ---------- | ------ | ----------------------------------------------------------------------------------------------------------- | ------------------------ |
+| `/manager` | pagina | Cruscotto del responsabile e del BDC: clienti assenti da ricontattare, chiusura giornata, indicatori e CSV. | Manager e Amministratore |
+
+### Amministrazione e configurazione
+
+| Rotta               | Metodo | Descrizione                                                                                                                     | Accesso             |
+| ------------------- | ------ | ------------------------------------------------------------------------------------------------------------------------------- | ------------------- |
+| `/admin`            | pagina | Operatori (crea, modifica, disattiva, reset password), assistenza (accettazioni occupate, pratiche ferme) e integrazione Spoki. | Solo Amministratore |
+| `/admin/spoki-test` | pagina | Prova controllata dei due promemoria WhatsApp verso un numero digitato a mano; registro dei payload.                            | Solo Amministratore |
+
+### Sistema e diagnostica
+
+| Rotta      | Metodo | Descrizione                                                                                                       | Accesso                                                   |
+| ---------- | ------ | ----------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------- |
+| `/sistema` | pagina | Stato delle porte esterne (Infinity, Spoki, SMS, CRM); per l'amministratore anche la coda di uscita verso il CRM. | Sessione operatore (Accettatore, Manager, Amministratore) |
+
+### Display di sala e monitor delle campate
+
+| Rotta                  | Metodo | Descrizione                                                                                                              | Accesso                                                                                |
+| ---------------------- | ------ | ------------------------------------------------------------------------------------------------------------------------ | -------------------------------------------------------------------------------------- |
+| `/display/sala-attesa` | pagina | Tabellone della sala d'attesa: codici chiamati con la campata e prossimi turni (`?prossimi=`). Home degli account kiosk. | Pubblico · token del monitor (`?token=`, obbligatorio con DISPLAY_TOKEN_REQUIRED=true) |
+| `/display/:campata`    | pagina | Monitor sopra la campata (/display/1 … /display/4 oppure /display/C1): codice e targa della vettura in accettazione.     | Pubblico · token del monitor (`?token=`, obbligatorio con DISPLAY_TOKEN_REQUIRED=true) |
+
+### Portale cliente (live tracking)
+
+| Rotta            | Metodo | Descrizione                                                                                                                                         | Accesso  |
+| ---------------- | ------ | --------------------------------------------------------------------------------------------------------------------------------------------------- | -------- |
+| `/portal`        | pagina | Portale cliente mobile dal link WhatsApp o dal QR (`?targa=` e `&t=` token): avanzamento in 4 tappe, posizione in coda, "Sto arrivando in ritardo". | Pubblico |
+| `/cliente`       | pagina | Ingresso dal QR code: ricerca per targa.                                                                                                            | Pubblico |
+| `/cliente/stato` | pagina | Esito della ricerca per targa: la stessa schermata del portale.                                                                                     | Pubblico |
+| `/qr`            | pagina | Alias corto stampato sui cartelli: rimanda a /cliente (con `?src=` corsia).                                                                         | Pubblico |
+
+### API: autenticazione
+
+| Rotta                          | Metodo | Descrizione                                                                                             | Accesso                                            |
+| ------------------------------ | ------ | ------------------------------------------------------------------------------------------------------- | -------------------------------------------------- |
+| `/api/v1/auth/login`           | POST   | Verifica credenziali e postazione, imposta il cookie di sessione (limiti di frequenza per IP e utente). | Pubblico                                           |
+| `/api/v1/auth/logout`          | POST   | Libera la postazione e cancella il cookie.                                                              | Sessione operatore, anche con password provvisoria |
+| `/api/v1/auth/me`              | GET    | Sessione corrente (ruolo, postazione, obbligo di cambio password).                                      | Sessione operatore, anche con password provvisoria |
+| `/api/v1/auth/change-password` | POST   | Sostituisce la password (provvisoria o no) e rinnova il cookie.                                         | Sessione operatore, anche con password provvisoria |
+
+### API: coda e pratiche
+
+| Rotta                               | Metodo    | Descrizione                                                                                                                                                        | Accesso                                                                                   |
+| ----------------------------------- | --------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ----------------------------------------------------------------------------------------- |
+| `/api/v1/queue`                     | GET       | Coda della giornata (`?date=&deskId=&view=desk oppure global`): righe arricchite, campate, ultima sync, dati di riferimento. Polling della dashboard e del tablet. | Sessione operatore (Accettatore, Manager, Amministratore)                                 |
+| `/api/v1/appointments`              | POST      | Inserimento manuale di una pratica (cliente senza appuntamento) nella coda di oggi.                                                                                | Sessione operatore (Accettatore, Manager, Amministratore)                                 |
+| `/api/v1/appointments/:id/actions`  | POST      | Azioni sulla pratica: take, skip, complete, release, restore, no-show, reactivate, cancel, confirm-auto-close (con `expectedVersion`, 409 sui conflitti).          | Sessione operatore; `cancel` e `confirm-auto-close` solo Manager e Amministratore         |
+| `/api/v1/appointments/:id/check-in` | POST      | Conclude l'accettazione dal tablet: note dell'ispezione, chiusura pratica, notifica al CRM.                                                                        | Sessione operatore (Accettatore, Manager, Amministratore)                                 |
+| `/api/v1/appointments/:id/media`    | GET, POST | Foto dell'ispezione: elenco (GET) e caricamento multipart dalla fotocamera del tablet (POST).                                                                      | Sessione operatore (Accettatore, Manager, Amministratore)                                 |
+| `/api/v1/media/:key`                | GET       | Rilegge una foto dell'ispezione dallo storage.                                                                                                                     | Sessione operatore (Accettatore, Manager, Amministratore)                                 |
+| `/api/v1/inspections/archive`       | GET       | Storico dei check-in fotografici (`?q=` targa o codice; vuoto = ultimi cinquanta).                                                                                 | Sessione operatore (Accettatore, Manager, Amministratore)                                 |
+| `/api/v1/events/stream`             | GET       | Eventi in tempo reale (SSE) per l'area operatore: segnala cosa è cambiato, i dati si rileggono dagli endpoint.                                                     | Sessione operatore (Accettatore, Manager, Amministratore)                                 |
+| `/api/v1/sync`                      | POST      | Sincronizzazione manuale dell'agenda Infinity di oggi.                                                                                                             | Manager e Amministratore; Accettatore solo come «Riprova» dopo una sync fallita o assente |
+
+### API: pubbliche (portale cliente, monitor, tabellone)
+
+| Rotta                          | Metodo | Descrizione                                                                                                        | Accesso                                                                                |
+| ------------------------------ | ------ | ------------------------------------------------------------------------------------------------------------------ | -------------------------------------------------------------------------------------- |
+| `/api/v1/health`               | GET    | Liveness del processo e stato aggregato delle quattro porte esterne (`?strict=` per il readiness).                 | Pubblico                                                                               |
+| `/api/v1/public/status`        | GET    | Stato della pratica per il portale (`?targa=` o `?t=` token): tappa, posizione in coda, orario, accettatore, sede. | Pubblico                                                                               |
+| `/api/v1/public/late-notice`   | POST   | "Sto arrivando in ritardo (+10 min)" dal portale: sposta l'arrivo atteso e avvisa la dashboard.                    | Pubblico                                                                               |
+| `/api/v1/public/board`         | GET    | Dati del tabellone della sala d'attesa (`?prossimi=`).                                                             | Pubblico                                                                               |
+| `/api/v1/public/display`       | GET    | Stato del monitor di una campata (`?campata=1`, `?bay=`, `?bayCode=`): solo codice e targa.                        | Pubblico · token del monitor (`?token=`, obbligatorio con DISPLAY_TOKEN_REQUIRED=true) |
+| `/api/v1/public/events/stream` | GET    | Eventi in tempo reale (SSE) per monitor e tabellone: solo il tipo di evento, senza identificativi.                 | Pubblico                                                                               |
+
+### API: manager, report e BDC
+
+| Rotta                             | Metodo | Descrizione                                                                                                | Accesso                  |
+| --------------------------------- | ------ | ---------------------------------------------------------------------------------------------------------- | ------------------------ |
+| `/api/v1/reports/daily`           | GET    | Indicatori della giornata (`?giornata=`).                                                                  | Manager e Amministratore |
+| `/api/v1/reports/daily/csv`       | GET    | Riepilogo dettagliato della giornata in CSV (con BOM per Excel).                                           | Manager e Amministratore |
+| `/api/v1/crm/leads`               | GET    | Clienti da ricontattare per il BDC (`?giornata=&gestiti=1`): nomi e telefoni degli assenti.                | Manager e Amministratore |
+| `/api/v1/crm/leads/:id/contacted` | POST   | Il BDC dichiara di aver ricontattato il cliente (chi, esito).                                              | Manager e Amministratore |
+| `/api/v1/system/close-day`        | POST   | Chiusura della giornata: chi è in coda diventa assente (lead BDC), chi è in carico viene chiuso d'ufficio. | Manager e Amministratore |
+
+### API: amministrazione
+
+| Rotta                                        | Metodo    | Descrizione                                                                                                             | Accesso             |
+| -------------------------------------------- | --------- | ----------------------------------------------------------------------------------------------------------------------- | ------------------- |
+| `/api/v1/admin/operators`                    | GET, POST | Elenco (GET) e creazione (POST) degli operatori, con sportelli e postazioni per i menu.                                 | Solo Amministratore |
+| `/api/v1/admin/operators/:id`                | PATCH     | Modifica di un operatore: nome, ruolo, sportelli, postazione predefinita, attivazione.                                  | Solo Amministratore |
+| `/api/v1/admin/operators/:id/reset-password` | POST      | Nuova password provvisoria, restituita una sola volta.                                                                  | Solo Amministratore |
+| `/api/v1/admin/assistance`                   | GET       | Accettazioni occupate e pratiche in carico da troppo tempo.                                                             | Solo Amministratore |
+| `/api/v1/admin/spoki`                        | GET       | Stato dell'integrazione WhatsApp (provider, modalità, safety lock, override consenso, template) e registro dei payload. | Solo Amministratore |
+| `/api/v1/admin/spoki/test`                   | POST      | Invio di prova di un promemoria a un numero digitato a mano (in simulazione finisce nel registro).                      | Solo Amministratore |
+| `/api/v1/crm/outbox`                         | GET       | Coda di uscita verso il CRM, vista tecnica (`?stato=&limite=`).                                                         | Solo Amministratore |
+| `/api/v1/crm/outbox/:id/retry`               | POST      | "Forza riprova" di un evento verso il CRM.                                                                              | Solo Amministratore |
+
+### API: sistema e cron
+
+| Rotta                                 | Metodo | Descrizione                                                                                                                | Accesso                                            |
+| ------------------------------------- | ------ | -------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------- |
+| `/api/v1/system/cron/reminders`       | POST   | Promemoria ai clienti (`?kind=previous-day oppure same-day`) per un cron esterno; stesso servizio dello scheduler interno. | Amministratore oppure intestazione `x-cron-secret` |
+| `/api/v1/system/cron/crm-retry`       | POST   | Svuotamento della coda di uscita verso il CRM (rinvii) per un cron esterno.                                                | Amministratore oppure intestazione `x-cron-secret` |
+| `/api/v1/system/cron/media-retention` | POST   | Eliminazione dei file delle foto oltre la retention per un cron esterno.                                                   | Amministratore oppure intestazione `x-cron-secret` |
+
+<!-- mappa-rotte:fine -->
+
 ## Script disponibili
 
-| Comando                  | Descrizione                                                                           |
-| ------------------------ | ------------------------------------------------------------------------------------- |
-| `npm run dev`            | Server di sviluppo su <http://localhost:3000>                                         |
-| `npm run build`          | Build di produzione (output `standalone`)                                             |
-| `npm start`              | Avvio della build                                                                     |
-| `npm run typecheck`      | TypeScript strict senza emissione                                                     |
-| `npm run lint`           | ESLint (con guardia architetturale) e controllo encoding UTF-8/LF                     |
-| `npm run format`         | Prettier su sorgenti, test e configurazioni                                           |
-| `npm test`               | Test unitari con Vitest                                                               |
-| `npm run test:coverage`  | Test con copertura                                                                    |
-| `npm run infinity:check` | Lettura di prova del planning dal database Infinity reale (serve `INFINITY_ODBC_DSN`) |
+| Comando                    | Descrizione                                                                                     |
+| -------------------------- | ----------------------------------------------------------------------------------------------- |
+| `npm run dev`              | Server di sviluppo su <http://localhost:3000>                                                   |
+| `npm run build`            | Build di produzione (output `standalone`)                                                       |
+| `npm start`                | Avvio della build                                                                               |
+| `npm run typecheck`        | TypeScript strict senza emissione                                                               |
+| `npm run lint`             | ESLint (con guardia architetturale) e controllo encoding UTF-8/LF                               |
+| `npm run format`           | Prettier su sorgenti, test e configurazioni                                                     |
+| `npm test`                 | Test unitari con Vitest                                                                         |
+| `npm run test:coverage`    | Test con copertura                                                                              |
+| `npm run infinity:check`   | Lettura di prova del planning dal database Infinity reale (serve `INFINITY_ODBC_DSN`)           |
+| `npm run seed:credenziali` | Genera i segreti del profilo di seed `real` da incollare in `.env.local`                        |
+| `npm run rotte`            | Mappa di tutte le rotte con accesso; `npm run rotte -- --readme` aggiorna la sezione del README |
 
 ## Struttura del repository
 

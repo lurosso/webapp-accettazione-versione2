@@ -37,6 +37,16 @@ export interface SyncServiceDeps {
 /** Timeout della chiamata a Infinity: oltre, la sync fallisce e la dashboard mostra il banner. */
 const FETCH_TIMEOUT_MS = 10_000;
 
+/** Nota scritta sulla pratica quando Infinity la riporta già chiusa in ordine di lavoro. */
+export const CLOSED_IN_DMS_NOTE = 'Accettata direttamente in Infinity (ordine di lavoro aperto)';
+
+/** Stati da cui una chiusura in ODL arrivata dal DMS porta la pratica a COMPLETED. */
+const CLOSABLE_FROM_DMS: ReadonlySet<Appointment['status']> = new Set([
+  'WAITING',
+  'SKIPPED',
+  'NO_SHOW',
+]);
+
 interface MutableCounters {
   fetched: number;
   created: number;
@@ -171,6 +181,7 @@ export class SyncService {
   ): Promise<{ readonly counters: SyncCounters; readonly created: readonly Appointment[] }> {
     const counters: MutableCounters = { ...EMPTY_SYNC_COUNTERS };
     const created: Appointment[] = [];
+    let chiuseDaDms = 0;
     const existing = await this.deps.appointments.listByDate(businessDate, {
       includeCancelled: true,
     });
@@ -199,6 +210,9 @@ export class SyncService {
         if (inserita !== null) {
           counters.created += 1;
           created.push(inserita);
+          if (draft.completedInDms) {
+            chiuseDaDms += 1;
+          }
         } else {
           counters.rejected += 1;
         }
@@ -207,6 +221,18 @@ export class SyncService {
       if (draft.cancelled) {
         if (await this.cancel(current, run)) {
           counters.cancelled += 1;
+        } else {
+          counters.unchanged += 1;
+        }
+        continue;
+      }
+      // Il gestionale ha chiuso la prenotazione in ordine di lavoro: se qui è ancora in coda (o
+      // segnata assente) la pratica si chiude come completata. Una presa in carico resta
+      // all'operatore che la sta lavorando.
+      if (draft.completedInDms && CLOSABLE_FROM_DMS.has(current.status)) {
+        if (await this.completeFromDms(current, run)) {
+          counters.updated += 1;
+          chiuseDaDms += 1;
         } else {
           counters.unchanged += 1;
         }
@@ -245,6 +271,15 @@ export class SyncService {
         }
       }
     }
+    if (chiuseDaDms > 0) {
+      this.logger.info(
+        'prenotazioni già chiuse in ODL in Infinity: completate senza passare dalla coda',
+        {
+          businessDate,
+          chiuseDaDms,
+        },
+      );
+    }
     return { counters, created };
   }
 
@@ -265,14 +300,16 @@ export class SyncService {
       customer: draft.customer,
       vehicle: draft.vehicle,
       serviceDescription: draft.serviceDescription,
-      status: 'WAITING',
+      // «Chiusa in ODL» in Infinity: il veicolo è già stato accettato dal gestionale, la pratica
+      // nasce completata (senza operatore né campata) e non entra in coda né fra i promemoria.
+      status: draft.completedInDms ? 'COMPLETED' : 'WAITING',
       bayId: null,
       operatorId: null,
       skipCount: 0,
-      notes: null,
+      notes: draft.completedInDms ? CLOSED_IN_DMS_NOTE : null,
       takenAt: null,
       skippedAt: null,
-      completedAt: null,
+      completedAt: draft.completedInDms ? now : null,
       noShowAt: null,
       cancelledAt: null,
       autoClosedAt: null,
@@ -323,6 +360,42 @@ export class SyncService {
         appointmentId: a.id,
         from: a.status,
         to: 'CANCELLED',
+        bayId: null,
+      });
+    }
+    return updated.ok;
+  }
+
+  /**
+   * WAITING/SKIPPED/NO_SHOW → COMPLETED perché Infinity ha aperto l'ordine di lavoro: l'accettazione
+   * è avvenuta nel gestionale. Nota conservata, nessun operatore né campata; l'evento aggiorna
+   * dashboard e monitor.
+   */
+  private async completeFromDms(a: Appointment, run: SyncRun): Promise<boolean> {
+    const now = this.deps.clock.nowIso();
+    const updated = await this.deps.appointments.update(
+      {
+        ...a,
+        status: 'COMPLETED',
+        completedAt: now,
+        notes:
+          a.notes === null || a.notes.trim() === ''
+            ? CLOSED_IN_DMS_NOTE
+            : `${a.notes}\n${CLOSED_IN_DMS_NOTE}`,
+        lastSyncRunId: run.id,
+      },
+      a.version,
+    );
+    if (updated.ok) {
+      this.deps.eventBus.publish({
+        id: this.deps.ids.next(),
+        occurredAt: now,
+        correlationId: run.correlationId,
+        actor: { kind: 'SYSTEM', id: null },
+        type: 'APPOINTMENT_STATUS_CHANGED',
+        appointmentId: a.id,
+        from: a.status,
+        to: 'COMPLETED',
         bayId: null,
       });
     }

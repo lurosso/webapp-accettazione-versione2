@@ -28,6 +28,7 @@ function dto(brandCode: string, vehicleModel = 'Tucson 1.6 CRDi'): InfinityAppoi
     serviceDescription: 'TAGLIANDO',
     deskCode: null,
     cancelled: false,
+    closedInDms: false,
     updatedAt: '2026-09-16T06:00:00.000Z',
   };
 }

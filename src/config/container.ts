@@ -161,7 +161,13 @@ export function createContainer(overrides: ContainerOverrides = {}): Container {
     timeZone: env.timeZone,
     publicBaseUrl: env.publicBaseUrl,
     portalToken: (appointmentId) => portalTokens.forAppointment(appointmentId),
+    whatsappConsentOverride: env.spokiOverrideConsent,
   });
+  if (env.spokiOverrideConsent) {
+    logger.info(
+      '[Messaggi] SPOKI_OVERRIDE_CONSENT=true: i promemoria tentano WhatsApp anche senza opt-in in anagrafica (comunicazioni di servizio); il guardrail degli invii reali resta SPOKI_MODE/SPOKI_SAFETY_LOCK.',
+    );
+  }
 
   const customerPortalService = new CustomerPortalService({
     appointments: repos.appointments,
@@ -188,6 +194,7 @@ export function createContainer(overrides: ContainerOverrides = {}): Container {
       provider: env.spokiProvider,
       mode: env.spokiMode,
       safetyLock: env.spokiSafetyLock,
+      consentOverride: env.spokiOverrideConsent,
       apiKey: env.spokiApiKey,
       reminders: {
         previousDay: {

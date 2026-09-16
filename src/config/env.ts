@@ -54,6 +54,12 @@ export interface AppEnv {
    * parte verso un telefono reale, qualunque sia la modalità. Va tolto esplicitamente.
    */
   readonly spokiSafetyLock: boolean;
+  /**
+   * SPOKI_OVERRIDE_CONSENT (predefinito false): i promemoria sono comunicazioni di servizio
+   * sull'appuntamento già preso, quindi con true si tenta WhatsApp anche senza il consenso esplicito
+   * in anagrafica (Infinity non porta un opt-in WhatsApp). Non tocca il guardrail degli invii reali.
+   */
+  readonly spokiOverrideConsent: boolean;
   /** Chiave API globale di Spoki (menu "Integrazioni API"); null se non impostata. */
   readonly spokiApiKey: string | null;
   /** URL e segreti delle automazioni dei due promemoria (giorno prima, giorno stesso). */
@@ -280,6 +286,7 @@ export function parseEnv(
     spokiMode: pickEnum(source, 'SPOKI_MODE', SPOKI_MODES, 'simulation', warn),
     // Predefinito TRUE: il blocco si toglie solo per scelta esplicita, mai per dimenticanza.
     spokiSafetyLock: pickBool(source, 'SPOKI_SAFETY_LOCK', true, warn),
+    spokiOverrideConsent: pickBool(source, 'SPOKI_OVERRIDE_CONSENT', false, warn),
     spokiApiKey: pickStringOrNull(source, 'SPOKI_API_KEY'),
     spokiUrlReminderPreviousDay: pickStringOrNull(source, 'SPOKI_URL_REMINDER_PREVIOUS_DAY'),
     spokiUrlReminderSameDay: pickStringOrNull(source, 'SPOKI_URL_REMINDER_SAME_DAY'),

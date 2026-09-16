@@ -102,6 +102,9 @@ export function SpokiPanel({ timeZone }: SpokiPanelProps) {
             <Badge tone={data.safetyLock ? 'danger' : 'success'}>
               {data.safetyLock ? 'SAFETY LOCK ATTIVO' : 'safety lock tolto'}
             </Badge>
+            <Badge tone={data.consentOverride ? 'warning' : 'neutral'}>
+              {data.consentOverride ? 'CONSENSO: OVERRIDE DI SERVIZIO' : 'consenso: solo opt-in'}
+            </Badge>
             <Badge tone={data.liveDeliveryAllowed ? 'success' : 'neutral'}>
               {data.liveDeliveryAllowed ? 'INVII REALI ABILITATI' : 'nessun invio reale'}
             </Badge>
