@@ -81,7 +81,7 @@ export function ExpandableText({
           aria-expanded={espanso}
           aria-label={espanso ? `Riduci ${label}` : `Mostra tutto ${label}`}
           className={cn(
-            'focus-anello premibile text-brand-blue-dark min-h-touch -mx-2 inline-flex w-fit items-center gap-1.5 rounded-md px-2 text-sm font-semibold',
+            'focus-anello premibile text-brand-blue-dark controllo -mx-2 inline-flex w-fit items-center gap-1.5 rounded-md px-2 text-sm font-semibold',
             variant === 'block' && '-mb-2',
           )}
         >

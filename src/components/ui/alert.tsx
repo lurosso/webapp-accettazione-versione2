@@ -11,7 +11,7 @@ export interface AlertProps extends HTMLAttributes<HTMLDivElement> {
 }
 
 const TONE_CLASSES: Record<AlertTone, string> = {
-  info: 'bg-sky-50 text-sky-900',
+  info: 'bg-status-info-soft text-status-info-ink',
   warning: 'bg-status-in-progress-soft text-status-in-progress-ink',
   error: 'bg-status-no-show-soft text-status-no-show-ink',
   success: 'bg-status-completed-soft text-status-completed-ink',

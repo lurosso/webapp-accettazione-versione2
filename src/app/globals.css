@@ -92,6 +92,24 @@
   --color-status-no-show-soft: oklch(0.96 0.04 25);
   --color-status-cancelled: oklch(0.55 0.02 260);
   --color-status-cancelled-soft: oklch(0.95 0.005 260);
+  /*
+   * «Informazione» non è uno stato della pratica: è il tono di un avviso che non chiede niente.
+   * Prende il blu del marchio e non un azzurro qualunque — era `sky-50`/`sky-900`, cioè l'unica
+   * famiglia di colore dell'interfaccia che non veniva né dal marchio né dagli stati.
+   */
+  /*
+   * Il rosso PIENO della conferma distruttiva, che è un'altra cosa dal rosso della pastiglia: lì
+   * il testo è scuro su fondo tenue, qui è bianco su fondo pieno. Il `-no-show` (L 0.60) col
+   * bianco sopra fa 4,4:1 e non basta per un testo in grassetto da 14 px; sceso a L 0.54 fa
+   * 5,6:1, meglio del `red-600` di Tailwind che stava qui prima (4,8:1) e senza portarsi dentro
+   * una terza famiglia di rossi.
+   */
+  --color-status-no-show-solid: oklch(0.54 0.2 25);
+  --color-status-no-show-solid-hover: oklch(0.48 0.2 25);
+
+  --color-status-info: #0180ca;
+  --color-status-info-soft: #e9f3fa;
+  --color-status-info-ink: #00466f;
 
   /*
    * Terza tinta di ogni stato: il testo scritto SOPRA la pastiglia `-soft`. Tenuta a lightness

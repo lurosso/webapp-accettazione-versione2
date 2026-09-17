@@ -43,6 +43,8 @@ export interface HoldButtonProps {
   readonly size?: ButtonSize;
   readonly disabled?: boolean;
   readonly className?: string | undefined;
+  /** Arriva fino al pulsante vero: i test end-to-end cercano questo, non il contenitore. */
+  readonly 'data-testid'?: string | undefined;
 }
 
 export function HoldButton({
@@ -54,6 +56,7 @@ export function HoldButton({
   size = 'md',
   disabled = false,
   className,
+  'data-testid': testId,
 }: HoldButtonProps) {
   const tocco = useIsTouchLayout();
   const [stato, setStato] = useState<Stato>('riposo');
@@ -129,6 +132,7 @@ export function HoldButton({
       variant={statoVisibile === 'conferma' ? 'destructive' : variant}
       size={size}
       disabled={disabled}
+      data-testid={testId}
       aria-label={statoVisibile === 'conferma' ? `Conferma: ${actionLabel}` : actionLabel}
       className={cn('relative overflow-hidden select-none', className)}
       onPointerDown={iniziaPressione}
@@ -141,10 +145,14 @@ export function HoldButton({
       {/*
        * Il riempimento non è una barra di avanzamento: è il pulsante stesso che si colora da
        * sinistra. Senza, novecento millisecondi col dito fermo sembrano un pulsante rotto.
+       *
+       * Il colore è quello del testo al 20%: bianco su un pulsante pieno, scuro su uno chiaro.
+       * Un velo bianco fisso sarebbe invisibile proprio dove serve — su «Annulla pratica», che è
+       * bianco finché non chiede conferma.
        */}
       <span
         aria-hidden="true"
-        className="pointer-events-none absolute inset-y-0 left-0 bg-white/30"
+        className="pointer-events-none absolute inset-y-0 left-0 bg-current opacity-20"
         style={
           statoVisibile === 'premuto'
             ? { width: '100%', transition: `width ${DURATA_PRESSIONE_MS}ms linear` }

@@ -44,7 +44,7 @@ const VARIANT_CLASSES: Record<ButtonVariant, string> = {
   secondary: 'bg-surface-sunken text-ink hover:bg-slate-200',
   outline: 'border-line bg-surface text-ink-soft hover:bg-surface-sunken border',
   ghost: 'text-ink-soft hover:bg-surface-sunken',
-  destructive: 'bg-red-600 text-white shadow-xs hover:bg-red-700',
+  destructive: 'bg-status-no-show-solid hover:bg-status-no-show-solid-hover text-white shadow-xs',
   destructiveQuiet:
     'border-status-no-show/35 bg-surface text-status-no-show-ink hover:bg-status-no-show-soft border',
   // Verde Autoclub: solo completamento e avanzamento. Testo scuro: il verde del marchio con il

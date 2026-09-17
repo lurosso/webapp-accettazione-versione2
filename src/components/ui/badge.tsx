@@ -17,7 +17,7 @@ export interface BadgeProps extends HTMLAttributes<HTMLSpanElement> {
 
 const TONE_CLASSES: Record<BadgeTone, string> = {
   neutral: 'bg-surface-sunken text-ink-soft',
-  info: 'bg-sky-50 text-sky-900',
+  info: 'bg-status-info-soft text-status-info-ink',
   success: 'bg-status-completed-soft text-status-completed-ink',
   warning: 'bg-status-in-progress-soft text-status-in-progress-ink',
   danger: 'bg-status-no-show-soft text-status-no-show-ink',
@@ -25,7 +25,7 @@ const TONE_CLASSES: Record<BadgeTone, string> = {
 
 const DOT_CLASSES: Record<BadgeTone, string> = {
   neutral: 'bg-slate-400',
-  info: 'bg-sky-500',
+  info: 'bg-status-info',
   success: 'bg-status-completed',
   warning: 'bg-status-in-progress',
   danger: 'bg-status-no-show',
