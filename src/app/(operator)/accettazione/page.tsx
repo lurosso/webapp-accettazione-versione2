@@ -2,7 +2,7 @@
 // Server Component: risolve sessione e sportello della postazione, poi delega al client in polling.
 import type { Metadata } from 'next';
 import { Suspense } from 'react';
-import { requireSession } from '@/app/_server/session';
+import { requireArea } from '@/app/_server/session';
 import { getContainer } from '@/config/container';
 import { canAccess } from '@/lib/navigation';
 import { QueueDashboard } from '@/modules/reception/QueueDashboard';
@@ -21,7 +21,11 @@ function single(v: string | string[] | undefined): string | null {
 }
 
 export default async function AccettazionePage({ searchParams }: PageProps) {
-  const [session, params] = await Promise.all([requireSession('/accettazione'), searchParams]);
+  // Area riservata a chi lavora al banco: il BDC che bussa qui finisce sul proprio cruscotto.
+  const [session, params] = await Promise.all([
+    requireArea('accettazione', '/accettazione'),
+    searchParams,
+  ]);
   const container = getContainer();
   const workstation = await container.repos.referenceData.findWorkstationById(
     session.workstationId,
@@ -31,6 +35,10 @@ export default async function AccettazionePage({ searchParams }: PageProps) {
   const initialView: QueueView =
     richiesta === 'global' ? 'global' : richiesta === 'returns' ? 'returns' : 'desk';
   const initialDeskId = single(params['deskId']) ?? homeDeskId;
+  // Monitoraggio dell'amministratore: `?sola-lettura=1` guarda senza toccare, `?monitor=` dice
+  // cosa si sta guardando. Solo l'amministratore ci arriva, dal proprio pannello.
+  const readOnly = single(params['sola-lettura']) === '1' && canAccess('admin', session.role);
+  const monitorLabel = single(params['monitor']);
   // L'inserimento manuale nasce a monte in Infinity (BDC): il pulsante si mostra secondo UI_MANUAL_INTAKE.
   const manualIntakeEnabled =
     container.env.uiManualIntake === 'all' ||
@@ -45,6 +53,8 @@ export default async function AccettazionePage({ searchParams }: PageProps) {
         initialDeskId={initialDeskId}
         manualIntakeEnabled={manualIntakeEnabled}
         debugCustomerLink={container.env.devQuickLogin}
+        readOnly={readOnly}
+        monitorLabel={monitorLabel}
       />
     </Suspense>
   );

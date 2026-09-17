@@ -13,7 +13,7 @@ import {
 } from '@/application/health/check-health';
 import { Badge, type BadgeTone } from '@/components/ui/badge';
 import { getContainer } from '@/config/container';
-import { requireSession } from '@/app/_server/session';
+import { requireArea } from '@/app/_server/session';
 import { formatDateTimeIt } from '@/lib/dates';
 import { canAccess } from '@/lib/navigation';
 import { CrmOutboxTable } from '@/modules/crm/CrmOutboxTable';
@@ -75,7 +75,7 @@ async function loadPageData(): Promise<PageData> {
 }
 
 export default async function SistemaPage() {
-  const [session, data] = await Promise.all([requireSession('/sistema'), loadPageData()]);
+  const [session, data] = await Promise.all([requireArea('sistema', '/sistema'), loadPageData()]);
   const timeZone = data.kind === 'ok' ? data.timeZone : 'Europe/Rome';
 
   return (

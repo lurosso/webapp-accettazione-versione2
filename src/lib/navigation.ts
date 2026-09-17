@@ -36,18 +36,39 @@ export const CHECK_IN_PARAM = 'pratica';
 /** Aree protette dell'applicazione. */
 export type ProtectedArea = 'accettazione' | 'check-in' | 'manager' | 'admin' | 'sistema';
 
-/** Ruoli ammessi su ciascuna area; un solo elenco, usato dalle pagine e dalla navigazione. */
+/**
+ * Ruoli ammessi su ciascuna area; un solo elenco, usato dalle pagine, dalla navigazione e dalle
+ * rotte API. Cambiare qui cambia ovunque: è il punto in cui si legge chi vede cosa.
+ *
+ * Dal 2026-09-17 il BDC (SUPERVISOR) vive in un recinto: solo il proprio cruscotto degli assenti.
+ * Non è una questione di fiducia ma di responsabilità — la coda la governano gli accettatori al
+ * banco, e una pratica presa in carico da chi sta al telefono è una pratica che nessuno sta
+ * accettando. L'amministratore resta l'unico che vede tutto, perché deve poter controllare.
+ */
 export const AREA_ROLES: Record<ProtectedArea, readonly OperatorRole[]> = {
-  accettazione: ['ADVISOR', 'SUPERVISOR', 'ADMIN'],
-  'check-in': ['ADVISOR', 'SUPERVISOR', 'ADMIN'],
+  accettazione: ['ADVISOR', 'ADMIN'],
+  'check-in': ['ADVISOR', 'ADMIN'],
   manager: ['SUPERVISOR', 'ADMIN'],
   admin: ['ADMIN'],
-  sistema: ['ADVISOR', 'SUPERVISOR', 'ADMIN'],
+  sistema: ['ADVISOR', 'ADMIN'],
 };
 
 /** True se il ruolo può accedere all'area. */
 export function canAccess(area: ProtectedArea, role: OperatorRole): boolean {
   return AREA_ROLES[area].includes(role);
+}
+
+/**
+ * Indirizzo dove rimandare chi bussa a un'area che non gli appartiene: la sua dashboard. Serve al
+ * silos del BDC — invece di una pagina di errore che non porta da nessuna parte, l'utente si
+ * ritrova dove può lavorare. `null` per i ruoli senza area operatore (kiosk), che non vanno
+ * rimbalzati da nessuna parte.
+ */
+export function redirectForForbiddenArea(area: ProtectedArea, role: OperatorRole): string | null {
+  if (canAccess(area, role) || role === 'KIOSK') {
+    return null;
+  }
+  return homePathForRole(role);
 }
 
 /** Pagine da cui non ha senso "tornare" dopo il cambio password. */

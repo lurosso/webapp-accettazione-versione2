@@ -20,6 +20,7 @@ const ACCESSO = {
     'Pubblico · segreto condiviso (`SPOKI_INBOUND_SECRET`); 404 con `MESSAGING_STANDBY=true`',
   monitor: 'Pubblico · token del monitor (`?token=`, obbligatorio con DISPLAY_TOKEN_REQUIRED=true)',
   sessione: 'Sessione operatore (Accettatore, Manager, Amministratore)',
+  banco: 'Accettatore e Amministratore (il BDC resta sul proprio cruscotto)',
   sessioneProvvisoria: 'Sessione operatore, anche con password provvisoria',
   manager: 'Manager e Amministratore',
   admin: 'Solo Amministratore',
@@ -72,14 +73,14 @@ export const ROTTE = [
     path: '/accettazione',
     area: AREE[1],
     descrizione:
-      'Coda della giornata per sportello e vista globale: prendi in carico, salta, completa, riattiva, inserimento manuale, riprova sync.',
-    accesso: ACCESSO.sessione,
+      'Coda della giornata per sportello e vista globale: prendi in carico, salta, completa, riattiva, inserimento manuale, riprova sync. Con ?sola-lettura=1 (solo amministratore) diventa monitoraggio senza azioni.',
+    accesso: ACCESSO.banco,
   },
   {
     path: '/accettazione/archivio',
     area: AREE[1],
     descrizione: 'Archivio dei check-in con foto e video: ricerca per targa o codice pratica.',
-    accesso: ACCESSO.sessione,
+    accesso: ACCESSO.banco,
   },
   // Tablet
   {
@@ -87,16 +88,22 @@ export const ROTTE = [
     area: AREE[2],
     descrizione:
       'Vista tablet a tutto schermo: pratiche in attesa del mio sportello, prese in carico, video obbligatorio e foto facoltative, conclusione con conferma. Da PC rimanda alla coda.',
-    accesso: ACCESSO.sessione,
+    accesso: ACCESSO.banco,
   },
   {
     path: '/tablet',
     area: AREE[2],
     descrizione:
       'Vecchio indirizzo del tablet: rimanda a /check-in conservando la pratica richiesta.',
-    accesso: ACCESSO.sessione,
+    accesso: ACCESSO.banco,
   },
   // Manager
+  {
+    path: '/bdc',
+    area: AREE[3],
+    descrizione: "Alias dell'indirizzo usato dal reparto: rimanda al cruscotto BDC (/manager).",
+    accesso: ACCESSO.manager,
+  },
   {
     path: '/manager',
     area: AREE[3],
@@ -125,7 +132,7 @@ export const ROTTE = [
     area: AREE[5],
     descrizione:
       "Stato delle porte esterne (Infinity, Spoki, SMS, CRM); per l'amministratore anche la coda di uscita verso il CRM.",
-    accesso: ACCESSO.sessione,
+    accesso: ACCESSO.banco,
   },
   // Display
   {
@@ -207,48 +214,49 @@ export const ROTTE = [
     area: AREE[9],
     descrizione:
       'Coda della giornata (`?date=&deskId=&view=desk oppure global`): righe arricchite, sportelli senza il token dei monitor, ultima sync, dati di riferimento. Polling della dashboard e del tablet.',
-    accesso: ACCESSO.sessione,
+    accesso: ACCESSO.banco,
   },
   {
     path: '/api/v1/appointments',
     area: AREE[9],
     descrizione:
       'Inserimento manuale di una pratica (cliente senza appuntamento) nella coda di oggi.',
-    accesso: ACCESSO.sessione,
+    accesso: ACCESSO.banco,
   },
   {
     path: '/api/v1/appointments/:id/actions',
     area: AREE[9],
     descrizione:
       'Azioni sulla pratica: take, skip, complete, release, restore, no-show, reactivate, cancel, confirm-auto-close (con `expectedVersion`, 409 sui conflitti).',
-    accesso: 'Sessione operatore; `cancel` e `confirm-auto-close` solo Manager e Amministratore',
+    accesso:
+      'Accettatore e Amministratore; `cancel`, `release` e `confirm-auto-close` solo Manager e Amministratore',
   },
   {
     path: '/api/v1/appointments/:id/check-in',
     area: AREE[9],
     descrizione:
       "Conclude l'accettazione dal tablet: note dell'ispezione, chiusura pratica (serve il video del veicolo, le foto no), notifica al CRM.",
-    accesso: ACCESSO.sessione,
+    accesso: ACCESSO.banco,
   },
   {
     path: '/api/v1/appointments/:id/media',
     area: AREE[9],
     descrizione:
       "Media dell'ispezione: elenco (GET) e caricamento multipart di una foto o di un video dal tablet (POST, campo `foto`, `categoria` facoltativa).",
-    accesso: ACCESSO.sessione,
+    accesso: ACCESSO.banco,
   },
   {
     path: '/api/v1/media/:key',
     area: AREE[9],
     descrizione: "Rilegge una foto o un video dell'ispezione dallo storage.",
-    accesso: ACCESSO.sessione,
+    accesso: ACCESSO.banco,
   },
   {
     path: '/api/v1/inspections/archive',
     area: AREE[9],
     descrizione:
       'Storico dei check-in con i media acquisiti (`?q=` targa o codice; vuoto = ultimi cinquanta).',
-    accesso: ACCESSO.sessione,
+    accesso: ACCESSO.banco,
   },
   {
     path: '/api/v1/events/stream',

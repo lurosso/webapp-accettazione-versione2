@@ -10,7 +10,8 @@ import { toBayOccupancyOptions } from '@/application/queue/QueueService';
 import { getContainer } from '@/config/container';
 import { asDeskId } from '@/domain/ids';
 import { isIsoDate } from '@/domain/value-objects/iso-date';
-import { badRequestResponse, unauthorizedResponse } from '@/lib/http/api-error';
+import { badRequestResponse, forbiddenResponse, unauthorizedResponse } from '@/lib/http/api-error';
+import { canAccess } from '@/lib/navigation';
 import type { QueueResponse, QueueView } from '@/modules/reception/types';
 
 export const dynamic = 'force-dynamic';
@@ -20,6 +21,14 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
   if (session === null) {
     return unauthorizedResponse();
   }
+  // Silos del BDC: la coda è dei banchi (e dell'amministratore che controlla). Il controllo sta
+  // anche qui, non solo sulla pagina: una sessione vale per l'API come per il browser.
+  if (!canAccess('accettazione', session.role)) {
+    return forbiddenResponse(
+      "La coda dell'accettazione è riservata agli accettatori e all'amministratore.",
+    );
+  }
+
   const container = getContainer();
   const { searchParams } = request.nextUrl;
 

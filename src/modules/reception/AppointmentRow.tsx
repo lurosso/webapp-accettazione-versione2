@@ -40,6 +40,12 @@ export interface AppointmentRowProps {
   readonly onSelect: () => void;
   /** Riga aperta nel pannello di dettaglio. */
   readonly selected?: boolean;
+  /**
+   * Sola lettura: la riga mostra tutto ma non offre azioni. È la vista di monitoraggio
+   * dell'amministratore, che guarda come sta andando l'officina senza rischiare di toccare la
+   * pratica di un collega mentre scorre l'elenco.
+   */
+  readonly readOnly?: boolean;
 }
 
 const ROW_CLASSES: Partial<Record<AppointmentStatus, string>> = {
@@ -65,6 +71,7 @@ export function AppointmentRow({
   onAction,
   onSelect,
   selected = false,
+  readOnly = false,
 }: AppointmentRowProps) {
   const a = row.appointment;
   // Il cliente ha avvisato dal portale che arriva in ritardo: avviso ambra finché è in coda.
@@ -198,16 +205,20 @@ export function AppointmentRow({
         )}
       </TableCell>
       <TableCell>
-        {/* I pulsanti non devono aprire il pannello: l'azione è già esplicita. */}
-        <div onClick={(event) => event.stopPropagation()}>
-          <ActionButtons
-            appointment={a}
-            pending={pending}
-            foreignDesk={foreignDesk}
-            late={late}
-            onAction={onAction}
-          />
-        </div>
+        {readOnly ? (
+          <span className="text-xs text-slate-400">sola lettura</span>
+        ) : (
+          // I pulsanti non devono aprire il pannello: l'azione è già esplicita.
+          <div onClick={(event) => event.stopPropagation()}>
+            <ActionButtons
+              appointment={a}
+              pending={pending}
+              foreignDesk={foreignDesk}
+              late={late}
+              onAction={onAction}
+            />
+          </div>
+        )}
       </TableCell>
     </TableRow>
   );

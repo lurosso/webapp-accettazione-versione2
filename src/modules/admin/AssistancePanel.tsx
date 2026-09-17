@@ -66,11 +66,11 @@ export function AssistancePanel({ timeZone }: AssistancePanelProps) {
   return (
     <section className="rounded-xl border border-slate-200 bg-white p-6 shadow-sm">
       <div className="mb-4">
-        <h2 className="text-lg font-semibold">Assistenza</h2>
+        <h2 className="text-lg font-semibold">Sportelli e assistenza</h2>
         <p className="text-sm text-slate-600">
-          Accettazioni occupate e pratiche in carico. Una presa in carico da più di {STALE_MINUTES}{' '}
-          minuti è probabilmente dimenticata: rimetterla in coda libera l&apos;accettazione senza
-          perdere nulla.
+          I quattro sportelli con l&apos;operatore collegato e la pratica in lavorazione, più le
+          prese in carico da sbloccare. Una presa in carico da più di {STALE_MINUTES} minuti è
+          probabilmente dimenticata: rimetterla in coda libera lo sportello senza perdere nulla.
         </p>
       </div>
 
@@ -89,39 +89,78 @@ export function AssistancePanel({ timeZone }: AssistancePanelProps) {
         <TableSkeleton rows={4} columns={5} label="Caricamento dello stato" />
       ) : (
         <>
+          {/* Una scheda per sportello fisico, con le due informazioni che l'amministratore cerca
+              quando guarda l'officina da lontano: CHI c'è e COSA sta facendo. Sono cose diverse —
+              uno sportello può avere un accettatore collegato e nessuna pratica (aspetta il
+              prossimo cliente) oppure una pratica ferma e nessuno collegato (sessione scaduta). */}
           <ul className="mb-5 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
             {data.bays.map((bay) => (
               <li
                 key={bay.bayId}
-                className={`rounded-lg border p-3 ${
+                data-testid={`sportello-${bay.code}`}
+                className={`flex flex-col gap-2 rounded-lg border p-3 ${
                   bay.occupiedBy === null
                     ? 'border-slate-200 bg-slate-50'
                     : 'border-status-in-progress bg-status-in-progress-soft'
                 }`}
               >
-                <p className="text-xs font-semibold tracking-wide text-slate-500 uppercase">
-                  {bay.name}
-                </p>
-                {bay.occupiedBy === null ? (
-                  <p className="mt-1 text-sm font-semibold text-slate-700">Libera</p>
-                ) : (
-                  <>
-                    <p className="mt-1 font-mono text-lg font-bold">{bay.occupiedBy.code}</p>
-                    <p className="text-xs text-slate-600">
-                      {bay.occupiedBy.operatorName ?? 'operatore n/d'} ·{' '}
-                      {bay.occupiedBy.minutesInProgress} min
+                <div className="flex items-baseline justify-between gap-2">
+                  <p className="text-base font-bold text-slate-900">{bay.name}</p>
+                  {bay.deskCode !== null ? <Badge tone="neutral">{bay.deskCode}</Badge> : null}
+                </div>
+
+                <div>
+                  <p className="text-[11px] font-semibold tracking-wide text-slate-500 uppercase">
+                    Operatore
+                  </p>
+                  <p className="text-sm font-semibold text-slate-800">
+                    {bay.assignedOperatorName ?? (
+                      <span className="font-normal text-slate-500">nessuno collegato</span>
+                    )}
+                    {bay.assignedSince !== null ? (
+                      <span className="font-normal text-slate-500">
+                        {' '}
+                        · dalle {localTimeHHmm(new Date(bay.assignedSince), timeZone)}
+                      </span>
+                    ) : null}
+                  </p>
+                </div>
+
+                <div>
+                  <p className="text-[11px] font-semibold tracking-wide text-slate-500 uppercase">
+                    In questo momento
+                  </p>
+                  {bay.occupiedBy === null ? (
+                    <p className="text-sm font-semibold text-slate-700">
+                      {bay.assignedOperatorName === null
+                        ? 'Sportello libero'
+                        : 'Libero · in attesa del prossimo cliente'}
                     </p>
-                    <Button
-                      size="touch"
-                      variant="outline"
-                      className="mt-2 w-full"
-                      disabled={inCorso === bay.occupiedBy.id}
-                      onClick={() => void agisci(bay.occupiedBy!, 'release')}
-                    >
-                      Libera accettazione
-                    </Button>
-                  </>
-                )}
+                  ) : (
+                    <>
+                      <p className="text-sm font-semibold text-slate-900">
+                        In lavorazione: <span className="font-mono">{bay.occupiedBy.plate}</span> ·
+                        pratica <span className="font-mono">{bay.occupiedBy.code}</span>
+                      </p>
+                      <p className="text-xs text-slate-600">
+                        {bay.occupiedBy.operatorName ?? 'operatore n/d'} · da{' '}
+                        {bay.occupiedBy.minutesInProgress} min
+                      </p>
+                    </>
+                  )}
+                </div>
+
+                {bay.occupiedBy !== null ? (
+                  <Button
+                    size="touch"
+                    variant="outline"
+                    className="w-full"
+                    disabled={inCorso === bay.occupiedBy.id}
+                    onClick={() => void agisci(bay.occupiedBy!, 'release')}
+                  >
+                    Libera sportello
+                  </Button>
+                ) : null}
               </li>
             ))}
           </ul>

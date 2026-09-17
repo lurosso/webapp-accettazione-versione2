@@ -47,6 +47,14 @@ export interface QueueDashboardProps {
    * messaggio WhatsApp. In produzione è sempre spento.
    */
   readonly debugCustomerLink?: boolean;
+  /**
+   * Monitoraggio in sola lettura (amministratore): la coda si guarda ma non si tocca. Serve a
+   * controllare come sta andando l'officina senza il rischio di prendere in carico la pratica di
+   * un collega mentre si scorre l'elenco.
+   */
+  readonly readOnly?: boolean;
+  /** Che cosa si sta monitorando ("Sportello A · FCA"), mostrato nella fascia di sola lettura. */
+  readonly monitorLabel?: string | null;
 }
 
 /** Data della giornata in formato italiano lungo. */
@@ -67,6 +75,8 @@ export function QueueDashboard({
   initialDeskId,
   manualIntakeEnabled,
   debugCustomerLink = false,
+  readOnly = false,
+  monitorLabel = null,
 }: QueueDashboardProps) {
   const router = useRouter();
   const pathname = usePathname();
@@ -247,7 +257,7 @@ export function QueueDashboard({
           ) : (
             <Badge tone="info">Riconsegne di oggi: commesse in consegna, fuori dalla coda</Badge>
           )}
-          {manualIntakeEnabled ? (
+          {manualIntakeEnabled && !readOnly ? (
             <Button variant="outline" size="touch" onClick={() => setNuovoCliente(true)}>
               Nuovo cliente (senza appuntamento)
             </Button>
@@ -292,6 +302,17 @@ export function QueueDashboard({
           </Badge>
         </div>
       </div>
+
+      {readOnly ? (
+        <Alert
+          tone="info"
+          title={`Monitoraggio in sola lettura${monitorLabel === null ? '' : `: ${monitorLabel}`}`}
+        >
+          Stai guardando la coda come amministratore: le azioni sulle pratiche sono disattivate, per
+          non toccare per sbaglio il lavoro di chi è al banco. Per intervenire davvero usa gli
+          strumenti di assistenza in Amministrazione.
+        </Alert>
+      ) : null}
 
       {view === 'desk' && currentDesk !== null && currentDesk.id !== homeDeskId ? (
         <Alert
@@ -412,6 +433,7 @@ export function QueueDashboard({
             currentOperatorName={session.displayName}
             onAction={onAction}
             selectedId={selectedId}
+            readOnly={readOnly}
             // Stessa riga toccata due volte: il pannello si chiude. Sul tablet è il gesto naturale.
             onSelect={(row) =>
               setSelectedId((corrente) =>
@@ -447,11 +469,16 @@ export function QueueDashboard({
         onClose={() => setSelectedId(null)}
         actionPending={selectedRow !== null && actions.pendingId === selectedRow.appointment.id}
         canConfirmAutoClose={canAccess('manager', session.role)}
-        onAction={(action) => {
-          if (selectedRow !== null) {
-            onAction(selectedRow.appointment.id, action, selectedRow.appointment.version);
-          }
-        }}
+        // In sola lettura il pannello resta consultabile ma senza comandi: si guarda, non si agisce.
+        onAction={
+          readOnly
+            ? undefined
+            : (action) => {
+                if (selectedRow !== null) {
+                  onAction(selectedRow.appointment.id, action, selectedRow.appointment.version);
+                }
+              }
+        }
       />
 
       {nuovoCliente && data !== undefined ? (

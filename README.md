@@ -167,6 +167,21 @@ Gli account si gestiscono da `/admin` (vedi sotto): l'amministratore ne crea di 
 li disattiva e azzera le password senza toccare il seed. Esiste anche il ruolo **Kiosk** per gli
 account dei dispositivi, che atterrano sul tabellone e non entrano nell'area operatore.
 
+**Chi vede cosa.** Dal 2026-09-17 i ruoli stanno in recinti espliciti, elencati in un solo posto
+(`AREA_ROLES` in `src/lib/navigation.ts`), che valgono per le pagine, per il menu e per le API:
+
+| Ruolo                  | Dove entra                                       |
+| ---------------------- | ------------------------------------------------ |
+| **Accettatore**        | Coda, archivio, check-in, Sistema                |
+| **Responsabile / BDC** | Solo il cruscotto BDC (`/manager`, alias `/bdc`) |
+| **Amministratore**     | Tutto                                            |
+| **Kiosk**              | Solo il tabellone della sala                     |
+
+Il BDC vive in un silos: se apre `/accettazione`, `/check-in` o `/sistema` viene riportato al proprio
+cruscotto, e le stesse rotte chiamate via API rispondono 403. Non è sfiducia, è responsabilità: la
+coda la governano gli accettatori al banco, e una pratica presa in carico da chi sta al telefono è
+una pratica che nessuno sta accettando.
+
 Al login si sceglie una sola cosa, lo **Sportello** (A, B, C o D): ogni voce porta con sé la propria
 area per marchio e i marchi serviti ("Sportello A · FCA", con i badge Fiat, Lancia, Jeep e Alfa
 Romeo sotto), e determina il filtro iniziale della coda e lo sportello proposto alla presa in
@@ -596,8 +611,20 @@ successiva. La nuova password deve avere almeno 8 caratteri ed essere diversa da
 pagina è raggiungibile anche di propria iniziativa. Nel pannello la riga mostra "Password
 provvisoria" finché il cambio non è avvenuto.
 
-**Assistenza.** Sotto l'elenco ci sono le quattro accettazioni con la pratica che le occupa e da
-quanti minuti, più tutte le pratiche in carico. _Libera accettazione_ e _Rimetti in coda_ fanno la
+**Monitoraggio dell'accettazione.** L'amministratore non siede a un banco, quindi "guarda la coda"
+è una domanda con quattro risposte possibili. Il riquadro **Monitora l'accettazione** le mette in
+fila: i quattro sportelli, ognuno con chi è collegato e cosa sta lavorando, e la **coda globale**.
+Scegliendo uno sportello si apre la coda della sua area per marchio (A e B condividono la coda FCA,
+C e D quella PSA); scegliendo la coda globale si apre tutta l'officina **in sola lettura**, con una
+fascia che lo dice e nessuna azione sulle righe, per non toccare per sbaglio il lavoro di chi è al
+banco.
+
+**Assistenza.** Sotto c'è una scheda per sportello con le due informazioni che servono da lontano:
+**a chi è assegnato** (l'operatore collegato a quella postazione, con l'ora del collegamento) e
+**cosa sta facendo adesso** ("In lavorazione: AB123CD · pratica F001" oppure "Libero · in attesa del
+prossimo cliente"). Sono cose diverse: uno sportello può avere un accettatore collegato e nessuna
+pratica, oppure una pratica ferma e nessuno collegato, e in quel secondo caso c'è qualcosa da
+sbloccare. Seguono tutte le pratiche in carico. _Libera sportello_ e _Rimetti in coda_ fanno la
 stessa cosa (la pratica torna in attesa, l'accettazione si libera) e sono reversibili, quindi
 bastano un tocco; _Annulla pratica_ chiude definitivamente e chiede un secondo tocco.
 
@@ -660,22 +687,23 @@ per i cron esterni.
 
 ### Dashboard accettazione e postazioni operatore
 
-| Rotta                    | Metodo | Descrizione                                                                                                                        | Accesso                                                   |
-| ------------------------ | ------ | ---------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------- |
-| `/accettazione`          | pagina | Coda della giornata per sportello e vista globale: prendi in carico, salta, completa, riattiva, inserimento manuale, riprova sync. | Sessione operatore (Accettatore, Manager, Amministratore) |
-| `/accettazione/archivio` | pagina | Archivio dei check-in con foto e video: ricerca per targa o codice pratica.                                                        | Sessione operatore (Accettatore, Manager, Amministratore) |
+| Rotta                    | Metodo | Descrizione                                                                                                                                                                                                     | Accesso                                                           |
+| ------------------------ | ------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------- |
+| `/accettazione`          | pagina | Coda della giornata per sportello e vista globale: prendi in carico, salta, completa, riattiva, inserimento manuale, riprova sync. Con ?sola-lettura=1 (solo amministratore) diventa monitoraggio senza azioni. | Accettatore e Amministratore (il BDC resta sul proprio cruscotto) |
+| `/accettazione/archivio` | pagina | Archivio dei check-in con foto e video: ricerca per targa o codice pratica.                                                                                                                                     | Accettatore e Amministratore (il BDC resta sul proprio cruscotto) |
 
 ### Tablet e check-in veicolo
 
-| Rotta       | Metodo | Descrizione                                                                                                                                                                    | Accesso                                                   |
-| ----------- | ------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | --------------------------------------------------------- |
-| `/check-in` | pagina | Vista tablet a tutto schermo: pratiche in attesa del mio sportello, prese in carico, video obbligatorio e foto facoltative, conclusione con conferma. Da PC rimanda alla coda. | Sessione operatore (Accettatore, Manager, Amministratore) |
-| `/tablet`   | pagina | Vecchio indirizzo del tablet: rimanda a /check-in conservando la pratica richiesta.                                                                                            | Sessione operatore (Accettatore, Manager, Amministratore) |
+| Rotta       | Metodo | Descrizione                                                                                                                                                                    | Accesso                                                           |
+| ----------- | ------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ----------------------------------------------------------------- |
+| `/check-in` | pagina | Vista tablet a tutto schermo: pratiche in attesa del mio sportello, prese in carico, video obbligatorio e foto facoltative, conclusione con conferma. Da PC rimanda alla coda. | Accettatore e Amministratore (il BDC resta sul proprio cruscotto) |
+| `/tablet`   | pagina | Vecchio indirizzo del tablet: rimanda a /check-in conservando la pratica richiesta.                                                                                            | Accettatore e Amministratore (il BDC resta sul proprio cruscotto) |
 
 ### Manager e BDC
 
 | Rotta      | Metodo | Descrizione                                                                        | Accesso                  |
 | ---------- | ------ | ---------------------------------------------------------------------------------- | ------------------------ |
+| `/bdc`     | pagina | Alias dell'indirizzo usato dal reparto: rimanda al cruscotto BDC (/manager).       | Manager e Amministratore |
 | `/manager` | pagina | Cruscotto BDC: solo i clienti assenti da ricontattare e riprogrammare su Infinity. | Manager e Amministratore |
 
 ### Amministrazione e configurazione
@@ -687,9 +715,9 @@ per i cron esterni.
 
 ### Sistema e diagnostica
 
-| Rotta      | Metodo | Descrizione                                                                                                       | Accesso                                                   |
-| ---------- | ------ | ----------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------- |
-| `/sistema` | pagina | Stato delle porte esterne (Infinity, Spoki, SMS, CRM); per l'amministratore anche la coda di uscita verso il CRM. | Sessione operatore (Accettatore, Manager, Amministratore) |
+| Rotta      | Metodo | Descrizione                                                                                                       | Accesso                                                           |
+| ---------- | ------ | ----------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------- |
+| `/sistema` | pagina | Stato delle porte esterne (Infinity, Spoki, SMS, CRM); per l'amministratore anche la coda di uscita verso il CRM. | Accettatore e Amministratore (il BDC resta sul proprio cruscotto) |
 
 ### Display di sala e monitor delle campate
 
@@ -719,17 +747,17 @@ per i cron esterni.
 
 ### API: coda e pratiche
 
-| Rotta                               | Metodo    | Descrizione                                                                                                                                                                                     | Accesso                                                                                   |
-| ----------------------------------- | --------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------- |
-| `/api/v1/queue`                     | GET       | Coda della giornata (`?date=&deskId=&view=desk oppure global`): righe arricchite, sportelli senza il token dei monitor, ultima sync, dati di riferimento. Polling della dashboard e del tablet. | Sessione operatore (Accettatore, Manager, Amministratore)                                 |
-| `/api/v1/appointments`              | POST      | Inserimento manuale di una pratica (cliente senza appuntamento) nella coda di oggi.                                                                                                             | Sessione operatore (Accettatore, Manager, Amministratore)                                 |
-| `/api/v1/appointments/:id/actions`  | POST      | Azioni sulla pratica: take, skip, complete, release, restore, no-show, reactivate, cancel, confirm-auto-close (con `expectedVersion`, 409 sui conflitti).                                       | Sessione operatore; `cancel` e `confirm-auto-close` solo Manager e Amministratore         |
-| `/api/v1/appointments/:id/check-in` | POST      | Conclude l'accettazione dal tablet: note dell'ispezione, chiusura pratica (serve il video del veicolo, le foto no), notifica al CRM.                                                            | Sessione operatore (Accettatore, Manager, Amministratore)                                 |
-| `/api/v1/appointments/:id/media`    | GET, POST | Media dell'ispezione: elenco (GET) e caricamento multipart di una foto o di un video dal tablet (POST, campo `foto`, `categoria` facoltativa).                                                  | Sessione operatore (Accettatore, Manager, Amministratore)                                 |
-| `/api/v1/media/:key`                | GET       | Rilegge una foto o un video dell'ispezione dallo storage.                                                                                                                                       | Sessione operatore (Accettatore, Manager, Amministratore)                                 |
-| `/api/v1/inspections/archive`       | GET       | Storico dei check-in con i media acquisiti (`?q=` targa o codice; vuoto = ultimi cinquanta).                                                                                                    | Sessione operatore (Accettatore, Manager, Amministratore)                                 |
-| `/api/v1/events/stream`             | GET       | Eventi in tempo reale (SSE) per l'area operatore: segnala cosa è cambiato, i dati si rileggono dagli endpoint.                                                                                  | Sessione operatore (Accettatore, Manager, Amministratore)                                 |
-| `/api/v1/sync`                      | POST      | Sincronizzazione manuale dell'agenda Infinity di oggi.                                                                                                                                          | Manager e Amministratore; Accettatore solo come «Riprova» dopo una sync fallita o assente |
+| Rotta                               | Metodo    | Descrizione                                                                                                                                                                                     | Accesso                                                                                                |
+| ----------------------------------- | --------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------ |
+| `/api/v1/queue`                     | GET       | Coda della giornata (`?date=&deskId=&view=desk oppure global`): righe arricchite, sportelli senza il token dei monitor, ultima sync, dati di riferimento. Polling della dashboard e del tablet. | Accettatore e Amministratore (il BDC resta sul proprio cruscotto)                                      |
+| `/api/v1/appointments`              | POST      | Inserimento manuale di una pratica (cliente senza appuntamento) nella coda di oggi.                                                                                                             | Accettatore e Amministratore (il BDC resta sul proprio cruscotto)                                      |
+| `/api/v1/appointments/:id/actions`  | POST      | Azioni sulla pratica: take, skip, complete, release, restore, no-show, reactivate, cancel, confirm-auto-close (con `expectedVersion`, 409 sui conflitti).                                       | Accettatore e Amministratore; `cancel`, `release` e `confirm-auto-close` solo Manager e Amministratore |
+| `/api/v1/appointments/:id/check-in` | POST      | Conclude l'accettazione dal tablet: note dell'ispezione, chiusura pratica (serve il video del veicolo, le foto no), notifica al CRM.                                                            | Accettatore e Amministratore (il BDC resta sul proprio cruscotto)                                      |
+| `/api/v1/appointments/:id/media`    | GET, POST | Media dell'ispezione: elenco (GET) e caricamento multipart di una foto o di un video dal tablet (POST, campo `foto`, `categoria` facoltativa).                                                  | Accettatore e Amministratore (il BDC resta sul proprio cruscotto)                                      |
+| `/api/v1/media/:key`                | GET       | Rilegge una foto o un video dell'ispezione dallo storage.                                                                                                                                       | Accettatore e Amministratore (il BDC resta sul proprio cruscotto)                                      |
+| `/api/v1/inspections/archive`       | GET       | Storico dei check-in con i media acquisiti (`?q=` targa o codice; vuoto = ultimi cinquanta).                                                                                                    | Accettatore e Amministratore (il BDC resta sul proprio cruscotto)                                      |
+| `/api/v1/events/stream`             | GET       | Eventi in tempo reale (SSE) per l'area operatore: segnala cosa è cambiato, i dati si rileggono dagli endpoint.                                                                                  | Sessione operatore (Accettatore, Manager, Amministratore)                                              |
+| `/api/v1/sync`                      | POST      | Sincronizzazione manuale dell'agenda Infinity di oggi.                                                                                                                                          | Manager e Amministratore; Accettatore solo come «Riprova» dopo una sync fallita o assente              |
 
 ### API: pubbliche (portale cliente, monitor, tabellone)
 

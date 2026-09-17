@@ -6,6 +6,7 @@ import type { NextRequest, NextResponse } from 'next/server';
 import type { Session } from '@/application/auth/IAuthService';
 import { SESSION_COOKIE_NAME } from '@/config/auth';
 import { getContainer } from '@/config/container';
+import { redirectForForbiddenArea, type ProtectedArea } from '@/lib/navigation';
 
 /** Sessione corrente dai cookie della richiesta (Server Component), null se assente o non valida. */
 export async function readSession(): Promise<Session | null> {
@@ -33,6 +34,20 @@ export async function requireSession(nextPath: string): Promise<Session> {
   }
   if (session.mustChangePassword) {
     redirect(`${CHANGE_PASSWORD_PATH}?next=${encodeURIComponent(nextPath)}`);
+  }
+  return session;
+}
+
+/**
+ * Sessione più controllo dell'area: chi non ci può stare viene rimandato alla propria dashboard,
+ * non a una pagina di errore. È il recinto del BDC — bussa alla coda, si ritrova sul cruscotto
+ * degli assenti, che è dove lavora — e vale per qualunque ruolo fuori posto.
+ */
+export async function requireArea(area: ProtectedArea, nextPath: string): Promise<Session> {
+  const session = await requireSession(nextPath);
+  const altrove = redirectForForbiddenArea(area, session.role);
+  if (altrove !== null) {
+    redirect(altrove);
   }
   return session;
 }

@@ -12,6 +12,7 @@ import type {
   IAppointmentRepository,
   IOperatorRepository,
   IReferenceDataRepository,
+  IWorkstationClaimRepository,
 } from '@/repositories/interfaces';
 import type { IClock } from '@/services/interfaces/IClock';
 
@@ -19,6 +20,8 @@ export interface AssistanceServiceDeps {
   readonly appointments: IAppointmentRepository;
   readonly referenceData: IReferenceDataRepository;
   readonly operators: IOperatorRepository;
+  /** Chi è collegato a quale postazione: dice a chi è assegnato uno sportello anche se è fermo. */
+  readonly claims: IWorkstationClaimRepository;
   readonly clock: IClock;
 }
 
@@ -36,10 +39,27 @@ export interface StuckAppointmentView {
   readonly minutesInProgress: number;
 }
 
+/**
+ * Uno dei quattro sportelli fisici visto dall'amministratore: a chi è assegnato e cosa ci sta
+ * succedendo adesso. Due informazioni diverse, e vanno distinte: uno sportello può avere un
+ * accettatore collegato e nessuna pratica in corso (è libero, aspetta il prossimo cliente) oppure
+ * una pratica in corso e nessun collegato (chi l'aveva presa è uscito, la sessione è scaduta).
+ */
 export interface BayAssistanceView {
   readonly bayId: string;
+  /** Lettera dello sportello (A, B, C, D). */
   readonly code: string;
   readonly name: string;
+  /** Area per marchio a cui appartiene (FCA/PSA): serve al monitoraggio dell'amministratore. */
+  readonly deskId: string | null;
+  readonly deskCode: string | null;
+  /** Postazione corrispondente, se configurata. */
+  readonly workstationId: string | null;
+  /** Operatore collegato a quella postazione adesso; null se non c'è nessuno. */
+  readonly assignedOperatorName: string | null;
+  /** Da quando è collegato. */
+  readonly assignedSince: IsoDateTime | null;
+  /** Pratica in lavorazione sullo sportello; null se è libero. */
   readonly occupiedBy: StuckAppointmentView | null;
 }
 
@@ -56,10 +76,13 @@ export class AssistanceService {
 
   async overview(businessDate: IsoDate): Promise<AssistanceView> {
     const now = this.deps.clock.now();
-    const [inCarico, bays, desks] = await Promise.all([
+    const adesso = this.deps.clock.nowIso();
+    const [inCarico, bays, desks, workstations, claims] = await Promise.all([
       this.deps.appointments.listByDate(businessDate, { statuses: ['IN_PROGRESS'] }),
       this.deps.referenceData.listBays(),
       this.deps.referenceData.listDesks(),
+      this.deps.referenceData.listWorkstations(),
+      this.deps.claims.listActive(adesso),
     ]);
 
     const viste = await Promise.all(inCarico.map(async (a) => this.toView(a, now, desks, bays)));
@@ -67,15 +90,29 @@ export class AssistanceService {
 
     return {
       businessDate,
-      serverTime: this.deps.clock.nowIso(),
+      serverTime: adesso,
       bays: bays
         .filter((b) => b.isActive)
-        .map((b) => ({
-          bayId: b.id,
-          code: b.code,
-          name: b.name,
-          occupiedBy: viste.find((v) => v.bayCode === b.code) ?? null,
-        })),
+        .map((b) => {
+          // La postazione di uno sportello è quella che lo ha come campata predefinita: è la
+          // corrispondenza fisica fra il banco e il PC che ci sta sopra.
+          const postazione = workstations.find((w) => w.defaultBayId === b.id) ?? null;
+          const claim =
+            postazione === null ? undefined : claims.find((c) => c.workstationId === postazione.id);
+          const desk =
+            postazione === null ? null : (desks.find((d) => d.id === postazione.deskId) ?? null);
+          return {
+            bayId: b.id,
+            code: b.code,
+            name: b.name,
+            deskId: desk?.id ?? null,
+            deskCode: desk?.code ?? null,
+            workstationId: postazione?.id ?? null,
+            assignedOperatorName: claim?.operatorName ?? null,
+            assignedSince: claim?.claimedAt ?? null,
+            occupiedBy: viste.find((v) => v.bayCode === b.code) ?? null,
+          };
+        }),
       inProgress: viste,
     };
   }

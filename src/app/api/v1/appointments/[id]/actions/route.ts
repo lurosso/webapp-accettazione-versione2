@@ -47,6 +47,14 @@ export async function POST(request: NextRequest, context: RouteContext): Promise
   if (session === null) {
     return unauthorizedResponse();
   }
+  // Silos del BDC: la coda è dei banchi (e dell'amministratore che controlla). Il controllo sta
+  // anche qui, non solo sulla pagina: una sessione vale per l'API come per il browser.
+  if (!canAccess('accettazione', session.role)) {
+    return forbiddenResponse(
+      "La coda dell'accettazione è riservata agli accettatori e all'amministratore.",
+    );
+  }
+
   const raw: unknown = await request.json().catch(() => null);
   const parsed = ActionBody.safeParse(raw);
   if (!parsed.success) {

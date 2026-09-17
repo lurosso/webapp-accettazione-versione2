@@ -12,6 +12,7 @@
 import type { Session } from '@/application/auth/IAuthService';
 import { AssistancePanel } from './AssistancePanel';
 import { CloseDayPanel } from './CloseDayPanel';
+import { MonitorPanel } from './MonitorPanel';
 import { DailyReportPanel } from './DailyReportPanel';
 import { OperatorsPanel } from './OperatorsPanel';
 import { SpokiPanel } from './SpokiPanel';
@@ -34,6 +35,7 @@ export function AdminDashboard({ session, businessDate, timeZone }: AdminDashboa
         </p>
       </header>
       <DailyReportPanel businessDate={businessDate} />
+      <MonitorPanel timeZone={timeZone} />
       <CloseDayPanel businessDate={businessDate} />
       <OperatorsPanel currentOperatorId={session.operatorId} />
       <AssistancePanel timeZone={timeZone} />

@@ -375,6 +375,7 @@ export function createContainer(overrides: ContainerOverrides = {}): Container {
     appointments: repos.appointments,
     referenceData: repos.referenceData,
     operators: repos.operators,
+    claims: repos.workstationClaims,
     clock,
   });
 

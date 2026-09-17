@@ -2,7 +2,7 @@
 // tablet. Stessa sessione e stessi permessi della dashboard; cambia tutto il resto: niente
 // intestazione del sito, schede grandi, giro fotografico a tutto schermo.
 import type { Metadata } from 'next';
-import { requireSession } from '@/app/_server/session';
+import { requireArea } from '@/app/_server/session';
 import { getContainer } from '@/config/container';
 import { CHECK_IN_PARAM } from '@/lib/navigation';
 import { CheckInQueue } from '@/modules/inspection-media/CheckInQueue';
@@ -16,7 +16,7 @@ interface CheckInPageProps {
 }
 
 export default async function CheckInPage({ searchParams }: CheckInPageProps) {
-  const [session, params] = await Promise.all([requireSession('/check-in'), searchParams]);
+  const [session, params] = await Promise.all([requireArea('check-in', '/check-in'), searchParams]);
   const container = getContainer();
   const workstation = await container.repos.referenceData.findWorkstationById(
     session.workstationId,
