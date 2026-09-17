@@ -58,6 +58,12 @@ export interface BayAssistanceView {
   readonly workstationId: string | null;
   /** Operatore collegato a quella postazione adesso; null se non c'è nessuno. */
   readonly assignedOperatorName: string | null;
+  /**
+   * Id dello stesso operatore. Serve alla vista "Persone e postazioni" per unire l'anagrafica e
+   * il monitoraggio senza appaiare per nome: due colleghi omonimi non sono un'ipotesi da escludere
+   * in una concessionaria, e un accoppiamento sbagliato mostrerebbe la pratica di uno sull'altro.
+   */
+  readonly assignedOperatorId: string | null;
   /** Da quando è collegato. */
   readonly assignedSince: IsoDateTime | null;
   /** Pratica in lavorazione sullo sportello; null se è libero. */
@@ -198,6 +204,7 @@ export class AssistanceService {
             deskCode: desk?.code ?? null,
             workstationId: postazione?.id ?? null,
             assignedOperatorName: claim?.operatorName ?? null,
+            assignedOperatorId: claim?.operatorId ?? null,
             assignedSince: claim?.claimedAt ?? null,
             occupiedBy: viste.find((v) => v.bayCode === b.code) ?? null,
           };

@@ -39,11 +39,15 @@ const SEZIONI = [
   { id: 'oggi', label: 'Oggi', descrizione: 'La fila adesso e i numeri della giornata' },
   {
     id: 'monitoraggio',
-    label: 'Monitoraggio',
+    label: 'Monitoraggio operativo',
     descrizione: 'Sportelli, code e pratiche da sbloccare',
   },
   { id: 'sistema', label: 'Sistema', descrizione: 'Chiusura giornata e messaggi al cliente' },
-  { id: 'utenti', label: 'Utenti e accessi', descrizione: 'Account, ruoli e password' },
+  {
+    id: 'utenti',
+    label: 'Persone e postazioni',
+    descrizione: 'Account, ruoli, sportelli e chi è collegato adesso',
+  },
 ] as const;
 
 type SezioneId = (typeof SEZIONI)[number]['id'];
@@ -67,17 +71,17 @@ export function AdminDashboard({ session, businessDate, timeZone }: AdminDashboa
   const corrente = SEZIONI.find((s) => s.id === sezione) ?? SEZIONI[0];
 
   return (
-    <div className="flex flex-col gap-6">
+    <div className="flex flex-col gap-8">
       <header className="flex flex-col gap-1">
-        <h1 className="text-2xl font-bold tracking-tight">Amministrazione</h1>
-        <p className="text-sm text-slate-600">{corrente.descrizione}.</p>
+        <h1 className="text-ink text-2xl font-bold tracking-tight">Amministrazione</h1>
+        <p className="text-ink-soft text-sm">{corrente.descrizione}.</p>
       </header>
 
       {/* Schede: bersagli da 44 px, vanno a capo su un portatile o su un iPad. */}
       <div
         role="tablist"
         aria-label="Sezioni dell'amministrazione"
-        className="flex flex-wrap gap-1 rounded-xl bg-slate-100 p-1"
+        className="bg-surface-sunken flex flex-wrap gap-1 rounded-lg p-1"
       >
         {SEZIONI.map((s) => (
           <button
@@ -90,10 +94,10 @@ export function AdminDashboard({ session, businessDate, timeZone }: AdminDashboa
             data-testid={`tab-${s.id}`}
             onClick={() => vaiA(s.id)}
             className={cn(
-              'focus-visible:ring-brand-blue-light min-h-11 flex-1 rounded-lg px-4 text-sm font-semibold whitespace-nowrap transition-colors focus-visible:ring-2 focus-visible:outline-none',
+              'focus-anello premibile min-h-touch flex-1 rounded-md px-5 text-sm font-semibold whitespace-nowrap',
               sezione === s.id
-                ? 'bg-brand-secondary text-white shadow-sm'
-                : 'text-slate-700 hover:bg-white/70',
+                ? 'bg-brand-secondary text-white shadow-xs'
+                : 'text-ink-soft hover:bg-surface/70',
             )}
           >
             {s.label}
@@ -105,7 +109,7 @@ export function AdminDashboard({ session, businessDate, timeZone }: AdminDashboa
         role="tabpanel"
         id={`pannello-${sezione}`}
         aria-labelledby={`tab-${sezione}`}
-        className="flex flex-col gap-6"
+        className="flex flex-col gap-8"
       >
         {sezione === 'oggi' ? (
           <>

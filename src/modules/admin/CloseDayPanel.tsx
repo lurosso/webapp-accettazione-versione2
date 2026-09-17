@@ -14,6 +14,7 @@ import { useState } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import { Button } from '@/components/ui/button';
 import { Dialog } from '@/components/ui/dialog';
+import { Panel, PanelHeader } from '@/components/ui/panel';
 import { bdcKeys } from '@/hooks/useBdcLeads';
 import { ApiError, postCloseDay } from '@/lib/api-client/client';
 import { queueKeys } from '@/lib/api-client/query-keys';
@@ -65,25 +66,21 @@ export function CloseDayPanel({ businessDate }: CloseDayPanelProps) {
   };
 
   return (
-    <section className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm sm:p-6">
-      <div className="flex flex-wrap items-start justify-between gap-3">
-        <div>
-          <h2 className="text-lg font-semibold text-slate-900">Chiusura della giornata</h2>
-          <p className="text-sm text-slate-600">
-            A officina chiusa non deve restare nulla di aperto. Si esegue a fine turno, sulla
-            giornata {businessDate}; di norma ci pensa il sistema alla chiusura automatica.
-          </p>
-        </div>
-        <Button
-          variant="destructive"
-          size="touch"
-          onClick={() => setConferma(true)}
-          disabled={inCorso}
-          data-testid="chiudi-giornata"
-        >
-          {inCorso ? 'Chiusura in corso…' : 'Esegui chiusura giornata'}
-        </Button>
-      </div>
+    <Panel>
+      <PanelHeader
+        title="Chiusura della giornata"
+        description={`A officina chiusa non deve restare nulla di aperto. Si esegue a fine turno, sulla giornata ${businessDate}; di norma ci pensa il sistema alla chiusura automatica.`}
+        actions={
+          <Button
+            variant="destructive"
+            onClick={() => setConferma(true)}
+            disabled={inCorso}
+            data-testid="chiudi-giornata"
+          >
+            {inCorso ? 'Chiusura in corso…' : 'Esegui chiusura giornata'}
+          </Button>
+        }
+      />
 
       {esito !== null ? (
         <p
@@ -133,6 +130,6 @@ export function CloseDayPanel({ businessDate }: CloseDayPanelProps) {
           <li>Le pratiche già completate o già chiuse non vengono toccate.</li>
         </ul>
       </Dialog>
-    </section>
+    </Panel>
   );
 }

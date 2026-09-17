@@ -14,6 +14,7 @@ import {
 } from '@/application/messaging/SpokiDiagnosticsService';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
+import { Panel } from '@/components/ui/panel';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select } from '@/components/ui/select';
@@ -74,11 +75,7 @@ export function SpokiPanel({ timeZone }: SpokiPanelProps) {
   };
 
   return (
-    <section
-      id="spoki"
-      className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm sm:p-6"
-      aria-labelledby="spoki-titolo"
-    >
+    <Panel id="spoki" aria-labelledby="spoki-titolo">
       <div className="mb-4 flex flex-wrap items-start justify-between gap-3">
         <div>
           <h2 id="spoki-titolo" className="text-lg font-semibold">
@@ -308,7 +305,7 @@ export function SpokiPanel({ timeZone }: SpokiPanelProps) {
                             ? `${e.outcome.httpStatus ?? 200} OK`
                             : (e.outcome.error ?? 'errore')}
                         </Badge>
-                        <span className="ml-auto text-xs text-slate-400">{e.templateKey}</span>
+                        <span className="text-ink-muted ml-auto text-xs">{e.templateKey}</span>
                       </summary>
                       <pre className="mt-2 overflow-x-auto rounded-md bg-slate-900 p-3 text-xs leading-relaxed text-slate-100">
                         {JSON.stringify(
@@ -373,6 +370,6 @@ export function SpokiPanel({ timeZone }: SpokiPanelProps) {
           </div>
         </div>
       )}
-    </section>
+    </Panel>
   );
 }

@@ -1,11 +1,23 @@
 'use client';
 
-// Gestione degli operatori: tabella e form in una finestra. Il form serve sia a creare sia a
-// modificare, così l'amministratore impara un solo schermo; il nome utente si imposta alla
-// creazione e poi non si tocca (è la chiave dei log). La password provvisoria del reset si mostra
-// una volta sola: chi la legge la detta al collega, e da quel momento esiste solo il suo hash.
-import { useState } from 'react';
+// Persone e postazioni: chi può entrare, con che ruolo, su quali sportelli — e dov'è adesso.
+//
+// Prima queste informazioni stavano in tre posti diversi: l'anagrafica qui, chi era collegato a
+// quale campata nel pannello di monitoraggio, la scelta dello sportello in una terza griglia. Per
+// rispondere a «chi sta lavorando alla campata 2 e come si chiama il suo account» un amministratore
+// doveva guardare in tre punti e appaiare i nomi a mente. Una riga per persona, e la colonna
+// «Dov'è adesso» tiene insieme le tre viste: l'unione è fatta sull'id dell'operatore, non sul nome,
+// perché due colleghi omonimi non sono un'ipotesi da escludere in una concessionaria.
+//
+// Il monitoraggio è un di più: se la sua lettura fallisce l'elenco delle persone resta in piedi e
+// la colonna dice «n/d». L'anagrafica non deve mai dipendere da una vista in tempo reale.
+//
+// La riga ha una sola azione, «Modifica»: reset della password e disattivazione erano due pulsanti
+// su ogni riga — diciotto pulsanti in una tabella da sei persone — e adesso stanno dentro la scheda
+// della persona, che è dove si va quando si vuole fare qualcosa a qualcuno.
+import { useMemo, useState } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
+import type { StuckAppointmentView } from '@/application/admin/AssistanceService';
 import type {
   CreateOperatorInput,
   OperatorView,
@@ -17,6 +29,7 @@ import { Button } from '@/components/ui/button';
 import { Dialog } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { Panel, PanelHeader } from '@/components/ui/panel';
 import { Select } from '@/components/ui/select';
 import { TableSkeleton } from '@/components/ui/skeleton';
 import {
@@ -31,16 +44,24 @@ import { ROLE_LABELS } from '@/components/shared/OperatorChip';
 import {
   ApiError,
   fetchAdminOperators,
+  fetchAssistance,
   patchAdminOperator,
   postAdminOperator,
   postAdminResetPassword,
 } from '@/lib/api-client/client';
+import { cn } from '@/lib/utils/cn';
 
 export interface OperatorsPanelProps {
   readonly currentOperatorId: string;
 }
 
 const RUOLI: readonly OperatorRole[] = ['ADVISOR', 'SUPERVISOR', 'ADMIN', 'KIOSK'];
+
+/** Dove si trova una persona in questo momento, ricavato dal monitoraggio degli sportelli. */
+interface Postazione {
+  readonly sportello: string;
+  readonly pratica: StuckAppointmentView | null;
+}
 
 interface FormState {
   readonly username: string;
@@ -66,6 +87,12 @@ export function OperatorsPanel({ currentOperatorId }: OperatorsPanelProps) {
     queryKey: ['admin-operators'] as const,
     queryFn: fetchAdminOperators,
   });
+  // Stessa chiave del pannello di monitoraggio: una sola lettura per entrambe le schede.
+  const monitoraggio = useQuery({
+    queryKey: ['admin-assistance'] as const,
+    queryFn: fetchAssistance,
+    refetchInterval: 10_000,
+  });
   const [editing, setEditing] = useState<OperatorView | 'nuovo' | null>(null);
   const [form, setForm] = useState<FormState>(FORM_VUOTO);
   const [errore, setErrore] = useState<string | null>(null);
@@ -74,6 +101,21 @@ export function OperatorsPanel({ currentOperatorId }: OperatorsPanelProps) {
     operatore: string;
     password: string;
   } | null>(null);
+
+  /** Operatore collegato → sportello occupato e pratica in lavorazione. */
+  const postazioni = useMemo(() => {
+    const mappa = new Map<string, Postazione>();
+    for (const sportello of monitoraggio.data?.bays ?? []) {
+      if (sportello.assignedOperatorId === null) {
+        continue;
+      }
+      mappa.set(sportello.assignedOperatorId, {
+        sportello: sportello.name,
+        pratica: sportello.occupiedBy,
+      });
+    }
+    return mappa;
+  }, [monitoraggio.data]);
 
   const apri = (op: OperatorView | 'nuovo'): void => {
     setErrore(null);
@@ -132,6 +174,7 @@ export function OperatorsPanel({ currentOperatorId }: OperatorsPanelProps) {
     try {
       await patchAdminOperator(op.id, { isActive: !op.isActive });
       await queryClient.invalidateQueries({ queryKey: ['admin-operators'] });
+      setEditing(null);
     } catch (cause) {
       setErrore(cause instanceof ApiError ? cause.message : 'Operazione non riuscita.');
     }
@@ -141,6 +184,7 @@ export function OperatorsPanel({ currentOperatorId }: OperatorsPanelProps) {
     setErrore(null);
     try {
       const esito = await postAdminResetPassword(op.id);
+      setEditing(null);
       setPasswordProvvisoria({ operatore: op.displayName, password: esito.temporaryPassword });
       // La riga deve mostrare subito il segnale "Password provvisoria".
       await queryClient.invalidateQueries({ queryKey: ['admin-operators'] });
@@ -150,106 +194,135 @@ export function OperatorsPanel({ currentOperatorId }: OperatorsPanelProps) {
   };
 
   const data = query.data;
+  const monitoraggioRotto = monitoraggio.isError;
 
   return (
-    <section className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm sm:p-6">
-      <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
-        <div>
-          <h2 className="text-lg font-semibold text-slate-900">Utenti e accessi</h2>
-          <p className="text-sm text-slate-600">
-            Tutti gli account del sistema in un elenco solo — accettatori, BDC, amministratori e
-            dispositivi kiosk — con le azioni sulla riga: modifica, reset della password,
-            disattivazione. Un operatore disattivato non entra più, ma resta nei registri.
-          </p>
-        </div>
-        <Button size="touch" onClick={() => apri('nuovo')}>
-          Nuovo operatore
-        </Button>
-      </div>
+    <Panel>
+      <PanelHeader
+        title="Persone e postazioni"
+        description="Tutti gli account del sistema in un elenco solo — accettatori, BDC, amministratori e dispositivi kiosk — con lo sportello a cui sono collegati adesso. Un operatore disattivato non entra più, ma resta nei registri."
+        actions={<Button onClick={() => apri('nuovo')}>Nuova persona</Button>}
+      />
 
       {errore !== null ? (
-        <p role="alert" className="mb-3 rounded-md bg-red-50 px-3 py-2 text-sm text-red-800">
+        <p
+          role="alert"
+          className="bg-status-no-show-soft text-status-no-show-ink mb-4 rounded-md px-4 py-3 text-sm"
+        >
           {errore}
         </p>
       ) : null}
 
       {query.isPending ? (
-        <TableSkeleton rows={5} columns={6} label="Caricamento degli operatori" />
+        <TableSkeleton rows={5} columns={6} label="Caricamento delle persone" />
       ) : query.isError || data === undefined ? (
-        <p role="alert" className="text-sm text-red-800">
+        <p role="alert" className="text-status-no-show-ink text-sm">
           Elenco non disponibile: riprova fra qualche istante.
         </p>
       ) : (
         <Table>
           <TableHeader>
             <TableRow>
-              <TableHead className="pt-3">Nome</TableHead>
-              <TableHead className="pt-3">Utente</TableHead>
-              <TableHead className="pt-3">Ruolo</TableHead>
-              <TableHead className="pt-3">Sportelli</TableHead>
-              <TableHead className="pt-3">Stato</TableHead>
-              <TableHead className="pt-3">Azioni</TableHead>
+              <TableHead>Persona</TableHead>
+              <TableHead>Ruolo</TableHead>
+              <TableHead>Sportelli</TableHead>
+              <TableHead>Dov&apos;è adesso</TableHead>
+              <TableHead>Account</TableHead>
+              <TableHead>
+                <span className="sr-only">Azioni</span>
+              </TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
-            {data.operators.map((op) => (
-              <TableRow key={op.id} className={op.isActive ? undefined : 'text-slate-500'}>
-                <TableCell className="font-semibold text-slate-900">
-                  {op.displayName}
-                  {op.id === currentOperatorId ? (
-                    <span className="ml-1 font-normal text-slate-500">(tu)</span>
-                  ) : null}
-                </TableCell>
-                <TableCell className="font-mono">{op.username}</TableCell>
-                <TableCell>{ROLE_LABELS[op.role]}</TableCell>
-                <TableCell>
-                  {op.deskCodes.length === 0 ? (
-                    <span className="text-slate-400">—</span>
-                  ) : (
-                    op.deskCodes.join(', ')
-                  )}
-                </TableCell>
-                <TableCell>
-                  <div className="flex flex-wrap gap-1">
-                    {op.isActive ? (
-                      <Badge tone="success">Attivo</Badge>
+            {data.operators.map((op) => {
+              const dove = postazioni.get(op.id);
+              return (
+                <TableRow key={op.id} className={op.isActive ? undefined : 'text-ink-muted'}>
+                  <TableCell>
+                    <span className="flex flex-col gap-0.5">
+                      <span className={cn('font-semibold', op.isActive && 'text-ink')}>
+                        {op.displayName}
+                        {op.id === currentOperatorId ? (
+                          <span className="text-ink-muted ml-1.5 font-normal">(tu)</span>
+                        ) : null}
+                      </span>
+                      <span className="text-ink-muted font-mono text-xs">{op.username}</span>
+                    </span>
+                  </TableCell>
+                  <TableCell className="whitespace-nowrap">{ROLE_LABELS[op.role]}</TableCell>
+                  <TableCell>
+                    {op.deskCodes.length === 0 ? (
+                      <span className="text-ink-muted">—</span>
                     ) : (
-                      <Badge tone="neutral">Inattivo</Badge>
+                      <span className="flex flex-wrap gap-1.5">
+                        {op.deskCodes.map((codice) => (
+                          <span
+                            key={codice}
+                            className="bg-surface-sunken text-ink-soft rounded-sm px-2 py-0.5 text-xs font-semibold"
+                          >
+                            {codice}
+                          </span>
+                        ))}
+                      </span>
                     )}
-                    {op.mustChangePassword ? (
-                      <Badge tone="warning" title="Deve cambiare la password al prossimo accesso">
-                        Password provvisoria
-                      </Badge>
-                    ) : null}
-                  </div>
-                </TableCell>
-                <TableCell>
-                  <div className="flex flex-wrap gap-2">
-                    <Button size="touch" variant="outline" onClick={() => apri(op)}>
+                  </TableCell>
+                  <TableCell>
+                    {monitoraggioRotto ? (
+                      <span className="text-ink-muted" title="Monitoraggio non raggiungibile">
+                        n/d
+                      </span>
+                    ) : dove === undefined ? (
+                      <span className="text-ink-muted">non collegato</span>
+                    ) : (
+                      <span className="flex flex-col gap-0.5">
+                        <span className="text-ink font-medium">{dove.sportello}</span>
+                        {dove.pratica === null ? (
+                          <span className="text-ink-muted text-xs">
+                            libero, nessuna pratica in corso
+                          </span>
+                        ) : (
+                          <span className="text-status-in-progress-ink text-xs font-semibold">
+                            <span className="font-mono">{dove.pratica.code}</span> ·{' '}
+                            <span className="font-mono">{dove.pratica.plate}</span> da{' '}
+                            {dove.pratica.minutesInProgress} min
+                          </span>
+                        )}
+                      </span>
+                    )}
+                  </TableCell>
+                  <TableCell>
+                    <div className="flex flex-wrap gap-1.5">
+                      {op.isActive ? (
+                        <Badge tone="success" dot>
+                          Attivo
+                        </Badge>
+                      ) : (
+                        <Badge tone="neutral" dot>
+                          Inattivo
+                        </Badge>
+                      )}
+                      {op.mustChangePassword ? (
+                        <Badge tone="warning" title="Deve cambiare la password al prossimo accesso">
+                          Password provvisoria
+                        </Badge>
+                      ) : null}
+                    </div>
+                  </TableCell>
+                  <TableCell className="text-right">
+                    <Button size="sm" variant="outline" onClick={() => apri(op)}>
                       Modifica
                     </Button>
-                    <Button size="touch" variant="ghost" onClick={() => void azzeraPassword(op)}>
-                      Reset password
-                    </Button>
-                    <Button
-                      size="touch"
-                      variant={op.isActive ? 'destructive' : 'secondary'}
-                      disabled={op.id === currentOperatorId}
-                      onClick={() => void cambiaStato(op)}
-                    >
-                      {op.isActive ? 'Disattiva' : 'Riattiva'}
-                    </Button>
-                  </div>
-                </TableCell>
-              </TableRow>
-            ))}
+                  </TableCell>
+                </TableRow>
+              );
+            })}
           </TableBody>
         </Table>
       )}
 
       <Dialog
         open={editing !== null}
-        title={editing === 'nuovo' ? 'Nuovo operatore' : `Modifica ${form.displayName}`}
+        title={editing === 'nuovo' ? 'Nuova persona' : `Modifica ${form.displayName}`}
         onClose={() => setEditing(null)}
         footer={
           <>
@@ -263,13 +336,13 @@ export function OperatorsPanel({ currentOperatorId }: OperatorsPanelProps) {
         }
       >
         <form
-          className="flex flex-col gap-3"
+          className="flex flex-col gap-4"
           onSubmit={(event) => {
             event.preventDefault();
             void salva();
           }}
         >
-          <div className="flex flex-col gap-1">
+          <div className="flex flex-col gap-1.5">
             <Label htmlFor="op-username">Nome utente</Label>
             <Input
               id="op-username"
@@ -280,7 +353,7 @@ export function OperatorsPanel({ currentOperatorId }: OperatorsPanelProps) {
               placeholder="nome.cognome"
             />
           </div>
-          <div className="flex flex-col gap-1">
+          <div className="flex flex-col gap-1.5">
             <Label htmlFor="op-nome">Nome da mostrare</Label>
             <Input
               id="op-nome"
@@ -288,7 +361,7 @@ export function OperatorsPanel({ currentOperatorId }: OperatorsPanelProps) {
               onChange={(e) => setForm({ ...form, displayName: e.target.value })}
             />
           </div>
-          <div className="flex flex-col gap-1">
+          <div className="flex flex-col gap-1.5">
             <Label htmlFor="op-ruolo">Ruolo</Label>
             <Select
               id="op-ruolo"
@@ -302,17 +375,22 @@ export function OperatorsPanel({ currentOperatorId }: OperatorsPanelProps) {
               ))}
             </Select>
           </div>
-          <fieldset className="flex flex-col gap-1">
-            <legend className="text-sm font-medium text-slate-700">Sportelli assegnati</legend>
+          <fieldset className="flex flex-col gap-1.5">
+            <legend className="text-ink-soft mb-1.5 text-sm font-medium">
+              Sportelli assegnati
+            </legend>
             <div className="flex flex-wrap gap-2">
               {(data?.desks ?? []).map((d) => {
                 const scelto = form.deskIds.includes(d.id);
                 return (
                   <label
                     key={d.id}
-                    className={`flex min-h-11 cursor-pointer items-center gap-2 rounded-md border px-3 py-2 text-sm ${
-                      scelto ? 'border-brand-secondary bg-slate-50' : 'border-slate-300'
-                    }`}
+                    className={cn(
+                      'min-h-touch transizione flex cursor-pointer items-center gap-2.5 rounded-md border px-3.5 text-sm',
+                      scelto
+                        ? 'border-brand-secondary bg-surface-sunken text-ink font-medium'
+                        : 'border-line text-ink-soft',
+                    )}
                   >
                     <input
                       type="checkbox"
@@ -332,7 +410,7 @@ export function OperatorsPanel({ currentOperatorId }: OperatorsPanelProps) {
               })}
             </div>
           </fieldset>
-          <div className="flex flex-col gap-1">
+          <div className="flex flex-col gap-1.5">
             <Label htmlFor="op-postazione">Sportello predefinito</Label>
             <Select
               id="op-postazione"
@@ -348,7 +426,7 @@ export function OperatorsPanel({ currentOperatorId }: OperatorsPanelProps) {
             </Select>
           </div>
           {editing === 'nuovo' ? (
-            <div className="flex flex-col gap-1">
+            <div className="flex flex-col gap-1.5">
               <Label htmlFor="op-password">Password iniziale (almeno 8 caratteri)</Label>
               <Input
                 id="op-password"
@@ -358,32 +436,62 @@ export function OperatorsPanel({ currentOperatorId }: OperatorsPanelProps) {
                 onChange={(e) => setForm({ ...form, password: e.target.value })}
               />
             </div>
-          ) : (
-            <p className="text-xs text-slate-500">
-              La password si cambia con &ldquo;Reset password&rdquo; dalla tabella.
-            </p>
-          )}
+          ) : null}
         </form>
+
+        {/* Azioni sull'account: qui, non su ogni riga della tabella. Sono cose che si fanno a una
+            persona precisa dopo averla aperta, non scorrendo l'elenco. */}
+        {editing !== null && editing !== 'nuovo' ? (
+          <div className="border-line-subtle mt-6 flex flex-col gap-3 border-t pt-5">
+            <p className="text-ink-muted text-xs font-semibold tracking-wide uppercase">
+              Azioni sull&apos;account
+            </p>
+            <div className="flex flex-wrap gap-2">
+              <Button
+                size="sm"
+                variant="secondary"
+                onClick={() => void azzeraPassword(editing)}
+                title="Genera una password provvisoria, mostrata una volta sola"
+              >
+                Azzera la password
+              </Button>
+              <Button
+                size="sm"
+                variant={editing.isActive ? 'destructive' : 'secondary'}
+                disabled={editing.id === currentOperatorId}
+                onClick={() => void cambiaStato(editing)}
+              >
+                {editing.isActive ? 'Disattiva l’accesso' : 'Riattiva l’accesso'}
+              </Button>
+            </div>
+            {editing.id === currentOperatorId ? (
+              <p className="text-ink-muted text-xs">
+                Non puoi disattivare il tuo stesso accesso: lo farebbe un altro amministratore.
+              </p>
+            ) : null}
+          </div>
+        ) : null}
       </Dialog>
 
       <Dialog
         open={passwordProvvisoria !== null}
         title="Password provvisoria"
-        description="Viene mostrata una volta sola: comunicala all'operatore adesso."
+        description="Viene mostrata una volta sola: comunicala alla persona adesso."
         onClose={() => setPasswordProvvisoria(null)}
         footer={<Button onClick={() => setPasswordProvvisoria(null)}>Ho preso nota</Button>}
       >
         {passwordProvvisoria !== null ? (
-          <div className="flex flex-col gap-2">
-            <p className="text-sm text-slate-700">
-              Nuova password per <strong>{passwordProvvisoria.operatore}</strong>:
+          <div className="flex flex-col gap-3">
+            <p className="text-ink-soft text-sm">
+              Nuova password per{' '}
+              <strong className="text-ink">{passwordProvvisoria.operatore}</strong>:
             </p>
-            <p className="rounded-md bg-slate-100 px-4 py-3 text-center font-mono text-2xl font-bold tracking-widest">
+            <p className="bg-surface-sunken text-ink rounded-md px-4 py-4 text-center font-mono text-2xl font-bold tracking-widest">
               {passwordProvvisoria.password}
             </p>
           </div>
         ) : null}
       </Dialog>
-    </section>
+    </Panel>
   );
 }
