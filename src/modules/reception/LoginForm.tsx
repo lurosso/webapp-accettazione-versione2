@@ -157,7 +157,7 @@ export function LoginForm({
           {error !== null ? (
             <p
               role="alert"
-              className="bg-status-no-show-soft rounded-md px-3 py-2 text-sm text-red-800"
+              className="bg-status-no-show-soft text-status-no-show-ink rounded-md px-3 py-2 text-sm"
             >
               {error}
             </p>
@@ -172,7 +172,7 @@ export function LoginForm({
           <section
             aria-label="Accesso veloce (solo sviluppo)"
             data-testid="accesso-veloce"
-            className="mt-6 rounded-md border border-dashed border-amber-400 bg-amber-50 p-3 text-xs text-amber-900"
+            className="border-status-in-progress bg-status-in-progress-soft text-status-in-progress-ink mt-6 rounded-md border border-dashed p-3 text-xs"
           >
             <p className="mb-2 font-semibold">
               Accesso veloce · solo sviluppo: entra con un profilo senza credenziali (account{' '}

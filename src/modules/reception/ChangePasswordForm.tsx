@@ -111,7 +111,7 @@ export function ChangePasswordForm({ nextPath, forced, minLength }: ChangePasswo
           {error !== null ? (
             <p
               role="alert"
-              className="bg-status-no-show-soft rounded-md px-3 py-2 text-sm text-red-800"
+              className="bg-status-no-show-soft text-status-no-show-ink rounded-md px-3 py-2 text-sm"
             >
               {error}
             </p>

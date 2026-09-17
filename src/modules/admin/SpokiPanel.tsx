@@ -117,7 +117,7 @@ export function SpokiPanel({ timeZone }: SpokiPanelProps) {
       ) : (
         <div className="flex flex-col gap-6">
           {data.standby ? (
-            <p className="rounded-md border border-amber-300 bg-amber-50 px-3 py-2 text-sm text-amber-900">
+            <p className="border-status-in-progress/40 bg-status-in-progress-soft text-status-in-progress-ink rounded-md border px-3 py-2 text-sm">
               <strong>Integrazione con il cliente in pausa</strong> (`MESSAGING_STANDBY=true`):
               promemoria programmati, messaggi guidati dagli eventi e webhook delle risposte sono
               fermi di proposito, mentre si lavora al resto dell&apos;applicazione. Il resto del
@@ -128,14 +128,14 @@ export function SpokiPanel({ timeZone }: SpokiPanelProps) {
           {bloccato && data.blockReason !== null ? (
             <p
               role="status"
-              className="rounded-lg border border-amber-300 bg-amber-50 px-3 py-2 text-sm text-amber-900"
+              className="border-status-in-progress/40 bg-status-in-progress-soft text-status-in-progress-ink rounded-lg border px-3 py-2 text-sm"
             >
               Guardrail: {BLOCK_LABELS[data.blockReason]}. Nessun cliente reale viene notificato.
             </p>
           ) : (
             <p
               role="alert"
-              className="rounded-lg border border-red-300 bg-red-50 px-3 py-2 text-sm font-semibold text-red-900"
+              className="border-status-no-show/40 bg-status-no-show-soft text-status-no-show-ink rounded-lg border px-3 py-2 text-sm font-semibold"
             >
               ATTENZIONE: invii reali abilitati. Ogni messaggio raggiunge un telefono vero e consuma
               un credito WhatsApp.
@@ -253,7 +253,7 @@ export function SpokiPanel({ timeZone }: SpokiPanelProps) {
                   role={esito.tono === 'errore' ? 'alert' : 'status'}
                   className={
                     esito.tono === 'errore'
-                      ? 'rounded-md bg-red-50 px-3 py-2 text-sm text-red-800'
+                      ? 'bg-status-no-show-soft text-status-no-show-ink rounded-md px-3 py-2 text-sm'
                       : 'rounded-md bg-slate-100 px-3 py-2 text-sm text-slate-800'
                   }
                 >

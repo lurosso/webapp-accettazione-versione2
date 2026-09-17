@@ -12,6 +12,7 @@
 import { keepPreviousData, useQuery } from '@tanstack/react-query';
 import type { DailyReportView } from '@/application/reporting/DailyReportService';
 import { Badge } from '@/components/ui/badge';
+import { Notice } from '@/components/ui/notice';
 import { Panel, PanelHeader } from '@/components/ui/panel';
 import { fetchDailyReport } from '@/lib/api-client/client';
 
@@ -117,7 +118,7 @@ export function DailyReportPanel({ businessDate }: DailyReportPanelProps) {
              anche se JavaScript inciampa. */
           <a
             href={`/api/v1/reports/daily/csv?giornata=${encodeURIComponent(businessDate)}`}
-            className="border-line bg-surface text-ink-soft hover:bg-surface-sunken premibile focus-anello min-h-touch inline-flex items-center rounded-md border px-5 text-sm font-semibold"
+            className="border-line bg-surface text-ink-soft hover:bg-surface-sunken premibile focus-anello controllo inline-flex items-center rounded-md border px-5 text-sm font-semibold"
             download
           >
             Esporta report CSV
@@ -126,10 +127,10 @@ export function DailyReportPanel({ businessDate }: DailyReportPanelProps) {
       />
 
       {query.isError ? (
-        <p role="alert" className="rounded-md bg-amber-50 px-3 py-2 text-sm text-amber-900">
+        <Notice tone="warning">
           Statistiche non disponibili in questo momento: il resto del cruscotto continua a
           funzionare.
-        </p>
+        </Notice>
       ) : report === undefined ? (
         <p className="text-sm text-slate-500">Calcolo delle statistiche…</p>
       ) : (

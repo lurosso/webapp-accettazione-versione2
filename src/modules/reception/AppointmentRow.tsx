@@ -112,7 +112,7 @@ export function AppointmentRow({
             event.stopPropagation();
             onSelect();
           }}
-          className="focus-anello min-h-touch -mx-2 inline-flex items-center rounded-sm px-2 underline decoration-slate-300 decoration-dotted underline-offset-4 hover:decoration-slate-900"
+          className="focus-anello controllo -mx-2 inline-flex items-center rounded-sm px-2 underline decoration-slate-300 decoration-dotted underline-offset-4 hover:decoration-slate-900"
           aria-label={`Apri i dettagli della pratica ${a.code}, ${a.vehicle.plate}`}
         >
           {a.code}

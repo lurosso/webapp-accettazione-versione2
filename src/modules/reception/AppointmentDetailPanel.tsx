@@ -259,8 +259,8 @@ export function AppointmentDetailPanel({
           {showTake && onAction !== undefined && isInQueue(a.status) ? (
             <Button
               variant="default"
-              size="touch"
-              className="min-h-14 w-full text-lg"
+              size="lg"
+              className="w-full"
               disabled={actionPending}
               onClick={() => onAction('take')}
             >
@@ -270,8 +270,8 @@ export function AppointmentDetailPanel({
 
           {/* Cliente segnato assente che si presenta: torna in coda dopo chi è già in attesa. */}
           {a.status === 'NO_SHOW' && onAction !== undefined ? (
-            <section className="flex flex-col gap-3 rounded-xl border-2 border-red-200 bg-red-50 p-4">
-              <p className="text-sm text-red-900">
+            <section className="border-status-no-show/30 bg-status-no-show-soft flex flex-col gap-3 rounded-xl border-2 p-4">
+              <p className="text-status-no-show-ink text-sm">
                 Segnato assente. Se il cliente si è presentato, riattivalo: torna in coda con
                 l&apos;orario di adesso, dopo chi è già in attesa, e il BDC non lo richiamerà.
               </p>
@@ -291,7 +291,7 @@ export function AppointmentDetailPanel({
               className={cn(
                 'flex flex-col gap-3 rounded-xl border-2 p-4',
                 isAutoClosedPending(a)
-                  ? 'border-amber-300 bg-amber-50'
+                  ? 'border-status-in-progress/40 bg-status-in-progress-soft'
                   : 'border-slate-200 bg-slate-50',
               )}
             >
@@ -300,7 +300,7 @@ export function AppointmentDetailPanel({
                   <Badge tone="warning" className="self-start">
                     Chiusa d&apos;ufficio · da confermare
                   </Badge>
-                  <p className="text-sm text-amber-900">
+                  <p className="text-status-in-progress-ink text-sm">
                     Era ancora in carico alla chiusura automatica della giornata. Se il veicolo è
                     stato accettato davvero, conferma; altrimenti riaprila e concludi il check-in.
                   </p>
@@ -337,7 +337,7 @@ export function AppointmentDetailPanel({
           {allowCheckIn && a.status === 'IN_PROGRESS' ? (
             <Link
               href={checkInPath(a.id)}
-              className="bg-brand-secondary hover:bg-brand-blue-dark focus-visible:ring-brand-blue-light flex min-h-14 items-center justify-center rounded-xl px-4 text-lg font-semibold text-white transition-colors focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:outline-none"
+              className="bg-brand-secondary hover:bg-brand-blue-dark controllo-lg transizione premibile focus-anello testo-dato flex items-center justify-center rounded-xl px-4 font-semibold text-white"
             >
               Passa al check-in fotografico
             </Link>
@@ -471,7 +471,7 @@ export function AppointmentDetailPanel({
               <summary
                 className={cn(
                   'text-ink cursor-pointer list-none font-bold select-none',
-                  modal ? 'min-h-11 text-base leading-11' : 'text-sm',
+                  modal ? 'controllo flex items-center text-base' : 'text-sm',
                 )}
               >
                 Cronologia di oggi
@@ -498,7 +498,7 @@ export function AppointmentDetailPanel({
               target="_blank"
               rel="noreferrer"
               data-testid="link-tracciamento-cliente"
-              className="inline-flex min-h-11 items-center gap-2 rounded-md border border-dashed border-amber-400 bg-amber-50 px-3 text-sm font-semibold text-amber-900"
+              className="border-status-in-progress bg-status-in-progress-soft text-status-in-progress-ink controllo focus-anello inline-flex items-center gap-2 rounded-md border border-dashed px-3 text-sm font-semibold"
             >
               <span aria-hidden="true">↗</span>
               Apri il tracciamento cliente (solo sviluppo)
@@ -512,12 +512,7 @@ export function AppointmentDetailPanel({
 
         {modal ? (
           <footer className="sticky bottom-0 border-t border-slate-200 bg-white px-6 py-4">
-            <Button
-              variant="default"
-              size="touch"
-              className="min-h-14 w-full text-lg"
-              onClick={onClose}
-            >
+            <Button variant="default" size="lg" className="w-full" onClick={onClose}>
               Chiudi
             </Button>
           </footer>

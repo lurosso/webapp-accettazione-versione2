@@ -94,7 +94,7 @@ export function AdminDashboard({ session, businessDate, timeZone }: AdminDashboa
             data-testid={`tab-${s.id}`}
             onClick={() => vaiA(s.id)}
             className={cn(
-              'focus-anello premibile min-h-touch flex-1 rounded-md px-5 text-sm font-semibold whitespace-nowrap',
+              'focus-anello premibile controllo flex-1 rounded-md px-5 text-sm font-semibold whitespace-nowrap',
               sezione === s.id
                 ? 'bg-brand-secondary text-white shadow-xs'
                 : 'text-ink-soft hover:bg-surface/70',

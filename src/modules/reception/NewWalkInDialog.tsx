@@ -7,6 +7,7 @@ import { useState, type FormEvent } from 'react';
 import type { Appointment } from '@/domain/entities/appointment';
 import type { Brand } from '@/domain/entities/brand';
 import { Button } from '@/components/ui/button';
+import { Notice } from '@/components/ui/notice';
 import { Dialog } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -143,7 +144,7 @@ export function NewWalkInDialog({
           <p className="text-xs text-slate-500">
             Serve per avvisarlo del turno: senza, il cliente va chiamato a voce.
           </p>
-          <label className="mt-1 flex min-h-11 items-center gap-2 text-sm text-slate-700">
+          <label className="controllo text-ink-soft mt-1 flex items-center gap-2 text-sm">
             <input
               id="wi-whatsapp"
               type="checkbox"
@@ -167,11 +168,7 @@ export function NewWalkInDialog({
           />
         </div>
 
-        {error !== null ? (
-          <p role="alert" className="rounded-md bg-red-50 px-3 py-2 text-sm text-red-800">
-            {error}
-          </p>
-        ) : null}
+        {error !== null ? <Notice tone="error">{error}</Notice> : null}
 
         <div className="flex flex-wrap justify-end gap-2">
           <Button type="button" variant="outline" onClick={chiudi} disabled={saving}>

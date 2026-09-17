@@ -23,7 +23,7 @@ export default function DisplayError({
   return (
     <div
       role="alert"
-      className="flex h-screen w-screen flex-col items-center justify-center bg-amber-500 text-center text-slate-950"
+      className="bg-status-in-progress-soft0 flex h-screen w-screen flex-col items-center justify-center text-center text-slate-950"
     >
       <p className="text-[7vw] leading-none font-black">MONITOR IN RIPRISTINO</p>
       <p className="mt-[2vh] text-[2.5vw] font-semibold">

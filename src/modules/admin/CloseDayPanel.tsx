@@ -13,6 +13,7 @@
 import { useState } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import { Button } from '@/components/ui/button';
+import { Notice } from '@/components/ui/notice';
 import { Dialog } from '@/components/ui/dialog';
 import { Panel, PanelHeader } from '@/components/ui/panel';
 import { bdcKeys } from '@/hooks/useBdcLeads';
@@ -83,17 +84,14 @@ export function CloseDayPanel({ businessDate }: CloseDayPanelProps) {
       />
 
       {esito !== null ? (
-        <p
-          role="status"
-          className="bg-status-completed-soft mt-3 rounded-md px-3 py-2 text-sm text-emerald-900"
-        >
+        <Notice tone="success" className="mt-3">
           {esito}
-        </p>
+        </Notice>
       ) : null}
       {errore !== null ? (
-        <p role="alert" className="mt-3 rounded-md bg-red-50 px-3 py-2 text-sm text-red-800">
+        <Notice tone="error" className="mt-3">
           {errore}
-        </p>
+        </Notice>
       ) : null}
 
       <Dialog

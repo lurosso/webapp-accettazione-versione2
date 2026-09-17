@@ -53,7 +53,7 @@ export function ServiceUnavailableCard({ problem, plate }: ServiceUnavailableCar
       role="alert"
       className={`flex flex-col gap-4 rounded-2xl border-2 p-6 text-center shadow-sm ${
         copy.tone === 'attention'
-          ? 'bg-status-no-show-soft border-red-300'
+          ? 'bg-status-no-show-soft border-status-no-show/40'
           : 'border-slate-300 bg-white'
       }`}
     >

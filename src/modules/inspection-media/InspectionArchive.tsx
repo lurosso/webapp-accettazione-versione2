@@ -8,6 +8,7 @@ import { useState } from 'react';
 import { keepPreviousData, useQuery } from '@tanstack/react-query';
 import type { InspectionArchiveEntry } from '@/application/media/InspectionArchiveService';
 import { Badge } from '@/components/ui/badge';
+import { Notice } from '@/components/ui/notice';
 import { Input } from '@/components/ui/input';
 import { TableSkeleton } from '@/components/ui/skeleton';
 import { EmptyState } from '@/components/shared/EmptyState';
@@ -150,11 +151,11 @@ export function InspectionArchive({ timeZone, retentionDays }: InspectionArchive
             placeholder="Targa o codice (es. AB123CD, F012)"
             value={testo}
             onChange={(event) => setTesto(event.target.value)}
-            className="min-h-11 w-64 font-mono uppercase"
+            className="controllo w-64 font-mono uppercase"
           />
           <button
             type="submit"
-            className="bg-brand-secondary hover:bg-brand-blue-dark inline-flex min-h-11 min-w-11 items-center rounded-md px-4 text-sm font-semibold text-white"
+            className="bg-brand-secondary hover:bg-brand-blue-dark premibile focus-anello controllo min-w-touch inline-flex items-center justify-center rounded-md px-4 text-sm font-semibold text-white"
           >
             Cerca
           </button>
@@ -164,9 +165,9 @@ export function InspectionArchive({ timeZone, retentionDays }: InspectionArchive
       {risultati.isPending ? (
         <TableSkeleton rows={3} columns={4} label="Caricamento dell'archivio" />
       ) : risultati.isError ? (
-        <p role="alert" className="rounded-md bg-red-50 px-3 py-2 text-sm text-red-800">
+        <Notice tone="error">
           Archivio non disponibile in questo momento: riprova fra qualche istante.
-        </p>
+        </Notice>
       ) : (risultati.data?.entries.length ?? 0) === 0 ? (
         <EmptyState
           size="page"

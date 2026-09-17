@@ -71,7 +71,7 @@ export function ArrivalButton({ position, targa, token, timeZone }: ArrivalButto
         disabled={mutation.isPending}
         onClick={() => mutation.mutate()}
         data-testid="sono-arrivato"
-        className="bg-brand-secondary active:bg-brand-blue-dark flex min-h-14 w-full items-center justify-center rounded-2xl px-5 text-xl font-bold text-white shadow-sm focus-visible:ring-4 focus-visible:ring-sky-300 focus-visible:outline-none disabled:opacity-60"
+        className="bg-brand-secondary active:bg-brand-blue-dark controllo-lg premibile focus-anello flex w-full items-center justify-center rounded-2xl px-5 text-xl font-bold text-white shadow-sm disabled:opacity-60"
       >
         {mutation.isPending ? 'Un istante…' : 'Sono arrivato, sono in fila'}
       </button>
@@ -80,7 +80,7 @@ export function ArrivalButton({ position, targa, token, timeZone }: ArrivalButto
         turno non cambia.
       </p>
       {errore !== null ? (
-        <p role="alert" className="text-center text-sm font-semibold text-red-800">
+        <p role="alert" className="text-status-no-show-ink text-center text-sm font-semibold">
           {errore}
         </p>
       ) : null}

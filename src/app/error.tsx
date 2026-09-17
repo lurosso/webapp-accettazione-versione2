@@ -14,7 +14,9 @@ export default function RootError({
 }) {
   return (
     <main className="mx-auto flex max-w-3xl flex-col gap-4 px-6 py-12">
-      <h1 className="text-2xl font-bold tracking-tight text-red-900">Si è verificato un errore</h1>
+      <h1 className="text-status-no-show-ink text-2xl font-bold tracking-tight">
+        Si è verificato un errore
+      </h1>
       <p className="text-slate-700">
         La pagina non può essere visualizzata. Riprovare; se il problema persiste, contattare il
         responsabile del sistema indicando il codice riportato sotto.

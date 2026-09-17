@@ -182,7 +182,7 @@ export function CheckInQueue({
           actions={
             <Link
               href="/accettazione"
-              className="bg-brand-secondary hover:bg-brand-blue-dark inline-flex min-h-11 items-center rounded-md px-4 text-sm font-semibold text-white"
+              className="bg-brand-secondary hover:bg-brand-blue-dark premibile focus-anello controllo inline-flex items-center rounded-md px-4 text-sm font-semibold text-white"
             >
               Vai alla coda accettazione
             </Link>
@@ -209,7 +209,7 @@ export function CheckInQueue({
           <div className="flex items-center gap-2">
             <Link
               href="/accettazione"
-              className="inline-flex min-h-12 items-center rounded-xl border-2 border-white/40 px-4 text-base font-semibold text-white hover:bg-white/10"
+              className="premibile controllo focus-anello inline-flex items-center rounded-xl border-2 border-white/40 px-4 text-base font-semibold text-white [--anello-colore:#fff] hover:bg-white/10"
             >
               Coda
             </Link>
@@ -217,7 +217,7 @@ export function CheckInQueue({
               type="button"
               onClick={() => void esci()}
               disabled={uscita}
-              className="inline-flex min-h-12 items-center rounded-xl bg-white/15 px-4 text-base font-semibold text-white hover:bg-white/25 disabled:opacity-60"
+              className="premibile controllo focus-anello inline-flex items-center rounded-xl bg-white/15 px-4 text-base font-semibold text-white [--anello-colore:#fff] hover:bg-white/25 disabled:opacity-60"
             >
               {uscita ? 'Uscita…' : 'Esci'}
             </button>
@@ -229,7 +229,7 @@ export function CheckInQueue({
         {conferma !== null ? (
           <p
             role="status"
-            className="bg-status-completed-soft rounded-2xl px-5 py-4 text-lg font-semibold text-emerald-900"
+            className="bg-status-completed-soft text-status-completed-ink rounded-2xl px-5 py-4 text-lg font-semibold"
           >
             {conferma}
           </p>
@@ -238,7 +238,7 @@ export function CheckInQueue({
         {richiestaAssente ? (
           <p
             role="alert"
-            className="bg-status-skipped-soft rounded-2xl px-5 py-4 text-base text-amber-900"
+            className="bg-status-skipped-soft text-status-skipped-ink rounded-2xl px-5 py-4 text-base"
           >
             La pratica richiesta non è più in elenco: potrebbe essere stata chiusa o annullata da un
             collega. Scegline una dall&apos;elenco qui sotto.
@@ -248,7 +248,7 @@ export function CheckInQueue({
         {actions.outcome !== null ? (
           <p
             role="alert"
-            className="bg-status-no-show-soft rounded-2xl px-5 py-4 text-base text-red-900"
+            className="bg-status-no-show-soft text-status-no-show-ink rounded-2xl px-5 py-4 text-base"
           >
             {actions.outcome.message}{' '}
             <button type="button" onClick={actions.clearOutcome} className="underline">
@@ -276,7 +276,7 @@ export function CheckInQueue({
               aria-selected={scheda === t.id}
               onClick={() => setScheda(t.id)}
               className={cn(
-                'min-h-16 rounded-xl px-4 text-lg font-semibold transition-colors',
+                'controllo-lg transizione focus-anello rounded-xl px-4 text-lg font-semibold',
                 scheda === t.id
                   ? 'bg-brand-secondary text-white shadow-sm'
                   : 'text-slate-700 hover:bg-white/60',
@@ -321,10 +321,10 @@ export function CheckInQueue({
                   className={cn(
                     'overflow-hidden rounded-2xl border-2 bg-white shadow-sm',
                     inLavorazione
-                      ? 'bg-status-in-progress-soft border-amber-400'
+                      ? 'bg-status-in-progress-soft border-status-in-progress'
                       : daServire
-                        ? 'border-amber-400 bg-amber-50'
-                        : 'border-slate-200',
+                        ? 'border-priority-now bg-priority-now-soft'
+                        : 'border-line',
                   )}
                 >
                   {/* Tutta l'area informativa apre il dettaglio; il comando sta staccato, sotto. */}
@@ -384,7 +384,7 @@ export function CheckInQueue({
                               setDescrizioneAperta(aperta ? null : a.id);
                             }}
                             aria-expanded={aperta}
-                            className="text-brand-secondary inline-flex min-h-11 items-center text-base font-semibold underline underline-offset-4"
+                            className="text-brand-secondary focus-anello controllo -mx-2 inline-flex items-center rounded-md px-2 text-base font-semibold underline underline-offset-4"
                           >
                             {aperta ? 'Mostra meno' : 'Mostra tutto'}
                           </button>
@@ -397,7 +397,7 @@ export function CheckInQueue({
                           chiamare lo vede senza aprire il dettaglio. */}
                       {a.customerArrivedAt !== null ? (
                         <span
-                          className="text-status-completed text-sm font-semibold"
+                          className="text-status-completed-ink text-sm font-semibold"
                           data-testid="cliente-in-fila"
                         >
                           in fila dalle{' '}
@@ -407,7 +407,7 @@ export function CheckInQueue({
                         </span>
                       ) : null}
                       {daServire ? (
-                        <span className="text-sm font-semibold text-amber-800">
+                        <span className="text-priority-now-ink text-sm font-semibold">
                           orario superato · da servire ora
                         </span>
                       ) : null}
@@ -424,7 +424,7 @@ export function CheckInQueue({
                         iniziaCheckIn(row);
                       }}
                       className={cn(
-                        'min-h-16 w-full rounded-xl px-6 text-xl font-bold shadow-sm disabled:opacity-60',
+                        'controllo-lg premibile focus-anello w-full rounded-xl px-6 text-xl font-bold shadow-sm disabled:opacity-60',
                         // Blu in entrambi i casi: prendere in carico e riprendere sono azioni di
                         // lavoro; il verde è riservato a "Completa check-in".
                         inLavorazione

@@ -199,9 +199,8 @@ export function PhotoCapture({ appointmentId, media, onUploaded }: PhotoCaptureP
             scattate.length === 0 ? 'scatta la foto' : 'scatta un altro scatto'
           }`}
           className={cn(
-            'flex min-h-11 w-full flex-col overflow-hidden rounded-2xl border-[3px] bg-white text-left shadow-sm transition-colors',
-            'focus-visible:ring-brand-blue-light focus-visible:ring-4 focus-visible:outline-none active:bg-slate-50',
-            scattate.length > 0 ? 'border-status-completed' : 'border-dashed border-slate-300',
+            'controllo focus-anello premibile flex w-full flex-col overflow-hidden rounded-2xl border-[3px] bg-white text-left shadow-sm transition-colors',
+            scattate.length > 0 ? 'border-status-completed' : 'border-line border-dashed',
           )}
         >
           <span className="relative block aspect-[4/3] w-full bg-slate-100">
@@ -275,7 +274,7 @@ export function PhotoCapture({ appointmentId, media, onUploaded }: PhotoCaptureP
       {errore !== null ? (
         <p
           role="alert"
-          className="bg-status-no-show-soft rounded-2xl border-2 border-red-200 px-5 py-4 text-lg font-semibold text-red-900"
+          className="bg-status-no-show-soft border-status-no-show/30 text-status-no-show-ink rounded-2xl border-2 px-5 py-4 text-lg font-semibold"
         >
           {errore}
         </p>
@@ -311,9 +310,9 @@ export function PhotoCapture({ appointmentId, media, onUploaded }: PhotoCaptureP
             }
             data-testid="registra-video"
             className={cn(
-              'flex min-h-14 min-w-14 flex-[2] items-center justify-center gap-3 rounded-2xl border-[3px] px-5 text-xl font-bold shadow-sm focus-visible:ring-4 focus-visible:ring-slate-400 focus-visible:outline-none',
+              'controllo-lg focus-anello premibile flex min-w-14 flex-[2] items-center justify-center gap-3 rounded-2xl border-[3px] px-5 text-xl font-bold shadow-sm',
               video.length === 0
-                ? 'border-amber-500 bg-amber-100 text-amber-900 active:bg-amber-200'
+                ? 'border-status-in-progress bg-status-in-progress-soft text-status-in-progress-ink'
                 : 'border-status-completed bg-white text-slate-900 active:bg-slate-100',
             )}
           >
@@ -327,7 +326,7 @@ export function PhotoCapture({ appointmentId, media, onUploaded }: PhotoCaptureP
             onClick={() => inputRefs.current.get('EXTRA')?.click()}
             aria-label="Aggiungi una foto"
             data-testid="aggiungi-foto"
-            className="bg-brand-secondary active:bg-brand-blue-dark flex min-h-14 min-w-14 flex-1 items-center justify-center gap-3 rounded-2xl px-5 text-xl font-bold text-white shadow-sm focus-visible:ring-4 focus-visible:ring-slate-400 focus-visible:outline-none"
+            className="bg-brand-secondary active:bg-brand-blue-dark controllo-lg focus-anello premibile flex min-w-14 flex-1 items-center justify-center gap-3 rounded-2xl px-5 text-xl font-bold text-white shadow-sm"
           >
             <span aria-hidden="true" className="text-3xl leading-none">
               +

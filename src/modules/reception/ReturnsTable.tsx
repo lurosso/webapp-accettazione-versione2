@@ -68,14 +68,14 @@ export function ReturnsTable({ rows, brands, timeZone, serverTime }: ReturnsTabl
           return (
             <TableRow
               key={a.id}
-              className={cn('min-h-12', inRitardo ? 'bg-amber-50' : undefined)}
+              className={cn(inRitardo ? 'bg-priority-now-soft' : undefined)}
               data-testid="riga-riconsegna"
             >
               <TableCell className="font-mono text-lg font-black">{a.code}</TableCell>
               <TableCell className="font-mono tabular-nums">
                 {localTimeHHmm(new Date(effectiveScheduleTime(a)), timeZone)}
                 {inRitardo ? (
-                  <span className="block text-xs font-semibold text-amber-800">
+                  <span className="text-priority-now-ink block text-xs font-semibold">
                     oltre l&apos;ora
                   </span>
                 ) : null}

@@ -13,6 +13,7 @@ import { useQueryClient } from '@tanstack/react-query';
 import type { Session } from '@/application/auth/IAuthService';
 import type { BdcLeadView } from '@/domain/read-models';
 import { Badge } from '@/components/ui/badge';
+import { Notice } from '@/components/ui/notice';
 import { Button } from '@/components/ui/button';
 import { ApiError, postLeadContacted, postLeadReopen } from '@/lib/api-client/client';
 import { bdcKeys, useBdcLeads, BDC_POLLING_MS } from '@/hooks/useBdcLeads';
@@ -120,7 +121,7 @@ export function BdcDashboard({ session, businessDate, timeZone }: BdcDashboardPr
         >
           Tutte le giornate
         </Button>
-        <label className="ml-2 flex min-h-11 items-center gap-2 text-sm text-slate-700">
+        <label className="controllo text-ink-soft ml-2 flex items-center gap-2 text-sm">
           <input
             type="checkbox"
             checked={mostraChiusi}
@@ -132,15 +133,11 @@ export function BdcDashboard({ session, businessDate, timeZone }: BdcDashboardPr
         <span className="ml-auto text-xs text-slate-500">Operatore BDC: {session.displayName}</span>
       </div>
 
-      {errore !== null ? (
-        <p role="alert" className="rounded-md bg-red-50 px-3 py-2 text-sm text-red-800">
-          {errore}
-        </p>
-      ) : null}
+      {errore !== null ? <Notice tone="error">{errore}</Notice> : null}
       {query.isError ? (
-        <p role="alert" className="rounded-md bg-amber-50 px-3 py-2 text-sm text-amber-900">
+        <Notice tone="warning">
           Elenco non aggiornato: il server non risponde. I lead già a schermo restano validi.
-        </p>
+        </Notice>
       ) : null}
 
       {query.isPending ? (

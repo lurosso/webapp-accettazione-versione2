@@ -68,7 +68,7 @@ export function PublicStatusView({ targa, token = null }: PublicStatusViewProps)
           il resto della pagina. */}
       <Link
         href="/cliente"
-        className="mx-auto inline-flex min-h-11 items-center px-4 text-base font-medium text-slate-600 underline hover:text-slate-900"
+        className="controllo focus-anello text-ink-soft mx-auto inline-flex items-center rounded-md px-4 text-base font-medium underline hover:text-slate-900"
       >
         Cerca un&apos;altra targa
       </Link>

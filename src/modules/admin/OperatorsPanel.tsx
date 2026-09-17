@@ -386,7 +386,7 @@ export function OperatorsPanel({ currentOperatorId }: OperatorsPanelProps) {
                   <label
                     key={d.id}
                     className={cn(
-                      'min-h-touch transizione flex cursor-pointer items-center gap-2.5 rounded-md border px-3.5 text-sm',
+                      'controllo transizione flex cursor-pointer items-center gap-2.5 rounded-md border px-3.5 text-sm',
                       scelto
                         ? 'border-brand-secondary bg-surface-sunken text-ink font-medium'
                         : 'border-line text-ink-soft',

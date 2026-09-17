@@ -59,7 +59,7 @@ export function PlateSearchForm({ initialPlate = '', source }: PlateSearchFormPr
             setPlate(formatPlateInput(event.target.value));
             setError(null);
           }}
-          className="h-16 w-full rounded-xl border-2 border-slate-300 bg-white text-center font-mono text-3xl font-bold tracking-[0.2em] text-slate-900 uppercase shadow-sm placeholder:font-normal placeholder:tracking-normal placeholder:text-slate-300 focus-visible:border-slate-900 focus-visible:ring-4 focus-visible:ring-slate-300 focus-visible:outline-none"
+          className="controllo-lg border-line focus-anello w-full rounded-xl border-2 bg-white text-center font-mono text-3xl font-bold tracking-[0.2em] text-slate-900 uppercase shadow-sm placeholder:font-normal placeholder:tracking-normal placeholder:text-slate-300"
         />
         <p id="targa-aiuto" className="text-base text-slate-600">
           Digita la targa senza spazi, come è scritta sul veicolo.
@@ -69,7 +69,7 @@ export function PlateSearchForm({ initialPlate = '', source }: PlateSearchFormPr
       {error !== null ? (
         <p
           role="alert"
-          className="bg-status-no-show-soft rounded-lg px-4 py-3 text-base text-red-900"
+          className="bg-status-no-show-soft text-status-no-show-ink rounded-lg px-4 py-3 text-base"
         >
           {error}
         </p>

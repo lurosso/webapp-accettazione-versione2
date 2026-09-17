@@ -89,9 +89,14 @@ export default async function SistemaPage() {
       </header>
 
       {data.kind === 'startup-error' ? (
-        <section className="rounded-xl border border-red-200 bg-red-50 p-6 shadow-sm" role="alert">
-          <h2 className="text-lg font-semibold text-red-900">Configurazione non valida</h2>
-          <p className="mt-2 text-sm text-red-800">
+        <section
+          className="border-status-no-show/30 bg-status-no-show-soft rounded-xl border p-6 shadow-sm"
+          role="alert"
+        >
+          <h2 className="text-status-no-show-ink text-lg font-semibold">
+            Configurazione non valida
+          </h2>
+          <p className="text-status-no-show-ink mt-2 text-sm">
             Il container non può essere costruito (<code>{data.name}</code>): {data.message}
           </p>
         </section>

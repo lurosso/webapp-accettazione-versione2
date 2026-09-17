@@ -37,14 +37,14 @@ const TONE_CARD: Record<StatusTone, string> = {
   waiting: 'border-slate-200 bg-white',
   serving: 'border-brand-primary bg-brand-primary/15 ring-4 ring-brand-primary/20',
   done: 'border-brand-primary bg-status-completed-soft',
-  attention: 'border-red-300 bg-status-no-show-soft',
+  attention: 'border-status-no-show/40 bg-status-no-show-soft',
 };
 
 const TONE_CODE: Record<StatusTone, string> = {
   waiting: 'text-brand-blue-dark',
   serving: 'text-slate-950',
-  done: 'text-emerald-900',
-  attention: 'text-red-900',
+  done: 'text-status-completed-ink',
+  attention: 'text-status-no-show-ink',
 };
 
 function InfoItem({

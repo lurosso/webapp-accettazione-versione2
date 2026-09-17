@@ -133,7 +133,7 @@ export function CheckInScreen({
             onClick={esci}
             disabled={inChiusura}
             aria-label="Torna alla coda senza concludere"
-            className="flex h-14 w-14 shrink-0 items-center justify-center rounded-xl border-2 border-slate-300 bg-white text-3xl leading-none font-bold text-slate-700 active:bg-slate-100 disabled:opacity-60"
+            className="controllo-lg border-line text-ink-soft premibile focus-anello flex w-[var(--h-controllo-lg)] shrink-0 items-center justify-center rounded-xl border-2 bg-white text-3xl leading-none font-bold active:bg-slate-100 disabled:opacity-60"
           >
             ‹
           </button>
@@ -171,14 +171,14 @@ export function CheckInScreen({
             <span
               className={cn(
                 'font-mono text-xl leading-none font-black tabular-nums',
-                videoMancante ? 'text-amber-700' : 'text-status-completed',
+                videoMancante ? 'text-status-in-progress-ink' : 'text-status-completed-ink',
               )}
             >
               {video}
               <span className="text-sm font-semibold"> video</span>
             </span>
             {videoMancante ? (
-              <span className="text-xs font-bold tracking-wide text-amber-700 uppercase">
+              <span className="text-status-in-progress-ink text-xs font-bold tracking-wide uppercase">
                 obbligatorio
               </span>
             ) : null}
@@ -192,7 +192,7 @@ export function CheckInScreen({
           {errore !== null ? (
             <p
               role="alert"
-              className="bg-status-no-show-soft rounded-2xl border-2 border-red-200 px-5 py-4 text-lg font-semibold text-red-900"
+              className="bg-status-no-show-soft border-status-no-show/30 text-status-no-show-ink rounded-2xl border-2 px-5 py-4 text-lg font-semibold"
             >
               {errore}
             </p>
@@ -214,7 +214,7 @@ export function CheckInScreen({
                   key={testo}
                   type="button"
                   onClick={() => aggiungiNota(testo)}
-                  className="min-h-12 rounded-full border-2 border-slate-300 bg-slate-50 px-4 text-base font-semibold text-slate-800 active:bg-slate-200"
+                  className="controllo border-line text-ink-soft premibile focus-anello rounded-full border-2 bg-slate-50 px-4 text-base font-semibold active:bg-slate-200"
                 >
                   + {testo}
                 </button>
@@ -244,7 +244,7 @@ export function CheckInScreen({
               type="button"
               onClick={esci}
               disabled={inChiusura}
-              className="flex h-16 flex-1 flex-col items-center justify-center rounded-2xl border-2 border-slate-300 bg-slate-100 text-lg leading-tight font-bold text-slate-800 active:bg-slate-200 disabled:opacity-60"
+              className="controllo-lg border-line text-ink-soft premibile focus-anello flex flex-1 flex-col items-center justify-center rounded-2xl border-2 bg-slate-100 text-lg leading-tight font-bold active:bg-slate-200 disabled:opacity-60"
             >
               Salta per ora
               <span className="text-xs font-medium text-slate-500">torna alla coda</span>
@@ -256,10 +256,13 @@ export function CheckInScreen({
               aria-describedby="stato-check-in"
               data-testid="completa-check-in"
               className={cn(
-                'bg-brand-primary focus-visible:ring-brand-lime-dark active:bg-brand-lime-dark flex h-16 flex-[2] items-center justify-center rounded-2xl text-xl font-bold text-slate-950 shadow-sm focus-visible:ring-4 focus-visible:outline-none active:text-white',
-                // Spento finché manca il video: grigio, non verde sbiadito, così si vede da lontano
-                // che non è un pulsante in attesa ma un passaggio che manca.
-                videoMancante && !inChiusura && 'bg-slate-300 text-slate-600 shadow-none',
+                'bg-brand-primary active:bg-brand-lime-dark premibile focus-anello controllo-lg flex flex-[2] items-center justify-center rounded-2xl text-xl font-bold text-slate-950 shadow-sm active:text-white',
+                // Spento finché manca il video: non un verde sbiadito e nemmeno un altro
+                // pieno di colore, che da lontano sembrerebbe un pulsante da premere. Vuoto e
+                // spento: si vede subito che manca un passaggio, non che sta caricando.
+                videoMancante &&
+                  !inChiusura &&
+                  'border-line text-ink-muted border-2 bg-transparent shadow-none',
                 'disabled:cursor-not-allowed disabled:opacity-80',
               )}
             >
@@ -270,7 +273,7 @@ export function CheckInScreen({
             id="stato-check-in"
             className={cn(
               'text-center text-base font-semibold',
-              videoMancante ? 'text-amber-800' : 'text-status-completed',
+              videoMancante ? 'text-status-in-progress-ink' : 'text-status-completed-ink',
             )}
           >
             {riepilogoMedia}
@@ -290,7 +293,7 @@ export function CheckInScreen({
             <button
               type="button"
               onClick={() => setConfermaAperta(false)}
-              className="min-h-14 flex-1 rounded-2xl border-2 border-slate-300 bg-white text-lg font-bold text-slate-800 active:bg-slate-100"
+              className="controllo-lg border-line text-ink-soft premibile focus-anello flex-1 rounded-2xl border-2 bg-white text-lg font-bold active:bg-slate-100"
             >
               Annulla
             </button>
@@ -298,7 +301,7 @@ export function CheckInScreen({
               type="button"
               onClick={() => void completa()}
               data-testid="conferma-check-in"
-              className="bg-brand-primary active:bg-brand-lime-dark min-h-14 flex-[2] rounded-2xl text-lg font-bold text-slate-950 shadow-sm active:text-white"
+              className="bg-brand-primary active:bg-brand-lime-dark premibile focus-anello controllo-lg flex-[2] rounded-2xl text-lg font-bold text-slate-950 shadow-sm active:text-white"
             >
               Sì, completa
             </button>

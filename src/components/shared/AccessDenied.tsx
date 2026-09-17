@@ -14,9 +14,9 @@ export interface AccessDeniedProps {
 
 export function AccessDenied({ area, role }: AccessDeniedProps) {
   return (
-    <div className="bg-status-in-progress-soft mx-auto max-w-2xl rounded-xl border border-amber-300 p-6 shadow-sm">
-      <h1 className="text-xl font-bold text-amber-900">Accesso non consentito</h1>
-      <p className="mt-2 text-sm text-amber-900">
+    <div className="bg-status-in-progress-soft border-status-in-progress/40 mx-auto max-w-2xl rounded-xl border p-6 shadow-sm">
+      <h1 className="text-status-in-progress-ink text-xl font-bold">Accesso non consentito</h1>
+      <p className="text-status-in-progress-ink mt-2 text-sm">
         Il tuo ruolo ({ROLE_LABELS[role]}) non può accedere all&apos;{area}. Se ti serve, chiedi a
         un amministratore di modificare i tuoi permessi.
       </p>

@@ -153,7 +153,7 @@ export function MediaGallery({ appointmentId, inspectionNotes, timeZone }: Media
     <section>
       <h3 className="mb-1 text-sm font-bold text-slate-900">Ispezione al veicolo</h3>
       {query.isError ? (
-        <p className="text-sm text-amber-700">
+        <p className="text-status-in-progress-ink text-sm">
           Foto e video non disponibili in questo momento: riprova fra qualche istante.
         </p>
       ) : null}
