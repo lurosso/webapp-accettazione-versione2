@@ -16,6 +16,7 @@ import type { Desk } from '@/domain/entities/desk';
 import type { QueueRowView } from '@/domain/read-models';
 import { Button } from '@/components/ui/button';
 import { Table, TableBody, TableHead, TableHeader, TableRow } from '@/components/ui/table';
+import { AppointmentCard } from './AppointmentCard';
 import { AppointmentRow } from './AppointmentRow';
 import type { AppointmentAction } from './types';
 
@@ -151,6 +152,18 @@ export function QueueTable({
     <div className="flex flex-col gap-8">
       {sections.map((section) => {
         const hidden = section.collapsible && !closedOpen;
+        // Calcolato una volta e usato da tutt'e due le forme dell'elenco (schede e tabella).
+        const righe = section.rows.map((row) => {
+          const desk = deskOf(row, desks);
+          return {
+            row,
+            deskLabel: desk === null ? null : `${desk.code} · ${desk.name}`,
+            foreignDesk: showDesk && homeDeskId !== null && desk !== null && desk.id !== homeDeskId,
+            dueSoon:
+              section.late !== true &&
+              isDueWithinGrace(row.appointment, serverTime, LATE_GRACE_MINUTES),
+          };
+        });
         return (
           <section key={section.key} aria-labelledby={`section-${section.key}`}>
             <div className="mb-3 flex items-start justify-between gap-4">
@@ -190,41 +203,64 @@ export function QueueTable({
                   section.late === true ? 'border-priority-late-line' : 'border-line-subtle',
                 )}
               >
-                <Table>
-                  <TableHeader>
-                    <TableRow>
-                      <TableHead>Codice</TableHead>
-                      <TableHead>Orario</TableHead>
-                      <TableHead>Targa</TableHead>
-                      <TableHead>Veicolo</TableHead>
-                      <TableHead>Cliente</TableHead>
-                      {showDesk ? <TableHead>Sportello</TableHead> : null}
-                      <TableHead>Stato</TableHead>
-                      {/* Campata e operatore si leggono nel dettaglio: su un iPad occupavano
-                          spazio per mostrare due trattini, e lo toglievano ai comandi. Tornano
-                          dal monitor del banco in poi. */}
-                      <TableHead className="hidden xl:table-cell">Accettazione</TableHead>
-                      <TableHead className="hidden xl:table-cell">Operatore</TableHead>
-                      {/* Larghezza propria: senza, i comandi si impilavano uno sotto l'altro e la
-                          riga cresceva fino a duecento pixel. */}
-                      <TableHead className="w-[23rem] text-right">Azioni</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {section.rows.map((row) => {
-                      const desk = deskOf(row, desks);
-                      const foreignDesk =
-                        showDesk && homeDeskId !== null && desk !== null && desk.id !== homeDeskId;
-                      return (
+                {/*
+                  L'elenco esiste in due forme e ne nasconde una il CSS: schede col dito, tabella
+                  al banco. Sembra uno spreco tenerle entrambe nel DOM, e invece è la scelta meno
+                  costosa: `display: none` toglie il ramo nascosto anche dall'albero di
+                  accessibilità (nessun doppione per chi usa un lettore di schermo) e soprattutto
+                  la struttura è già giusta al primo disegno, mentre leggendo un hook cambierebbe
+                  dopo l'idratazione — cioè sfarfallerebbe sotto gli occhi dell'accettatore.
+                */}
+                <ul className="divide-line-subtle banco:hidden divide-y">
+                  {righe.map(({ row, deskLabel, foreignDesk, dueSoon }) => (
+                    <AppointmentCard
+                      key={row.appointment.id}
+                      row={row}
+                      brandName={brandName(row.appointment.brandId)}
+                      deskLabel={deskLabel}
+                      showDesk={showDesk}
+                      foreignDesk={foreignDesk}
+                      dueSoon={dueSoon}
+                      timeZone={timeZone}
+                      pending={pendingId === row.appointment.id}
+                      late={section.late === true}
+                      lateByMinutes={section.late === true ? lateBy(row) : 0}
+                      selected={row.appointment.id === selectedId}
+                      readOnly={readOnly}
+                      onAction={(action) =>
+                        onAction(row.appointment.id, action, row.appointment.version)
+                      }
+                      onSelect={() => onSelect(row)}
+                    />
+                  ))}
+                </ul>
+
+                <div className="banco:block hidden">
+                  <Table>
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead>Codice</TableHead>
+                        <TableHead>Orario</TableHead>
+                        <TableHead>Targa</TableHead>
+                        <TableHead>Veicolo</TableHead>
+                        <TableHead>Cliente</TableHead>
+                        {showDesk ? <TableHead>Sportello</TableHead> : null}
+                        <TableHead>Stato</TableHead>
+                        <TableHead className="hidden xl:table-cell">Accettazione</TableHead>
+                        <TableHead className="hidden xl:table-cell">Operatore</TableHead>
+                        {/* Larghezza propria: senza, i comandi si impilavano uno sotto l'altro e
+                            la riga cresceva fino a duecento pixel. */}
+                        <TableHead className="w-[23rem] text-right">Azioni</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {righe.map(({ row, deskLabel, foreignDesk, dueSoon }) => (
                         <AppointmentRow
                           key={row.appointment.id}
                           row={row}
                           brandName={brandName(row.appointment.brandId)}
-                          dueSoon={
-                            section.late !== true &&
-                            isDueWithinGrace(row.appointment, serverTime, LATE_GRACE_MINUTES)
-                          }
-                          deskLabel={desk === null ? null : `${desk.code} · ${desk.name}`}
+                          dueSoon={dueSoon}
+                          deskLabel={deskLabel}
                           showDesk={showDesk}
                           foreignDesk={foreignDesk}
                           timeZone={timeZone}
@@ -239,13 +275,13 @@ export function QueueTable({
                           }
                           onSelect={() => onSelect(row)}
                         />
-                      );
-                    })}
-                  </TableBody>
-                </Table>
-                <p className="text-ink-muted px-3 py-2 text-xs">
-                  {section.rows.length} {section.rows.length === 1 ? 'pratica' : 'pratiche'} ·
-                  clicca una riga per i dettagli del cliente
+                      ))}
+                    </TableBody>
+                  </Table>
+                </div>
+                <p className="text-ink-muted border-line-subtle border-t px-5 py-2.5 text-xs">
+                  {section.rows.length} {section.rows.length === 1 ? 'pratica' : 'pratiche'} · tocca
+                  una pratica per i dettagli del cliente
                 </p>
               </div>
             )}

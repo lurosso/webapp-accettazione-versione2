@@ -235,6 +235,17 @@
 }
 
 /*
+ * Le due condizioni d'uso, come varianti scrivibili accanto a qualunque classe.
+ *
+ * `banco:` è il PC con il mouse, `tocco:` il tablet in mano. Servono dove non cambia una misura
+ * ma la FORMA: la navigazione che da barra in alto diventa colonna a sinistra, l'elenco che da
+ * tabella diventa schede. Senza, ogni schermata dovrebbe leggere un hook, diventare client e
+ * cambiare struttura dopo l'idratazione — cioè sfarfallare.
+ */
+@custom-variant banco (@media (pointer: fine));
+@custom-variant tocco (@media (pointer: coarse));
+
+/*
  * DENSITÀ — una sola applicazione, due tarature.
  *
  * La stessa schermata si usa seduti al banco con il mouse e in piedi sul piazzale con l'iPad in
