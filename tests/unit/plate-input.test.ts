@@ -33,16 +33,19 @@ describe('messaggi di stato del portale', () => {
   it('ogni stato ha titolo e dettaglio; il conteggio si mostra solo in coda', () => {
     expect(statusMessage('WAITING', null).showAheadCount).toBe(true);
     expect(statusMessage('SKIPPED', null).showAheadCount).toBe(true);
-    expect(statusMessage('IN_PROGRESS', 'A').detail).toContain('sportello A');
+    // Il cliente aspetta in auto, in fila: i testi lo dicono.
+    expect(statusMessage('WAITING', null).headline).toBe('Sei in fila');
+    expect(statusMessage('WAITING', null).detail).toContain('in auto');
+    expect(statusMessage('IN_PROGRESS', 'A').detail).toContain('Avanza verso lo sportello A');
     expect(statusMessage('IN_PROGRESS', null).detail).toContain('accettazione');
     expect(statusMessage('COMPLETED', null).tone).toBe('done');
     expect(statusMessage('NO_SHOW', null).tone).toBe('attention');
     expect(statusMessage('CANCELLED', null).showAheadCount).toBe(false);
   });
 
-  it('il conteggio è scritto in italiano corretto al singolare e al plurale', () => {
+  it('il conteggio parla di auto in fila, al singolare e al plurale', () => {
     expect(aheadCountMessage(0)).toBe('Sei il prossimo');
-    expect(aheadCountMessage(1)).toContain('1 cliente prima di te');
-    expect(aheadCountMessage(4)).toContain('4 clienti prima di te');
+    expect(aheadCountMessage(1)).toContain('1 auto prima di te');
+    expect(aheadCountMessage(4)).toContain('4 auto prima di te');
   });
 });

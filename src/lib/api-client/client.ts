@@ -347,6 +347,20 @@ export function postLeadContacted(
   });
 }
 
+/**
+ * POST /api/v1/admin/workstations/{id}/eject: l'amministratore scollega uno sportello rimasto
+ * occupato da chi ha finito il turno. Non tocca la pratica eventualmente in carico.
+ */
+export function postWorkstationEject(workstationId: string): Promise<{
+  readonly workstationId: string;
+  readonly operatorName: string | null;
+  readonly stillInProgressCode: string | null;
+}> {
+  return apiFetch(`/api/v1/admin/workstations/${encodeURIComponent(workstationId)}/eject`, {
+    method: 'POST',
+  });
+}
+
 /** POST /api/v1/crm/leads/{id}/reopen: riporta un lead chiuso fra quelli da ricontattare. */
 export function postLeadReopen(eventId: string): Promise<{ readonly lead: BdcLeadView }> {
   return apiFetch(`/api/v1/crm/leads/${encodeURIComponent(eventId)}/reopen`, { method: 'POST' });

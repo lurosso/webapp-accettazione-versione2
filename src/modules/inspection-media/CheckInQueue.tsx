@@ -393,14 +393,14 @@ export function CheckInQueue({
                     ) : null}
 
                     <div className="flex flex-wrap gap-x-4 gap-y-1">
-                      {/* Il cliente ha toccato «sono arrivato»: è in sala, e chi sceglie chi
+                      {/* Il cliente ha toccato «sono arrivato»: è in fila fuori, e chi sceglie chi
                           chiamare lo vede senza aprire il dettaglio. */}
                       {a.customerArrivedAt !== null ? (
                         <span
                           className="text-status-completed text-sm font-semibold"
-                          data-testid="cliente-in-sala"
+                          data-testid="cliente-in-fila"
                         >
-                          in sala dalle{' '}
+                          in fila dalle{' '}
                           {data !== undefined
                             ? localTimeHHmm(new Date(a.customerArrivedAt), data.timeZone)
                             : ''}

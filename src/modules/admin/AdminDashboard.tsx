@@ -1,7 +1,7 @@
 'use client';
 
-// Pannello di amministrazione: andamento della giornata, chiusura del turno, operatori,
-// assistenza e integrazione WhatsApp (Spoki). Sezioni una sotto l'altra: un amministratore ci
+// Pannello di amministrazione: la fila di adesso, andamento della giornata, chiusura del turno,
+// operatori, assistenza e integrazione WhatsApp (Spoki). Sezioni una sotto l'altra: un amministratore ci
 // entra per un motivo preciso (vedere come sta andando, chiudere la giornata, creare un utente,
 // sbloccare una pratica, capire perché un messaggio non è partito) e deve trovarlo senza cercare
 // schede.
@@ -14,6 +14,7 @@ import { AssistancePanel } from './AssistancePanel';
 import { CloseDayPanel } from './CloseDayPanel';
 import { MonitorPanel } from './MonitorPanel';
 import { DailyReportPanel } from './DailyReportPanel';
+import { LiveQueuePanel } from './LiveQueuePanel';
 import { OperatorsPanel } from './OperatorsPanel';
 import { SpokiPanel } from './SpokiPanel';
 
@@ -34,6 +35,9 @@ export function AdminDashboard({ session, businessDate, timeZone }: AdminDashboa
           Lo stato dei sistemi esterni e la coda verso il CRM sono nella pagina Sistema.
         </p>
       </header>
+      {/* Prima cosa: la fila di adesso. Le medie della giornata vengono subito dopo, perché
+          servono a capire com'è andata, non a decidere cosa fare nei prossimi dieci minuti. */}
+      <LiveQueuePanel />
       <DailyReportPanel businessDate={businessDate} />
       <MonitorPanel timeZone={timeZone} />
       <CloseDayPanel businessDate={businessDate} />

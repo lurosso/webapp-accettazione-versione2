@@ -76,9 +76,9 @@ export function AppointmentRow({
   const a = row.appointment;
   // Il cliente ha avvisato dal portale che arriva in ritardo: avviso ambra finché è in coda.
   const avvisoRitardo = a.customerLateNoticeAt !== null && isInQueue(a.status);
-  // Il cliente si è annunciato («Sono arrivato» dalla pagina o da WhatsApp): è in sala, e chi
-  // chiama il prossimo deve saperlo senza aprire il dettaglio.
-  const inSala = a.customerArrivedAt !== null && isInQueue(a.status);
+  // Il cliente si è annunciato («Sono arrivato» dalla pagina o da WhatsApp): è in fila fuori, in
+  // auto, e chi chiama il prossimo deve saperlo senza aprire il dettaglio.
+  const inFila = a.customerArrivedAt !== null && isInQueue(a.status);
   return (
     <TableRow
       className={cn(
@@ -127,13 +127,13 @@ export function AppointmentRow({
         {dueSoon ? (
           <span className="block text-xs font-semibold text-amber-800">orario superato</span>
         ) : null}
-        {inSala ? (
+        {inFila ? (
           <span
             className="text-status-completed block text-xs font-semibold"
-            data-testid="cliente-in-sala"
-            title={`Il cliente ha dichiarato di essere arrivato alle ${localTimeHHmm(new Date(a.customerArrivedAt ?? a.updatedAt), timeZone)}`}
+            data-testid="cliente-in-fila"
+            title={`Il cliente ha dichiarato di essere in fila alle ${localTimeHHmm(new Date(a.customerArrivedAt ?? a.updatedAt), timeZone)}`}
           >
-            in sala dalle {localTimeHHmm(new Date(a.customerArrivedAt ?? a.updatedAt), timeZone)}
+            in fila dalle {localTimeHHmm(new Date(a.customerArrivedAt ?? a.updatedAt), timeZone)}
           </span>
         ) : null}
         {avvisoRitardo ? (

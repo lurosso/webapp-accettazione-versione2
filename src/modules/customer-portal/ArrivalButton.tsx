@@ -43,11 +43,11 @@ export function ArrivalButton({ position, targa, token, timeZone }: ArrivalButto
         data-testid="arrivo-registrato"
         className="text-center text-base font-semibold text-slate-600"
       >
-        Ti abbiamo registrato in sala alle{' '}
+        Ti abbiamo registrato in fila alle{' '}
         <strong className="font-mono">
           {localTimeHHmm(new Date(position.arrivedAt), timeZone)}
         </strong>
-        . Attendi la chiamata.
+        . Attendi in auto: ti chiamiamo noi.
       </p>
     );
   }
@@ -73,10 +73,11 @@ export function ArrivalButton({ position, targa, token, timeZone }: ArrivalButto
         data-testid="sono-arrivato"
         className="bg-brand-secondary active:bg-brand-blue-dark flex min-h-14 w-full items-center justify-center rounded-2xl px-5 text-xl font-bold text-white shadow-sm focus-visible:ring-4 focus-visible:ring-sky-300 focus-visible:outline-none disabled:opacity-60"
       >
-        {mutation.isPending ? 'Un istante…' : 'Sono arrivato in officina'}
+        {mutation.isPending ? 'Un istante…' : 'Sono arrivato, sono in fila'}
       </button>
       <p className="text-center text-sm text-slate-500">
-        Toccalo quando sei in sala: l&apos;accettazione saprà che ci sei. Il tuo turno non cambia.
+        Toccalo quando sei arrivato e sei in fila: l&apos;accettazione saprà che ci sei. Il tuo
+        turno non cambia.
       </p>
       {errore !== null ? (
         <p role="alert" className="text-center text-sm font-semibold text-red-800">

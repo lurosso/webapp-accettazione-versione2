@@ -68,8 +68,8 @@ export type DomainEventPayload =
     }
   | {
       /**
-       * Il cliente ha risposto «Arrivato» al messaggio WhatsApp (o dal portale): è in sala e
-       * aspetta il proprio turno. La coda non cambia ordine; l'accettazione sa chi è presente e
+       * Il cliente ha risposto «Arrivato» al messaggio WhatsApp (o dal portale): è in fila fuori,
+       * in auto, e aspetta il proprio turno. La coda non cambia ordine; l'accettazione sa chi è presente e
        * il cliente riceve codice e link alla pagina di tracciamento.
        */
       readonly type: 'CUSTOMER_ARRIVED';

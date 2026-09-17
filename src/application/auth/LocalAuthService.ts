@@ -103,6 +103,19 @@ export class LocalAuthService implements IAuthService {
     if (operator === null || !operator.isActive) {
       return err(domainError('NOT_FOUND', 'Sessione non più valida: operatore non attivo.'));
     }
+    // Il posto deve essere ancora suo. Se un amministratore ha scollegato lo sportello (turno
+    // finito e logout dimenticato), o se un collega si è seduto lì, la sessione non vale più:
+    // altrimenti resterebbero in due sullo stesso banco, che è esattamente ciò che l'occupazione
+    // della postazione serve a impedire.
+    const claim = await this.deps.claims.findByWorkstation(parsed.value.workstationId);
+    if (claim === null || claim.operatorId !== parsed.value.operatorId) {
+      return err(
+        domainError(
+          'NOT_FOUND',
+          'Sessione non più valida: lo sportello è stato liberato. Accedi di nuovo e scegline uno.',
+        ),
+      );
+    }
     return ok({
       ...parsed.value,
       username: operator.username,

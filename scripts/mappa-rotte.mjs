@@ -370,6 +370,13 @@ export const ROTTE = [
   },
   // API admin
   {
+    path: '/api/v1/admin/workstations/:id/eject',
+    area: AREE[12],
+    descrizione:
+      'Scollega uno sportello rimasto occupato da chi ha finito il turno: libera il posto, non tocca la pratica in carico.',
+    accesso: ACCESSO.admin,
+  },
+  {
     path: '/api/v1/admin/operators',
     area: AREE[12],
     descrizione:

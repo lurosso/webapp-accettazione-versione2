@@ -1,8 +1,8 @@
 // Pagina di tracciamento del cliente (mobile-first, brandizzata Autoclub). È quello che si apre
 // dal link WhatsApp dopo aver risposto «Arrivato», e sostituisce il QR da inquadrare in officina.
 //
-// La gerarchia è pensata per una persona in piedi in sala d'attesa, che guarda lo schermo per due
-// secondi ogni tanto:
+// La gerarchia è pensata per chi aspetta IN AUTO, in fila davanti all'officina, e guarda lo
+// schermo per due secondi ogni tanto:
 // 1. il codice, perché è quello che sentirà chiamare;
 // 2. UN SOLO numero grande al centro, che cambia significato con lo stato: la posizione in fila
 //    mentre aspetta, la lettera dello sportello quando tocca a lui. Mai due numeri grandi insieme:
@@ -159,7 +159,7 @@ export function PortalStatusCard({
 
         {allosportello ? (
           // È il suo turno: la lettera dello sportello è la cosa più grande della pagina, su fondo
-          // verde e con l'alone che respira. Non c'è nient'altro da cercare in sala.
+          // verde e con l'alone che respira. È l'unica cosa che deve cercare mentre avanza.
           <div
             className="chiamata-pulsa bg-brand-primary flex flex-col items-center rounded-3xl px-10 py-4 shadow-lg"
             data-testid="sportello"
@@ -178,7 +178,7 @@ export function PortalStatusCard({
               <span className="font-mono text-5xl leading-none font-black tabular-nums">
                 {position.queuePosition}
               </span>{' '}
-              in attesa
+              in fila
             </p>
             <p className="text-lg text-slate-600" data-testid="ahead-count">
               {aheadCountMessage(position.aheadCount)}

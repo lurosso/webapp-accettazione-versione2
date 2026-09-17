@@ -385,18 +385,22 @@ il QR code) oppure direttamente su `/portal?targa=AB123CD`, l'indirizzo che il c
 WhatsApp (con in più `&t=<token>`, il token unico della pratica che apre la pagina senza login e
 senza limiti di frequenza).
 
-La schermata mobile è pensata per chi la guarda due secondi ogni tanto, in piedi in sala, e cambia
+La schermata mobile è pensata per chi aspetta **in auto, in fila** davanti all'officina e guarda lo
+schermo due secondi ogni tanto, e cambia
 aspetto con lo stato: **in attesa** è bianca e blu, calma, perché non c'è niente da fare;
 **chiamato** diventa verde, con il bordo spesso e un alone che respira attorno alla lettera dello
 sportello, così il passaggio si nota senza leggere una parola (chi ha chiesto meno movimento al
 sistema operativo vede l'alone fermo). In alto codice e targa, poi la **barra di avanzamento** a
 quattro tappe (In attesa → In accettazione → In lavorazione → Pronta per il ritiro), e al centro
 **un solo numero grande**, che cambia significato con lo stato: mentre si aspetta è la posizione in
-fila ("Sei il numero 3 in attesa", con i clienti davanti sotto), quando tocca a lui è la **lettera
-dello sportello** ("È il tuo turno · SPORTELLO A"). Mai due numeri grandi insieme: davanti a un "3" e a una "B" della stessa dimensione nessuno
+fila ("Sei il numero 3 in fila", con le auto davanti sotto), quando tocca a lui è la **lettera
+dello sportello** ("Tocca a te · SPORTELLO A"). I testi danno per scontata la scena vera: il
+cliente non è seduto in una sala, è **in auto, in fila** davanti all'officina, quindi si aspetta in
+auto e si avanza verso lo sportello. In dashboard la stessa cosa si legge sulla riga: "in fila
+dalle 10:32". Mai due numeri grandi insieme: davanti a un "3" e a una "B" della stessa dimensione nessuno
 capisce quale contare. Sotto, la **riga del tempo** con tre orari — arrivo registrato, chiamata
 allo sportello, orario previsto — che risponde alla domanda di chi aspetta, "da quanto sono qui e
-quando tocca a me". Chiudono la pagina targa, accettatore, sede e due pulsanti. **"Sono arrivato in officina"** registra
+quando tocca a me". Chiudono la pagina targa, accettatore, sede e due pulsanti. **"Sono arrivato, sono in fila"** registra
 l'ora dell'arrivo: la pratica resta al suo posto in coda (l'ordine lo decidono l'orario e
 l'accettatore, non chi tocca per primo), in dashboard compare "in sala dalle HH:mm" e il pulsante
 lascia il posto alla conferma. È lo stesso gesto della risposta «Arrivato» su WhatsApp, e vale
@@ -611,6 +615,14 @@ successiva. La nuova password deve avere almeno 8 caratteri ed essere diversa da
 pagina è raggiungibile anche di propria iniziativa. Nel pannello la riga mostra "Password
 provvisoria" finché il cambio non è avvenuto.
 
+**La fila adesso.** La vista Amministrazione apre con quattro numeri in tempo reale, aggiornati da
+soli ogni dieci secondi: **auto in fila** (quante aspettano fuori, e quante hanno dichiarato di
+essere arrivate), **attesa media ora**, **attesa più lunga** e **pratiche agli sportelli**. Le
+attese si contano da quando il cliente ha toccato "sono arrivato", non dall'orario di prenotazione:
+quello dice quando era atteso, non da quanto sta aspettando davvero. Se nessuno si è ancora
+annunciato resta un trattino, perché una media inventata è peggio di un buco. Oltre i venti minuti
+di media il riquadro diventa ambra: è il momento di aprire un altro sportello.
+
 **Monitoraggio dell'accettazione.** L'amministratore non siede a un banco, quindi "guarda la coda"
 è una domanda con quattro risposte possibili. Il riquadro **Monitora l'accettazione** le mette in
 fila: i quattro sportelli, ognuno con chi è collegato e cosa sta lavorando, e la **coda globale**.
@@ -618,6 +630,14 @@ Scegliendo uno sportello si apre la coda della sua area per marchio (A e B condi
 C e D quella PSA); scegliendo la coda globale si apre tutta l'officina **in sola lettura**, con una
 fascia che lo dice e nessuna azione sulle righe, per non toccare per sbaglio il lavoro di chi è al
 banco.
+
+**Scollega uno sportello.** Fine turno, l'accettatore spegne il monitor e va a casa senza uscire
+dall'applicazione: il posto resta suo e il collega del turno dopo non può sedersi. Accanto al nome
+dell'operatore c'è **Scollega**, con conferma al secondo tocco perché butta fuori una persona.
+Libera solo l'occupazione del posto: la pratica eventualmente in carico su quello sportello **non
+viene toccata** — un veicolo accettato a metà non si chiude per un problema di sessioni — e resta
+lì, sbloccabile con "Rimetti in coda" nella stessa schermata. Chi è stato scollegato se ne accorge
+al primo clic: la sua sessione non vale più e torna al login, dove rientra su uno sportello libero.
 
 **Assistenza.** Sotto c'è una scheda per sportello con le due informazioni che servono da lontano:
 **a chi è assegnato** (l'operatore collegato a quella postazione, con l'ora del collegamento) e
@@ -787,6 +807,7 @@ per i cron esterni.
 
 | Rotta                                        | Metodo    | Descrizione                                                                                                             | Accesso             |
 | -------------------------------------------- | --------- | ----------------------------------------------------------------------------------------------------------------------- | ------------------- |
+| `/api/v1/admin/workstations/:id/eject`       | POST      | Scollega uno sportello rimasto occupato da chi ha finito il turno: libera il posto, non tocca la pratica in carico.     | Solo Amministratore |
 | `/api/v1/admin/operators`                    | GET, POST | Elenco (GET) e creazione (POST) degli operatori, con sportelli e postazioni per i menu.                                 | Solo Amministratore |
 | `/api/v1/admin/operators/:id`                | PATCH     | Modifica di un operatore: nome, ruolo, sportelli, postazione predefinita, attivazione.                                  | Solo Amministratore |
 | `/api/v1/admin/operators/:id/reset-password` | POST      | Nuova password provvisoria, restituita una sola volta.                                                                  | Solo Amministratore |

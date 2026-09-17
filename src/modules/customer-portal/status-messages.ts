@@ -31,32 +31,35 @@ export function stageLabel(stage: PortalStage): string {
 
 /**
  * Messaggio per lo stato, con la lettera dello sportello quando la vettura è in accettazione.
- * È la stessa lettera del tabellone in sala e del monitor sopra il banco: il cliente la legge sul
- * telefono mentre cammina e la ritrova appesa davanti a sé.
+ *
+ * Il cliente non è seduto in una sala: è **in auto, in fila** davanti all'officina, con il motore
+ * acceso e il telefono in mano. I testi lo danno per scontato — si aspetta in auto, si avanza
+ * verso lo sportello — perché un messaggio che descrive una scena diversa da quella che il cliente
+ * ha davanti lo fa dubitare di aver capito.
  */
 export function statusMessage(status: AppointmentStatus, bayCode: string | null): StatusMessage {
   switch (status) {
     case 'WAITING':
       return {
-        headline: 'Attendi la chiamata',
-        detail: 'Ti avviseremo quando sarà il tuo turno. Resta in sala di attesa.',
+        headline: 'Sei in fila',
+        detail: 'Attendi in auto: ti chiamiamo noi quando è il tuo turno.',
         tone: 'waiting',
         showAheadCount: true,
       };
     case 'SKIPPED':
       return {
-        headline: 'Ancora in attesa',
-        detail: 'Il tuo turno è stato posticipato di poco: rimani in sala, ti chiamiamo a breve.',
+        headline: 'Ancora in fila',
+        detail: 'Il tuo turno è stato posticipato di poco: resta in auto, ti chiamiamo a breve.',
         tone: 'waiting',
         showAheadCount: true,
       };
     case 'IN_PROGRESS':
       return {
-        headline: 'È il tuo turno',
+        headline: 'Tocca a te',
         detail:
           bayCode === null
-            ? "Procedi in accettazione: l'accettatore ti sta aspettando."
-            : `Vai allo sportello ${bayCode}: l'accettatore ti sta aspettando.`,
+            ? "Avanza verso l'accettazione: l'accettatore ti sta aspettando."
+            : `Avanza verso lo sportello ${bayCode}: l'accettatore ti sta aspettando.`,
         tone: 'serving',
         showAheadCount: false,
       };
@@ -71,7 +74,8 @@ export function statusMessage(status: AppointmentStatus, bayCode: string | null)
     case 'NO_SHOW':
       return {
         headline: 'Non ti abbiamo trovato',
-        detail: "Il turno è stato chiuso come assente: rivolgiti allo sportello dell'accettazione.",
+        detail:
+          "Il turno è stato chiuso come assente: se sei ancora qui, avvicinati a uno sportello dell'accettazione.",
         tone: 'attention',
         showAheadCount: false,
       };
@@ -123,12 +127,10 @@ export function concludedMessage(status: AppointmentStatus): StatusMessage {
   }
 }
 
-/** Riga sul numero di clienti in attesa prima del cliente. */
+/** Riga sulle auto in fila prima del cliente. */
 export function aheadCountMessage(aheadCount: number): string {
   if (aheadCount === 0) {
     return 'Sei il prossimo';
   }
-  return aheadCount === 1
-    ? "C'è 1 cliente prima di te"
-    : `Ci sono ${aheadCount} clienti prima di te`;
+  return aheadCount === 1 ? "C'è 1 auto prima di te" : `Ci sono ${aheadCount} auto prima di te`;
 }

@@ -12,7 +12,12 @@ import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { TableSkeleton } from '@/components/ui/skeleton';
 import { EmptyState } from '@/components/shared/EmptyState';
-import { ApiError, fetchAssistance, postAppointmentAction } from '@/lib/api-client/client';
+import {
+  ApiError,
+  fetchAssistance,
+  postAppointmentAction,
+  postWorkstationEject,
+} from '@/lib/api-client/client';
 import { queueKeys } from '@/lib/api-client/query-keys';
 import { localTimeHHmm } from '@/lib/dates';
 
@@ -32,6 +37,8 @@ export function AssistancePanel({ timeZone }: AssistancePanelProps) {
   });
   const [inCorso, setInCorso] = useState<string | null>(null);
   const [confermaAnnulla, setConfermaAnnulla] = useState<string | null>(null);
+  // Scollegare uno sportello butta fuori un collega: secondo tocco, come per l'annullamento.
+  const [confermaSgancio, setConfermaSgancio] = useState<string | null>(null);
   const [messaggio, setMessaggio] = useState<string | null>(null);
   const [errore, setErrore] = useState<string | null>(null);
 
@@ -58,6 +65,30 @@ export function AssistancePanel({ timeZone }: AssistancePanelProps) {
     } finally {
       setInCorso(null);
       setConfermaAnnulla(null);
+    }
+  };
+
+  const scollega = async (workstationId: string, sportello: string): Promise<void> => {
+    setInCorso(workstationId);
+    setErrore(null);
+    setMessaggio(null);
+    try {
+      const esito = await postWorkstationEject(workstationId);
+      setMessaggio(
+        esito.operatorName === null
+          ? `${sportello} era già libero.`
+          : `${esito.operatorName} scollegato da ${sportello}: il posto è libero${
+              esito.stillInProgressCode === null
+                ? '.'
+                : `, la pratica ${esito.stillInProgressCode} resta in carico.`
+            }`,
+      );
+      await queryClient.invalidateQueries({ queryKey: ['admin-assistance'] });
+    } catch (cause) {
+      setErrore(cause instanceof ApiError ? cause.message : 'Sgancio non riuscito.');
+    } finally {
+      setInCorso(null);
+      setConfermaSgancio(null);
     }
   };
 
@@ -124,6 +155,30 @@ export function AssistancePanel({ timeZone }: AssistancePanelProps) {
                       </span>
                     ) : null}
                   </p>
+                  {/* Fine turno e logout dimenticato: il posto resta occupato e il collega del
+                      turno dopo non può sedersi. Due tocchi, perché butta fuori una persona. */}
+                  {bay.assignedOperatorName !== null && bay.workstationId !== null ? (
+                    <Button
+                      size="touch"
+                      variant={confermaSgancio === bay.workstationId ? 'destructive' : 'ghost'}
+                      className="mt-1 px-2"
+                      disabled={inCorso === bay.workstationId}
+                      data-testid={`scollega-${bay.code}`}
+                      onClick={() => {
+                        if (confermaSgancio !== bay.workstationId) {
+                          setConfermaSgancio(bay.workstationId);
+                          return;
+                        }
+                        void scollega(bay.workstationId!, bay.name);
+                      }}
+                    >
+                      {inCorso === bay.workstationId
+                        ? 'Scollego…'
+                        : confermaSgancio === bay.workstationId
+                          ? 'Confermi? Dovrà rientrare'
+                          : 'Scollega'}
+                    </Button>
+                  ) : null}
                 </div>
 
                 <div>

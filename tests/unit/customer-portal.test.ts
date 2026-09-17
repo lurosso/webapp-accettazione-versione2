@@ -68,7 +68,7 @@ describe('Portale: rendering dello stato', () => {
     expect(statusMessage('COMPLETED', null).headline).toBe('Vettura in lavorazione');
     expect(concludedMessage('COMPLETED').headline).toBe('Pratica conclusa');
     expect(aheadCountMessage(0)).toBe('Sei il prossimo');
-    expect(aheadCountMessage(3)).toBe('Ci sono 3 clienti prima di te');
+    expect(aheadCountMessage(3)).toBe('Ci sono 3 auto prima di te');
   });
 
   it('in attesa: tappa 1, clienti davanti dello stesso sportello, orario, sede e nessun accettatore', async () => {

@@ -26,7 +26,7 @@ export const GLOSSARY = [
     en: 'Bay',
     note:
       '4 sportelli A, B, C, D con monitor; occupazione derivata dalla pratica IN_PROGRESS. ' +
-      'A schermo si chiama "Sportello A": la lettera è quella sulla targhetta in sala ed è ciò ' +
+      'A schermo si chiama "Sportello A": la lettera è quella sulla targhetta del banco ed è ciò ' +
       'che si dice al cliente (richiesta del committente, 2026-09-17; prima erano "Accettazione N"). ' +
       'Nel codice e nei dati resta Bay, con `number` come ordinale interno.',
   },

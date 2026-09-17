@@ -94,7 +94,7 @@ export interface Appointment {
    * Quando il cliente ha dichiarato di essere arrivato in officina rispondendo «Arrivato» al
    * messaggio WhatsApp (o dal portale). Non cambia lo stato né l'ordine della coda: è il momento
    * da cui l'attesa è davvero cominciata, quello che il cliente vede sulla pagina di tracciamento
-   * e che in dashboard distingue chi è in sala da chi deve ancora presentarsi.
+   * e che in dashboard distingue chi è già in fila fuori da chi deve ancora presentarsi.
    */
   readonly customerArrivedAt: IsoDateTime | null;
   /** Ultima sincronizzazione che ha toccato la pratica. */
