@@ -1,5 +1,9 @@
 // Pulsante base (convenzioni shadcn/ui, codice nel repo, nessun lock-in).
-// Target touch minimo 3rem (`size="lg"`) per tablet e postazioni con schermo touch.
+//
+// Nessuna taglia scende sotto i 44 px. Prima il valore predefinito (`md`) era alto 40 px e `sm`
+// 32: due misure sotto la soglia del dito, usate ovunque perché erano il default. Una taglia
+// "compatta" ora è compatta in larghezza, non in altezza — l'altezza non è negoziabile su un
+// tablet tenuto in mano sul piazzale.
 import type { ButtonHTMLAttributes } from 'react';
 import { cn } from '@/lib/utils/cn';
 
@@ -9,14 +13,22 @@ export type ButtonVariant =
   | 'outline'
   | 'ghost'
   | 'destructive'
+  /**
+   * Azione distruttiva che compare su OGNI riga di un elenco. Piena sarebbe un muro rosso in cui
+   * il rosso non vuol più dire niente — e un bersaglio pieno invita il dito. Diventa piena solo
+   * quando chiede la conferma, che è il momento in cui deve fermare chi sta scorrendo.
+   */
+  | 'destructiveQuiet'
   | 'success'
   | 'warning'
   /** Contorno chiaro per le barre blu e i monitor: sul fondo scuro l'outline normale sparisce. */
   | 'onDark';
 
 /**
- * `touch` è la misura delle azioni usate anche dal tablet sul piazzale: 44 px di lato, la
- * soglia sotto la quale un dito sbaglia bersaglio. `sm` resta per i comandi di contorno.
+ * `md` è il predefinito e vale 44 px. `sm` è la stessa altezza con meno respiro ai lati, per i
+ * comandi di contorno che stanno in una riga fitta. `lg` (56 px) è l'azione primaria di una
+ * schermata usata in piedi. `touch` resta come alias di `md`: è scritto in una trentina di punti
+ * e non ha più senso distinguerlo, visto che adesso ogni taglia è una taglia da tocco.
  */
 export type ButtonSize = 'sm' | 'md' | 'lg' | 'touch';
 
@@ -27,27 +39,26 @@ export interface ButtonProps extends ButtonHTMLAttributes<HTMLButtonElement> {
 
 const VARIANT_CLASSES: Record<ButtonVariant, string> = {
   // Blu Autoclub: struttura, navigazione e azioni di lavoro (prendi in carico, filtri).
-  default:
-    'bg-brand-secondary text-white hover:bg-brand-blue-dark focus-visible:ring-brand-blue-light',
-  secondary: 'bg-slate-100 text-slate-900 hover:bg-slate-200 focus-visible:ring-slate-400',
-  outline:
-    'border border-slate-300 bg-white text-slate-900 hover:bg-slate-50 focus-visible:ring-slate-400',
-  ghost: 'text-slate-700 hover:bg-slate-100 focus-visible:ring-slate-400',
-  destructive: 'bg-red-600 text-white hover:bg-red-700 focus-visible:ring-red-400',
+  default: 'bg-brand-secondary text-white shadow-xs hover:bg-brand-blue-dark',
+  secondary: 'bg-surface-sunken text-ink hover:bg-slate-200',
+  outline: 'border-line bg-surface text-ink-soft hover:bg-surface-sunken border',
+  ghost: 'text-ink-soft hover:bg-surface-sunken',
+  destructive: 'bg-red-600 text-white shadow-xs hover:bg-red-700',
+  destructiveQuiet:
+    'border-status-no-show/35 bg-surface text-status-no-show-ink hover:bg-status-no-show-soft border',
   // Verde Autoclub: solo completamento e avanzamento. Testo scuro: il verde del marchio con il
   // bianco sopra non si legge (contrasto 2,6:1), con il testo scuro supera 8:1.
-  success:
-    'bg-brand-primary text-slate-950 hover:bg-brand-lime-dark hover:text-white focus-visible:ring-brand-lime-dark',
-  warning: 'bg-status-in-progress text-slate-900 hover:brightness-95 focus-visible:ring-amber-400',
-  onDark:
-    'border border-white/40 bg-white/10 text-white hover:bg-white/20 focus-visible:ring-white',
+  success: 'bg-brand-primary text-slate-950 shadow-xs hover:bg-brand-lime-dark hover:text-white',
+  warning: 'bg-status-in-progress text-slate-900 hover:brightness-95',
+  // Sul fondo blu l'anello di focus blu sparisce: qui diventa bianco.
+  onDark: 'border border-white/40 bg-white/10 text-white hover:bg-white/20 [--anello-colore:#fff]',
 };
 
 const SIZE_CLASSES: Record<ButtonSize, string> = {
-  sm: 'h-8 px-3 text-xs',
-  md: 'h-10 px-4 text-sm',
-  touch: 'min-h-11 min-w-11 px-4 text-sm',
-  lg: 'h-touch px-5 text-base',
+  sm: 'min-h-touch min-w-touch px-3 text-sm',
+  md: 'min-h-touch min-w-touch px-4 text-sm',
+  touch: 'min-h-touch min-w-touch px-4 text-sm',
+  lg: 'min-h-touch-lg min-w-touch px-6 text-base',
 };
 
 export function Button({
@@ -61,8 +72,7 @@ export function Button({
     <button
       type={type}
       className={cn(
-        'inline-flex items-center justify-center gap-2 rounded-md font-medium whitespace-nowrap transition-colors',
-        'focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:outline-none',
+        'premibile focus-anello inline-flex items-center justify-center gap-2 rounded-md font-semibold whitespace-nowrap',
         'disabled:pointer-events-none disabled:opacity-50',
         VARIANT_CLASSES[variant],
         SIZE_CLASSES[size],
