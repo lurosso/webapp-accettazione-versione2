@@ -24,22 +24,22 @@ function claim(
   };
 }
 
-describe('workstationAvailability: accettazioni libere al login', () => {
+describe('workstationAvailability: sportelli liberi al login', () => {
   const { seed } = buildTestEnv();
   const tutte = seed.workstations;
 
   it('senza occupazioni né veicoli in carico sono tutte libere', () => {
     const r = workstationAvailability({ workstations: tutte, claims: [], busyBays: [], now: NOW });
     expect(r.free.map((w) => w.name)).toEqual([
-      'Accettazione 1',
-      'Accettazione 2',
-      'Accettazione 3',
-      'Accettazione 4',
+      'Sportello A',
+      'Sportello B',
+      'Sportello C',
+      'Sportello D',
     ]);
     expect(r.occupied).toEqual([]);
   });
 
-  it("un'accettazione con un collega collegato sparisce dalle libere, con il suo nome", () => {
+  it('uno sportello con un collega collegato sparisce dai liberi, con il suo nome', () => {
     const r = workstationAvailability({
       workstations: tutte,
       claims: [claim('ws-p1', 'op-advisor-1', 'Mario Rossi')],
@@ -48,7 +48,7 @@ describe('workstationAvailability: accettazioni libere al login', () => {
     });
     expect(r.free.map((w) => w.id)).toEqual(['ws-p2', 'ws-p3', 'ws-p4']);
     expect(r.occupied).toHaveLength(1);
-    expect(r.occupied[0]?.workstation.name).toBe('Accettazione 1');
+    expect(r.occupied[0]?.workstation.name).toBe('Sportello A');
     expect(r.occupied[0]?.reason).toBe('in uso da Mario Rossi');
   });
 

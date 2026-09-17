@@ -332,7 +332,7 @@ export function OperatorsPanel({ currentOperatorId }: OperatorsPanelProps) {
             </div>
           </fieldset>
           <div className="flex flex-col gap-1">
-            <Label htmlFor="op-postazione">Accettazione predefinita</Label>
+            <Label htmlFor="op-postazione">Sportello predefinito</Label>
             <Select
               id="op-postazione"
               value={form.defaultWorkstationId}

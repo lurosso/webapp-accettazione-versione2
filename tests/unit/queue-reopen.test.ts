@@ -121,7 +121,6 @@ describe('QueueService.reopenCompleted: "Completato" premuto per errore', () => 
         appointmentId: chiusa.id,
         expectedVersion: riaperta.value.version,
         inspectionNotes: 'Foto rifatte dopo la riapertura',
-        allowMissingPhotos: true,
       },
       mario,
     );

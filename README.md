@@ -33,7 +33,7 @@ la mette in coda. Gli accettatori lavorano su una dashboard monopagina con tre a
 | -------------------- | --------------------------- | ----------------------------------------------------------- |
 | **Prendi in carico** | In carico (evidenza gialla) | Assegna l'operatore e una postazione di accettazione libera |
 | **Salta**            | Saltata                     | Pospone la pratica lasciandola al proprio orario            |
-| **Completato**       | Completata (evidenza verde) | Libera l'accettazione; la pratica esce dalla vista attiva   |
+| **Completato**       | Completata (evidenza verde) | Libera lo sportello; la pratica esce dalla vista attiva     |
 
 Chi era atteso da più di dieci minuti e non è ancora stato preso in carico finisce nel blocco
 **In ritardo / assenti**, dove l'accettatore lo rimette in coda quando arriva, oppure lo segnala
@@ -45,8 +45,9 @@ che si aggiorna da sola mentre l'operatore lavora. Sopra ogni postazione un **mo
 codice in lavorazione e, appena l'accettatore chiude la pratica, invita il cliente successivo ad
 avanzare. Le **comunicazioni** partono da sole dopo la sincronizzazione dell'agenda, con WhatsApp
 via Spoki e ripiego automatico su SMS. Dal **tablet** l'accettatore fa il giro della vettura,
-scatta le foto, annota i danni e chiude il check-in: note e foto finiscono nel fascicolo della
-pratica, si rivedono dalla dashboard e arrivano al CRM. Chi non si presenta finisce nel **cruscotto
+scatta le foto o gira un breve video, annota i danni e chiude il check-in: niente è obbligatorio e
+nulla blocca la chiusura. Note, foto e video finiscono nel fascicolo della pratica, si rivedono
+dalla dashboard e arrivano al CRM. Chi non si presenta finisce nel **cruscotto
 BDC**, dove il back office lo richiama e chiude il lead. Restano da sviluppare il registro degli
 invii, i video e la vista tecnica degli eventi CRM. La priorità di sviluppo è definita in [`CLAUDE.md`](CLAUDE.md); i
 requisiti completi sono in [`docs/ANALISI_REQUISITI.md`](docs/ANALISI_REQUISITI.md).
@@ -133,7 +134,7 @@ container **rifiuta di avviarsi** con queste credenziali se un provider è impos
 
 Per lavorare sui dati veri si passa al profilo `real` (`SEED_PROFILE=real` in `.env.local`, con
 `SEED_ADMIN_PASSWORD_HASH`, `SEED_DISPLAY_TOKEN_SECRET` e `SESSION_SECRET` generati da
-`npm run seed:credenziali`): due sportelli con i marchi del planning di Bari più «Altri marchi», un
+`npm run seed:credenziali`): le due aree per marchio con i marchi del planning di Bari più «Altri marchi», un
 solo account `admin` con password provvisoria da cambiare al primo accesso, accettatori creati da
 `/admin`.
 
@@ -145,23 +146,23 @@ riavvio, quando lo store in memoria si azzera. Si governa con `DEV_QUICK_LOGIN` 
 in sviluppo, ignorato con `NODE_ENV=production`); la rotta `POST /api/v1/auth/quick-login` risponde
 404 quando è spento.
 
-| Utente          | Ruolo          | Sportello abituale                    |
-| --------------- | -------------- | ------------------------------------- |
-| `admin`         | Amministratore | tutti                                 |
-| `responsabile`  | Responsabile   | tutti                                 |
-| `mario.rossi`   | Accettatore    | S1 · Stellantis Italia (Fiat, Lancia) |
-| `laura.bianchi` | Accettatore    | S2 · Jeep / Alfa Romeo                |
-| `andrea.conti`  | Accettatore    | S3 · Peugeot / Citroën / Opel         |
+| Utente          | Ruolo          | Sportello abituale                           |
+| --------------- | -------------- | -------------------------------------------- |
+| `admin`         | Amministratore | tutti                                        |
+| `responsabile`  | Responsabile   | tutti                                        |
+| `mario.rossi`   | Accettatore    | Sportello B · FCA (Fiat, Lancia, Jeep, Alfa) |
+| `laura.bianchi` | Accettatore    | Sportello C · PSA (Peugeot, Citroën, Opel)   |
+| `andrea.conti`  | Accettatore    | Sportello D · PSA                            |
 
 Gli account si gestiscono da `/admin` (vedi sotto): l'amministratore ne crea di nuovi, li modifica,
 li disattiva e azzera le password senza toccare il seed. Esiste anche il ruolo **Kiosk** per gli
 account dei dispositivi, che atterrano sul tabellone e non entrano nell'area operatore.
 
-Al login si sceglie una sola cosa, l'**Accettazione** (da 1 a 4): ogni voce porta con sé il proprio
-sportello e i marchi serviti ("Accettazione 1 · Stellantis Italia", con i badge Fiat e Lancia
-sotto), e determina il filtro iniziale della coda e la campata proposta alla presa in carico. Le
-accettazioni occupate restano in elenco ma **non si possono scegliere**: se un collega è già
-collegato all'Accettazione 1, o ha un veicolo in carico lì, la voce è disabilitata con il motivo
+Al login si sceglie una sola cosa, lo **Sportello** (A, B, C o D): ogni voce porta con sé la propria
+area per marchio e i marchi serviti ("Sportello A · FCA", con i badge Fiat, Lancia, Jeep e Alfa
+Romeo sotto), e determina il filtro iniziale della coda e lo sportello proposto alla presa in
+carico. Gli sportelli occupati restano in elenco ma **non si possono scegliere**: se un collega è
+già collegato allo Sportello A, o ha un veicolo in carico lì, la voce è disabilitata con il motivo
 accanto ("in uso da Mario Rossi") finché non esce o la sua sessione scade. Il controllo lo fa
 anche il server, quindi due login sullo stesso posto non passano nemmeno chiamando l'API.
 
@@ -173,11 +174,11 @@ anche il server, quindi due login sullo stesso posto non passano nemmeno chiaman
 | `/accettazione`          | Accettatore        | disponibile | Coda ordinata per orario con codici F001…, azioni rapide, blocco **In ritardo / assenti**, banner sync, **vista globale** per prendere in carico pratiche di altri sportelli, aggiornamento ogni 3 s; il clic su una riga apre i dati del cliente; **Nuovo cliente (senza appuntamento)** mette in coda un walk-in con targa, nome, telefono, marca e lavorazione; dal dettaglio di una pratica completata si può **riaprirla**; le righe con l'orario superato da meno di dieci minuti sono **gialle** e un cliente segnato assente che si presenta si **riattiva** ("Arrivato in ritardo": torna in coda dopo i presenti, con lo stesso codice) |
 | `/sistema`               | Responsabile / IT  | disponibile | Stato delle porte esterne (Infinity, Spoki, SMS Hosting, CRM) e, per gli amministratori, la coda di uscita verso il CRM con "Forza riprova"                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                       |
 | `/cliente` (`/qr`)       | Cliente (QR)       | disponibile | Ricerca per targa e stato del turno in tempo reale: codice, clienti in attesa, messaggio per stato; nessuna autenticazione e nessun dato personale                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                |
-| `/display/sala-attesa`   | Sala d'attesa      | disponibile | Tabellone stile ufficio pubblico: codici chiamati con l'accettazione a cui presentarsi e prossimi turni                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                           |
+| `/display/sala-attesa`   | Sala d'attesa      | disponibile | Tabellone stile ufficio pubblico: codici chiamati con la lettera dello sportello a cui presentarsi e prossimi turni                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                               |
 | `/manager`               | BDC / Responsabile | disponibile | Cruscotto del back office: clienti segnati assenti da ricontattare, con telefono richiamabile e chiusura del lead con esito; da qui si esegue anche la chiusura di giornata                                                                                                                                                                                                                                                                                                                                                                                                                                                                       |
 | `/comunicazioni`         | Responsabile       | pianificato | Registro degli invii WhatsApp e SMS con conferma manuale (l'invio automatico funziona già)                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                        |
-| `/display/1` … `/4`      | Monitor            | disponibile | Schermo a tutto campo per i monitor sopra le postazioni: codice e targa in servizio, oppure invito verde ad avanzare; si aggiorna ogni 2 secondi                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                  |
-| `/check-in`              | Tablet             | disponibile | Check-in veicolo a tutto schermo, senza l'intestazione del sito: le pratiche del proprio sportello in due schede grandi, giro fotografico a slot, note con annotazioni rapide, comandi fissi in basso (il vecchio `/tablet` rimanda qui)                                                                                                                                                                                                                                                                                                                                                                                                          |
+| `/display/A` … `/D`      | Monitor            | disponibile | Schermo a tutto campo per i monitor sopra i quattro sportelli: lettera, codice e targa in servizio, oppure invito verde ad avanzare; si aggiorna ogni 2 secondi                                                                                                                                                                                                                                                                                                                                                                                                                                                                                   |
+| `/check-in`              | Tablet             | disponibile | Check-in veicolo a tutto schermo, senza l'intestazione del sito: le pratiche del proprio sportello in due schede grandi, foto a slot con «+ Foto» e «Video» (mai obbligatori), note con annotazioni rapide, comandi fissi in basso (il vecchio `/tablet` rimanda qui)                                                                                                                                                                                                                                                                                                                                                                             |
 | `/accettazione/archivio` | Accettatore        | disponibile | Archivio delle ispezioni: ricerca per targa o codice, schede con le foto per categoria; i file oltre la retention risultano eliminati ma la scheda resta                                                                                                                                                                                                                                                                                                                                                                                                                                                                                          |
 | `/admin`                 | Amministratore     | disponibile | Gestione operatori (crea, modifica, disattiva, reset password), strumenti di assistenza (accettazioni occupate, pratiche in carico da troppo tempo, rimetti in coda o annulla) e integrazione Spoki (stato, messaggio di prova, registro dei payload)                                                                                                                                                                                                                                                                                                                                                                                             |
 
@@ -193,26 +194,42 @@ API principali (JSON, autenticate via cookie di sessione): `GET /api/v1/queue`,
 Pubbliche, senza sessione: `GET /api/v1/public/status?targa=AB123CD` (stato del turno, protetta da
 limiti di frequenza) e `GET /api/v1/health`.
 
+### I quattro sportelli: A, B, C, D
+
+In sala ci sono quattro banchi, con la lettera appesa sopra. Lavorano a coppie per famiglia di
+marchi: **A e B servono i marchi FCA** (Fiat, Lancia, Alfa Romeo, Jeep, EMC, Leapmotor) e **C e D i
+marchi PSA** (Peugeot, Citroën, DS, Opel, XEV); «Altri marchi» lo prende chi è libero. La lettera è
+l'unica indicazione che il cliente riceve, ed è la stessa ovunque: sul tabellone della sala ("F012
+→ Sportello B"), sul monitor sopra il banco, sul portale dal telefono ("Vai allo sportello B") e
+nel menu del login dell'accettatore ("Sportello B · FCA").
+
+Nel dominio le due famiglie sono gli sportelli logici `FCA` e `PSA` (entità Desk, cioè il filtro
+per marchio della coda), mentre ogni banco è una postazione con il proprio monitor (entità
+Workstation e Bay, codici `A`…`D`). I vecchi indirizzi per numero restano validi.
+
 ### Provare il tabellone della sala d'attesa
 
 Il monitor grande della sala è su <http://localhost:3000/display/sala-attesa>, impostato come i
-tabelloni degli uffici pubblici: in alto i codici chiamati con l'accettazione a cui presentarsi (la
-chiamata più recente in verde), in basso i prossimi turni. Con `?prossimi=6` si cambia quanti
+tabelloni degli uffici pubblici: in alto i codici chiamati con la lettera dello sportello a cui
+presentarsi (la chiamata più recente in verde), in basso i prossimi turni. Con `?prossimi=6` si cambia quanti
 turni elencare. Mostra solo codici, senza targhe né nomi, perché lo schermo è visibile a tutte le
 persone presenti.
 
-### Provare i monitor delle accettazioni
+### Provare i monitor degli sportelli
 
-Ogni postazione di accettazione ha il suo schermo: <http://localhost:3000/display/1> (fino a `/display/4`; vale anche
-il codice, `/display/C1`). La pagina è pensata per un televisore in kiosk a tutto schermo e si
-aggiorna ogni 2 secondi. Prendendo in carico una pratica dalla dashboard, il monitor dell'accettazione
-assegnata mostra codice e targa su sfondo scuro; premendo **Completato** diventa verde con
-"ACCETTAZIONE LIBERA / AVANZARE". Se il server smette di rispondere lo schermo lo dichiara, invece di
-lasciare a video un codice non più valido.
+Ogni sportello ha il suo schermo: <http://localhost:3000/display/A> (fino a `/display/D`; valgono
+ancora `/display/1`…`/display/4` e le vecchie targhette `/display/C1`, così i kiosk già
+configurati non vanno rifatti). La pagina è pensata per un televisore in kiosk a tutto schermo e si
+aggiorna ogni 2 secondi. In alto a sinistra c'è sempre la lettera, grande. Prendendo in carico una
+pratica dalla dashboard, il monitor dello sportello assegnato mostra codice e targa su sfondo
+scuro; premendo **Completato** diventa verde con "SPORTELLO A LIBERO / AVANZARE". Se il server
+smette di rispondere lo schermo lo dichiara, invece di lasciare a video un codice non più valido.
 
-Ogni accettazione ha un token nel seed (`display-demo-token-c1`…). Passandolo come `?token=` viene
+Ogni sportello ha un token nel seed (`display-demo-token-a`…`-d`). Passandolo come `?token=` viene
 verificato e un token errato riceve 403; senza token l'accesso resta consentito, perché i monitor
-sono su rete interna. L'obbligatorietà è prevista con l'hardening.
+sono su rete interna. L'obbligatorietà è prevista con l'hardening. Nel profilo `real` i token
+derivano dalla lettera: dopo questo cambio vanno riletti con `npm run seed:credenziali` e
+riscritti negli URL dei kiosk.
 
 ### Riconsegne dei veicoli
 
@@ -246,27 +263,28 @@ sportello dell'operatore collegato, con due schede, **In attesa** e **Le mie pre
 pulsanti grandi da usare in piedi accanto alla vettura.
 
 1. **Inizia check-in** prende in carico la pratica e apre a tutto schermo la scheda di ispezione.
-2. **Giro del veicolo**: sei slot, uno per parte. **Frontale, Posteriore, Fiancata sinistra e
-   Fiancata destra sono obbligatorie**; _Interni_ e _Dettaglio danni_ sono facoltative e accettano
-   più scatti. Toccando uno slot si apre la fotocamera posteriore del tablet (su un computer si
-   sceglie un file); l'anteprima compare subito con la rotella di attesa e resta nello slot a
-   caricamento concluso. Il file finisce dietro `IMediaStorage`, cioè in
-   `.data/uploads/<giornata>/<codice>/<parte>-<id>.<estensione>`, e si rilegge da
-   `GET /api/v1/media/<chiave>` con la sessione attiva. Le foto restano lì anche dopo un riavvio.
+2. **Giro del veicolo**: quattro slot consigliati (Frontale, Posteriore, Fiancata sinistra,
+   Fiancata destra) più _Interni_ e _Dettaglio danni_. **Nessuna ripresa è obbligatoria**: sono
+   suggerimenti, ogni slot accetta più scatti e la pratica si chiude anche a slot vuoti. Toccando
+   uno slot si apre la fotocamera posteriore del tablet (su un computer si sceglie un file);
+   l'anteprima compare subito con la rotella di attesa e resta nello slot a caricamento concluso.
+   Sotto agli slot due comandi grandi: **+ Foto** per uno scatto libero fuori dalle caselle (finisce
+   fra le "Foto aggiuntive") e **▶ Video** per una ripresa breve del giro (mp4, mov, webm; fino a
+   80 MB, contro gli 8 MB di una foto). I file finiscono dietro `IMediaStorage`, cioè in
+   `.data/uploads/<giornata>/<codice>/<parte>-<id>.<estensione>`, e si rileggono da
+   `GET /api/v1/media/<chiave>` con la sessione attiva. Restano lì anche dopo un riavvio.
 3. In **Note veicolo / danni rilevati** si annota quanto visto durante il giro dell'auto.
-4. **Completa check-in** si può premere sempre; se mancano le quattro foto obbligatorie chiede una
-   doppia conferma ("Nessuna foto inserita. Sei sicuro di voler completare l'accettazione senza
-   il check-in fotografico?") e, confermando, chiude la pratica scrivendo la mancanza nelle note.
-   Una pratica completata per errore si riapre dal dettaglio ("Riapri pratica / Modifica
-   check-in") e torna in carico a chi la riapre. Il conteggio delle foto resta visibile (sotto al
-   pulsante c'è l'elenco di cosa manca); lo stesso controllo è ripetuto dal server, quindi non si
-   aggira da un'altra scheda. Una volta completo chiude la pratica, libera l'accettazione e invia al CRM note e indirizzi delle
-   foto. Nel terminale del server compaiono le righe `[Media] file salvato: ...` e
+4. **Completa check-in** è sempre attivo e non chiede conferme: la riga sotto al pulsante dice cosa
+   c'è nel fascicolo ("3 foto e 1 video") oppure avvisa che senza nulla la chiusura viene annotata.
+   Chiudendo un veicolo non documentato, nelle note resta scritto "Check-in concluso senza foto o
+   video del veicolo", così al ritiro si sa com'è andata. Una pratica completata per errore si
+   riapre dal dettaglio ("Riapri pratica / Modifica check-in") e torna in carico a chi la riapre.
+   La chiusura libera lo sportello e invia al CRM note e indirizzi dei media. Nel terminale del server compaiono le righe `[Media] file salvato: ...` e
    `[MOCK][Crm] notifyCheckIn {...}`; allo stesso modo, segnando un cliente assente dalla
    dashboard, compare `[MOCK][Crm] notifyNoShow {...}`.
 5. Nella dashboard di accettazione, il clic sulla pratica apre il pannello con la sezione
-   **Ispezione al veicolo**: le note e le foto, raggruppate per parte del veicolo e ingrandibili
-   con un clic.
+   **Ispezione al veicolo**: le note, i video e le foto, raggruppati per parte del veicolo e
+   apribili con un clic (il video parte nel riquadro a schermo intero).
 
 Il CRM non può bloccare l'officina: se non risponde (`MOCK_CRM_MODE=error`) l'accettazione si
 chiude lo stesso e l'evento resta nella coda di uscita, pronto per il rinvio. Con
@@ -279,16 +297,16 @@ L'applicazione è una sola: cambia il comportamento, non l'interfaccia. Il crite
 **dispositivo**, non la larghezza dello schermo: un tablet si riconosce dal puntatore touch
 (`pointer: coarse`), così un iPad in orizzontale resta un tablet anche se è più largo di un monitor.
 
-- **Su tablet o telefono** "Prendi in carico" porta subito alla schermata di ispezione fotografica
-  della pratica, e il tocco su una riga apre i dettagli in una **finestra centrale** ariosa (codice
+- **Su tablet o telefono** "Prendi in carico" porta subito alla schermata di ispezione del veicolo, e il tocco su una riga apre i dettagli in una **finestra centrale** ariosa (codice
   e targa grandi, campi a due colonne, pulsante Chiudi a tutta larghezza) pensata per il dito. Dal
   dettaglio di una pratica in carico si passa al check-in con **Passa al check-in fotografico**.
+  Foto e video restano facoltativi: il pulsante di chiusura non si blocca mai.
 - **Su PC** "Prendi in carico" cambia lo stato e apre il pannello laterale del cliente: si resta
   sulla coda e non compare nessun pulsante di check-in o fotocamera. La voce "Tablet" non c'è nel
   menu e la pagina `/check-in`, se aperta a mano, spiega che il check-in si fa dal tablet.
 
-Dall'ispezione si esce con **Salta foto per ora**, che riporta alla coda lasciando la pratica in
-carico e le foto già scattate nel fascicolo: se piove o la vettura va spostata subito, il check-in
+Dall'ispezione si esce con **Salta per ora**, che riporta alla coda lasciando la pratica in
+carico e i media già acquisiti nel fascicolo: se piove o la vettura va spostata subito, il check-in
 si riprende dopo dalla scheda "Le mie prese in carico".
 
 La coda è tarata anche per il dito: righe alte, pulsanti di almeno 44 × 44 px e riga interamente
@@ -300,8 +318,8 @@ I controlli principali rispettano il bersaglio minimo di 44×44 px: campi di tes
 (44 px), voci di navigazione e «Esci» nell'header, pulsanti di azione delle righe e del cruscotto BDC,
 caselle di spunta da 24 px con etichette alte 44 px. A 768 px (iPad verticale) e 1024 px
 (orizzontale) la pagina non scorre mai in orizzontale: le tabelle larghe scorrono dentro il proprio
-riquadro e la coda nasconde le colonne Accettazione e Operatore sotto i 1024 px (si leggono nel
-dettaglio). I badge «In diretta» e «Dati non aggiornati» stanno nella barra dei comandi, che va a
+riquadro e la coda nasconde le colonne Sportello e Operatore sotto i 1024 px (si leggono nel
+dettaglio). Nel check-in i comandi **+ Foto** e **▶ Video** sono alti 56 px, sopra il minimo di 44. I badge «In diretta» e «Dati non aggiornati» stanno nella barra dei comandi, che va a
 capo invece di sovrapporsi.
 
 ### Provare il cruscotto BDC
@@ -543,25 +561,25 @@ per i cron esterni.
 
 ### Accesso e sessione
 
-| Rotta              | Metodo | Descrizione                                                                                          | Accesso                                            |
-| ------------------ | ------ | ---------------------------------------------------------------------------------------------------- | -------------------------------------------------- |
-| `/`                | pagina | Radice: smista alla home del ruolo (accettazione, manager, admin, tabellone per i kiosk) o al login. | Pubblico                                           |
-| `/login`           | pagina | Login dell'operatore: credenziali e scelta della postazione (Accettazione N · marchi serviti).       | Pubblico                                           |
-| `/cambia-password` | pagina | Cambio password, obbligato dopo creazione account o reset, oppure volontario.                        | Sessione operatore, anche con password provvisoria |
+| Rotta              | Metodo | Descrizione                                                                                           | Accesso                                            |
+| ------------------ | ------ | ----------------------------------------------------------------------------------------------------- | -------------------------------------------------- |
+| `/`                | pagina | Radice: smista alla home del ruolo (accettazione, manager, admin, tabellone per i kiosk) o al login.  | Pubblico                                           |
+| `/login`           | pagina | Login dell'operatore: credenziali e scelta dello sportello (Sportello A · FCA, con i marchi serviti). | Pubblico                                           |
+| `/cambia-password` | pagina | Cambio password, obbligato dopo creazione account o reset, oppure volontario.                         | Sessione operatore, anche con password provvisoria |
 
 ### Dashboard accettazione e postazioni operatore
 
 | Rotta                    | Metodo | Descrizione                                                                                                                        | Accesso                                                   |
 | ------------------------ | ------ | ---------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------- |
 | `/accettazione`          | pagina | Coda della giornata per sportello e vista globale: prendi in carico, salta, completa, riattiva, inserimento manuale, riprova sync. | Sessione operatore (Accettatore, Manager, Amministratore) |
-| `/accettazione/archivio` | pagina | Archivio dei check-in fotografici: ricerca per targa o codice pratica.                                                             | Sessione operatore (Accettatore, Manager, Amministratore) |
+| `/accettazione/archivio` | pagina | Archivio dei check-in con foto e video: ricerca per targa o codice pratica.                                                        | Sessione operatore (Accettatore, Manager, Amministratore) |
 
 ### Tablet e check-in veicolo
 
-| Rotta       | Metodo | Descrizione                                                                                                                                                     | Accesso                                                   |
-| ----------- | ------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------- |
-| `/check-in` | pagina | Vista tablet a tutto schermo: pratiche in attesa del mio sportello, prese in carico, giro fotografico e conclusione dell'accettazione. Da PC rimanda alla coda. | Sessione operatore (Accettatore, Manager, Amministratore) |
-| `/tablet`   | pagina | Vecchio indirizzo del tablet: rimanda a /check-in conservando la pratica richiesta.                                                                             | Sessione operatore (Accettatore, Manager, Amministratore) |
+| Rotta       | Metodo | Descrizione                                                                                                                                                                         | Accesso                                                   |
+| ----------- | ------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------- |
+| `/check-in` | pagina | Vista tablet a tutto schermo: pratiche in attesa del mio sportello, prese in carico, foto e video facoltativi del veicolo e conclusione dell'accettazione. Da PC rimanda alla coda. | Sessione operatore (Accettatore, Manager, Amministratore) |
+| `/tablet`   | pagina | Vecchio indirizzo del tablet: rimanda a /check-in conservando la pratica richiesta.                                                                                                 | Sessione operatore (Accettatore, Manager, Amministratore) |
 
 ### Manager e BDC
 
@@ -584,10 +602,10 @@ per i cron esterni.
 
 ### Display di sala e monitor delle campate
 
-| Rotta                  | Metodo | Descrizione                                                                                                              | Accesso                                                                                |
-| ---------------------- | ------ | ------------------------------------------------------------------------------------------------------------------------ | -------------------------------------------------------------------------------------- |
-| `/display/sala-attesa` | pagina | Tabellone della sala d'attesa: codici chiamati con la campata e prossimi turni (`?prossimi=`). Home degli account kiosk. | Pubblico · token del monitor (`?token=`, obbligatorio con DISPLAY_TOKEN_REQUIRED=true) |
-| `/display/:campata`    | pagina | Monitor sopra la campata (/display/1 … /display/4 oppure /display/C1): codice e targa della vettura in accettazione.     | Pubblico · token del monitor (`?token=`, obbligatorio con DISPLAY_TOKEN_REQUIRED=true) |
+| Rotta                  | Metodo | Descrizione                                                                                                                                     | Accesso                                                                                |
+| ---------------------- | ------ | ----------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------- |
+| `/display/sala-attesa` | pagina | Tabellone della sala d'attesa: codici chiamati con la lettera dello sportello e prossimi turni (`?prossimi=`). Home degli account kiosk.        | Pubblico · token del monitor (`?token=`, obbligatorio con DISPLAY_TOKEN_REQUIRED=true) |
+| `/display/:campata`    | pagina | Monitor sopra lo sportello (/display/A … /display/D, valgono anche 1…4): lettera dello sportello, codice e targa della vettura in accettazione. | Pubblico · token del monitor (`?token=`, obbligatorio con DISPLAY_TOKEN_REQUIRED=true) |
 
 ### Portale cliente (live tracking)
 
@@ -615,10 +633,10 @@ per i cron esterni.
 | `/api/v1/queue`                     | GET       | Coda della giornata (`?date=&deskId=&view=desk oppure global`): righe arricchite, campate, ultima sync, dati di riferimento. Polling della dashboard e del tablet. | Sessione operatore (Accettatore, Manager, Amministratore)                                 |
 | `/api/v1/appointments`              | POST      | Inserimento manuale di una pratica (cliente senza appuntamento) nella coda di oggi.                                                                                | Sessione operatore (Accettatore, Manager, Amministratore)                                 |
 | `/api/v1/appointments/:id/actions`  | POST      | Azioni sulla pratica: take, skip, complete, release, restore, no-show, reactivate, cancel, confirm-auto-close (con `expectedVersion`, 409 sui conflitti).          | Sessione operatore; `cancel` e `confirm-auto-close` solo Manager e Amministratore         |
-| `/api/v1/appointments/:id/check-in` | POST      | Conclude l'accettazione dal tablet: note dell'ispezione, chiusura pratica, notifica al CRM.                                                                        | Sessione operatore (Accettatore, Manager, Amministratore)                                 |
-| `/api/v1/appointments/:id/media`    | GET, POST | Foto dell'ispezione: elenco (GET) e caricamento multipart dalla fotocamera del tablet (POST).                                                                      | Sessione operatore (Accettatore, Manager, Amministratore)                                 |
-| `/api/v1/media/:key`                | GET       | Rilegge una foto dell'ispezione dallo storage.                                                                                                                     | Sessione operatore (Accettatore, Manager, Amministratore)                                 |
-| `/api/v1/inspections/archive`       | GET       | Storico dei check-in fotografici (`?q=` targa o codice; vuoto = ultimi cinquanta).                                                                                 | Sessione operatore (Accettatore, Manager, Amministratore)                                 |
+| `/api/v1/appointments/:id/check-in` | POST      | Conclude l'accettazione dal tablet: note dell'ispezione, chiusura pratica (nessuna foto obbligatoria), notifica al CRM.                                            | Sessione operatore (Accettatore, Manager, Amministratore)                                 |
+| `/api/v1/appointments/:id/media`    | GET, POST | Media dell'ispezione: elenco (GET) e caricamento multipart di una foto o di un video dal tablet (POST, campo `foto`, `categoria` facoltativa).                     | Sessione operatore (Accettatore, Manager, Amministratore)                                 |
+| `/api/v1/media/:key`                | GET       | Rilegge una foto o un video dell'ispezione dallo storage.                                                                                                          | Sessione operatore (Accettatore, Manager, Amministratore)                                 |
+| `/api/v1/inspections/archive`       | GET       | Storico dei check-in con i media acquisiti (`?q=` targa o codice; vuoto = ultimi cinquanta).                                                                       | Sessione operatore (Accettatore, Manager, Amministratore)                                 |
 | `/api/v1/events/stream`             | GET       | Eventi in tempo reale (SSE) per l'area operatore: segnala cosa è cambiato, i dati si rileggono dagli endpoint.                                                     | Sessione operatore (Accettatore, Manager, Amministratore)                                 |
 | `/api/v1/sync`                      | POST      | Sincronizzazione manuale dell'agenda Infinity di oggi.                                                                                                             | Manager e Amministratore; Accettatore solo come «Riprova» dopo una sync fallita o assente |
 
@@ -630,7 +648,7 @@ per i cron esterni.
 | `/api/v1/public/status`        | GET    | Stato della pratica per il portale (`?targa=` o `?t=` token): tappa, posizione in coda, orario, accettatore, sede. | Pubblico                                                                               |
 | `/api/v1/public/late-notice`   | POST   | "Sto arrivando in ritardo (+10 min)" dal portale: sposta l'arrivo atteso e avvisa la dashboard.                    | Pubblico                                                                               |
 | `/api/v1/public/board`         | GET    | Dati del tabellone della sala d'attesa (`?prossimi=`).                                                             | Pubblico                                                                               |
-| `/api/v1/public/display`       | GET    | Stato del monitor di una campata (`?campata=1`, `?bay=`, `?bayCode=`): solo codice e targa.                        | Pubblico · token del monitor (`?token=`, obbligatorio con DISPLAY_TOKEN_REQUIRED=true) |
+| `/api/v1/public/display`       | GET    | Stato del monitor di uno sportello (`?campata=A`, `?bay=`, `?bayCode=`): solo lettera, codice e targa.             | Pubblico · token del monitor (`?token=`, obbligatorio con DISPLAY_TOKEN_REQUIRED=true) |
 | `/api/v1/public/events/stream` | GET    | Eventi in tempo reale (SSE) per monitor e tabellone: solo il tipo di evento, senza identificativi.                 | Pubblico                                                                               |
 
 ### API: manager, report e BDC
@@ -662,7 +680,7 @@ per i cron esterni.
 | ------------------------------------- | ------ | -------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------- |
 | `/api/v1/system/cron/reminders`       | POST   | Promemoria ai clienti (`?kind=previous-day oppure same-day`) per un cron esterno; stesso servizio dello scheduler interno. | Amministratore oppure intestazione `x-cron-secret` |
 | `/api/v1/system/cron/crm-retry`       | POST   | Svuotamento della coda di uscita verso il CRM (rinvii) per un cron esterno.                                                | Amministratore oppure intestazione `x-cron-secret` |
-| `/api/v1/system/cron/media-retention` | POST   | Eliminazione dei file delle foto oltre la retention per un cron esterno.                                                   | Amministratore oppure intestazione `x-cron-secret` |
+| `/api/v1/system/cron/media-retention` | POST   | Eliminazione dei file di foto e video oltre la retention per un cron esterno.                                              | Amministratore oppure intestazione `x-cron-secret` |
 
 <!-- mappa-rotte:fine -->
 

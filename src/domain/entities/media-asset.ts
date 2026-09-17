@@ -8,14 +8,15 @@ import type { IsoDateTime } from '../value-objects/iso-date';
 export type MediaKind = 'PHOTO' | 'VIDEO';
 
 /**
- * Parte del veicolo ripresa. Il giro dell'auto ha un ordine fisso e le quattro fiancate sono
- * obbligatorie: al ritiro, se il cliente contesta un graffio, serve sapere che a quel punto del
- * giro quella parte era stata fotografata — non "c'erano delle foto".
+ * Parte del veicolo ripresa. Il giro dell'auto ha un ordine fisso, ma NESSUNA ripresa è
+ * obbligatoria: davanti al cliente che aspetta, un check-in non si blocca per una foto. Le quattro
+ * fiancate restano "consigliate" perché al ritiro, se il cliente contesta un graffio, è quello che
+ * serve; `EXTRA` raccoglie gli scatti liberi fatti con il pulsante "+".
  */
-export type MediaCategory = 'FRONT' | 'REAR' | 'LEFT' | 'RIGHT' | 'INTERIOR' | 'DAMAGE';
+export type MediaCategory = 'FRONT' | 'REAR' | 'LEFT' | 'RIGHT' | 'INTERIOR' | 'DAMAGE' | 'EXTRA';
 
-/** Le quattro riprese senza le quali il check-in non si chiude. */
-export const REQUIRED_PHOTO_CATEGORIES = [
+/** Il giro consigliato del veicolo: suggerito al tablet, mai imposto. */
+export const SUGGESTED_PHOTO_CATEGORIES = [
   'FRONT',
   'REAR',
   'LEFT',
@@ -30,6 +31,7 @@ export const PHOTO_CATEGORIES = [
   'RIGHT',
   'INTERIOR',
   'DAMAGE',
+  'EXTRA',
 ] as const satisfies readonly MediaCategory[];
 
 /** Etichette in italiano, usate al tablet e nel fascicolo. */
@@ -40,11 +42,12 @@ export const PHOTO_CATEGORY_LABELS: Readonly<Record<MediaCategory, string>> = {
   RIGHT: 'Fiancata destra',
   INTERIOR: 'Interni',
   DAMAGE: 'Dettaglio danni',
+  EXTRA: 'Foto aggiuntiva',
 };
 
-/** True se la categoria è fra quelle obbligatorie. */
-export function isRequiredCategory(category: MediaCategory): boolean {
-  return (REQUIRED_PHOTO_CATEGORIES as readonly MediaCategory[]).includes(category);
+/** True se la categoria fa parte del giro consigliato del veicolo. */
+export function isSuggestedCategory(category: MediaCategory): boolean {
+  return (SUGGESTED_PHOTO_CATEGORIES as readonly MediaCategory[]).includes(category);
 }
 
 /** Type guard per i valori che arrivano dal client. */
@@ -57,7 +60,10 @@ export interface MediaAsset {
   readonly id: MediaAssetId;
   readonly appointmentId: AppointmentId;
   readonly kind: MediaKind;
-  /** Parte del veicolo ripresa (le foto acquisite prima di M5 non ce l'hanno: `null`). */
+  /**
+   * Parte del veicolo ripresa. È `null` per i video (che riprendono il giro intero) e per le foto
+   * acquisite prima di M5.
+   */
   readonly category: MediaCategory | null;
   readonly mimeType: string;
   readonly sizeBytes: number;

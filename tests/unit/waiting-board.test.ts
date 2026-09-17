@@ -64,8 +64,10 @@ describe('QueueService.getWaitingBoard', () => {
     const board = await service.getWaitingBoard(TEST_DATE, 2);
     // La chiamata più recente va in cima: è quella che la sala deve notare.
     expect(board.serving.map((s) => s.code)).toEqual([secondo.code, primo.code]);
+    // Al cliente si annuncia la lettera: "F002 → Sportello C".
+    expect(board.serving[0]?.bayCode).toBe('C');
+    expect(board.serving[1]?.bayCode).toBe('A');
     expect(board.serving[0]?.bayNumber).toBe(3);
-    expect(board.serving[1]?.bayNumber).toBe(1);
     expect(board.next).toHaveLength(2);
     expect(board.waitingCount).toBe(2);
   });

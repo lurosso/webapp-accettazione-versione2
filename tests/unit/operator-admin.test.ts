@@ -26,7 +26,7 @@ describe('OperatorAdminService: elenco e creazione', () => {
     const mario = elenco.find((o) => o.username === 'mario.rossi');
     expect(mario?.role).toBe('ADVISOR');
     expect(mario?.mustChangePassword).toBe(false);
-    expect(mario?.deskCodes).toEqual(['S1']);
+    expect(mario?.deskCodes).toEqual(['FCA']);
     expect(Object.keys(mario ?? {})).not.toContain('passwordHash');
   });
 
@@ -47,7 +47,7 @@ describe('OperatorAdminService: elenco e creazione', () => {
     if (r.ok) {
       // Il nome utente è normalizzato in minuscolo: si cerca senza sorprese.
       expect(r.value.username).toBe('anna.verdi');
-      expect(r.value.deskCodes).toEqual(['S2']);
+      expect(r.value.deskCodes).toEqual(['PSA']);
       expect(r.value.isActive).toBe(true);
       // La password iniziale la conosce anche l'amministratore: va cambiata al primo accesso.
       expect(r.value.mustChangePassword).toBe(true);
@@ -115,7 +115,7 @@ describe('OperatorAdminService: modifica e sicurezza', () => {
     if (r.ok) {
       expect(r.value.displayName).toBe('Mario Rossi Senior');
       expect(r.value.role).toBe('SUPERVISOR');
-      expect(r.value.deskCodes).toEqual(['S1', 'S2']);
+      expect(r.value.deskCodes).toEqual(['FCA', 'PSA']);
     }
   });
 

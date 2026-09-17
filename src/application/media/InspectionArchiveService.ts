@@ -43,6 +43,8 @@ const GIORNO_MS = 24 * 60 * 60_000;
 
 export interface ArchivedPhotoView {
   readonly id: string;
+  /** Foto o video: decide se l'archivio mostra una miniatura o un lettore. */
+  readonly kind: 'PHOTO' | 'VIDEO';
   readonly category: string | null;
   readonly categoryLabel: string;
   /** Indirizzo di lettura; null quando il file è stato eliminato dalla retention. */
@@ -152,9 +154,14 @@ export class InspectionArchiveService {
         notes: a.notes,
         photos: foto.map((asset) => ({
           id: asset.id,
+          kind: asset.kind,
           category: asset.category,
           categoryLabel:
-            asset.category === null ? 'Senza categoria' : PHOTO_CATEGORY_LABELS[asset.category],
+            asset.kind === 'VIDEO'
+              ? 'Video del veicolo'
+              : asset.category === null
+                ? 'Senza categoria'
+                : PHOTO_CATEGORY_LABELS[asset.category],
           url: asset.archivedAt === null ? this.deps.mediaStorage.getUrl(asset.storageKey) : null,
           capturedAt: asset.capturedAt,
           sizeBytes: asset.sizeBytes,

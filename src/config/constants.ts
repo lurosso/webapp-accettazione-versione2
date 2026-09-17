@@ -38,7 +38,7 @@ export const RETURN_CODE_PREFIX = 'R';
  */
 export const DEFAULT_MEDIA_DIR = '.data/uploads';
 
-/** Numero di campate d'accettazione con display (usata da M1 per la scelta campata e da M4 per i display). */
+/** Sportelli fisici dell'accettazione, A-D (usata da M1 per la scelta e da M4 per i monitor). */
 export const BAY_COUNT = 4;
 
 /** Intervalli di polling (ms) per tipo di client (usata dagli hook di M1, M2 e M4). */

@@ -1,16 +1,20 @@
-// Accettazione al veicolo dal tablet (modulo E): foto della carrozzeria, note sui danni rilevati
-// e chiusura del check-in.
+// Accettazione al veicolo dal tablet (modulo E): foto e video della carrozzeria, note sui danni
+// rilevati e chiusura del check-in.
 //
-// Le foto passano da `IMediaStorage`: oggi è un mock in memoria, domani il disco dell'officina o
-// un archivio cloud, senza che questo caso d'uso cambi. Una foto che non si riesce a salvare non
+// I media passano da `IMediaStorage`: oggi è un mock in memoria, domani il disco dell'officina o
+// un archivio cloud, senza che questo caso d'uso cambi. Un file che non si riesce a salvare non
 // deve far perdere il lavoro fatto: l'errore torna al tablet come valore, la pratica resta aperta
-// e l'accettatore può riprovare o concludere senza quella foto.
+// e l'accettatore può riprovare o concludere senza quel media.
+//
+// Nessuna ripresa è obbligatoria. Il giro fotografico resta consigliato e la sua mancanza viene
+// scritta nel fascicolo, ma non blocca la chiusura: con il cliente davanti e la corsia occupata,
+// un check-in che non si chiude per una foto è un danno peggiore della foto che manca.
 import type { Appointment } from '@/domain/entities/appointment';
 import {
-  PHOTO_CATEGORY_LABELS,
-  REQUIRED_PHOTO_CATEGORIES,
+  SUGGESTED_PHOTO_CATEGORIES,
   type MediaAsset,
   type MediaCategory,
+  type MediaKind,
 } from '@/domain/entities/media-asset';
 import { domainError, type DomainError } from '@/domain/errors';
 import { asMediaAssetId, type AppointmentId, type OperatorId } from '@/domain/ids';
@@ -40,20 +44,59 @@ export interface InspectionServiceDeps {
 /** Dimensione massima accettata per una foto (le fotocamere dei tablet stanno sotto). */
 export const MAX_PHOTO_BYTES = 8 * 1024 * 1024;
 
-/** Tipi accettati: solo immagini, perché il video arriverà con il modulo dedicato. */
-const ALLOWED_MIME = ['image/jpeg', 'image/png', 'image/webp', 'image/heic'];
+/**
+ * Dimensione massima di un video: una ripresa breve del giro del veicolo (15-30 secondi con la
+ * fotocamera di un iPad) sta sotto, un filmato lungo va rifiutato prima di occupare il disco.
+ */
+export const MAX_VIDEO_BYTES = 80 * 1024 * 1024;
 
-export interface AddPhotoInput {
+/** Immagini accettate dalle fotocamere dei tablet. */
+const ALLOWED_IMAGE_MIME = ['image/jpeg', 'image/png', 'image/webp', 'image/heic'];
+
+/**
+ * Video accettati: mp4 e QuickTime (iPad/iPhone), webm e 3gpp (Android). Il file viene conservato
+ * così com'è: nessuna transcodifica, perché il browser che lo rilegge è lo stesso che l'ha girato.
+ */
+const ALLOWED_VIDEO_MIME = [
+  'video/mp4',
+  'video/quicktime',
+  'video/webm',
+  'video/x-m4v',
+  'video/3gpp',
+];
+
+/** Estensione del file nello storage, dal tipo dichiarato dal tablet. */
+const ESTENSIONE: Readonly<Record<string, string>> = {
+  'image/jpeg': 'jpg',
+  'image/png': 'png',
+  'image/webp': 'webp',
+  'image/heic': 'heic',
+  'video/mp4': 'mp4',
+  'video/quicktime': 'mov',
+  'video/webm': 'webm',
+  'video/x-m4v': 'm4v',
+  'video/3gpp': '3gp',
+};
+
+export interface AddMediaInput {
   readonly appointmentId: AppointmentId;
   readonly operatorId: OperatorId;
   readonly bytes: Uint8Array;
   readonly mimeType: string;
-  /** Parte del veicolo ripresa: è il tablet a dire quale slot si sta riempiendo. */
-  readonly category: MediaCategory;
+  /**
+   * Parte del veicolo ripresa quando il tablet sta riempiendo uno slot del giro. `null` per i
+   * video e per gli scatti liberi: una foto senza slot viene archiviata come aggiuntiva (EXTRA).
+   */
+  readonly category: MediaCategory | null;
   readonly note?: string | null;
 }
 
-/** Foto salvata, con l'indirizzo a cui il tablet può rileggerla. */
+/** Ingresso della vecchia firma, quando la categoria era sempre nota (`addPhoto`). */
+export interface AddPhotoInput extends Omit<AddMediaInput, 'category'> {
+  readonly category: MediaCategory;
+}
+
+/** Media salvato, con l'indirizzo a cui il tablet può rileggerlo. */
 export interface StoredPhoto {
   readonly asset: MediaAsset;
   readonly url: string;
@@ -64,19 +107,19 @@ export interface CompleteCheckInInput {
   readonly expectedVersion: number;
   /** Note e danni rilevati durante il giro del veicolo. */
   readonly inspectionNotes: string | null;
-  /**
-   * L'accettatore ha confermato di voler chiudere senza le foto obbligatorie (doppia conferma a
-   * schermo). La pratica si completa comunque e la mancanza resta scritta nelle note.
-   */
-  readonly allowMissingPhotos?: boolean | undefined;
 }
 
 export interface CheckInResult {
   readonly appointment: Appointment;
   readonly photoCount: number;
+  /** Video acquisiti: contati a parte perché uno solo può sostituire il giro fotografico. */
+  readonly videoCount: number;
   /** True se l'evento è stato accettato dal CRM; false se resta in coda di rinvio. */
   readonly crmNotified: boolean;
 }
+
+/** Nota scritta nel fascicolo quando il veicolo non è stato documentato affatto. */
+export const NO_MEDIA_NOTE = 'Check-in concluso senza foto o video del veicolo.';
 
 export class InspectionService {
   private readonly logger: ILogger;
@@ -85,23 +128,40 @@ export class InspectionService {
     this.logger = deps.logger.child('[Ispezione]');
   }
 
-  /** Foto scattata al veicolo: finisce nello storage e nel fascicolo della pratica. */
-  async addPhoto(input: AddPhotoInput): Promise<Result<StoredPhoto, DomainError>> {
-    if (!ALLOWED_MIME.includes(input.mimeType)) {
+  /**
+   * Media acquisito al veicolo (foto di uno slot, scatto libero o video del giro): finisce nello
+   * storage e nel fascicolo della pratica. Il tipo lo decide il MIME dichiarato dal tablet, non il
+   * chiamante: un video caricato nel campo "foto" resta un video.
+   */
+  async addMedia(input: AddMediaInput): Promise<Result<StoredPhoto, DomainError>> {
+    const kind: MediaKind | null = ALLOWED_IMAGE_MIME.includes(input.mimeType)
+      ? 'PHOTO'
+      : ALLOWED_VIDEO_MIME.includes(input.mimeType)
+        ? 'VIDEO'
+        : null;
+    if (kind === null) {
       return err(
-        domainError('VALIDATION', `Formato immagine non supportato: ${input.mimeType}.`, {
-          ammessi: ALLOWED_MIME,
+        domainError('VALIDATION', `Formato non supportato: ${input.mimeType}.`, {
+          immagini: ALLOWED_IMAGE_MIME,
+          video: ALLOWED_VIDEO_MIME,
         }),
       );
     }
     if (input.bytes.byteLength === 0) {
-      return err(domainError('VALIDATION', 'La foto è vuota.'));
-    }
-    if (input.bytes.byteLength > MAX_PHOTO_BYTES) {
       return err(
-        domainError('VALIDATION', 'Foto troppo grande: riprova con una risoluzione inferiore.', {
-          maxBytes: MAX_PHOTO_BYTES,
-        }),
+        domainError('VALIDATION', kind === 'VIDEO' ? 'Il video è vuoto.' : 'La foto è vuota.'),
+      );
+    }
+    const maxBytes = kind === 'VIDEO' ? MAX_VIDEO_BYTES : MAX_PHOTO_BYTES;
+    if (input.bytes.byteLength > maxBytes) {
+      return err(
+        domainError(
+          'VALIDATION',
+          kind === 'VIDEO'
+            ? 'Video troppo lungo: registra una ripresa più breve del giro del veicolo.'
+            : 'Foto troppo grande: riprova con una risoluzione inferiore.',
+          { maxBytes },
+        ),
       );
     }
 
@@ -110,17 +170,22 @@ export class InspectionService {
       return err(domainError('NOT_FOUND', `Pratica non trovata: ${input.appointmentId}.`));
     }
 
+    // Un video riprende tutto il giro, quindi non ha una parte del veicolo; una foto senza slot è
+    // uno scatto libero e finisce fra le aggiuntive, così nel fascicolo non resta "senza categoria".
+    const category: MediaCategory | null = kind === 'VIDEO' ? null : (input.category ?? 'EXTRA');
     const id = this.deps.ids.nextAs(asMediaAssetId);
-    const estensione = input.mimeType.split('/')[1] ?? 'jpg';
-    const key = `${appointment.businessDate}/${appointment.code}/${input.category.toLowerCase()}-${id}.${estensione}`;
+    const estensione = ESTENSIONE[input.mimeType] ?? input.mimeType.split('/')[1] ?? 'bin';
+    const prefisso = category === null ? kind.toLowerCase() : category.toLowerCase();
+    const key = `${appointment.businessDate}/${appointment.code}/${prefisso}-${id}.${estensione}`;
     const salvata = await this.deps.mediaStorage.put({
       key,
       bytes: input.bytes,
       mimeType: input.mimeType,
     });
     if (!salvata.ok) {
-      this.logger.error(`foto non salvata per ${appointment.code}`, {
+      this.logger.error(`media non salvato per ${appointment.code}`, {
         errore: salvata.error.message,
+        kind,
       });
       return salvata;
     }
@@ -128,8 +193,8 @@ export class InspectionService {
     const asset = await this.deps.media.insert({
       id,
       appointmentId: appointment.id,
-      kind: 'PHOTO',
-      category: input.category,
+      kind,
+      category,
       mimeType: input.mimeType,
       sizeBytes: input.bytes.byteLength,
       storageKey: salvata.value.key,
@@ -137,43 +202,53 @@ export class InspectionService {
       capturedByOperatorId: input.operatorId,
       capturedAt: this.deps.clock.nowIso(),
       note: input.note ?? null,
-      // La scadenza nasce con la foto: la retention non deve ricalcolare nulla, solo confrontare.
+      // La scadenza nasce con il media: la retention non deve ricalcolare nulla, solo confrontare.
       expiresAt: new Date(
         this.deps.clock.now().getTime() + this.deps.retentionDays * 24 * 60 * 60_000,
       ).toISOString() as IsoDateTime,
       archivedAt: null,
     });
-    this.logger.info(`foto acquisita per ${appointment.code}`, {
+    this.logger.info(`media acquisito per ${appointment.code}`, {
       mediaId: asset.id,
-      categoria: input.category,
+      kind,
+      categoria: category,
       sizeBytes: asset.sizeBytes,
     });
     return ok({ asset, url: salvata.value.url });
   }
 
-  /** Foto già acquisite per la pratica, con l'indirizzo di lettura. */
+  /** Foto di uno slot del giro: firma storica, oggi un caso particolare di `addMedia`. */
+  async addPhoto(input: AddPhotoInput): Promise<Result<StoredPhoto, DomainError>> {
+    return this.addMedia(input);
+  }
+
+  /** Foto e video già acquisiti per la pratica, con l'indirizzo di lettura. */
   async listPhotos(appointmentId: AppointmentId): Promise<readonly StoredPhoto[]> {
     const assets = await this.deps.media.listByAppointment(appointmentId);
     return assets.map((asset) => ({ asset, url: this.deps.mediaStorage.getUrl(asset.storageKey) }));
   }
 
   /**
-   * Riprese obbligatorie non ancora scattate per la pratica.
-   * Vive qui e non solo nella UI: il tablet disabilita il pulsante, ma il controllo che conta è
-   * questo: un secondo tablet, una scheda rimasta aperta o una chiamata diretta all'API non
-   * devono poter chiudere un'accettazione senza il giro completo del veicolo.
+   * Riprese del giro consigliato non ancora scattate. Serve al tablet e al fascicolo come
+   * promemoria: dal refactoring dei media NON blocca più la chiusura del check-in, perché con il
+   * cliente davanti una pratica che non si chiude costa più di una foto che manca.
    */
-  async missingRequiredCategories(appointmentId: AppointmentId): Promise<readonly MediaCategory[]> {
+  async missingSuggestedCategories(
+    appointmentId: AppointmentId,
+  ): Promise<readonly MediaCategory[]> {
     const assets = await this.deps.media.listByAppointment(appointmentId);
     const presenti = new Set(assets.map((a) => a.category));
-    return REQUIRED_PHOTO_CATEGORIES.filter((c) => !presenti.has(c));
+    return SUGGESTED_PHOTO_CATEGORIES.filter((c) => !presenti.has(c));
   }
 
   /**
-   * Conclude l'accettazione al veicolo: salva le note, chiude la pratica (la campata si libera e
-   * il monitor invita il cliente successivo ad avanzare) e informa il CRM con note e foto.
+   * Conclude l'accettazione al veicolo: salva le note, chiude la pratica (lo sportello si libera e
+   * il monitor invita il cliente successivo ad avanzare) e informa il CRM con note, foto e video.
    * Se la pratica non è in lavorazione la chiusura è rifiutata dalla state machine, come in
    * dashboard: il tablet non è una scorciatoia per saltare i passaggi.
+   *
+   * I media non sono mai un requisito. Se non ne è stato acquisito nessuno la pratica si chiude
+   * lo stesso e il fascicolo lo annota: al ritiro si saprà che quel veicolo non è documentato.
    */
   async completeCheckIn(
     input: CompleteCheckInInput,
@@ -184,34 +259,19 @@ export class InspectionService {
       return err(domainError('NOT_FOUND', `Pratica non trovata: ${input.appointmentId}.`));
     }
 
-    const mancanti = await this.missingRequiredCategories(input.appointmentId);
-    if (mancanti.length > 0 && input.allowMissingPhotos !== true) {
-      return err(
-        domainError(
-          'VALIDATION',
-          `Mancano le foto obbligatorie: ${mancanti.map((c) => PHOTO_CATEGORY_LABELS[c]).join(', ')}.`,
-          { mancanti },
-        ),
-      );
-    }
-
+    const acquisiti = await this.listPhotos(input.appointmentId);
     const note = input.inspectionNotes?.trim();
     let noteFinali = note === undefined || note.length === 0 ? corrente.notes : note;
-    if (mancanti.length > 0) {
-      // Chiusura senza giro completo, confermata: deve restare leggibile nel fascicolo e al CRM.
-      const avviso = `Check-in concluso senza le foto obbligatorie: ${mancanti
-        .map((c) => PHOTO_CATEGORY_LABELS[c])
-        .join(', ')}.`;
+    if (acquisiti.length === 0) {
+      // Veicolo non documentato: deve restare leggibile nel fascicolo e nell'evento verso il CRM.
       noteFinali =
-        noteFinali === null || noteFinali.includes(avviso)
-          ? (noteFinali ?? avviso)
-          : `${noteFinali}\n${avviso}`;
-      if (noteFinali === avviso && corrente.notes !== null && !corrente.notes.includes(avviso)) {
-        noteFinali = `${corrente.notes}\n${avviso}`;
-      }
-      this.logger.warn(`check-in senza foto obbligatorie per ${corrente.code}`, {
+        noteFinali === null || noteFinali.trim() === ''
+          ? NO_MEDIA_NOTE
+          : noteFinali.includes(NO_MEDIA_NOTE)
+            ? noteFinali
+            : `${noteFinali}\n${NO_MEDIA_NOTE}`;
+      this.logger.warn(`check-in senza foto né video per ${corrente.code}`, {
         appointmentId: corrente.id,
-        mancanti,
         operatorId: ctx.operatorId,
       });
     }
@@ -238,12 +298,14 @@ export class InspectionService {
       return completata;
     }
 
-    const foto = await this.listPhotos(input.appointmentId);
+    // Rilettura dopo la chiusura: fra l'inizio del metodo e adesso il tablet può aver caricato
+    // l'ultimo scatto, e il CRM deve ricevere il fascicolo completo.
+    const media = await this.listPhotos(input.appointmentId);
     const consegna = await this.deps.crmNotifier.notifyCheckIn(
       completata.value,
       {
         inspectionNotes: noteFinali,
-        photos: foto.map((f) => ({
+        photos: media.map((f) => ({
           url: f.url,
           capturedAt: f.asset.capturedAt,
           category: f.asset.category,
@@ -253,21 +315,24 @@ export class InspectionService {
       ctx.correlationId ?? this.deps.ids.next(),
     );
 
+    const video = media.filter((m) => m.asset.kind === 'VIDEO').length;
     this.logger.info(`check-in completato per ${completata.value.code}`, {
-      foto: foto.length,
+      foto: media.length - video,
+      video,
       note: noteFinali !== null,
       crm: consegna.outcome,
     });
     return ok({
       appointment: completata.value,
-      photoCount: foto.length,
+      photoCount: media.length - video,
+      videoCount: video,
       crmNotified: consegna.outcome === 'SENT' || consegna.outcome === 'ALREADY_SENT',
     });
   }
   /**
    * Conferma di una chiusura d'ufficio (pratica ancora in carico alle 19:00, completata dal
    * sistema): il responsabile dichiara che il veicolo era stato accettato davvero. Il flag si
-   * spegne e il CRM riceve il check-in con le foto e le note che c'erano.
+   * spegne e il CRM riceve il check-in con i media e le note che c'erano.
    */
   async confirmAutoClosed(
     input: { readonly appointmentId: AppointmentId; readonly expectedVersion: number },
@@ -277,12 +342,12 @@ export class InspectionService {
     if (!confermata.ok) {
       return confermata;
     }
-    const foto = await this.listPhotos(input.appointmentId);
+    const media = await this.listPhotos(input.appointmentId);
     const consegna = await this.deps.crmNotifier.notifyCheckIn(
       confermata.value,
       {
         inspectionNotes: confermata.value.notes,
-        photos: foto.map((f) => ({
+        photos: media.map((f) => ({
           url: f.url,
           capturedAt: f.asset.capturedAt,
           category: f.asset.category,
@@ -291,9 +356,11 @@ export class InspectionService {
       },
       ctx.correlationId ?? this.deps.ids.next(),
     );
+    const video = media.filter((m) => m.asset.kind === 'VIDEO').length;
     return ok({
       appointment: confermata.value,
-      photoCount: foto.length,
+      photoCount: media.length - video,
+      videoCount: video,
       crmNotified: consegna.outcome === 'SENT' || consegna.outcome === 'ALREADY_SENT',
     });
   }

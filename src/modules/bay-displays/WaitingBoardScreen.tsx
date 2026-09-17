@@ -1,7 +1,7 @@
 'use client';
 
 // Tabellone della sala d'attesa, impostato come quelli degli uffici pubblici: in alto i codici
-// chiamati ora con la campata a cui presentarsi, in basso i prossimi turni.
+// chiamati ora con la LETTERA dello sportello a cui presentarsi, in basso i prossimi turni.
 // Vincoli: si legge da tutta la sala, non si tocca, non scorre. Solo codici: né targhe né nomi,
 // perché lo schermo è visibile a chiunque sia presente.
 import { useLiveUpdates } from '@/hooks/useLiveUpdates';
@@ -15,13 +15,17 @@ export interface WaitingBoardScreenProps {
   readonly nextCount: number;
 }
 
-/** Destinazione da annunciare: la campata è il posto fisico, lo sportello è il ripiego. */
+/**
+ * Destinazione da annunciare. È la lettera dello sportello (A, B, C, D): la stessa che sta sulla
+ * targhetta in sala e sul monitor sopra la postazione, così il cliente non deve tradurre nulla.
+ * Senza sportello assegnato si ripiega sull'area del marchio, che almeno indica la direzione.
+ */
 function destinationOf(entry: BoardServingEntry): string {
-  if (entry.bayNumber !== null) {
-    return `Accettazione ${entry.bayNumber}`;
+  if (entry.bayCode !== null) {
+    return `Sportello ${entry.bayCode}`;
   }
   if (entry.deskCode !== null) {
-    return `Sportello ${entry.deskCode}`;
+    return `Accettazione ${entry.deskCode}`;
   }
   return 'In accettazione';
 }
@@ -93,13 +97,31 @@ export function WaitingBoardScreen({ nextCount }: WaitingBoardScreenProps) {
                     <span className="font-mono text-[9vw] leading-none font-black tracking-tight">
                       {entry.code}
                     </span>
-                    <span className="flex items-center gap-[1.5vw] text-right">
+                    <span
+                      className="flex items-center gap-[1.5vw] text-right"
+                      aria-label={destinationOf(entry)}
+                    >
                       <span aria-hidden="true" className="text-[5vw] leading-none font-black">
                         →
                       </span>
-                      <span className="text-[4.5vw] leading-none font-black uppercase">
-                        {destinationOf(entry)}
-                      </span>
+                      {/* La lettera è grande quanto il codice: da metà sala si leggono insieme. */}
+                      {entry.bayCode !== null ? (
+                        <span aria-hidden="true" className="flex items-baseline gap-[1vw]">
+                          <span className="text-[2.6vw] leading-none font-bold tracking-[0.2em] uppercase opacity-80">
+                            Sportello
+                          </span>
+                          <span className="text-[9vw] leading-none font-black">
+                            {entry.bayCode}
+                          </span>
+                        </span>
+                      ) : (
+                        <span
+                          aria-hidden="true"
+                          className="text-[4.5vw] leading-none font-black uppercase"
+                        >
+                          {destinationOf(entry)}
+                        </span>
+                      )}
                     </span>
                   </li>
                 ))}

@@ -1,6 +1,7 @@
 // POST /api/v1/appointments/[id]/check-in — conclude l'accettazione al veicolo dal tablet.
-// Salva le note dell'ispezione, chiude la pratica (la campata si libera) e informa il CRM con
-// note e foto raccolte.
+// Salva le note dell'ispezione, chiude la pratica (lo sportello si libera) e informa il CRM con
+// note, foto e video raccolti. Nessun media è obbligatorio: la chiusura non si può bloccare
+// mentre il cliente aspetta, e una pratica senza documentazione resta annotata nel fascicolo.
 import { NextResponse, type NextRequest } from 'next/server';
 import { correlationIdFrom, readApiSession } from '@/app/_server/session';
 import type { ActionContext } from '@/application/queue/QueueService';
@@ -19,8 +20,6 @@ const CheckInBody = z.object({
   expectedVersion: z.number().int().nonnegative(),
   /** Note e danni rilevati: testo libero, come lo scrive l'accettatore al veicolo. */
   inspectionNotes: z.string().trim().max(2000).nullable().optional(),
-  /** True solo dopo la doppia conferma a schermo: chiude anche senza le foto obbligatorie. */
-  allowMissingPhotos: z.boolean().optional(),
 });
 
 interface RouteContext {
@@ -52,7 +51,6 @@ export async function POST(request: NextRequest, context: RouteContext): Promise
       appointmentId: asAppointmentId(id),
       expectedVersion: parsed.data.expectedVersion,
       inspectionNotes: parsed.data.inspectionNotes ?? null,
-      allowMissingPhotos: parsed.data.allowMissingPhotos === true,
     },
     ctx,
   );
@@ -64,6 +62,7 @@ export async function POST(request: NextRequest, context: RouteContext): Promise
     {
       appointment: esito.value.appointment,
       photoCount: esito.value.photoCount,
+      videoCount: esito.value.videoCount,
       crmNotified: esito.value.crmNotified,
     },
     { headers },

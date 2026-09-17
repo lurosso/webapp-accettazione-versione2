@@ -85,6 +85,17 @@ function Scheda({
                     <span>il {formatDateTimeIt(photo.archivedAt, timeZone).slice(0, 8)}</span>
                   ) : null}
                 </div>
+              ) : photo.kind === 'VIDEO' ? (
+                // Il video si guarda dall'archivio: al ritiro è la prova più chiara di com'era
+                // il veicolo all'arrivo.
+                <video
+                  src={photo.url}
+                  controls
+                  preload="metadata"
+                  playsInline
+                  aria-label={`Video acquisito il ${entry.businessDate}`}
+                  className="h-full w-full bg-black object-cover"
+                />
               ) : (
                 // eslint-disable-next-line @next/next/no-img-element -- file servito dalla rotta media
                 <img

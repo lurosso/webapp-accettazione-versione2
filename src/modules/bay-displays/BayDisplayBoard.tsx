@@ -1,9 +1,12 @@
 'use client';
 
-// Schermata a tutto schermo del monitor di campata (modulo D).
+// Schermata a tutto schermo del monitor appeso sopra uno sportello (modulo D).
 // Vincoli di progetto: si legge da 10-15 metri, niente scorrimento, contrasto massimo, nessun
 // elemento interattivo (nessuno tocca questi schermi). Le dimensioni usano unità viewport così
 // la resa è identica su un 1080p e su un 4K senza configurazione.
+//
+// La LETTERA dello sportello (A, B, C, D) sta in alto a sinistra ed è la stessa che il cliente
+// legge sul tabellone della sala: è così che sa a quale dei quattro banchi presentarsi.
 import { useBayDisplay } from '@/hooks/useBayDisplay';
 import { useLiveUpdates } from '@/hooks/useLiveUpdates';
 import type { BayDisplayState } from '@/domain/read-models';
@@ -12,7 +15,10 @@ import { BrandMark } from '@/components/layout/BrandMark';
 import { cn } from '@/lib/utils/cn';
 
 export interface BayDisplayBoardProps {
-  /** Numero ("1") o codice ("C1") della campata, come scritto nell'URL del kiosk. */
+  /**
+   * Lettera ("A"), numero della postazione ("1") o vecchio codice di campata ("C1") dello
+   * sportello, come scritto nell'URL del kiosk.
+   */
   readonly bayRef: string;
   readonly token?: string | undefined;
 }
@@ -39,7 +45,9 @@ export function BayDisplayBoard({ bayRef, token }: BayDisplayBoardProps) {
   // Nessun dato e polling fallito: schermo di allarme, mai un codice potenzialmente vecchio.
   const offline = query.isError;
   const state: BayDisplayState = offline ? 'OFFLINE' : (data?.display.state ?? 'FREE');
-  const bayLabel = data?.display.bayNumber ?? bayRef;
+  // Finché il server non risponde si mostra quanto scritto nell'URL, in maiuscolo: meglio una
+  // lettera provvisoria che uno sportello senza nome sopra la testa del cliente.
+  const bayLabel = data?.display.bayCode ?? bayRef.trim().toUpperCase();
 
   return (
     <div
@@ -49,7 +57,13 @@ export function BayDisplayBoard({ bayRef, token }: BayDisplayBoardProps) {
       )}
     >
       <header className="flex w-full items-baseline justify-between text-[2.4vw] font-semibold tracking-[0.2em] uppercase opacity-80">
-        <span>Accettazione {bayLabel}</span>
+        {/* Lettera fuori scala rispetto alla parola: è l'unica cosa che il cliente deve cercare. */}
+        <span className="flex items-baseline gap-[1vw]">
+          Sportello
+          <span className="text-[6vw] leading-none font-black tracking-normal opacity-100">
+            {bayLabel}
+          </span>
+        </span>
         <span>
           {data !== undefined && !offline
             ? localTimeHHmm(new Date(data.serverTime), data.timeZone)
@@ -84,7 +98,7 @@ export function BayDisplayBoard({ bayRef, token }: BayDisplayBoardProps) {
           </>
         ) : (
           <>
-            <p className="text-[11vw] leading-none font-black">ACCETTAZIONE LIBERA</p>
+            <p className="text-[11vw] leading-none font-black">SPORTELLO {bayLabel} LIBERO</p>
             <p className="mt-[2vh] text-[9vw] leading-none font-black tracking-[0.08em]">
               AVANZARE
             </p>
@@ -99,7 +113,7 @@ export function BayDisplayBoard({ bayRef, token }: BayDisplayBoardProps) {
 
       <footer className="flex w-full items-baseline justify-between text-[2vw] font-semibold tracking-[0.15em] uppercase opacity-70">
         <span>
-          {state === 'SERVING' ? `In servizio · Accettazione ${bayLabel}` : 'Accettazione officina'}
+          {state === 'SERVING' ? `In servizio · Sportello ${bayLabel}` : 'Accettazione officina'}
         </span>
         <BrandMark tone={state === 'SERVING' ? 'light' : 'dark'} className="text-[2vw]" />
       </footer>

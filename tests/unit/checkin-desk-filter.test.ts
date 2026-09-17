@@ -30,7 +30,7 @@ describe('Sportello di una pratica (tablet check-in e dashboard)', () => {
     expect(deskIdOf(orfana, seed.desks)).toBeNull();
     expect(visibleOnDesk(orfana, seed.desks, 'desk-s1')).toBe(true);
     expect(visibleOnDesk(orfana, seed.desks, 'desk-s2')).toBe(true);
-    const jeepS2 = makeAppointment({ deskId: null, brandId: jeep });
-    expect(deskIdOf(jeepS2, seed.desks)).toBe(asDeskId('desk-s2'));
+    const jeepFca = makeAppointment({ deskId: null, brandId: jeep });
+    expect(deskIdOf(jeepFca, seed.desks)).toBe(asDeskId('desk-s1'));
   });
 });

@@ -56,7 +56,7 @@ export function PortalStatusCard({
   stale,
   action,
 }: PortalStatusCardProps) {
-  const message = statusMessage(position.status, position.bayNumber);
+  const message = statusMessage(position.status, position.bayCode);
   const orario = localTimeHHmm(new Date(position.expectedTime), timeZone);
   const orarioAgenda = localTimeHHmm(new Date(position.scheduledAt), timeZone);
 

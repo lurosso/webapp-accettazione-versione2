@@ -271,18 +271,18 @@ describe('LocalAuthService: password provvisoria e cambio password', () => {
   });
 });
 
-describe('LocalAuthService: accettazioni occupate', () => {
+describe('LocalAuthService: sportelli occupati', () => {
   const login = (service: LocalAuthService, username: string, workstationId: string) =>
     service.login({ username, password: 'demo', workstationId });
 
-  it('la stessa accettazione non può essere scelta da due operatori', async () => {
+  it('lo stesso sportello non può essere scelto da due operatori', async () => {
     const { service } = setup();
     expect((await login(service, 'mario.rossi', 'ws-p1')).ok).toBe(true);
     const laura = await login(service, 'laura.bianchi', 'ws-p1');
     expect(laura.ok).toBe(false);
     if (!laura.ok) {
       expect(laura.error.code).toBe('VALIDATION');
-      expect(laura.error.message).toContain('Accettazione 1');
+      expect(laura.error.message).toContain('Sportello A');
       expect(laura.error.message).toContain('Mario Rossi');
     }
     expect((await login(service, 'laura.bianchi', 'ws-p2')).ok).toBe(true);

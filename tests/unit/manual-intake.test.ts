@@ -102,7 +102,7 @@ describe('ManualIntakeService: cliente senza appuntamento', () => {
       ctx,
     );
     expect(r.ok && r.value.code).toBe('F003');
-    expect(r.ok && r.value.deskId).toBe('desk-s2');
+    expect(r.ok && r.value.deskId).toBe('desk-s1');
     expect(r.ok && r.value.customer.phone).toBeNull();
   });
 

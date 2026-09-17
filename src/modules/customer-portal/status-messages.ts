@@ -29,8 +29,12 @@ export function stageLabel(stage: PortalStage): string {
   return PORTAL_STAGES.find((s) => s.stage === stage)?.label ?? 'In attesa';
 }
 
-/** Messaggio per lo stato, con la campata quando la vettura è in lavorazione. */
-export function statusMessage(status: AppointmentStatus, bayNumber: number | null): StatusMessage {
+/**
+ * Messaggio per lo stato, con la lettera dello sportello quando la vettura è in accettazione.
+ * È la stessa lettera del tabellone in sala e del monitor sopra il banco: il cliente la legge sul
+ * telefono mentre cammina e la ritrova appesa davanti a sé.
+ */
+export function statusMessage(status: AppointmentStatus, bayCode: string | null): StatusMessage {
   switch (status) {
     case 'WAITING':
       return {
@@ -50,9 +54,9 @@ export function statusMessage(status: AppointmentStatus, bayNumber: number | nul
       return {
         headline: 'È il tuo turno',
         detail:
-          bayNumber === null
-            ? "Procedi in corsia: l'accettatore ti sta aspettando."
-            : `Procedi all'accettazione ${bayNumber}: l'accettatore ti sta aspettando.`,
+          bayCode === null
+            ? "Procedi in accettazione: l'accettatore ti sta aspettando."
+            : `Vai allo sportello ${bayCode}: l'accettatore ti sta aspettando.`,
         tone: 'serving',
         showAheadCount: false,
       };

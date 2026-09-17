@@ -64,7 +64,7 @@ describe('Portale: rendering dello stato', () => {
     expect(portalStageOf('COMPLETED')).toBe(3);
     expect(portalStageOf('NO_SHOW')).toBe(1);
     expect(stageLabel(2)).toBe('In accettazione');
-    expect(statusMessage('IN_PROGRESS', 3).detail).toContain('accettazione 3');
+    expect(statusMessage('IN_PROGRESS', 'C').detail).toContain('sportello C');
     expect(statusMessage('COMPLETED', null).headline).toBe('Vettura in lavorazione');
     expect(concludedMessage('COMPLETED').headline).toBe('Pratica conclusa');
     expect(aheadCountMessage(0)).toBe('Sei il prossimo');
@@ -98,7 +98,7 @@ describe('Portale: rendering dello stato', () => {
     expect(v.aheadCount).toBe(2);
     expect(v.expectedTime).toBe(mia.scheduledAt);
     expect(v.siteName).toBe('Autoclub Group Bari');
-    expect(v.deskName).toBe('Sportello Stellantis Italia');
+    expect(v.deskName).toBe('Sportelli A e B');
     expect(v.operatorName).toBeNull();
     expect(v.lateNotice).toBeNull();
     expect(v.canReportDelay).toBe(true);
@@ -108,7 +108,7 @@ describe('Portale: rendering dello stato', () => {
     expect(JSON.stringify(v)).not.toContain('+39333');
   });
 
-  it("in accettazione: tappa 2 con campata e nome dell'accettatore; conclusa: tappa 3 senza pulsante", async () => {
+  it("in accettazione: tappa 2 con lo sportello e il nome dell'accettatore; conclusa: tappa 3 senza pulsante", async () => {
     const { env, service } = setup();
     const inCorso = await insert(
       env,
@@ -122,7 +122,7 @@ describe('Portale: rendering dello stato', () => {
     const r = await service.getStatus({ plate: inCorso.vehicle.plate });
     expect(r.ok && r.value.stage).toBe(2);
     expect(r.ok && r.value.operatorName).toBe('Mario Rossi');
-    expect(r.ok && r.value.bayNumber).toBe(2);
+    expect(r.ok && r.value.bayCode).toBe('B');
     expect(r.ok && r.value.canReportDelay).toBe(false);
 
     const completata = await insert(

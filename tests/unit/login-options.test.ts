@@ -25,7 +25,7 @@ function claim(ws: string, operatorName: string): WorkstationClaim {
 describe('Menu unico del login', () => {
   const { seed } = buildTestEnv();
 
-  it('propone esattamente quattro accettazioni, ognuna con il proprio sportello e i marchi', () => {
+  it('propone i quattro sportelli A-D, ognuno con la propria area per marchio e i marchi', () => {
     const options = buildLoginOptions({
       workstations: seed.workstations,
       desks: seed.desks,
@@ -38,19 +38,20 @@ describe('Menu unico del login', () => {
       }),
     });
     expect(options).toHaveLength(4);
+    // La lettera è quella sulla targhetta del banco; il codice dice quali marchi si servono lì.
     expect(options.map((o) => o.label)).toEqual([
-      'Accettazione 1 · Stellantis Italia',
-      'Accettazione 2 · Stellantis Italia',
-      'Accettazione 3 · Jeep / Alfa Romeo',
-      'Accettazione 4 · Peugeot / Citroën / Opel',
+      'Sportello A · FCA',
+      'Sportello B · FCA',
+      'Sportello C · PSA',
+      'Sportello D · PSA',
     ]);
-    expect(options[0]?.brands).toEqual(['Fiat', 'Lancia']);
+    expect(options[0]?.brands).toEqual(['Fiat', 'Lancia', 'Jeep', 'Alfa Romeo']);
     expect(options[3]?.brands).toEqual(['Peugeot', 'Citroën', 'Opel']);
     expect(options.every((o) => !o.disabled && o.reason === null)).toBe(true);
     expect(defaultLoginOption(options)).toBe('ws-p1');
   });
 
-  it("un'accettazione occupata resta in elenco ma non è selezionabile, e non è quella proposta", () => {
+  it('uno sportello occupato resta in elenco ma non è selezionabile, e non è quello proposto', () => {
     const options = buildLoginOptions({
       workstations: seed.workstations,
       desks: seed.desks,
@@ -68,7 +69,7 @@ describe('Menu unico del login', () => {
     expect(defaultLoginOption(options)).toBe('ws-p3');
   });
 
-  it('con tutte le accettazioni occupate non ne propone nessuna', () => {
+  it('con tutti gli sportelli occupati non ne propone nessuno', () => {
     const options = buildLoginOptions({
       workstations: seed.workstations,
       desks: seed.desks,
@@ -84,8 +85,8 @@ describe('Menu unico del login', () => {
     expect(defaultLoginOption(options)).toBe('');
   });
 
-  it('toglie la parola "Sportello" dal nome dello sportello', () => {
-    expect(deskDisplayName({ name: 'Sportello Stellantis Italia' })).toBe('Stellantis Italia');
-    expect(deskDisplayName({ name: 'Jeep / Alfa Romeo' })).toBe('Jeep / Alfa Romeo');
+  it("nel menu l'area si legge dal codice (FCA, PSA); senza codice resta il nome", () => {
+    expect(deskDisplayName({ code: 'FCA', name: 'Sportelli A e B' })).toBe('FCA');
+    expect(deskDisplayName({ code: '', name: 'Jeep / Alfa Romeo' })).toBe('Jeep / Alfa Romeo');
   });
 });

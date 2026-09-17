@@ -3,26 +3,20 @@
 // Schermata di check-in del veicolo, a tutto schermo sul tablet. Pensata per chi la usa in piedi,
 // con i guanti sporchi e il sole sullo schermo:
 // - in alto, fissi, codice e targa grandi con cliente e veicolo: si riconosce l'auto senza leggere;
-// - al centro il giro fotografico a slot, il vero lavoro, con avanzamento a segmenti;
+// - al centro la documentazione del veicolo (foto a slot, "+ Foto", video) e le note;
 // - in basso, fissi e a portata di pollice, i due soli comandi: "Completa check-in" (verde: fa
 //   avanzare la pratica) e "Salta per ora" (grigio: si esce senza perdere nulla).
+// Foto e video sono FACOLTATIVI: la pratica si chiude anche senza, e il fascicolo lo annota.
 // Testi grandi, bordi spessi, contrasto alto, niente stati che dipendono dal passaggio del mouse.
 import { useQueryClient } from '@tanstack/react-query';
 import { useEffect, useState } from 'react';
 import type { QueueRowView } from '@/domain/read-models';
-import {
-  PHOTO_CATEGORY_LABELS,
-  REQUIRED_PHOTO_CATEGORIES,
-  type MediaCategory,
-} from '@/domain/entities/media-asset';
 import {
   ApiError,
   fetchInspectionPhotos,
   postCheckIn,
   type InspectionPhoto,
 } from '@/lib/api-client/client';
-import { Button } from '@/components/ui/button';
-import { Dialog } from '@/components/ui/dialog';
 import { queueKeys } from '@/lib/api-client/query-keys';
 import { localTimeHHmm } from '@/lib/dates';
 import { cn } from '@/lib/utils/cn';
@@ -35,8 +29,7 @@ export interface CheckInScreenProps {
   readonly onClose: () => void;
   /**
    * Uscita senza concludere ("Salta per ora"): la pratica resta in carico e il check-in si
-   * riprende dopo. Serve quando piove o bisogna spostare la vettura subito: l'officina non deve
-   * fermarsi davanti a una schermata che pretende quattro foto adesso.
+   * riprende dopo. Serve quando piove o bisogna spostare la vettura subito.
    */
   readonly onSkip?: (() => void) | undefined;
   readonly onCompleted: (codice: string, foto: number) => void;
@@ -63,20 +56,18 @@ export function CheckInScreen({
   const esci = onSkip ?? onClose;
   const a = row.appointment;
   const queryClient = useQueryClient();
-  const [photos, setPhotos] = useState<readonly InspectionPhoto[]>([]);
+  const [media, setMedia] = useState<readonly InspectionPhoto[]>([]);
   const [note, setNote] = useState(a.notes ?? '');
   const [inChiusura, setInChiusura] = useState(false);
   const [errore, setErrore] = useState<string | null>(null);
-  // Doppia conferma quando si chiude senza le foto obbligatorie.
-  const [confermaSenzaFoto, setConfermaSenzaFoto] = useState(false);
 
-  // Foto già acquisite: riaprendo il check-in si ritrova quanto fatto prima.
+  // Media già acquisiti: riaprendo il check-in si ritrova quanto fatto prima.
   useEffect(() => {
     let attivo = true;
     fetchInspectionPhotos(a.id)
       .then((r) => {
         if (attivo) {
-          setPhotos(r.photos);
+          setMedia(r.photos);
         }
       })
       .catch(() => {
@@ -87,26 +78,19 @@ export function CheckInScreen({
     };
   }, [a.id]);
 
-  // Riprese obbligatorie ancora da fare: la stessa regola vale sul server, qui serve a non far
-  // arrivare l'accettatore in fondo alla scheda per sentirsi dire che manca una foto.
-  const mancanti: readonly MediaCategory[] = REQUIRED_PHOTO_CATEGORIES.filter(
-    (categoria) => !photos.some((p) => p.category === categoria),
-  );
-  const fatte = REQUIRED_PHOTO_CATEGORIES.length - mancanti.length;
-  const pronto = mancanti.length === 0;
+  const foto = media.filter((m) => m.kind !== 'VIDEO').length;
+  const video = media.filter((m) => m.kind === 'VIDEO').length;
 
-  const completa = async (senzaFoto: boolean): Promise<void> => {
+  const completa = async (): Promise<void> => {
     setErrore(null);
-    setConfermaSenzaFoto(false);
     setInChiusura(true);
     try {
       const esito = await postCheckIn(a.id, {
         expectedVersion: a.version,
         inspectionNotes: note.trim() === '' ? null : note.trim(),
-        allowMissingPhotos: senzaFoto,
       });
       await queryClient.invalidateQueries({ queryKey: queueKeys.all });
-      onCompleted(esito.appointment.code, esito.photoCount);
+      onCompleted(esito.appointment.code, esito.photoCount + esito.videoCount);
     } catch (cause) {
       setErrore(
         cause instanceof ApiError
@@ -126,6 +110,11 @@ export function CheckInScreen({
       return corrente.trim() === '' ? testo : `${corrente.trim()} · ${testo}`;
     });
   };
+
+  const riepilogoMedia =
+    foto + video === 0
+      ? 'Nessuna foto o video: la pratica si chiude comunque, e il fascicolo lo annota.'
+      : `${foto} foto e ${video} video nel fascicolo. Tutto pronto: la pratica si chiude e lo sportello si libera.`;
 
   return (
     <div className="fixed inset-0 z-50 flex flex-col bg-slate-100 text-slate-900">
@@ -163,35 +152,24 @@ export function CheckInScreen({
               </span>
             </div>
           </div>
-          {/* Avanzamento del giro: quattro segmenti, uno per ripresa obbligatoria. */}
+          {/* Contatore dei media: informa, non blocca. */}
           <div
-            className="flex shrink-0 flex-col items-end gap-1"
-            aria-label={`${fatte} di ${REQUIRED_PHOTO_CATEGORIES.length} foto obbligatorie`}
+            className="flex shrink-0 flex-col items-end gap-0.5 text-right"
+            aria-label={`${foto} foto e ${video} video acquisiti`}
           >
-            <span
-              className={cn(
-                'font-mono text-2xl leading-none font-black tabular-nums',
-                pronto ? 'text-status-completed' : 'text-slate-900',
-              )}
-            >
-              {fatte}/{REQUIRED_PHOTO_CATEGORIES.length}
+            <span className="font-mono text-2xl leading-none font-black tabular-nums">
+              {foto}
+              <span className="text-base font-semibold text-slate-500"> foto</span>
             </span>
-            <div className="flex gap-1" aria-hidden="true">
-              {REQUIRED_PHOTO_CATEGORIES.map((categoria) => (
-                <span
-                  key={categoria}
-                  className={cn(
-                    'h-2.5 w-7 rounded-full',
-                    mancanti.includes(categoria) ? 'bg-slate-300' : 'bg-brand-primary',
-                  )}
-                />
-              ))}
-            </div>
+            <span className="font-mono text-xl leading-none font-black tabular-nums">
+              {video}
+              <span className="text-sm font-semibold text-slate-500"> video</span>
+            </span>
           </div>
         </div>
       </header>
 
-      {/* Corpo scorrevole: giro foto e note. Il resto della schermata non si muove. */}
+      {/* Corpo scorrevole: documentazione e note. Il resto della schermata non si muove. */}
       <main className="flex-1 overflow-y-auto">
         <div className="mx-auto flex w-full max-w-4xl flex-col gap-6 px-4 py-5 pb-8">
           {errore !== null ? (
@@ -205,9 +183,8 @@ export function CheckInScreen({
 
           <PhotoCapture
             appointmentId={a.id}
-            photos={photos}
-            missing={mancanti}
-            onUploaded={(p) => setPhotos((precedenti) => [...precedenti, p])}
+            media={media}
+            onUploaded={(m) => setMedia((precedenti) => [...precedenti, m])}
           />
 
           <section className="flex flex-col gap-3 rounded-2xl border-2 border-slate-200 bg-white p-4">
@@ -236,7 +213,7 @@ export function CheckInScreen({
               className="w-full rounded-xl border-2 border-slate-300 bg-white p-4 text-xl leading-snug text-slate-900 placeholder:text-slate-400 focus-visible:border-slate-900 focus-visible:ring-4 focus-visible:ring-slate-300 focus-visible:outline-none"
             />
             <p className="text-sm text-slate-500">
-              Quanto scrivi qui resta sulla pratica e viene inviato al CRM insieme alle foto.
+              Quanto scrivi qui resta sulla pratica e viene inviato al CRM insieme a foto e video.
             </p>
           </section>
         </div>
@@ -257,14 +234,12 @@ export function CheckInScreen({
             </button>
             <button
               type="button"
-              onClick={() => (pronto ? void completa(false) : setConfermaSenzaFoto(true))}
+              onClick={() => void completa()}
               disabled={inChiusura}
               aria-describedby="stato-check-in"
+              data-testid="completa-check-in"
               className={cn(
-                'flex h-16 flex-[2] items-center justify-center rounded-2xl text-xl font-bold shadow-sm focus-visible:ring-4 focus-visible:outline-none',
-                pronto
-                  ? 'bg-brand-primary focus-visible:ring-brand-lime-dark active:bg-brand-lime-dark text-slate-950 active:text-white'
-                  : 'bg-brand-primary/60 focus-visible:ring-brand-lime-dark active:bg-brand-primary text-slate-900',
+                'bg-brand-primary focus-visible:ring-brand-lime-dark active:bg-brand-lime-dark flex h-16 flex-[2] items-center justify-center rounded-2xl text-xl font-bold text-slate-950 shadow-sm focus-visible:ring-4 focus-visible:outline-none active:text-white',
                 'disabled:opacity-60',
               )}
             >
@@ -275,46 +250,13 @@ export function CheckInScreen({
             id="stato-check-in"
             className={cn(
               'text-center text-base font-semibold',
-              pronto ? 'text-status-completed' : 'text-amber-800',
+              foto + video === 0 ? 'text-slate-600' : 'text-status-completed',
             )}
           >
-            {pronto
-              ? "Tutto pronto: la pratica si chiude e l'accettazione si libera."
-              : `Mancano: ${mancanti.map((c) => PHOTO_CATEGORY_LABELS[c]).join(', ')}. Puoi completare comunque: ti verrà chiesta conferma.`}
+            {riepilogoMedia}
           </p>
         </div>
       </footer>
-
-      {/* Safety catch: chiudere senza le foto è ammesso, ma va detto due volte. */}
-      <Dialog
-        open={confermaSenzaFoto}
-        title={photos.length === 0 ? 'Nessuna foto inserita' : 'Foto obbligatorie mancanti'}
-        description={
-          photos.length === 0
-            ? "Nessuna foto inserita. Sei sicuro di voler completare l'accettazione senza il check-in fotografico?"
-            : `Mancano ${mancanti.length} foto obbligatorie (${mancanti
-                .map((c) => PHOTO_CATEGORY_LABELS[c])
-                .join(
-                  ', ',
-                )}). Sei sicuro di voler completare l'accettazione senza il giro completo?`
-        }
-        onClose={() => setConfermaSenzaFoto(false)}
-        footer={
-          <>
-            <Button variant="outline" size="touch" onClick={() => setConfermaSenzaFoto(false)}>
-              Torna alle foto
-            </Button>
-            <Button variant="destructive" size="touch" onClick={() => void completa(true)}>
-              Completa senza foto
-            </Button>
-          </>
-        }
-      >
-        <p className="text-sm text-slate-600">
-          La mancanza resta scritta nelle note della pratica e arriva al CRM. Potrai comunque
-          riaprire la pratica dal dettaglio e aggiungere le foto dopo.
-        </p>
-      </Dialog>
     </div>
   );
 }

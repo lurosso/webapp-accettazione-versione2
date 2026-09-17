@@ -22,20 +22,27 @@ export const GLOSSARY = [
     note: 'Modulo A: modules/reception; il segmento URL /accettazione resta in italiano',
   },
   {
-    it: 'campata',
+    it: 'sportello (fisico)',
     en: 'Bay',
     note:
-      '4 campate C1..C4 con display; occupazione derivata dalla pratica IN_PROGRESS. ' +
-      'A schermo si chiama "Accettazione N": "campata" è gergo di officina e al cliente non dice nulla ' +
-      '(richiesta del committente, 2026-09-11). Nel codice e nei dati resta Bay/campata.',
+      '4 sportelli A, B, C, D con monitor; occupazione derivata dalla pratica IN_PROGRESS. ' +
+      'A schermo si chiama "Sportello A": la lettera è quella sulla targhetta in sala ed è ciò ' +
+      'che si dice al cliente (richiesta del committente, 2026-09-17; prima erano "Accettazione N"). ' +
+      'Nel codice e nei dati resta Bay, con `number` come ordinale interno.',
   },
-  { it: 'sportello', en: 'Desk', note: 'Filtro Brand/Sportello; distinto dalla postazione' },
+  {
+    it: 'area per marchio',
+    en: 'Desk',
+    note:
+      'Filtro Brand/Sportello: FCA (sportelli A e B) e PSA (sportelli C e D); distinto dallo ' +
+      'sportello fisico e dalla postazione.',
+  },
   {
     it: 'postazione',
     en: 'Workstation',
     note:
       "PC fisico dell'accettatore, scelto al login; Vista Multi-Postazione. A schermo si legge " +
-      '"Accettazione N", come la campata che le corrisponde (richiesta del committente, 2026-09-14).',
+      '"Sportello A", come lo sportello fisico che le corrisponde (committente, 2026-09-17).',
   },
   {
     it: 'targa',
@@ -55,7 +62,7 @@ export const GLOSSARY = [
   {
     it: 'completato / Completato',
     en: 'complete / COMPLETED',
-    note: 'Libera la campata; il display mostra RELEASING poi FREE',
+    note: 'Libera lo sportello; il monitor mostra RELEASING poi FREE',
   },
   { it: 'in attesa / In Attesa', en: 'WAITING', note: 'Stato iniziale scaricato da Infinity' },
   { it: 'rilascio', en: 'release', note: 'IN_PROGRESS → WAITING (annulla la presa in carico)' },

@@ -1,6 +1,7 @@
-// Il menu unico del login: quattro voci "Accettazione N · marchi serviti", con le occupate non
-// selezionabili e il motivo accanto. Sportello e postazione erano due menu separati, ma nel
-// dominio ogni postazione appartiene a un solo sportello: scegliere l'accettazione basta.
+// Il menu unico del login: quattro voci "Sportello A · FCA", con le occupate non selezionabili e
+// il motivo accanto. Area per marchio e postazione erano due menu separati, ma nel dominio ogni
+// postazione appartiene a una sola area: scegliere lo sportello fisico basta, e la lettera è la
+// stessa che l'accettatore ha sulla targhetta davanti.
 // Funzione pura, condivisa da pagina di login e test.
 import type { Brand } from '@/domain/entities/brand';
 import type { Desk } from '@/domain/entities/desk';
@@ -9,9 +10,9 @@ import type { WorkstationAvailability } from './workstation-availability';
 
 export interface LoginWorkstationOption {
   readonly id: string;
-  /** "Accettazione 1 · Stellantis Italia" */
+  /** "Sportello A · FCA" */
   readonly label: string;
-  /** Marchi serviti dallo sportello della postazione, per i badge sotto al menu. */
+  /** Marchi serviti dall'area della postazione, per i badge sotto al menu. */
   readonly brands: readonly string[];
   readonly deskId: string;
   readonly disabled: boolean;
@@ -26,9 +27,12 @@ export interface LoginOptionsInput {
   readonly availability: WorkstationAvailability;
 }
 
-/** "Sportello Stellantis Italia" → "Stellantis Italia": la parola sportello nel menu non aiuta. */
-export function deskDisplayName(desk: Pick<Desk, 'name'>): string {
-  return desk.name.replace(/^sportello\s+/i, '').trim();
+/**
+ * Come si chiama l'area nel menu: il codice (FCA, PSA) sta in una riga sola accanto alla lettera
+ * dello sportello, mentre il nome esteso ("Sportelli A e B") ripeterebbe la lettera già scritta.
+ */
+export function deskDisplayName(desk: Pick<Desk, 'code' | 'name'>): string {
+  return desk.code.trim() === '' ? desk.name.trim() : desk.code.trim();
 }
 
 export function buildLoginOptions(input: LoginOptionsInput): readonly LoginWorkstationOption[] {
@@ -54,7 +58,7 @@ export function buildLoginOptions(input: LoginOptionsInput): readonly LoginWorks
     });
 }
 
-/** Prima accettazione libera da proporre selezionata; '' se sono tutte occupate. */
+/** Primo sportello libero da proporre selezionato; '' se sono tutti occupati. */
 export function defaultLoginOption(options: readonly LoginWorkstationOption[]): string {
   return options.find((o) => !o.disabled)?.id ?? '';
 }

@@ -1,13 +1,20 @@
 // Dati di riferimento (marchi, sportelli, postazioni, campate, operatori), in due profili:
-// - demo (predefinito): officina di prova con 7 marchi, 3 sportelli, 5 operatori con password
-//   "plain:demo" e token display prevedibili. SOLO sviluppo: il container li rifiuta appena un
-//   provider è reale o NODE_ENV=production.
+// - demo (predefinito): officina di prova con 7 marchi, password "plain:demo" e token display
+//   prevedibili. SOLO sviluppo: il container li rifiuta appena un provider è reale o
+//   NODE_ENV=production.
 // - real (SEED_PROFILE=real): l'officina Autoclub di Bari come emerge dal planning di Infinity
-//   (prenotazioni maggio-settembre 2026): due sportelli per marchi, i marchi veri più «Altri marchi»
-//   per quelli sporadici (Hyundai, Foton…), un solo account amministratore con hash scrypt da
-//   SEED_ADMIN_PASSWORD_HASH e password da cambiare al primo accesso; gli accettatori li crea
-//   l'amministratore da /admin. I token dei display derivano da SEED_DISPLAY_TOKEN_SECRET (HMAC),
-//   così non stanno nel repository. I tre valori si generano con `npm run seed:credenziali`.
+//   (prenotazioni maggio-settembre 2026): i marchi veri più «Altri marchi» per quelli sporadici
+//   (Hyundai, Foton…), un solo account amministratore con hash scrypt da SEED_ADMIN_PASSWORD_HASH e
+//   password da cambiare al primo accesso; gli accettatori li crea l'amministratore da /admin. I
+//   token dei display derivano da SEED_DISPLAY_TOKEN_SECRET (HMAC), così non stanno nel repository.
+//   I tre valori si generano con `npm run seed:credenziali`.
+//
+// La geometria dell'accettazione è la stessa nei due profili e la vede anche il cliente:
+// QUATTRO SPORTELLI FISICI, A, B, C e D, che lavorano a coppie. A e B servono i marchi FCA (Fiat,
+// Lancia, Alfa Romeo, Jeep…), C e D i marchi PSA (Peugeot, Citroën, DS, Opel…). Nel dominio ogni
+// sportello fisico è una postazione (Workstation) con la propria campata e il proprio monitor (Bay),
+// e appartiene a uno dei due sportelli logici per marchio (Desk FCA / PSA). Tabellone, monitor e
+// portale dicono al cliente la LETTERA: "Sportello B", non un numero interno.
 
 import { createHmac } from 'node:crypto';
 import type { Bay } from '@/domain/entities/bay';
@@ -56,6 +63,17 @@ export const DEMO_DISPLAY_TOKEN_PREFIX = 'display-demo-';
 /** Lunghezza minima del segreto dei token display nel profilo real. */
 export const SEED_DISPLAY_TOKEN_SECRET_MIN_LENGTH = 16;
 
+/**
+ * Le lettere dei quattro sportelli fisici, nell'ordine in cui stanno in sala. Sono ciò che il
+ * cliente legge sul tabellone ("F012 → Sportello B") e sopra ogni postazione.
+ */
+export const DESK_LETTERS = ['A', 'B', 'C', 'D'] as const;
+export type DeskLetter = (typeof DESK_LETTERS)[number];
+
+/** Id interni delle due aree per marchio (stabili: li usano fixture, test e sessioni). */
+export const FCA_DESK_ID = asDeskId('desk-s1');
+export const PSA_DESK_ID = asDeskId('desk-s2');
+
 /** Indica se il seed contiene ancora credenziali o token demo prevedibili. */
 export function hasDemoCredentials(seed: SeedData): boolean {
   return (
@@ -82,7 +100,59 @@ function brand(code: string, name: string, codePrefix: string): Brand {
 
 const brandId = (code: string): Brand['id'] => asBrandId(`brand-${code.toLowerCase()}`);
 
-/** Costruisce i dati demo (7 brand, 3 sportelli, 4 postazioni, 4 campate, 5 operatori). */
+/** Sportello logico per marchio: A e B → FCA, C e D → PSA. */
+function desksFor(fcaBrands: readonly string[], psaBrands: readonly string[]): Desk[] {
+  return [
+    {
+      id: FCA_DESK_ID,
+      code: 'FCA',
+      name: 'Sportelli A e B',
+      brandIds: fcaBrands.map(brandId),
+      isActive: true,
+    },
+    {
+      id: PSA_DESK_ID,
+      code: 'PSA',
+      name: 'Sportelli C e D',
+      brandIds: psaBrands.map(brandId),
+      isActive: true,
+    },
+  ];
+}
+
+/**
+ * Le quattro campate con il monitor, una per sportello fisico. Gli id restano `bay-c1`…`bay-c4`
+ * (li conoscono fixture e sessioni); codice e nome portano la lettera che legge il cliente.
+ */
+function baysFor(tokenFor: (letter: DeskLetter, n: 1 | 2 | 3 | 4) => string): Bay[] {
+  return DESK_LETTERS.map((letter, i) => {
+    const n = (i + 1) as 1 | 2 | 3 | 4;
+    return {
+      id: asBayId(`bay-c${n}`),
+      code: letter,
+      number: n,
+      name: `Sportello ${letter}`,
+      displayToken: tokenFor(letter, n),
+      isActive: true,
+    };
+  });
+}
+
+/** Le quattro postazioni: A e B sull'area FCA, C e D sull'area PSA, ognuna con la propria campata. */
+function workstationsAD(): Workstation[] {
+  return DESK_LETTERS.map((letter, i) => {
+    const n = i + 1;
+    return {
+      id: asWorkstationId(`ws-p${n}`),
+      code: letter,
+      name: `Sportello ${letter}`,
+      deskId: n <= 2 ? FCA_DESK_ID : PSA_DESK_ID,
+      defaultBayId: asBayId(`bay-c${n}`),
+    };
+  });
+}
+
+/** Costruisce i dati demo (7 marchi, 2 aree FCA/PSA, 4 sportelli A–D, 5 operatori). */
 function buildDemoSeedData(): SeedData {
   const brands: Brand[] = [
     brand('FIAT', 'Fiat', 'F'),
@@ -93,71 +163,10 @@ function buildDemoSeedData(): SeedData {
     brand('CITROEN', 'Citroën', 'C'),
     brand('OPEL', 'Opel', 'O'),
   ];
-
-  const desks: Desk[] = [
-    {
-      id: asDeskId('desk-s1'),
-      code: 'S1',
-      name: 'Sportello Stellantis Italia',
-      brandIds: [brandId('FIAT'), brandId('LANCIA')],
-      isActive: true,
-    },
-    {
-      id: asDeskId('desk-s2'),
-      code: 'S2',
-      name: 'Sportello Jeep / Alfa Romeo',
-      brandIds: [brandId('JEEP'), brandId('ALFA_ROMEO')],
-      isActive: true,
-    },
-    {
-      id: asDeskId('desk-s3'),
-      code: 'S3',
-      name: 'Sportello Peugeot / Citroën / Opel',
-      brandIds: [brandId('PEUGEOT'), brandId('CITROEN'), brandId('OPEL')],
-      isActive: true,
-    },
-  ];
-
-  const bays: Bay[] = ([1, 2, 3, 4] as const).map((n) => ({
-    id: asBayId(`bay-c${n}`),
-    code: `C${n}`,
-    number: n,
-    name: `Accettazione ${n}`,
-    // Token demo prevedibile: nel profilo real deriva da SEED_DISPLAY_TOKEN_SECRET.
-    displayToken: `${DEMO_DISPLAY_TOKEN_PREFIX}token-c${n}`,
-    isActive: true,
-  }));
-
-  const workstations: Workstation[] = [
-    {
-      id: asWorkstationId('ws-p1'),
-      code: 'P1',
-      name: 'Accettazione 1',
-      deskId: asDeskId('desk-s1'),
-      defaultBayId: asBayId('bay-c1'),
-    },
-    {
-      id: asWorkstationId('ws-p2'),
-      code: 'P2',
-      name: 'Accettazione 2',
-      deskId: asDeskId('desk-s1'),
-      defaultBayId: asBayId('bay-c2'),
-    },
-    {
-      id: asWorkstationId('ws-p3'),
-      code: 'P3',
-      name: 'Accettazione 3',
-      deskId: asDeskId('desk-s2'),
-      defaultBayId: asBayId('bay-c3'),
-    },
-    {
-      id: asWorkstationId('ws-p4'),
-      code: 'P4',
-      name: 'Accettazione 4',
-      deskId: asDeskId('desk-s3'),
-      defaultBayId: asBayId('bay-c4'),
-    },
-  ];
+  const desks = desksFor(['FIAT', 'LANCIA', 'JEEP', 'ALFA_ROMEO'], ['PEUGEOT', 'CITROEN', 'OPEL']);
+  // Token demo prevedibile: nel profilo real deriva da SEED_DISPLAY_TOKEN_SECRET.
+  const bays = baysFor((letter) => `${DEMO_DISPLAY_TOKEN_PREFIX}token-${letter.toLowerCase()}`);
+  const workstations = workstationsAD();
 
   const operators: Operator[] = [
     {
@@ -189,7 +198,7 @@ function buildDemoSeedData(): SeedData {
       username: 'mario.rossi',
       displayName: 'Mario Rossi',
       role: 'ADVISOR',
-      deskIds: [asDeskId('desk-s1')],
+      deskIds: [FCA_DESK_ID],
       defaultWorkstationId: asWorkstationId('ws-p2'),
       passwordHash: DEMO_PASSWORD_HASH,
       isActive: true,
@@ -200,7 +209,7 @@ function buildDemoSeedData(): SeedData {
       username: 'laura.bianchi',
       displayName: 'Laura Bianchi',
       role: 'ADVISOR',
-      deskIds: [asDeskId('desk-s2')],
+      deskIds: [PSA_DESK_ID],
       defaultWorkstationId: asWorkstationId('ws-p3'),
       passwordHash: DEMO_PASSWORD_HASH,
       isActive: true,
@@ -211,7 +220,7 @@ function buildDemoSeedData(): SeedData {
       username: 'andrea.conti',
       displayName: 'Andrea Conti',
       role: 'ADVISOR',
-      deskIds: [asDeskId('desk-s3')],
+      deskIds: [PSA_DESK_ID],
       defaultWorkstationId: asWorkstationId('ws-p4'),
       passwordHash: DEMO_PASSWORD_HASH,
       isActive: true,
@@ -247,16 +256,30 @@ const REAL_BRANDS: readonly Brand[] = [
 ];
 
 /**
- * Sportelli di Bari come li disegna il planning: gli accettatori Giglione, Rusigniuolo e Marzulli
- * lavorano Fiat, Lancia, Alfa Romeo, Jeep, EMC e Leapmotor; Brindicci, Cioce e Croce lavorano
- * Peugeot, Citroën, DS e XEV. «Altri marchi» è su entrambi: se lo prende chi è libero.
+ * Marchi per area come li disegna il planning: gli accettatori Giglione, Rusigniuolo e Marzulli
+ * lavorano Fiat, Lancia, Alfa Romeo, Jeep, EMC e Leapmotor (sportelli A e B, FCA); Brindicci, Cioce
+ * e Croce lavorano Peugeot, Citroën, DS e XEV (sportelli C e D, PSA). «Altri marchi» è su entrambe:
+ * se lo prende chi è libero.
  */
-const REAL_DESK_BRANDS: Readonly<Record<'S1' | 'S2', readonly string[]>> = {
-  S1: ['FIAT', 'LANCIA', 'ALFA_ROMEO', 'JEEP', 'EMC', 'LEAPMOTOR', FALLBACK_BRAND_CODE],
-  S2: ['PEUGEOT', 'CITROEN', 'DS', 'OPEL', 'XEV', FALLBACK_BRAND_CODE],
-};
+const REAL_FCA_BRANDS: readonly string[] = [
+  'FIAT',
+  'LANCIA',
+  'ALFA_ROMEO',
+  'JEEP',
+  'EMC',
+  'LEAPMOTOR',
+  FALLBACK_BRAND_CODE,
+];
+const REAL_PSA_BRANDS: readonly string[] = [
+  'PEUGEOT',
+  'CITROEN',
+  'DS',
+  'OPEL',
+  'XEV',
+  FALLBACK_BRAND_CODE,
+];
 
-/** Token del display di una campata: HMAC del segreto, 32 caratteri esadecimali, stabile fra i riavvii. */
+/** Token del display di uno sportello: HMAC del segreto, 32 caratteri esadecimali, stabile fra i riavvii. */
 export function displayTokenFor(secret: string, bayCode: string): string {
   return createHmac('sha256', secret).update(`display:${bayCode}`).digest('hex').slice(0, 32);
 }
@@ -292,40 +315,9 @@ function buildRealSeedData(options: SeedOptions): SeedData {
     );
   }
 
-  const desks: Desk[] = [
-    {
-      id: asDeskId('desk-s1'),
-      code: 'S1',
-      name: 'Sportello Stellantis Italia',
-      brandIds: REAL_DESK_BRANDS.S1.map(brandId),
-      isActive: true,
-    },
-    {
-      id: asDeskId('desk-s2'),
-      code: 'S2',
-      name: 'Sportello Peugeot / Citroën / DS',
-      brandIds: REAL_DESK_BRANDS.S2.map(brandId),
-      isActive: true,
-    },
-  ];
-
-  const bays: Bay[] = ([1, 2, 3, 4] as const).map((n) => ({
-    id: asBayId(`bay-c${n}`),
-    code: `C${n}`,
-    number: n,
-    name: `Accettazione ${n}`,
-    displayToken: displayTokenFor(secret, `C${n}`),
-    isActive: true,
-  }));
-
-  // Quattro postazioni fisiche: le prime due sullo sportello Stellantis Italia, le altre su Peugeot/Citroën/DS.
-  const workstations: Workstation[] = ([1, 2, 3, 4] as const).map((n) => ({
-    id: asWorkstationId(`ws-p${n}`),
-    code: `P${n}`,
-    name: `Accettazione ${n}`,
-    deskId: asDeskId(n <= 2 ? 'desk-s1' : 'desk-s2'),
-    defaultBayId: asBayId(`bay-c${n}`),
-  }));
+  const desks = desksFor(REAL_FCA_BRANDS, REAL_PSA_BRANDS);
+  const bays = baysFor((letter) => displayTokenFor(secret, letter));
+  const workstations = workstationsAD();
 
   const operators: Operator[] = [
     {

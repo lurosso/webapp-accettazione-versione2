@@ -1,9 +1,9 @@
 'use client';
 
-// Form di login: nome utente, password e UN solo menu, l'accettazione. Ogni accettazione porta
-// con sé il proprio sportello e i marchi che serve (badge sotto al menu), quindi non c'è più
-// niente da scegliere prima. Le accettazioni occupate restano in elenco ma non selezionabili,
-// con il motivo accanto: chi arriva capisce perché "la sua" non c'è e a chi chiedere.
+// Form di login: nome utente, password e UN solo menu, lo sportello (A, B, C, D). Ogni sportello
+// porta con sé la propria area per marchio e i marchi che serve (badge sotto al menu), quindi non
+// c'è più niente da scegliere prima. Gli sportelli occupati restano in elenco ma non selezionabili,
+// con il motivo accanto: chi arriva capisce perché "il suo" non c'è e a chi chiedere.
 import { useRouter } from 'next/navigation';
 import { useState, type FormEvent } from 'react';
 import type { OperatorRole } from '@/domain/entities/operator';
@@ -52,7 +52,7 @@ export function LoginForm({
     event.preventDefault();
     setError(null);
     if (selected === null || selected.disabled) {
-      setError("Selezionare un'accettazione libera.");
+      setError('Selezionare uno sportello libero.');
       return;
     }
     setSubmitting(true);
@@ -113,7 +113,7 @@ export function LoginForm({
             />
           </div>
           <div className="flex flex-col gap-1.5">
-            <Label htmlFor="workstation">Accettazione</Label>
+            <Label htmlFor="workstation">Sportello</Label>
             <Select
               id="workstation"
               name="workstation"
@@ -122,10 +122,10 @@ export function LoginForm({
               disabled={options.length === 0}
             >
               {options.length === 0 ? (
-                <option value="">Nessuna accettazione configurata</option>
+                <option value="">Nessuno sportello configurato</option>
               ) : null}
               {workstationId === '' && options.length > 0 ? (
-                <option value="">Tutte le accettazioni sono occupate</option>
+                <option value="">Tutti gli sportelli sono occupati</option>
               ) : null}
               {options.map((o) => (
                 <option key={o.id} value={o.id} disabled={o.disabled}>
@@ -135,7 +135,7 @@ export function LoginForm({
               ))}
             </Select>
             {selected !== null && selected.brands.length > 0 ? (
-              <div className="flex flex-wrap gap-1.5" aria-label="Marchi serviti dall'accettazione">
+              <div className="flex flex-wrap gap-1.5" aria-label="Marchi serviti dallo sportello">
                 {selected.brands.map((b) => (
                   <Badge key={b} tone="info">
                     {b}

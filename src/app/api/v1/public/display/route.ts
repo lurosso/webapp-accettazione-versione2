@@ -1,14 +1,14 @@
-// GET /api/v1/public/display?campata=1   (alias accettati: ?bay=, ?bayCode=; valori "1" o "C1")
+// GET /api/v1/public/display?campata=A   (alias accettati: ?bay=, ?bayCode=; valori "A", "1" o "C1")
 //
-// Stato del monitor appeso sopra una campata (modulo D). Endpoint PUBBLICO: i monitor sono kiosk
+// Stato del monitor appeso sopra uno sportello (modulo D). Endpoint PUBBLICO: i monitor sono kiosk
 // in rete locale senza sessione. Espone solo codice di prenotazione e targa, cioè esattamente
 // quello che il cliente legge sullo schermo davanti a sé; nessun nome né telefono.
 //
-// Token: ogni campata ha un `displayToken` nel seed. Se il monitor lo passa in `?token=` viene
+// Token: ogni sportello ha un `displayToken` nel seed. Se il monitor lo passa in `?token=` viene
 // verificato (403 se sbagliato). Se non lo passa l'accesso è consentito, perché in officina i
 // monitor sono su rete interna: l'obbligatorietà arriverà con l'hardening di M6.
 //
-// Codici: 200 stato · 400 parametro mancante · 403 token errato · 404 campata sconosciuta · 503
+// Codici: 200 stato · 400 parametro mancante · 403 token errato · 404 sportello sconosciuto · 503
 // configurazione non valida.
 import { NextResponse, type NextRequest } from 'next/server';
 import { isStartupError, type SystemHealthUnavailable } from '@/application/health/check-health';
@@ -31,7 +31,7 @@ export const dynamic = 'force-dynamic';
  */
 const PER_IP: RateLimitRule = { limit: 900, windowMs: 60_000 };
 
-/** Risposta del monitor di campata. */
+/** Risposta del monitor di sportello. */
 export interface DisplayStatusResponse {
   readonly display: BayDisplayView;
   readonly serverTime: string;
@@ -52,7 +52,7 @@ export async function GET(request: NextRequest): Promise<NextResponse<DisplayBod
   ).trim();
   if (bayRef === '') {
     return badRequestResponse(
-      'Indicare la postazione di accettazione (parametro `campata`, es. 1 oppure C1).',
+      'Indicare lo sportello di accettazione (parametro `campata`, es. A oppure 1).',
     );
   }
 

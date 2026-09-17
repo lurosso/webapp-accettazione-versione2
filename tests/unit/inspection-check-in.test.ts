@@ -3,7 +3,7 @@ import { InspectionService, MAX_PHOTO_BYTES } from '@/application/media/Inspecti
 import { QueueService, type ActionContext } from '@/application/queue/QueueService';
 import type { Appointment } from '@/domain/entities/appointment';
 import type { CrmCheckInPayloadDto } from '@/services/dto/crm.dto';
-import { REQUIRED_PHOTO_CATEGORIES, type MediaCategory } from '@/domain/entities/media-asset';
+import { SUGGESTED_PHOTO_CATEGORIES, type MediaCategory } from '@/domain/entities/media-asset';
 import { asOperatorId, asWorkstationId } from '@/domain/ids';
 import { buildTestEnv, makeAppointment } from '../helpers/fixtures';
 
@@ -50,13 +50,13 @@ async function insert(env: ReturnType<typeof buildTestEnv>, a: Appointment): Pro
 /** Finto contenuto di una foto: al mock interessano dimensione e tipo, non i pixel. */
 const fotoFinta = (bytes = 2048): Uint8Array => new Uint8Array(bytes).fill(7);
 
-/** Scatta il giro completo delle quattro riprese obbligatorie. */
+/** Scatta il giro completo delle quattro riprese consigliate. */
 async function giroCompleto(
   inspection: InspectionService,
   appointmentId: Appointment['id'],
   operatorId: ActionContext['operatorId'],
 ): Promise<void> {
-  for (const category of REQUIRED_PHOTO_CATEGORIES) {
+  for (const category of SUGGESTED_PHOTO_CATEGORIES) {
     const r = await inspection.addPhoto({
       appointmentId,
       operatorId,
@@ -172,6 +172,7 @@ describe('InspectionService: chiusura del check-in', () => {
     expect(r.value.appointment.status).toBe('COMPLETED');
     expect(r.value.appointment.notes).toContain('paraurti');
     expect(r.value.photoCount).toBe(4);
+    expect(r.value.videoCount).toBe(0);
     expect(r.value.crmNotified).toBe(true);
 
     const ricevuto = env.crm.received.at(-1) as CrmCheckInPayloadDto;
@@ -185,7 +186,7 @@ describe('InspectionService: chiusura del check-in', () => {
     expect(inviati.filter((e) => e.type === 'CHECK_IN')).toHaveLength(1);
   });
 
-  it('senza le quattro foto obbligatorie il check-in non si chiude', async () => {
+  it('con il giro a metà il check-in si chiude lo stesso: le foto non sono un requisito', async () => {
     const { env, queueService, inspection, ctx } = setup();
     const a = await insert(env, makeAppointment());
     await queueService.takeInCharge({ appointmentId: a.id, expectedVersion: 1, bayId: null }, ctx);
@@ -204,20 +205,20 @@ describe('InspectionService: chiusura del check-in', () => {
       { appointmentId: a.id, expectedVersion: 2, inspectionNotes: 'Nota del giro a metà' },
       ctx,
     );
-    expect(r.ok).toBe(false);
-    if (!r.ok) {
-      expect(r.error.code).toBe('VALIDATION');
-      expect(r.error.message).toContain('Fiancata sinistra');
-      expect(r.error.details?.['mancanti']).toEqual(['LEFT', 'RIGHT']);
+    expect(r.ok).toBe(true);
+    if (r.ok) {
+      expect(r.value.appointment.status).toBe('COMPLETED');
+      expect(r.value.photoCount).toBe(2);
+      expect(r.value.appointment.notes).toContain('giro a metà');
+      // Qualcosa è stato documentato: nessun avviso di veicolo non documentato.
+      expect(r.value.appointment.notes ?? '').not.toContain('senza foto o video');
     }
-
-    // La pratica resta in lavorazione e il CRM non riceve nulla: niente accettazione a metà.
-    const corrente = await env.appointments.findById(a.id);
-    expect(corrente?.status).toBe('IN_PROGRESS');
-    expect(env.crm.received).toHaveLength(0);
+    // Le riprese mancanti restano un promemoria per il tablet, non un blocco.
+    expect(await inspection.missingSuggestedCategories(a.id)).toEqual(['LEFT', 'RIGHT']);
+    expect(env.crm.received).toHaveLength(1);
   });
 
-  it('le foto facoltative non sbloccano da sole la chiusura', async () => {
+  it('le foto facoltative da sole bastano a chiudere, e il giro consigliato resta un promemoria', async () => {
     const { env, queueService, inspection, ctx } = setup();
     const a = await insert(env, makeAppointment());
     await queueService.takeInCharge({ appointmentId: a.id, expectedVersion: 1, bayId: null }, ctx);
@@ -231,7 +232,7 @@ describe('InspectionService: chiusura del check-in', () => {
       });
     }
 
-    expect(await inspection.missingRequiredCategories(a.id)).toEqual([
+    expect(await inspection.missingSuggestedCategories(a.id)).toEqual([
       'FRONT',
       'REAR',
       'LEFT',
@@ -241,7 +242,8 @@ describe('InspectionService: chiusura del check-in', () => {
       { appointmentId: a.id, expectedVersion: 2, inspectionNotes: null },
       ctx,
     );
-    expect(r.ok).toBe(false);
+    expect(r.ok && r.value.appointment.status).toBe('COMPLETED');
+    expect(r.ok && r.value.photoCount).toBe(2);
   });
 
   it('completato il giro non manca più nulla e la chiusura passa', async () => {
@@ -250,7 +252,7 @@ describe('InspectionService: chiusura del check-in', () => {
     await queueService.takeInCharge({ appointmentId: a.id, expectedVersion: 1, bayId: null }, ctx);
     await giroCompleto(inspection, a.id, ctx.operatorId);
 
-    expect(await inspection.missingRequiredCategories(a.id)).toEqual([]);
+    expect(await inspection.missingSuggestedCategories(a.id)).toEqual([]);
     const r = await inspection.completeCheckIn(
       { appointmentId: a.id, expectedVersion: 2, inspectionNotes: null },
       ctx,

@@ -1,6 +1,6 @@
 // Caso d'uso della coda di accettazione (modulo A): letture arricchite e transizioni di stato
 // con state machine, concorrenza ottimistica (version) e invariante "una pratica in carico per
-// campata". Dipende solo da interfacce: identico con repository in-memory o Prisma.
+// sportello". Dipende solo da interfacce: identico con repository in-memory o Prisma.
 import {
   ACTIVE_QUEUE_STATUSES,
   isAutoClosedPending,
@@ -99,11 +99,11 @@ export interface TransitionInput {
 }
 
 export interface TakeInChargeInput extends TransitionInput {
-  /** Campata richiesta esplicitamente; null = proponi quella della postazione o la prima libera. */
+  /** Sportello richiesto esplicitamente; null = proponi quello della postazione o il primo libero. */
   readonly bayId: BayId | null;
 }
 
-/** Occupazione derivata di una campata: la pratica IN_PROGRESS che la occupa, se c'è. */
+/** Occupazione derivata di uno sportello: la pratica IN_PROGRESS che lo occupa, se c'è. */
 export interface BayOccupancyView {
   readonly bay: Bay;
   readonly appointment: Appointment | null;
@@ -138,7 +138,7 @@ export class QueueService {
   /**
    * Stato pubblico della pratica per il portale cliente (modulo B): unico proprietario della
    * regola "clienti prima di te". Restituisce SOLO dati non personali (codice, stato, conteggio,
-   * campata, marchio, orari): nomi, telefoni e modello del veicolo non escono mai da qui.
+   * sportello, marchio, orari): nomi, telefoni e modello del veicolo non escono mai da qui.
    *
    * - targa non valida → `VALIDATION`; targa non in agenda oggi → `NOT_FOUND`;
    * - più pratiche per la stessa targa: vince quella ancora aperta (in coda o in carico),
@@ -174,7 +174,8 @@ export class QueueService {
       code: appointment.code,
       status: appointment.status,
       aheadCount,
-      bayNumber: appointment.status === 'IN_PROGRESS' ? (bay?.number ?? null) : null,
+      // Al cliente si dice la lettera dello sportello: è quella scritta sul monitor e sul tabellone.
+      bayCode: appointment.status === 'IN_PROGRESS' ? (bay?.code ?? null) : null,
       brandCode: brand.find((b) => b.id === appointment.brandId)?.code ?? '',
       scheduledAt: appointment.scheduledAt,
       updatedAt: appointment.updatedAt,
@@ -182,11 +183,12 @@ export class QueueService {
   }
 
   /**
-   * Stato del monitor di una campata (modulo D): unico proprietario della regola di visualizzazione.
-   * La campata è identificata dal codice ("C1") oppure dal solo numero ("1"), come lo scrive
-   * l'installatore nell'URL del kiosk.
+   * Stato del monitor di uno sportello (modulo D): unico proprietario della regola di
+   * visualizzazione. Lo sportello è identificato dalla lettera ("A"), dal numero della postazione
+   * ("1") o dal vecchio codice di campata ("C1"), come lo scrive l'installatore nell'URL del
+   * kiosk: i monitor già configurati non vanno rifatti solo perché le targhette ora sono lettere.
    *
-   * - pratica `IN_PROGRESS` su quella campata → `SERVING` con codice e targa;
+   * - pratica `IN_PROGRESS` su quello sportello → `SERVING` con codice e targa;
    * - appena completata (entro `RELEASING_DISPLAY_MS`) → `RELEASING`: il monitor invita ad avanzare
    *   mostrando ancora il codice appena servito, così il cliente successivo capisce che tocca a lui;
    * - altrimenti → `FREE`. `OFFLINE` non è mai restituito dal server: lo decide il client quando
@@ -198,14 +200,17 @@ export class QueueService {
   ): Promise<Result<BayDisplayView, DomainError>> {
     const bays = await this.deps.referenceData.listBays();
     const wanted = bayRef.trim().toUpperCase();
+    // "C2" è la vecchia targhetta della campata: vale ancora come numero della postazione.
+    const legacy = /^C(\d+)$/.exec(wanted)?.[1] ?? null;
     const bay =
       bays.find((b) => b.code.toUpperCase() === wanted) ??
-      bays.find((b) => String(b.number) === wanted);
+      bays.find((b) => String(b.number) === wanted) ??
+      (legacy === null ? undefined : bays.find((b) => String(b.number) === legacy));
     if (bay === undefined) {
       return err(
-        domainError('NOT_FOUND', `Accettazione sconosciuta: "${bayRef}".`, {
+        domainError('NOT_FOUND', `Sportello sconosciuto: "${bayRef}".`, {
           bayRef,
-          campateAttive: bays.filter((b) => b.isActive).map((b) => b.code),
+          sportelliAttivi: bays.filter((b) => b.isActive).map((b) => b.code),
         }),
       );
     }
@@ -307,9 +312,9 @@ export class QueueService {
   }
 
   /**
-   * Prendi in carico: WAITING|SKIPPED → IN_PROGRESS. Sceglie la campata (richiesta, predefinita
-   * della postazione, prima libera); una campata richiesta ma occupata → BAY_BUSY con le libere.
-   * Se nessuna campata è libera la pratica viene comunque presa in carico senza campata:
+   * Prendi in carico: WAITING|SKIPPED → IN_PROGRESS. Sceglie lo sportello (richiesto, predefinito
+   * della postazione, primo libero); uno sportello richiesto ma occupato → BAY_BUSY con i liberi.
+   * Se nessuno sportello è libero la pratica viene comunque presa in carico senza sportello:
    * l'officina non si blocca per un dato di configurazione.
    */
   async takeInCharge(
@@ -353,7 +358,7 @@ export class QueueService {
     }));
   }
 
-  /** Completato: IN_PROGRESS → COMPLETED, la campata si libera (occupazione derivata). */
+  /** Completato: IN_PROGRESS → COMPLETED, lo sportello si libera (occupazione derivata). */
   async complete(
     input: TransitionInput,
     ctx: ActionContext,
@@ -543,7 +548,7 @@ export class QueueService {
 
   /**
    * Riapre una pratica completata per errore (o chiusa d'ufficio): COMPLETED → IN_PROGRESS in
-   * carico a chi la riapre, con una campata libera se c'è. La presa in carico originale resta
+   * carico a chi la riapre, con uno sportello libero se c'è. La presa in carico originale resta
    * scritta; la chiusura viene cancellata, così il flag "da confermare" sparisce e il check-in
    * si può rifare. Solo nella giornata corrente: ieri non si riapre.
    */
@@ -771,14 +776,14 @@ export class QueueService {
       const slot = occupancy.find((o) => o.bay.id === requested);
       if (slot === undefined) {
         return err(
-          domainError('VALIDATION', 'Accettazione sconosciuta o non attiva.', { bayId: requested }),
+          domainError('VALIDATION', 'Sportello sconosciuto o non attivo.', { bayId: requested }),
         );
       }
       if (slot.appointment !== null && slot.appointment.id !== a.id) {
         return err(
           domainError(
             'BAY_BUSY',
-            `L'accettazione ${slot.bay.code} è occupata dalla pratica ${slot.appointment.code}.`,
+            `Lo sportello ${slot.bay.code} è occupato dalla pratica ${slot.appointment.code}.`,
             {
               bayId: requested,
               occupiedBy: slot.appointment.code,
@@ -799,7 +804,7 @@ export class QueueService {
     }
     const first = free[0];
     if (first === undefined) {
-      this.logger.warn('nessuna campata libera: presa in carico senza campata', {
+      this.logger.warn('nessuno sportello libero: presa in carico senza sportello', {
         appointmentId: a.id,
       });
       return ok(null);

@@ -228,35 +228,41 @@ export function fetchWaitingBoard(nextCount?: number): Promise<BoardStatus> {
   return apiFetch<BoardStatus>(`/api/v1/public/board${query}`, { publicEndpoint: true });
 }
 
-/** Foto dell'ispezione con l'indirizzo per rileggerla. */
+/** Media dell'ispezione (foto o video) con l'indirizzo per rileggerlo. */
 export interface InspectionPhoto {
   readonly id: string;
   readonly url: string;
+  /** Foto o video: decide come mostrarlo (miniatura oppure lettore). */
+  readonly kind: 'PHOTO' | 'VIDEO';
+  readonly mimeType: string;
   readonly capturedAt: string;
   readonly sizeBytes: number;
-  /** Parte del veicolo ripresa; `null` solo per foto acquisite prima delle categorie. */
+  /** Parte del veicolo ripresa; `null` per i video e per le foto acquisite prima delle categorie. */
   readonly category: MediaCategory | null;
   /** File eliminato dalla retention: il record resta, l'immagine no. */
   readonly archivedAt: string | null;
 }
 
 /**
- * POST /api/v1/appointments/{id}/media: invia una foto scattata al tablet.
+ * POST /api/v1/appointments/{id}/media: invia una foto o un video acquisiti al tablet.
+ * La categoria è facoltativa: `null` per un video o per uno scatto libero fatto con il "+".
  * Il caricamento di un file non usa `apiFetch` perché il corpo è multipart, non JSON, e il
- * timeout dev'essere più generoso: una foto da qualche megabyte su rete lenta richiede tempo.
+ * timeout dev'essere più generoso: un video da qualche decina di megabyte su rete lenta ci mette.
  */
-export async function uploadInspectionPhoto(
+export async function uploadInspectionMedia(
   appointmentId: string,
   file: File,
-  category: MediaCategory,
+  category: MediaCategory | null,
 ): Promise<InspectionPhoto> {
   const body = new FormData();
   body.set('foto', file);
-  body.set('categoria', category);
+  if (category !== null) {
+    body.set('categoria', category);
+  }
   const response = await fetch(`/api/v1/appointments/${encodeURIComponent(appointmentId)}/media`, {
     method: 'POST',
     body,
-    signal: AbortSignal.timeout(30_000),
+    signal: AbortSignal.timeout(120_000),
   });
   if (!response.ok) {
     const error = await toApiError(response);
@@ -269,7 +275,7 @@ export async function uploadInspectionPhoto(
   return payload.photo;
 }
 
-/** GET /api/v1/appointments/{id}/media: foto già acquisite per la pratica. */
+/** GET /api/v1/appointments/{id}/media: foto e video già acquisiti per la pratica. */
 export function fetchInspectionPhotos(
   appointmentId: string,
 ): Promise<{ readonly photos: readonly InspectionPhoto[] }> {
@@ -282,12 +288,11 @@ export function postCheckIn(
   body: {
     readonly expectedVersion: number;
     readonly inspectionNotes: string | null;
-    /** Dopo la doppia conferma: chiude anche senza le foto obbligatorie. */
-    readonly allowMissingPhotos?: boolean;
   },
 ): Promise<{
   readonly appointment: Appointment;
   readonly photoCount: number;
+  readonly videoCount: number;
   readonly crmNotified: boolean;
 }> {
   return apiFetch(`/api/v1/appointments/${encodeURIComponent(appointmentId)}/check-in`, {

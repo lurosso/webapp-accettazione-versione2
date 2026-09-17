@@ -14,18 +14,25 @@ export interface QueuePositionView {
   readonly status: AppointmentStatus;
   /** Clienti in attesa prima del cliente (regola QUEUE_AHEAD_SCOPE). */
   readonly aheadCount: number;
-  /** Campata in servizio quando la pratica è IN_PROGRESS. */
-  readonly bayNumber: number | null;
+  /**
+   * Lettera dello sportello fisico dove presentarsi (A, B, C, D) quando la pratica è IN_PROGRESS.
+   * È la stessa che il cliente legge sul tabellone e sopra la postazione: il numero interno non
+   * esce mai dal sistema.
+   */
+  readonly bayCode: string | null;
   readonly brandCode: string;
   /** Orario di prenotazione: aiuta il cliente a riconoscere il proprio appuntamento. */
   readonly scheduledAt: IsoDateTime;
   readonly updatedAt: IsoDateTime;
 }
 
-/** Stato del display di campata. OFFLINE è deciso dal client dopo 3 poll falliti. */
+/** Stato del monitor di uno sportello. OFFLINE è deciso dal client dopo 3 poll falliti. */
 export type BayDisplayState = 'SERVING' | 'RELEASING' | 'FREE' | 'OFFLINE';
 
-/** Read model del display di campata, calcolato dalle pratiche (nessuno stato persistito sulla Bay). */
+/**
+ * Read model del monitor appeso sopra uno sportello fisico, calcolato dalle pratiche (nessuno
+ * stato persistito sulla Bay). `bayCode` è la lettera (A, B, C, D) che il cliente legge a video.
+ */
 export interface BayDisplayView {
   readonly bayCode: string;
   readonly bayNumber: number;
@@ -33,7 +40,7 @@ export interface BayDisplayView {
   readonly state: BayDisplayState;
   readonly currentCode: QueueCode | null;
   /**
-   * Targa in lavorazione: il monitor è appeso sopra la campata e serve a far riconoscere al
+   * Targa in lavorazione: il monitor è appeso sopra lo sportello e serve a far riconoscere al
    * cliente la propria vettura. È l'unico dato del veicolo esposto, senza nome né telefono.
    */
   readonly currentPlate: string | null;
@@ -45,10 +52,14 @@ export interface BayDisplayView {
 /** Riga del tabellone della sala d'attesa: codice chiamato e dove presentarsi. */
 export interface BoardServingEntry {
   readonly code: QueueCode;
-  /** Campata assegnata (dove il cliente deve andare); null se la presa in carico non l'ha indicata. */
+  /**
+   * Lettera dello sportello assegnato (A, B, C, D), cioè dove il cliente deve andare; null se la
+   * presa in carico non l'ha indicato.
+   */
   readonly bayCode: string | null;
+  /** Ordinale interno dello sportello: serve all'ordinamento, non si mostra al cliente. */
   readonly bayNumber: number | null;
-  /** Sportello, usato come indicazione di ripiego quando la campata manca. */
+  /** Area per marchio (FCA/PSA), usata come indicazione di ripiego quando lo sportello manca. */
   readonly deskCode: string | null;
   readonly since: IsoDateTime | null;
 }
@@ -169,7 +180,7 @@ export interface PortalStatusView extends QueuePositionView {
   /** Orario a cui il cliente è atteso adesso (riprogrammato in officina, se c'è). */
   readonly expectedTime: IsoDateTime;
   readonly siteName: string;
-  /** Sportello che serve la pratica (es. "Sportello Stellantis Italia"). */
+  /** Area per marchio che serve la pratica (es. "Sportelli A e B"). */
   readonly deskName: string | null;
   /** Accettatore che ha preso in carico la pratica; null finché è in attesa. */
   readonly operatorName: string | null;

@@ -406,12 +406,12 @@ export function CheckInQueue({
           timeZone={data.timeZone}
           onClose={esciDalCheckIn}
           onSkip={esciDalCheckIn}
-          onCompleted={(codice, foto) => {
+          onCompleted={(codice, media) => {
             setInCheckIn(null);
             setDaDashboard(false);
             setScheda('attesa');
             setConferma(
-              `Check-in della pratica ${codice} completato${foto > 0 ? ` con ${foto} foto` : ''}. L'accettazione è libera.`,
+              `Check-in della pratica ${codice} completato${media > 0 ? ` con ${media} file` : ' senza foto né video'}. Lo sportello è libero.`,
             );
           }}
         />

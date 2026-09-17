@@ -1,17 +1,17 @@
-// Campata d'accettazione (C1..C4) con display dedicato.
+// Sportello fisico dell'accettazione (A, B, C, D) con il monitor dedicato sopra il banco.
 // È SOLO configurazione: nessun `currentAppointmentId`. L'occupazione è derivata
 // dall'unica pratica IN_PROGRESS con quel `bayId` (Appointment.bayId + status),
 // così esiste una sola fonte di verità (ADR-008).
 
 import type { BayId } from '../ids';
 
-/** Numero di campata fisica. */
+/** Ordinale interno dello sportello (1..4): ordina le liste, non si mostra al cliente. */
 export type BayNumber = 1 | 2 | 3 | 4;
 
-/** Campata: dato di configurazione. */
+/** Sportello fisico: dato di configurazione. */
 export interface Bay {
   readonly id: BayId;
-  /** Codice usato nell'URL del display, es. "C1". */
+  /** Lettera dello sportello, usata a video e nell'URL del monitor: "A". */
   readonly code: string;
   readonly number: BayNumber;
   readonly name: string;

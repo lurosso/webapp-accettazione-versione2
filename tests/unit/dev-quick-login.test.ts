@@ -55,7 +55,7 @@ describe('Accesso veloce di sviluppo (DEV_QUICK_LOGIN)', () => {
     await quick.login('admin');
     expect((await env.operators.listAll()).length).toBe(prima + 1);
 
-    const s2 = await quick.login('accettatore-s2');
+    const s2 = await quick.login('accettatore-psa');
     expect(s2.ok).toBe(true);
     if (s2.ok) {
       expect(s2.value.session.role).toBe('ADVISOR');
@@ -68,9 +68,9 @@ describe('Accesso veloce di sviluppo (DEV_QUICK_LOGIN)', () => {
     expect(admin0?.displayName).toBe('Luca Moretti');
   });
 
-  it('sceglie la prima accettazione libera dello sportello; un profilo ignoto è NOT_FOUND', async () => {
+  it("sceglie il primo sportello libero dell'area; un profilo ignoto è NOT_FOUND", async () => {
     const { env, quick } = setup();
-    // P1 (sportello S1) occupata da un collega: l'accettatore S1 entra su P2.
+    // Lo sportello A (area FCA) è occupato da un collega: l'accettatore FCA entra sul B.
     await env.workstationClaims.upsert({
       workstationId: asWorkstationId('ws-p1'),
       operatorId: asOperatorId('op-advisor-1'),
@@ -78,7 +78,7 @@ describe('Accesso veloce di sviluppo (DEV_QUICK_LOGIN)', () => {
       claimedAt: env.clock.nowIso(),
       expiresAt: '2099-01-01T00:00:00.000Z' as never,
     });
-    const s1 = await quick.login('accettatore-s1');
+    const s1 = await quick.login('accettatore-fca');
     expect(s1.ok && s1.value.session.workstationId === asWorkstationId('ws-p2')).toBe(true);
 
     const ignoto = await quick.login('direttore');

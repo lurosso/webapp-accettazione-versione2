@@ -32,7 +32,7 @@ describe('Seed: profilo demo (predefinito)', () => {
     const seed = buildSeedData();
     expect(hasDemoCredentials(seed)).toBe(true);
     expect(seed.brands).toHaveLength(7);
-    expect(seed.desks).toHaveLength(3);
+    expect(seed.desks).toHaveLength(2);
     expect(seed.operators.map((o) => o.username)).toContain('mario.rossi');
     expect(seed.brands.some((b) => b.code === FALLBACK_BRAND_CODE)).toBe(false);
   });
@@ -107,7 +107,7 @@ describe('Seed: profilo real (officina di Bari, senza credenziali demo)', () => 
     for (const t of token) {
       expect(t).toMatch(/^[0-9a-f]{32}$/);
     }
-    expect(seed.bays[0]?.displayToken).toBe(displayTokenFor(SEGRETO, 'C1'));
+    expect(seed.bays[0]?.displayToken).toBe(displayTokenFor(SEGRETO, 'A'));
     const altroSegreto = buildSeedData(realOptions({ seedDisplayTokenSecret: `${SEGRETO}-altro` }));
     expect(altroSegreto.bays[0]?.displayToken).not.toBe(seed.bays[0]?.displayToken);
   });

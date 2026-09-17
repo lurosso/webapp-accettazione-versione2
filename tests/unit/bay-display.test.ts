@@ -35,20 +35,20 @@ async function insert(env: ReturnType<typeof buildTestEnv>, a: Appointment): Pro
 }
 
 describe('QueueService.getBayDisplay', () => {
-  it('campata libera quando nessuna pratica è in lavorazione', async () => {
+  it('sportello libero quando nessuna pratica è in lavorazione', async () => {
     const { service } = setup();
     const r = await service.getBayDisplay('1', TEST_DATE);
     expect(r.ok).toBe(true);
     if (r.ok) {
       expect(r.value.state).toBe('FREE');
-      expect(r.value.bayCode).toBe('C1');
+      expect(r.value.bayCode).toBe('A');
       expect(r.value.bayNumber).toBe(1);
       expect(r.value.currentCode).toBeNull();
       expect(r.value.currentPlate).toBeNull();
     }
   });
 
-  it('in servizio: codice e targa della pratica presa in carico su quella campata', async () => {
+  it('in servizio: codice e targa della pratica presa in carico su quello sportello', async () => {
     const { env, service, ctx } = setup();
     const a = await insert(env, makeAppointment());
     await service.takeInCharge(
@@ -56,7 +56,7 @@ describe('QueueService.getBayDisplay', () => {
       ctx,
     );
 
-    const r = await service.getBayDisplay('C1', TEST_DATE);
+    const r = await service.getBayDisplay('A', TEST_DATE);
     expect(r.ok).toBe(true);
     if (r.ok) {
       expect(r.value.state).toBe('SERVING');
@@ -92,13 +92,13 @@ describe('QueueService.getBayDisplay', () => {
     expect(later.ok && later.value.state).toBe('FREE');
   });
 
-  it("campata sconosciuta → NOT_FOUND con l'elenco di quelle attive", async () => {
+  it("sportello sconosciuto → NOT_FOUND con l'elenco di quelli attivi", async () => {
     const { service } = setup();
     const r = await service.getBayDisplay('99', TEST_DATE);
     expect(r.ok).toBe(false);
     if (!r.ok) {
       expect(r.error.code).toBe('NOT_FOUND');
-      expect(r.error.details?.['campateAttive']).toEqual(['C1', 'C2', 'C3', 'C4']);
+      expect(r.error.details?.['sportelliAttivi']).toEqual(['A', 'B', 'C', 'D']);
     }
   });
 

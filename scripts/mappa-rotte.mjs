@@ -56,7 +56,7 @@ export const ROTTE = [
     path: '/login',
     area: AREE[0],
     descrizione:
-      "Login dell'operatore: credenziali e scelta della postazione (Accettazione N · marchi serviti).",
+      "Login dell'operatore: credenziali e scelta dello sportello (Sportello A · FCA, con i marchi serviti).",
     accesso: ACCESSO.pubblico,
   },
   {
@@ -76,7 +76,7 @@ export const ROTTE = [
   {
     path: '/accettazione/archivio',
     area: AREE[1],
-    descrizione: 'Archivio dei check-in fotografici: ricerca per targa o codice pratica.',
+    descrizione: 'Archivio dei check-in con foto e video: ricerca per targa o codice pratica.',
     accesso: ACCESSO.sessione,
   },
   // Tablet
@@ -84,7 +84,7 @@ export const ROTTE = [
     path: '/check-in',
     area: AREE[2],
     descrizione:
-      "Vista tablet a tutto schermo: pratiche in attesa del mio sportello, prese in carico, giro fotografico e conclusione dell'accettazione. Da PC rimanda alla coda.",
+      "Vista tablet a tutto schermo: pratiche in attesa del mio sportello, prese in carico, foto e video facoltativi del veicolo e conclusione dell'accettazione. Da PC rimanda alla coda.",
     accesso: ACCESSO.sessione,
   },
   {
@@ -130,14 +130,14 @@ export const ROTTE = [
     path: '/display/sala-attesa',
     area: AREE[6],
     descrizione:
-      "Tabellone della sala d'attesa: codici chiamati con la campata e prossimi turni (`?prossimi=`). Home degli account kiosk.",
+      "Tabellone della sala d'attesa: codici chiamati con la lettera dello sportello e prossimi turni (`?prossimi=`). Home degli account kiosk.",
     accesso: ACCESSO.monitor,
   },
   {
     path: '/display/:campata',
     area: AREE[6],
     descrizione:
-      'Monitor sopra la campata (/display/1 … /display/4 oppure /display/C1): codice e targa della vettura in accettazione.',
+      'Monitor sopra lo sportello (/display/A … /display/D, valgono anche 1…4): lettera dello sportello, codice e targa della vettura in accettazione.',
     accesso: ACCESSO.monitor,
   },
   // Portale
@@ -225,27 +225,27 @@ export const ROTTE = [
     path: '/api/v1/appointments/:id/check-in',
     area: AREE[9],
     descrizione:
-      "Conclude l'accettazione dal tablet: note dell'ispezione, chiusura pratica, notifica al CRM.",
+      "Conclude l'accettazione dal tablet: note dell'ispezione, chiusura pratica (nessuna foto obbligatoria), notifica al CRM.",
     accesso: ACCESSO.sessione,
   },
   {
     path: '/api/v1/appointments/:id/media',
     area: AREE[9],
     descrizione:
-      "Foto dell'ispezione: elenco (GET) e caricamento multipart dalla fotocamera del tablet (POST).",
+      "Media dell'ispezione: elenco (GET) e caricamento multipart di una foto o di un video dal tablet (POST, campo `foto`, `categoria` facoltativa).",
     accesso: ACCESSO.sessione,
   },
   {
     path: '/api/v1/media/:key',
     area: AREE[9],
-    descrizione: "Rilegge una foto dell'ispezione dallo storage.",
+    descrizione: "Rilegge una foto o un video dell'ispezione dallo storage.",
     accesso: ACCESSO.sessione,
   },
   {
     path: '/api/v1/inspections/archive',
     area: AREE[9],
     descrizione:
-      'Storico dei check-in fotografici (`?q=` targa o codice; vuoto = ultimi cinquanta).',
+      'Storico dei check-in con i media acquisiti (`?q=` targa o codice; vuoto = ultimi cinquanta).',
     accesso: ACCESSO.sessione,
   },
   {
@@ -294,7 +294,7 @@ export const ROTTE = [
     path: '/api/v1/public/display',
     area: AREE[10],
     descrizione:
-      'Stato del monitor di una campata (`?campata=1`, `?bay=`, `?bayCode=`): solo codice e targa.',
+      'Stato del monitor di uno sportello (`?campata=A`, `?bay=`, `?bayCode=`): solo lettera, codice e targa.',
     accesso: ACCESSO.monitor,
   },
   {
@@ -407,7 +407,7 @@ export const ROTTE = [
   {
     path: '/api/v1/system/cron/media-retention',
     area: AREE[13],
-    descrizione: 'Eliminazione dei file delle foto oltre la retention per un cron esterno.',
+    descrizione: 'Eliminazione dei file di foto e video oltre la retention per un cron esterno.',
     accesso: ACCESSO.cron,
   },
 ];

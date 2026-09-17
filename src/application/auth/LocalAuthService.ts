@@ -60,16 +60,14 @@ export class LocalAuthService implements IAuthService {
       input.workstationId as Workstation['id'],
     );
     if (workstation === null) {
-      return err(
-        domainError('VALIDATION', "Accettazione non valida: selezionarne una dall'elenco."),
-      );
+      return err(domainError('VALIDATION', "Sportello non valido: selezionarne uno dall'elenco."));
     }
     const occupata = await this.occupiedByOther(workstation, operator.id);
     if (occupata !== null) {
       return err(
         domainError(
           'VALIDATION',
-          `${workstation.name} è già in uso da ${occupata.operatorName}: scegli un'altra accettazione.`,
+          `${workstation.name} è già in uso da ${occupata.operatorName}: scegli un altro sportello.`,
           { workstationId: workstation.id },
         ),
       );
@@ -147,7 +145,7 @@ export class LocalAuthService implements IAuthService {
     }
     const workstation = await this.deps.referenceData.findWorkstationById(session.workstationId);
     if (workstation === null) {
-      return err(domainError('VALIDATION', 'Accettazione della sessione non più valida.'));
+      return err(domainError('VALIDATION', 'Sportello della sessione non più valido.'));
     }
     const aggiornato = await this.deps.operators.update({
       ...operator,
@@ -173,7 +171,7 @@ export class LocalAuthService implements IAuthService {
       workstationId as Workstation['id'],
     );
     if (workstation === null) {
-      return err(domainError('VALIDATION', 'Accettazione non valida.'));
+      return err(domainError('VALIDATION', 'Sportello non valido.'));
     }
     const occupata = await this.occupiedByOther(workstation, operator.id);
     if (occupata !== null) {

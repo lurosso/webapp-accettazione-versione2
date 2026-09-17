@@ -34,7 +34,7 @@ async function insert(env: ReturnType<typeof buildTestEnv>, a: Appointment): Pro
 }
 
 describe('QueueService', () => {
-  it("prende in carico usando la campata predefinita della postazione e pubblica l'evento", async () => {
+  it("prende in carico usando lo sportello predefinito della postazione e pubblica l'evento", async () => {
     const { env, service, ctx } = setup();
     const a = await insert(env, makeAppointment());
     const r = await service.takeInCharge(
@@ -55,7 +55,7 @@ describe('QueueService', () => {
     ).toBe(true);
   });
 
-  it('se la campata predefinita è occupata sceglie la prima libera; una campata richiesta occupata → BAY_BUSY', async () => {
+  it('se lo sportello predefinito è occupato sceglie il primo libero; uno sportello richiesto occupato → BAY_BUSY', async () => {
     const { env, service, ctx } = setup();
     const first = await insert(env, makeAppointment());
     const second = await insert(env, makeAppointment());
@@ -79,7 +79,7 @@ describe('QueueService', () => {
     if (!busy.ok) {
       expect(busy.error.code).toBe('BAY_BUSY');
       const freeBays = busy.error.details?.['freeBays'] as { code: string }[];
-      expect(freeBays.map((b) => b.code)).toEqual(['C3', 'C4']);
+      expect(freeBays.map((b) => b.code)).toEqual(['C', 'D']);
     }
   });
 

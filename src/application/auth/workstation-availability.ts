@@ -1,8 +1,8 @@
-// Quali accettazioni proporre al login: solo quelle libere.
+// Quali sportelli proporre al login: solo quelli liberi.
 //
-// Un'accettazione è occupata quando un collega ci è collegato (occupazione registrata al login,
-// valida fino alla scadenza della sua sessione) oppure quando c'è un veicolo in carico nella
-// campata che le corrisponde. Nel secondo caso il collega potrebbe anche aver perso la sessione,
+// Uno sportello è occupato quando un collega ci è collegato (occupazione registrata al login,
+// valida fino alla scadenza della sua sessione) oppure quando c'è un veicolo in carico al banco
+// che gli corrisponde. Nel secondo caso il collega potrebbe anche aver perso la sessione,
 // ma il posto è comunque "suo" finché la pratica non si chiude. Funzione pura: la pagina di login
 // e i test la usano con gli stessi dati.
 import type { Workstation } from '@/domain/entities/workstation';

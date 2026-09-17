@@ -63,11 +63,11 @@ describe('QueueService.getPublicPositionByPlate', () => {
     expect(r.value.aheadCount).toBe(2);
     expect(r.value.code).toBe(mine.code);
     expect(r.value.status).toBe('WAITING');
-    expect(r.value.bayNumber).toBeNull();
+    expect(r.value.bayCode).toBeNull();
     // Nessun campo personale nella view pubblica.
     expect(Object.keys(r.value).sort()).toEqual([
       'aheadCount',
-      'bayNumber',
+      'bayCode',
       'brandCode',
       'code',
       'scheduledAt',
@@ -134,7 +134,7 @@ describe('QueueService.getPublicPositionByPlate', () => {
     if (r.ok) {
       expect(r.value.status).toBe('IN_PROGRESS');
       expect(r.value.aheadCount).toBe(0);
-      expect(r.value.bayNumber).toBe(1);
+      expect(r.value.bayCode).toBe('A');
     }
   });
 
@@ -173,7 +173,7 @@ describe('QueueService.getPublicPositionByPlate', () => {
     if (r.ok) {
       expect(r.value.status).toBe('COMPLETED');
       expect(r.value.aheadCount).toBe(0);
-      expect(r.value.bayNumber).toBeNull();
+      expect(r.value.bayCode).toBeNull();
     }
   });
 });

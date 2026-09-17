@@ -247,7 +247,8 @@ export class CustomerPortalService {
       code: a.code,
       status: a.status,
       aheadCount: isInQueue(a.status) ? countAheadInSameDesk(a, inQueue, desks) : 0,
-      bayNumber: a.status === 'IN_PROGRESS' ? (bay?.number ?? null) : null,
+      // Lettera dello sportello: è l'indicazione che il cliente deve seguire in sala.
+      bayCode: a.status === 'IN_PROGRESS' ? (bay?.code ?? null) : null,
       brandCode: brands.find((b) => b.id === a.brandId)?.code ?? '',
       scheduledAt: a.scheduledAt,
       updatedAt: a.updatedAt,
