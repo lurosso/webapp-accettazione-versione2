@@ -447,7 +447,7 @@ export function QueueDashboard({
       ) : null}
 
       {data !== undefined ? (
-        <p className="text-xs text-slate-400">
+        <p className="text-ink-muted text-xs">
           Aggiornamento automatico ogni 3 secondi · ultimo dato dal server:{' '}
           {formatDateTimeIt(data.serverTime, data.timeZone)}
         </p>

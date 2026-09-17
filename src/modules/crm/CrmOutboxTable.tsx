@@ -168,7 +168,7 @@ export function CrmOutboxTable({ timeZone }: CrmOutboxTableProps) {
                 </TableCell>
                 <TableCell className="whitespace-nowrap">
                   {TIPO_ETICHETTE[row.type] ?? row.type}
-                  <span className="block font-mono text-xs text-slate-400">{row.type}</span>
+                  <span className="text-ink-muted block font-mono text-xs">{row.type}</span>
                 </TableCell>
                 <TableCell className="font-mono font-semibold whitespace-nowrap">
                   {row.code ?? '—'}
@@ -189,7 +189,7 @@ export function CrmOutboxTable({ timeZone }: CrmOutboxTableProps) {
                 <TableCell className="text-center tabular-nums">{row.attemptCount}</TableCell>
                 <TableCell className="max-w-xs">
                   {row.lastError === null ? (
-                    <span className="text-slate-400">—</span>
+                    <span className="text-ink-muted">—</span>
                   ) : (
                     <span className="block font-mono text-xs break-words text-red-800">
                       {row.lastError}
@@ -198,7 +198,7 @@ export function CrmOutboxTable({ timeZone }: CrmOutboxTableProps) {
                 </TableCell>
                 <TableCell>
                   {row.status === 'SENT' ? (
-                    <span className="text-xs text-slate-400">—</span>
+                    <span className="text-ink-muted text-xs">—</span>
                   ) : (
                     <Button
                       size="touch"

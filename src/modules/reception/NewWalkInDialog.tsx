@@ -163,7 +163,7 @@ export function NewWalkInDialog({
             rows={3}
             maxLength={500}
             placeholder="Es. rumore anteriore, tagliando, spia motore accesa."
-            className="w-full rounded-md border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900 shadow-sm placeholder:text-slate-400 focus-visible:border-slate-900 focus-visible:ring-2 focus-visible:ring-slate-300 focus-visible:outline-none"
+            className="placeholder:text-ink-muted w-full rounded-md border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900 shadow-sm focus-visible:border-slate-900 focus-visible:ring-2 focus-visible:ring-slate-300 focus-visible:outline-none"
           />
         </div>
 

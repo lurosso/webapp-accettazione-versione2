@@ -26,14 +26,14 @@ export function EmptyState({
     <div
       role="status"
       className={cn(
-        'rounded-xl border border-dashed border-slate-300 bg-white text-center',
-        page ? 'px-6 py-12' : 'px-4 py-6',
+        'border-line bg-surface rounded-lg border border-dashed text-center',
+        page ? 'px-6 py-14' : 'px-5 py-8',
         className,
       )}
     >
-      <p className={cn('font-semibold text-slate-800', page ? 'text-lg' : 'text-sm')}>{title}</p>
+      <p className={cn('text-ink font-semibold', page ? 'text-lg' : 'text-sm')}>{title}</p>
       {description !== undefined ? (
-        <p className={cn('mt-1 text-slate-600', page ? 'text-sm' : 'text-xs')}>{description}</p>
+        <p className={cn('text-ink-soft mt-1.5', page ? 'text-sm' : 'text-xs')}>{description}</p>
       ) : null}
       {actions !== undefined ? (
         <div className="mt-4 flex flex-wrap justify-center gap-2">{actions}</div>

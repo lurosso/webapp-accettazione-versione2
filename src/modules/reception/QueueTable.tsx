@@ -148,24 +148,24 @@ export function QueueTable({
     brands.find((b) => b.id === brandId)?.name ?? brandId;
 
   return (
-    <div className="flex flex-col gap-6">
+    <div className="flex flex-col gap-8">
       {sections.map((section) => {
         const hidden = section.collapsible && !closedOpen;
         return (
           <section key={section.key} aria-labelledby={`section-${section.key}`}>
-            <div className="mb-2 flex items-start justify-between gap-4">
+            <div className="mb-3 flex items-start justify-between gap-4">
               <div>
                 <h2
                   id={`section-${section.key}`}
                   className={cn(
                     'text-sm font-semibold tracking-wide uppercase',
-                    section.late === true ? 'text-red-700' : 'text-slate-600',
+                    section.late === true ? 'text-priority-late-ink' : 'text-ink-soft',
                   )}
                 >
                   {section.title}
                 </h2>
                 {section.hint !== undefined && section.rows.length > 0 ? (
-                  <p className="mt-0.5 text-xs text-slate-500">{section.hint}</p>
+                  <p className="text-ink-muted mt-1 text-xs">{section.hint}</p>
                 ) : null}
               </div>
               {section.collapsible ? (
@@ -180,30 +180,34 @@ export function QueueTable({
               ) : null}
             </div>
             {hidden ? null : section.rows.length === 0 ? (
-              <p className="rounded-md border border-dashed border-slate-300 px-4 py-3 text-sm text-slate-500">
+              <p className="border-line bg-surface text-ink-muted rounded-lg border border-dashed px-5 py-4 text-sm">
                 {section.emptyLabel}
               </p>
             ) : (
               <div
                 className={cn(
-                  'rounded-xl border bg-white shadow-sm',
-                  section.late === true ? 'border-red-300 ring-1 ring-red-200' : 'border-slate-200',
+                  'bg-surface rounded-lg border shadow-sm',
+                  section.late === true ? 'border-priority-late-line' : 'border-line-subtle',
                 )}
               >
                 <Table>
                   <TableHeader>
                     <TableRow>
-                      <TableHead className="pt-3">Codice</TableHead>
-                      <TableHead className="pt-3">Orario</TableHead>
-                      <TableHead className="pt-3">Targa</TableHead>
-                      <TableHead className="pt-3">Veicolo</TableHead>
-                      <TableHead className="pt-3">Cliente</TableHead>
-                      {showDesk ? <TableHead className="pt-3">Sportello</TableHead> : null}
-                      <TableHead className="pt-3">Stato</TableHead>
-                      {/* Sul tablet in verticale campata e operatore si leggono nel dettaglio: qui farebbero solo scorrere. */}
-                      <TableHead className="hidden pt-3 lg:table-cell">Accettazione</TableHead>
-                      <TableHead className="hidden pt-3 lg:table-cell">Operatore</TableHead>
-                      <TableHead className="pt-3">Azioni</TableHead>
+                      <TableHead>Codice</TableHead>
+                      <TableHead>Orario</TableHead>
+                      <TableHead>Targa</TableHead>
+                      <TableHead>Veicolo</TableHead>
+                      <TableHead>Cliente</TableHead>
+                      {showDesk ? <TableHead>Sportello</TableHead> : null}
+                      <TableHead>Stato</TableHead>
+                      {/* Campata e operatore si leggono nel dettaglio: su un iPad occupavano
+                          spazio per mostrare due trattini, e lo toglievano ai comandi. Tornano
+                          dal monitor del banco in poi. */}
+                      <TableHead className="hidden xl:table-cell">Accettazione</TableHead>
+                      <TableHead className="hidden xl:table-cell">Operatore</TableHead>
+                      {/* Larghezza propria: senza, i comandi si impilavano uno sotto l'altro e la
+                          riga cresceva fino a duecento pixel. */}
+                      <TableHead className="w-[23rem] text-right">Azioni</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
@@ -239,7 +243,7 @@ export function QueueTable({
                     })}
                   </TableBody>
                 </Table>
-                <p className="px-3 py-2 text-xs text-slate-400">
+                <p className="text-ink-muted px-3 py-2 text-xs">
                   {section.rows.length} {section.rows.length === 1 ? 'pratica' : 'pratiche'} ·
                   clicca una riga per i dettagli del cliente
                 </p>

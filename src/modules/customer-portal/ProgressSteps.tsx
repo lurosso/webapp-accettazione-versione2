@@ -44,7 +44,7 @@ export function ProgressSteps({ stage, tone }: ProgressStepsProps) {
                   ? 'text-brand-secondary'
                   : fatta
                     ? 'text-brand-lime-dark'
-                    : 'text-slate-400',
+                    : 'text-ink-muted',
               )}
             >
               {s.label}

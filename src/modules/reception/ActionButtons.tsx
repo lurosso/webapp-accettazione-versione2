@@ -42,6 +42,8 @@ const CONFIRM_TIMEOUT_MS = 6_000;
 interface ActionSpec {
   readonly action: AppointmentAction;
   readonly label: string;
+  /** Nome per esteso, quando l'etichetta visibile è abbreviata per stare nella riga. */
+  readonly fullLabel?: string;
   readonly variant: ButtonVariant;
 }
 
@@ -79,8 +81,20 @@ export function ActionButtons({
   if (late) {
     // Le due decisioni sul cliente in ritardo: è arrivato e lo rimettiamo in coda, oppure è
     // assente e il BDC lo ricontatterà.
-    buttons.push({ action: 'reschedule', label: 'Rimetti in coda', variant: 'outline' });
-    buttons.push({ action: 'no-show', label: 'Segna assente', variant: 'destructive' });
+    // Etichette corte: nella riga in ritardo convivono con «Prendi in carico», e tre comandi per
+    // esteso si impilavano uno sotto l'altro. Il nome completo resta nell'`aria-label`.
+    buttons.push({
+      action: 'reschedule',
+      label: 'In coda',
+      fullLabel: 'Rimetti in coda',
+      variant: 'outline',
+    });
+    buttons.push({
+      action: 'no-show',
+      label: 'Assente',
+      fullLabel: 'Segna assente',
+      variant: 'destructiveQuiet',
+    });
   } else {
     if (status === 'WAITING' && canTransition(status, 'SKIPPED')) {
       buttons.push({ action: 'skip', label: 'Salta', variant: 'outline' });
@@ -107,7 +121,7 @@ export function ActionButtons({
   }
 
   if (buttons.length === 0) {
-    return <span className="text-xs text-slate-400">—</span>;
+    return <span className="text-ink-muted text-xs">—</span>;
   }
 
   const onClick = (spec: ActionSpec): void => {
@@ -121,20 +135,20 @@ export function ActionButtons({
   };
 
   return (
-    <div className="flex flex-wrap items-center gap-2">
+    <div className="flex flex-wrap items-center justify-end gap-2">
       {buttons.map((b) => {
         const inConferma = confirming === b.action;
         return (
           <Button
             key={b.action}
-            size="touch"
+            size="sm"
             variant={inConferma ? 'destructive' : b.variant}
             disabled={pending}
             onClick={() => onClick(b)}
             aria-label={
               inConferma
-                ? `Conferma: ${b.label.toLowerCase()} pratica ${appointment.code}`
-                : `${b.label} pratica ${appointment.code}`
+                ? `Conferma: ${(b.fullLabel ?? b.label).toLowerCase()} pratica ${appointment.code}`
+                : `${b.fullLabel ?? b.label} pratica ${appointment.code}`
             }
             className={inConferma ? 'ring-2 ring-red-300 ring-offset-1' : undefined}
           >
@@ -143,7 +157,7 @@ export function ActionButtons({
         );
       })}
       {confirming !== null ? (
-        <Button size="touch" variant="ghost" onClick={() => setConfirming(null)}>
+        <Button size="sm" variant="ghost" onClick={() => setConfirming(null)}>
           Annulla
         </Button>
       ) : null}

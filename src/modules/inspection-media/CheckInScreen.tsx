@@ -227,7 +227,7 @@ export function CheckInScreen({
               rows={4}
               maxLength={2000}
               placeholder="Es. graffio sul paraurti posteriore destro, cerchio anteriore sinistro rigato."
-              className="w-full rounded-xl border-2 border-slate-300 bg-white p-4 text-xl leading-snug text-slate-900 placeholder:text-slate-400 focus-visible:border-slate-900 focus-visible:ring-4 focus-visible:ring-slate-300 focus-visible:outline-none"
+              className="placeholder:text-ink-muted w-full rounded-xl border-2 border-slate-300 bg-white p-4 text-xl leading-snug text-slate-900 focus-visible:border-slate-900 focus-visible:ring-4 focus-visible:ring-slate-300 focus-visible:outline-none"
             />
             <p className="text-sm text-slate-500">
               Quanto scrivi qui resta sulla pratica e viene inviato al CRM insieme a foto e video.

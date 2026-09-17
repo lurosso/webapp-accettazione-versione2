@@ -175,7 +175,7 @@ export function MediaGallery({ appointmentId, inspectionNotes, timeZone }: Media
               <div key={gruppo.etichetta}>
                 <h4 className="mb-1 flex items-baseline gap-2 text-xs font-bold tracking-wide text-slate-500 uppercase">
                   {gruppo.etichetta}
-                  <span className="text-[10px] font-normal text-slate-400">
+                  <span className="text-ink-muted text-[10px] font-normal">
                     {gruppo.media.length === 1 ? '1 file' : `${gruppo.media.length} file`}
                   </span>
                 </h4>

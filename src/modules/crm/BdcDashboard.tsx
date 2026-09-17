@@ -159,7 +159,7 @@ export function BdcDashboard({ session, businessDate, timeZone }: BdcDashboardPr
         />
       )}
 
-      <p className="text-xs text-slate-400">
+      <p className="text-ink-muted text-xs">
         I lead nascono dagli eventi inviati al CRM quando un accettatore segna un cliente assente.
         &ldquo;Segna come ricontattato&rdquo; chiude la riga anche se il CRM non è raggiungibile: il
         lavoro del BDC resta registrato e l&apos;evento viene rinviato per conto suo.
