@@ -1,6 +1,8 @@
-// Area di amministrazione: gestione degli operatori e strumenti di assistenza.
-// Riservata ad ADMIN; gli altri ruoli vedono un messaggio esplicito invece di un redirect muto.
+// Area di amministrazione: la fila di adesso, il monitoraggio degli sportelli, le operazioni di
+// sistema e le anagrafiche, in quattro schede. Riservata ad ADMIN; gli altri ruoli vedono un
+// messaggio esplicito invece di un redirect muto.
 import type { Metadata } from 'next';
+import { Suspense } from 'react';
 import { requireSession } from '@/app/_server/session';
 import { AccessDenied } from '@/components/shared/AccessDenied';
 import { getContainer } from '@/config/container';
@@ -18,10 +20,14 @@ export default async function AdminPage() {
   }
   const container = getContainer();
   return (
-    <AdminDashboard
-      session={session}
-      businessDate={container.clock.today()}
-      timeZone={container.env.timeZone}
-    />
+    // La scheda aperta sta nell'indirizzo (`?sezione=`), quindi il cruscotto legge i parametri:
+    // serve la barriera, altrimenti la compilazione per la produzione si ferma qui.
+    <Suspense fallback={<p className="text-sm text-slate-500">Caricamento del cruscotto…</p>}>
+      <AdminDashboard
+        session={session}
+        businessDate={container.clock.today()}
+        timeZone={container.env.timeZone}
+      />
+    </Suspense>
   );
 }

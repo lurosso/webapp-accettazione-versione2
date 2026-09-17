@@ -65,7 +65,7 @@ export function CloseDayPanel({ businessDate }: CloseDayPanelProps) {
   };
 
   return (
-    <section className="rounded-xl border border-slate-200 bg-white p-4">
+    <section className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm sm:p-6">
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
           <h2 className="text-lg font-semibold text-slate-900">Chiusura della giornata</h2>

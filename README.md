@@ -597,8 +597,20 @@ riconosce, quindi un doppio invio non genera un doppio lead.
 
 ## Amministrazione, archivio foto e retention
 
-**Operatori.** In `/admin` l'amministratore vede tutti gli account con nome, utente, ruolo
-(Accettatore, Manager, Amministratore, Kiosk), sportelli assegnati e stato. _Nuovo operatore_
+`/admin` è organizzata in **quattro schede**, nell'ordine delle domande che un amministratore si
+fa, dalla più frequente alla più rara. La scheda aperta sta nell'indirizzo (`?sezione=`), quindi un
+collegamento salvato riporta dove si era:
+
+| Scheda               | Cosa contiene                                                           |
+| -------------------- | ----------------------------------------------------------------------- |
+| **Oggi**             | La fila adesso e le statistiche della giornata, con l'esportazione CSV  |
+| **Monitoraggio**     | I quattro sportelli, la coda globale in sola lettura, le pratiche ferme |
+| **Sistema**          | Chiusura della giornata e integrazione con il cliente (Spoki)           |
+| **Utenti e accessi** | Tutti gli account del sistema, con le azioni sulla riga                 |
+
+**Utenti e accessi.** Un elenco solo per tutti gli account — accettatori, BDC, amministratori e
+dispositivi kiosk — con nome, utente, ruolo, sportelli assegnati e stato, e le azioni sulla riga.
+_Nuovo operatore_
 chiede nome utente (minuscolo, senza spazi), nome da mostrare, ruolo, sportelli, postazione
 abituale e password iniziale (almeno 8 caratteri); _Modifica_ cambia tutto tranne il nome utente;
 _Disattiva_ è reversibile e non cancella nulla, così i registri restano leggibili. _Reset
@@ -623,13 +635,14 @@ quello dice quando era atteso, non da quanto sta aspettando davvero. Se nessuno 
 annunciato resta un trattino, perché una media inventata è peggio di un buco. Oltre i venti minuti
 di media il riquadro diventa ambra: è il momento di aprire un altro sportello.
 
-**Monitoraggio dell'accettazione.** L'amministratore non siede a un banco, quindi "guarda la coda"
-è una domanda con quattro risposte possibili. Il riquadro **Monitora l'accettazione** le mette in
-fila: i quattro sportelli, ognuno con chi è collegato e cosa sta lavorando, e la **coda globale**.
-Scegliendo uno sportello si apre la coda della sua area per marchio (A e B condividono la coda FCA,
-C e D quella PSA); scegliendo la coda globale si apre tutta l'officina **in sola lettura**, con una
-fascia che lo dice e nessuna azione sulle righe, per non toccare per sbaglio il lavoro di chi è al
-banco.
+**Sportelli e monitoraggio.** L'amministratore non siede a un banco, quindi "guarda la coda" è una
+domanda con quattro risposte. La scheda **Monitoraggio** le mette in fila in un blocco solo: i
+quattro sportelli, ognuno con chi è collegato, cosa sta lavorando e le sue azioni (guarda la coda,
+scollega, libera), più la **coda globale**. Scegliendo uno sportello si apre la coda della sua area
+per marchio (A e B condividono la coda FCA, C e D quella PSA); scegliendo la coda globale si apre
+tutta l'officina **in sola lettura**, con una fascia che lo dice e nessuna azione sulle righe, per
+non toccare per sbaglio il lavoro di chi è al banco. Fino al 2026-09-17 la stessa griglia A-B-C-D
+compariva due volte, una per scegliere e una per sbloccare: ora è una sola.
 
 **Scollega uno sportello.** Fine turno, l'accettatore spegne il monitor e va a casa senza uscire
 dall'applicazione: il posto resta suo e il collega del turno dopo non può sedersi. Accanto al nome

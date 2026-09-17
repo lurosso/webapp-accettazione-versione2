@@ -91,7 +91,7 @@ export function DailyReportPanel({ businessDate }: DailyReportPanelProps) {
   const report = query.data;
 
   return (
-    <section className="rounded-xl border border-slate-200 bg-slate-50 p-4">
+    <section className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm sm:p-6">
       <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
         <h2 className="text-lg font-semibold text-slate-900">Statistiche del giorno</h2>
         <div className="flex flex-wrap items-center gap-2">

@@ -152,13 +152,14 @@ export function OperatorsPanel({ currentOperatorId }: OperatorsPanelProps) {
   const data = query.data;
 
   return (
-    <section className="rounded-xl border border-slate-200 bg-white p-6 shadow-sm">
+    <section className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm sm:p-6">
       <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
         <div>
-          <h2 className="text-lg font-semibold">Operatori</h2>
+          <h2 className="text-lg font-semibold text-slate-900">Utenti e accessi</h2>
           <p className="text-sm text-slate-600">
-            Accettatori, manager, amministratori e account per i kiosk. Un operatore disattivato non
-            entra più, ma resta nei registri.
+            Tutti gli account del sistema in un elenco solo — accettatori, BDC, amministratori e
+            dispositivi kiosk — con le azioni sulla riga: modifica, reset della password,
+            disattivazione. Un operatore disattivato non entra più, ma resta nei registri.
           </p>
         </div>
         <Button size="touch" onClick={() => apri('nuovo')}>

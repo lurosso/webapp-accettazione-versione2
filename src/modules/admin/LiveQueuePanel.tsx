@@ -51,7 +51,7 @@ export function LiveQueuePanel() {
   const live = query.data?.live;
 
   return (
-    <section className="rounded-xl border border-slate-200 bg-slate-50 p-4">
+    <section className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm sm:p-6">
       <div className="mb-3 flex flex-wrap items-baseline justify-between gap-2">
         <h2 className="text-lg font-semibold text-slate-900">La fila adesso</h2>
         <p className="text-xs text-slate-500">si aggiorna da solo ogni 10 secondi</p>

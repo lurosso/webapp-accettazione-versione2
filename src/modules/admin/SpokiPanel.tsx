@@ -76,7 +76,7 @@ export function SpokiPanel({ timeZone }: SpokiPanelProps) {
   return (
     <section
       id="spoki"
-      className="rounded-xl border border-slate-200 bg-white p-6 shadow-sm"
+      className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm sm:p-6"
       aria-labelledby="spoki-titolo"
     >
       <div className="mb-4 flex flex-wrap items-start justify-between gap-3">
