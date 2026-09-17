@@ -27,8 +27,10 @@ import { BrandMark } from '@/components/layout/BrandMark';
 import { EmptyState } from '@/components/shared/EmptyState';
 import { CardSkeleton } from '@/components/ui/skeleton';
 import { useAppointmentActions } from '@/hooks/useAppointmentActions';
+import { useLiveUpdates } from '@/hooks/useLiveUpdates';
 import { useTouchLayoutKind } from '@/hooks/useMediaQuery';
 import { useQueue } from '@/hooks/useQueue';
+import { queueKeys } from '@/lib/api-client/query-keys';
 import { postLogout } from '@/lib/api-client/client';
 import { localTimeHHmm } from '@/lib/dates';
 import { cn } from '@/lib/utils/cn';
@@ -81,6 +83,20 @@ export function CheckInQueue({
   // anche su una pratica presa in carico dalla vista globale, che il filtro per sportello dello
   // stesso accettatore non restituirebbe.
   const queue = useQueue({ date: null, deskId: null, view: 'global' });
+  // Anche il tablet sul piazzale sta sul flusso eventi: se un cliente tocca «sono arrivato» o un
+  // collega prende in carico una pratica, l'elenco si aggiorna da solo. Il polling resta la rete
+  // di sicurezza, ma nessuno deve ricaricare la pagina con le mani sporche.
+  useLiveUpdates({
+    url: '/api/v1/events/stream',
+    types: [
+      'APPOINTMENT_STATUS_CHANGED',
+      'APPOINTMENT_CREATED',
+      'CUSTOMER_ARRIVED',
+      'CUSTOMER_LATE_NOTICE',
+      'BUSINESS_DAY_CLOSED',
+    ],
+    invalidate: [queueKeys.all],
+  });
   const actions = useAppointmentActions();
   const data = queue.data;
 
@@ -376,11 +392,26 @@ export function CheckInQueue({
                       </div>
                     ) : null}
 
-                    {daServire ? (
-                      <span className="text-sm font-semibold text-amber-800">
-                        orario superato · da servire ora
-                      </span>
-                    ) : null}
+                    <div className="flex flex-wrap gap-x-4 gap-y-1">
+                      {/* Il cliente ha toccato «sono arrivato»: è in sala, e chi sceglie chi
+                          chiamare lo vede senza aprire il dettaglio. */}
+                      {a.customerArrivedAt !== null ? (
+                        <span
+                          className="text-status-completed text-sm font-semibold"
+                          data-testid="cliente-in-sala"
+                        >
+                          in sala dalle{' '}
+                          {data !== undefined
+                            ? localTimeHHmm(new Date(a.customerArrivedAt), data.timeZone)
+                            : ''}
+                        </span>
+                      ) : null}
+                      {daServire ? (
+                        <span className="text-sm font-semibold text-amber-800">
+                          orario superato · da servire ora
+                        </span>
+                      ) : null}
+                    </div>
                   </div>
 
                   {/* Comando in fondo, a tutta larghezza e separato: niente tocchi per sbaglio. */}

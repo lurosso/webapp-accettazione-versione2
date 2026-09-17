@@ -3,7 +3,7 @@
 // Tabella dei lead del BDC: un cliente per riga, con tutto quello che serve per telefonargli.
 // Il telefono è un link `tel:` come nel pannello di dettaglio: dal centralino o dal softphone la
 // chiamata parte con un clic, senza ricopiare il numero.
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import type { BdcLeadView } from '@/domain/read-models';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -25,12 +25,14 @@ export interface BdcLeadsTableProps {
   /** Lead in corso di chiusura: il pulsante resta premuto finché il server non risponde. */
   readonly pendingId: string | null;
   readonly onContacted: (lead: BdcLeadView, note: string | null) => void;
+  /** Riporta un lead chiuso fra quelli da fare (tocco sbagliato, riprogrammazione saltata). */
+  readonly onReopen: (lead: BdcLeadView) => void;
 }
 
 /** Esito della consegna al CRM, spiegato al BDC senza gergo tecnico. */
 function deliveryBadge(lead: BdcLeadView) {
   if (lead.handled) {
-    return <Badge tone="success">Ricontattato</Badge>;
+    return <Badge tone="success">Gestito</Badge>;
   }
   switch (lead.deliveryStatus) {
     case 'SENT':
@@ -42,16 +44,33 @@ function deliveryBadge(lead: BdcLeadView) {
   }
 }
 
-export function BdcLeadsTable({ leads, timeZone, pendingId, onContacted }: BdcLeadsTableProps) {
+export function BdcLeadsTable({
+  leads,
+  timeZone,
+  pendingId,
+  onContacted,
+  onReopen,
+}: BdcLeadsTableProps) {
   // Nota facoltativa dell'esito: si apre solo sulla riga che si sta chiudendo, per non riempire
   // la tabella di caselle di testo che nessuno compila.
   const [noteAperte, setNoteAperte] = useState<Record<string, string>>({});
+  // Chiudere un lead lo toglie dall'elenco delle chiamate da fare: serve il secondo tocco. Su un
+  // telefono, scorrendo la lista con la cornetta in mano, il primo parte da solo. La richiesta di
+  // conferma decade dopo qualche secondo, così non resta appesa sulla riga sbagliata.
+  const [conferma, setConferma] = useState<string | null>(null);
+  useEffect(() => {
+    if (conferma === null) {
+      return undefined;
+    }
+    const timer = setTimeout(() => setConferma(null), 6_000);
+    return () => clearTimeout(timer);
+  }, [conferma]);
 
   if (leads.length === 0) {
     return (
       <EmptyState
         title="Nessun cliente da ricontattare"
-        description="Tutte le assenze della giornata sono state gestite. Un nuovo assente compare qui entro pochi secondi."
+        description="Tutte le assenze della giornata sono state gestite e riprogrammate. Un nuovo assente compare qui entro pochi secondi."
       />
     );
   }
@@ -127,23 +146,45 @@ export function BdcLeadsTable({ leads, timeZone, pendingId, onContacted }: BdcLe
               </TableCell>
               <TableCell>
                 {lead.handled ? (
-                  <span className="text-xs text-slate-400">Chiuso</span>
+                  <Button
+                    variant="ghost"
+                    size="touch"
+                    disabled={pendingId === lead.eventId}
+                    onClick={() => onReopen(lead)}
+                  >
+                    {pendingId === lead.eventId ? 'Riapro…' : 'Riporta fra i da fare'}
+                  </Button>
                 ) : nota === undefined ? (
                   <div className="flex flex-wrap gap-2">
                     <Button
                       size="touch"
-                      variant="success"
-                      onClick={() => onContacted(lead, null)}
+                      variant={conferma === lead.eventId ? 'destructive' : 'success'}
+                      className={conferma === lead.eventId ? 'ring-2 ring-emerald-300' : undefined}
+                      onClick={() => {
+                        if (conferma !== lead.eventId) {
+                          setConferma(lead.eventId);
+                          return;
+                        }
+                        setConferma(null);
+                        onContacted(lead, null);
+                      }}
                       disabled={pendingId === lead.eventId}
                     >
-                      {pendingId === lead.eventId ? 'Salvo…' : 'Segna come ricontattato'}
+                      {pendingId === lead.eventId
+                        ? 'Salvo…'
+                        : conferma === lead.eventId
+                          ? 'Confermi? Esce dalla lista'
+                          : 'Gestito / riprogrammato'}
                     </Button>
                     <Button
                       variant="ghost"
                       size="touch"
-                      onClick={() => setNoteAperte((p) => ({ ...p, [lead.eventId]: '' }))}
+                      onClick={() => {
+                        setConferma(null);
+                        setNoteAperte((p) => ({ ...p, [lead.eventId]: '' }));
+                      }}
                     >
-                      Con esito
+                      {conferma === lead.eventId ? 'Annulla' : 'Con nota'}
                     </Button>
                   </div>
                 ) : (

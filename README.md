@@ -352,9 +352,13 @@ da riprogrammare su Infinity. Niente statistiche, niente medie, niente grafici e
 chiusura di giornata: stanno tutti in Amministrazione. Serve un account con ruolo responsabile: `responsabile` / `demo`. Dalla dashboard
 di accettazione segna assente un cliente del blocco **In ritardo / assenti**, poi apri
 <http://localhost:3000/manager>: la riga compare subito nel cruscotto con nome, numero richiamabile
-con un tocco, targa, veicolo, motivo e ora dell'assenza. **Segna come ricontattato** chiude il lead
-(con **Con esito** si aggiunge una nota, per esempio "richiama lunedì"), e la spunta _Mostra anche i
-già ricontattati_ fa rivedere chi l'ha chiuso e quando.
+con un tocco, targa, veicolo, motivo e ora dell'assenza. **Gestito / riprogrammato** chiude il lead quando
+l'appuntamento è di nuovo in agenda su Infinity, e la riga esce dall'elenco delle chiamate da fare.
+Chiede un secondo tocco ("Confermi? Esce dalla lista"), perché la lista si scorre con il telefono in
+mano e il primo tocco parte da solo; la richiesta decade da sola dopo qualche secondo. Con **Con
+nota** si aggiunge l'esito, per esempio "richiama lunedì". La spunta _Mostra anche i già gestiti_ fa
+rivedere chi ha chiuso e quando, e da lì **Riporta fra i da fare** rimette il cliente in elenco:
+serve dopo un tocco sbagliato o una riprogrammazione che poi salta.
 
 La chiusura del lead è indipendente dal CRM: con `MOCK_CRM_MODE=error` la riga dice "CRM non
 raggiungibile", ma il BDC può comunque telefonare e chiudere: l'evento resta in coda per il rinvio.
@@ -366,17 +370,24 @@ il QR code) oppure direttamente su `/portal?targa=AB123CD`, l'indirizzo che il c
 WhatsApp (con in più `&t=<token>`, il token unico della pratica che apre la pagina senza login e
 senza limiti di frequenza).
 
-La schermata mobile è pensata per chi la guarda due secondi ogni tanto, in piedi in sala. In alto
-codice e targa, poi la **barra di avanzamento** a quattro tappe (In attesa → In accettazione → In
-lavorazione → Pronta per il ritiro), e al centro **un solo numero grande**, che cambia significato
-con lo stato: mentre si aspetta è la posizione in fila ("Sei il numero 3 in attesa", con i clienti
-davanti sotto), quando tocca a lui è la **lettera dello sportello** ("È il tuo turno · SPORTELLO
-A"). Mai due numeri grandi insieme: davanti a un "3" e a una "B" della stessa dimensione nessuno
+La schermata mobile è pensata per chi la guarda due secondi ogni tanto, in piedi in sala, e cambia
+aspetto con lo stato: **in attesa** è bianca e blu, calma, perché non c'è niente da fare;
+**chiamato** diventa verde, con il bordo spesso e un alone che respira attorno alla lettera dello
+sportello, così il passaggio si nota senza leggere una parola (chi ha chiesto meno movimento al
+sistema operativo vede l'alone fermo). In alto codice e targa, poi la **barra di avanzamento** a
+quattro tappe (In attesa → In accettazione → In lavorazione → Pronta per il ritiro), e al centro
+**un solo numero grande**, che cambia significato con lo stato: mentre si aspetta è la posizione in
+fila ("Sei il numero 3 in attesa", con i clienti davanti sotto), quando tocca a lui è la **lettera
+dello sportello** ("È il tuo turno · SPORTELLO A"). Mai due numeri grandi insieme: davanti a un "3" e a una "B" della stessa dimensione nessuno
 capisce quale contare. Sotto, la **riga del tempo** con tre orari — arrivo registrato, chiamata
 allo sportello, orario previsto — che risponde alla domanda di chi aspetta, "da quanto sono qui e
-quando tocca a me". Chiudono la pagina targa, accettatore, sede e il pulsante **"Sto arrivando in
-ritardo (+10 min)"**: un tocco avvisa l'accettazione (avviso ambra sulla riga della dashboard,
-nessuna telefonata) senza cambiare codice né posizione in coda. Una
+quando tocca a me". Chiudono la pagina targa, accettatore, sede e due pulsanti. **"Sono arrivato in officina"** registra
+l'ora dell'arrivo: la pratica resta al suo posto in coda (l'ordine lo decidono l'orario e
+l'accettatore, non chi tocca per primo), in dashboard compare "in sala dalle HH:mm" e il pulsante
+lascia il posto alla conferma. È lo stesso gesto della risposta «Arrivato» su WhatsApp, e vale
+anche quando la messaggistica è in standby. **"Sto arrivando in ritardo (+10 min)"** avvisa
+l'accettazione (avviso ambra sulla riga della dashboard, nessuna telefonata) senza cambiare codice
+né posizione in coda. Una
 targa sconosciuta, un token non valido o una pratica conclusa da oltre 24 ore mostrano una
 schermata cortese al posto della coda. Serve una targa presente nell'agenda del giorno: le targhe
 finte sono generate in modo deterministico dal seme dei mock **e dalla data**, quindi cambiano ogni
@@ -407,6 +418,10 @@ Sul flusso viaggiano segnali, non dati: "è cambiata una pratica", e chi riceve 
 endpoint. Per questo esistono due canali — `/api/v1/events/stream` per l'area operatore e
 `/api/v1/public/events/stream` per gli schermi pubblici, che ricevono solo il tipo dell'evento e
 nessun identificativo.
+
+Sul canale operatore viaggia anche quello che fa il **cliente**: "sono arrivato" e "sto arrivando in
+ritardo". Coda del banco e vista tablet li ascoltano entrambe, quindi la riga si aggiorna da sola —
+compare "in sala dalle HH:mm" — senza che l'accettatore ricarichi la pagina con le mani sporche.
 
 ## Il giro di WhatsApp: promemoria, risposte del cliente e tracciamento
 
@@ -723,6 +738,7 @@ per i cron esterni.
 | `/api/v1/health`               | GET    | Liveness del processo e stato aggregato delle quattro porte esterne (`?strict=` per il readiness).                                                       | Pubblico                                                                                |
 | `/api/v1/public/status`        | GET    | Stato della pratica per il portale (`?targa=` o `?t=` token): tappa, posizione in coda, orario, accettatore, sede.                                       | Pubblico                                                                                |
 | `/api/v1/webhooks/spoki`       | POST   | Risposte del cliente su WhatsApp (Arrivato, In ritardo, Assente): registra arrivo o ritardo, segna assente e risponde con codice e link al tracciamento. | Pubblico · segreto condiviso (`SPOKI_INBOUND_SECRET`); 404 con `MESSAGING_STANDBY=true` |
+| `/api/v1/public/arrival`       | POST   | "Sono arrivato" dalla pagina di tracciamento: registra l'ora in cui il cliente si annuncia in sala, senza cambiare il posto in coda.                     | Pubblico                                                                                |
 | `/api/v1/public/late-notice`   | POST   | "Sto arrivando in ritardo (+10 min)" dal portale: sposta l'arrivo atteso e avvisa la dashboard.                                                          | Pubblico                                                                                |
 | `/api/v1/public/board`         | GET    | Dati del tabellone della sala d'attesa (`?prossimi=`).                                                                                                   | Pubblico                                                                                |
 | `/api/v1/public/display`       | GET    | Stato del monitor di uno sportello (`?campata=A`, `?bay=`, `?bayCode=`): solo lettera, codice e targa.                                                   | Pubblico · token del monitor (`?token=`, obbligatorio con DISPLAY_TOKEN_REQUIRED=true)  |
@@ -735,6 +751,7 @@ per i cron esterni.
 | `/api/v1/reports/daily`           | GET    | Indicatori della giornata (`?giornata=`): attesa media, durata, esiti.                                     | Solo Amministratore      |
 | `/api/v1/reports/daily/csv`       | GET    | Riepilogo dettagliato della giornata in CSV (con BOM per Excel).                                           | Solo Amministratore      |
 | `/api/v1/crm/leads`               | GET    | Clienti da ricontattare per il BDC (`?giornata=&gestiti=1`): nomi e telefoni degli assenti.                | Manager e Amministratore |
+| `/api/v1/crm/leads/:id/reopen`    | POST   | Riporta un lead chiuso fra quelli da ricontattare (tocco sbagliato o riprogrammazione saltata).            | Manager e Amministratore |
 | `/api/v1/crm/leads/:id/contacted` | POST   | Il BDC dichiara di aver ricontattato il cliente (chi, esito).                                              | Manager e Amministratore |
 | `/api/v1/system/close-day`        | POST   | Chiusura della giornata: chi è in coda diventa assente (lead BDC), chi è in carico viene chiuso d'ufficio. | Manager e Amministratore |
 

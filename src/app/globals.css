@@ -73,3 +73,31 @@
 :root {
   color-scheme: light;
 }
+
+/*
+ * Chiamata allo sportello (pagina di tracciamento del cliente). Il cliente guarda il telefono due
+ * secondi ogni tanto: il passaggio da "aspetta" a "tocca a te" deve saltare all'occhio anche senza
+ * leggere. Un alone verde che respira, lento, attorno alla lettera dello sportello — non un
+ * lampeggio, che a schermo piccolo diventa fastidioso in trenta secondi.
+ */
+@keyframes chiamata-alone {
+  0%,
+  100% {
+    box-shadow: 0 0 0 0 color-mix(in oklab, var(--color-brand-primary) 55%, transparent);
+  }
+  50% {
+    box-shadow: 0 0 0 1.25rem color-mix(in oklab, var(--color-brand-primary) 0%, transparent);
+  }
+}
+
+.chiamata-pulsa {
+  animation: chiamata-alone 2.4s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+}
+
+/* Chi ha chiesto meno movimento al sistema operativo non lo subisce qui: resta l'alone fermo. */
+@media (prefers-reduced-motion: reduce) {
+  .chiamata-pulsa {
+    animation: none;
+    box-shadow: 0 0 0 0.5rem color-mix(in oklab, var(--color-brand-primary) 35%, transparent);
+  }
+}

@@ -122,6 +122,33 @@ describe('BdcLeadService: lead da ricontattare', () => {
     }
   });
 
+  it('un lead chiuso per sbaglio si riporta fra quelli da fare', async () => {
+    const { env, queueService, bdc, ctx } = setup();
+    const a = await insert(env, makeAppointment());
+    await queueService.markNoShow({ appointmentId: a.id, expectedVersion: 1 }, ctx);
+    const eventId = (await bdc.listLeads({ businessDate: TEST_DATE })).leads[0]
+      ?.eventId as CrmOutboxEventId;
+    await bdc.markContacted({ eventId, note: 'Chiuso per sbaglio scorrendo la lista' }, BDC);
+    expect((await bdc.listLeads({ businessDate: TEST_DATE })).openCount).toBe(0);
+
+    const riaperto = await bdc.reopenLead(eventId, BDC);
+    expect(riaperto.ok).toBe(true);
+    if (riaperto.ok) {
+      expect(riaperto.value.handled).toBe(false);
+      // Sparisce anche chi l'aveva chiuso: la riga torna com'era prima del tocco.
+      expect(riaperto.value.handledAt).toBeNull();
+      expect(riaperto.value.handledByName).toBeNull();
+      expect(riaperto.value.handledNote).toBeNull();
+    }
+    const dopo = await bdc.listLeads({ businessDate: TEST_DATE });
+    expect(dopo.openCount).toBe(1);
+    expect(dopo.handledCount).toBe(0);
+
+    // Riaprire un lead già aperto non è un errore: torna com'è.
+    const ancora = await bdc.reopenLead(eventId, BDC);
+    expect(ancora.ok && ancora.value.handled).toBe(false);
+  });
+
   it('un lead inesistente restituisce NOT_FOUND senza lanciare', async () => {
     const { bdc } = setup();
     const r = await bdc.markContacted(

@@ -43,6 +43,15 @@ import type { IIdGenerator } from '@/services/interfaces/IIdGenerator';
 import type { ILogger } from '@/services/interfaces/ILogger';
 import type { PortalTokenFactory } from './portal-token';
 
+/** Esito di "sono arrivato": lo stato aggiornato e se l'ora è stata registrata adesso. */
+export interface PortalArrival {
+  readonly status: PortalStatusView;
+  /** False quando l'arrivo era già registrato o la pratica non è più in coda. */
+  readonly registered: boolean;
+  /** La pratica com'è ora: serve a chi deve mandare la conferma su WhatsApp. */
+  readonly appointment: Appointment;
+}
+
 /** Come il cliente identifica la propria pratica: targa (QR) e/o token del link. */
 export interface PortalLookup {
   readonly plate?: string | null;
@@ -151,6 +160,59 @@ export class CustomerPortalService {
       etaAt,
     });
     return ok(await this.toView(updated.value));
+  }
+
+  /**
+   * "Sono arrivato": il cliente dichiara di essere in officina, dalla pagina di tracciamento o
+   * rispondendo al messaggio WhatsApp (`channel`). Si annota l'ora e basta: la pratica resta al
+   * suo posto in coda, perché l'ordine lo decidono l'orario di prenotazione e l'accettatore, non
+   * chi tocca il pulsante per primo. All'accettazione serve sapere chi è in sala.
+   *
+   * Idempotente per costruzione: il secondo tocco (rete lenta, pulsante premuto due volte, prima
+   * la pagina e poi WhatsApp) non sposta l'ora già registrata e non pubblica un secondo evento.
+   * Fuori dalla coda — già chiamato allo sportello, concluso, assente — non c'è nulla da
+   * registrare e lo stato torna com'è: non è un errore, è un tocco arrivato tardi.
+   */
+  async registerArrival(
+    lookup: PortalLookup,
+    channel: 'PORTAL' | 'WHATSAPP' = 'PORTAL',
+  ): Promise<Result<PortalArrival, DomainError>> {
+    const trovata = await this.resolve(lookup);
+    if (!trovata.ok) {
+      return trovata;
+    }
+    const a = trovata.value;
+    const today = this.deps.clock.today();
+    if (!isInQueue(a.status) || a.businessDate !== today || a.customerArrivedAt !== null) {
+      return ok({ status: await this.toView(a), registered: false, appointment: a });
+    }
+    const now = this.deps.clock.nowIso();
+    const updated = await this.deps.appointments.update(
+      { ...a, customerArrivedAt: now },
+      a.version,
+    );
+    if (!updated.ok) {
+      return updated;
+    }
+    this.deps.eventBus.publish({
+      id: this.deps.ids.next(),
+      occurredAt: now,
+      correlationId: this.deps.ids.next(),
+      actor: { kind: 'CUSTOMER', id: null },
+      type: 'CUSTOMER_ARRIVED',
+      appointmentId: a.id,
+      code: a.code,
+      channel,
+    });
+    this.logger.info(`pratica ${a.code}: il cliente è arrivato in officina`, {
+      appointmentId: a.id,
+      channel,
+    });
+    return ok({
+      status: await this.toView(updated.value),
+      registered: true,
+      appointment: updated.value,
+    });
   }
 
   // --- interni ---------------------------------------------------------------------------

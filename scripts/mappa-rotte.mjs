@@ -287,6 +287,13 @@ export const ROTTE = [
     accesso: ACCESSO.webhook,
   },
   {
+    path: '/api/v1/public/arrival',
+    area: AREE[10],
+    descrizione:
+      '"Sono arrivato" dalla pagina di tracciamento: registra l\'ora in cui il cliente si annuncia in sala, senza cambiare il posto in coda.',
+    accesso: ACCESSO.pubblico,
+  },
+  {
     path: '/api/v1/public/late-notice',
     area: AREE[10],
     descrizione:
@@ -331,6 +338,13 @@ export const ROTTE = [
     area: AREE[11],
     descrizione:
       'Clienti da ricontattare per il BDC (`?giornata=&gestiti=1`): nomi e telefoni degli assenti.',
+    accesso: ACCESSO.manager,
+  },
+  {
+    path: '/api/v1/crm/leads/:id/reopen',
+    area: AREE[11],
+    descrizione:
+      'Riporta un lead chiuso fra quelli da ricontattare (tocco sbagliato o riprogrammazione saltata).',
     accesso: ACCESSO.manager,
   },
   {

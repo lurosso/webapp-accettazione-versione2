@@ -90,11 +90,19 @@ export function QueueDashboard({
   // senza alcun passaggio alle foto (da un PC non si scattano); sul piazzale, tablet in mano,
   // porta direttamente all'ispezione fotografica e il dettaglio si apre come finestra centrale.
   const touchLayout = useIsTouchLayout();
-  // Aggiornamento immediato quando un collega tocca una pratica: il flusso porta il segnale, la
-  // coda viene riletta. Il polling di 3 s resta attivo come rete di sicurezza.
+  // Aggiornamento immediato quando un collega tocca una pratica, e anche quando è il CLIENTE a
+  // muovere qualcosa: «sono arrivato» e «sto arrivando in ritardo» cambiano la riga in coda, e
+  // l'accettatore non deve ricaricare la pagina per accorgersene. Il polling di 3 s resta attivo
+  // come rete di sicurezza.
   const live = useLiveUpdates({
     url: '/api/v1/events/stream',
-    types: ['APPOINTMENT_STATUS_CHANGED', 'APPOINTMENT_CREATED', 'BUSINESS_DAY_CLOSED'],
+    types: [
+      'APPOINTMENT_STATUS_CHANGED',
+      'APPOINTMENT_CREATED',
+      'CUSTOMER_ARRIVED',
+      'CUSTOMER_LATE_NOTICE',
+      'BUSINESS_DAY_CLOSED',
+    ],
     invalidate: [queueKeys.all],
   });
 

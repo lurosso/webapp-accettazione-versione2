@@ -134,47 +134,34 @@ export class WhatsAppInboundService {
   }
 
   /**
-   * «Arrivato»: si annota l'ora e parte la risposta con codice e link al tracciamento. La pratica
-   * resta dov'è in coda — l'ordine lo decidono l'orario di prenotazione e l'accettatore, non chi
-   * risponde per primo al messaggio.
+   * «Arrivato»: la registrazione è la stessa del pulsante sulla pagina di tracciamento (una sola
+   * regola, due porte d'ingresso); qui si aggiunge la risposta con codice e link, che dal portale
+   * non serve perché il cliente quella pagina ce l'ha già davanti.
    */
   private async registerArrival(
     a: Appointment,
     correlationId: string | null,
   ): Promise<Result<InboundResult, DomainError>> {
-    if (!isInQueue(a.status)) {
-      // Già in accettazione o conclusa: niente da registrare, e nessun messaggio da mandare.
-      return ok({ reply: 'ARRIVED', appointment: a, repeated: true, replySent: false });
+    const esito = await this.deps.portal.registerArrival({ plate: a.vehicle.plate }, 'WHATSAPP');
+    if (!esito.ok) {
+      return esito;
     }
-    if (a.customerArrivedAt !== null) {
-      // Doppio tocco sul pulsante: la prima ora resta quella buona.
-      return ok({ reply: 'ARRIVED', appointment: a, repeated: true, replySent: false });
+    if (!esito.value.registered) {
+      // Arrivo già registrato, o pratica non più in coda: niente da fare e nessun messaggio.
+      return ok({
+        reply: 'ARRIVED',
+        appointment: esito.value.appointment,
+        repeated: true,
+        replySent: false,
+      });
     }
-    const now = this.deps.clock.nowIso();
-    const updated = await this.deps.appointments.update(
-      { ...a, customerArrivedAt: now },
-      a.version,
-    );
-    if (!updated.ok) {
-      return updated;
-    }
-    this.deps.eventBus.publish({
-      id: this.deps.ids.next(),
-      occurredAt: now,
-      correlationId: correlationId ?? this.deps.ids.next(),
-      actor: { kind: 'CUSTOMER', id: null },
-      type: 'CUSTOMER_ARRIVED',
-      appointmentId: a.id,
-      code: a.code,
-      channel: 'WHATSAPP',
+    const replySent = await this.sendArrivalReply(esito.value.appointment, correlationId);
+    return ok({
+      reply: 'ARRIVED',
+      appointment: esito.value.appointment,
+      repeated: false,
+      replySent,
     });
-    this.logger.info(`cliente arrivato: ${a.code}`, { appointmentId: a.id });
-
-    const replySent = await this.sendArrivalReply(updated.value, correlationId);
-    return {
-      ok: true,
-      value: { reply: 'ARRIVED', appointment: updated.value, repeated: false, replySent },
-    };
   }
 
   /** «In ritardo»: la stessa segnalazione del portale, con i suoi limiti e il suo evento. */

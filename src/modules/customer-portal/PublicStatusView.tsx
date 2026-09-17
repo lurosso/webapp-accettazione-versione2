@@ -7,6 +7,7 @@
 import Link from 'next/link';
 import { problemFrom, usePublicStatus } from '@/hooks/usePublicStatus';
 import { ConcludedCard } from './ConcludedCard';
+import { ArrivalButton } from './ArrivalButton';
 import { LateNoticeButton } from './LateNoticeButton';
 import { PortalStatusCard } from './PortalStatusCard';
 import { ServiceUnavailableCard } from './ServiceUnavailableCard';
@@ -55,7 +56,12 @@ export function PublicStatusView({ targa, token = null }: PublicStatusViewProps)
         updatedAtMs={query.dataUpdatedAt}
         stale={query.isError}
         action={
-          <LateNoticeButton position={position} targa={targa} token={token} timeZone={timeZone} />
+          <div className="flex flex-col gap-3">
+            {/* Prima "sono arrivato" (il gesto che ci si aspetta appena entrati in officina),
+                poi l'avviso di ritardo, che serve a chi invece non è ancora qui. */}
+            <ArrivalButton position={position} targa={targa} token={token} timeZone={timeZone} />
+            <LateNoticeButton position={position} targa={targa} token={token} timeZone={timeZone} />
+          </div>
         }
       />
       {/* Anche un collegamento secondario si tocca con il pollice: 44 px di altezza, come tutto

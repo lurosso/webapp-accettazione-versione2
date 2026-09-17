@@ -14,7 +14,7 @@ import type { Session } from '@/application/auth/IAuthService';
 import type { BdcLeadView } from '@/domain/read-models';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { ApiError, postLeadContacted } from '@/lib/api-client/client';
+import { ApiError, postLeadContacted, postLeadReopen } from '@/lib/api-client/client';
 import { bdcKeys, useBdcLeads, BDC_POLLING_MS } from '@/hooks/useBdcLeads';
 import { BdcLeadsTable } from './BdcLeadsTable';
 import { TableSkeleton } from '@/components/ui/skeleton';
@@ -38,6 +38,24 @@ export function BdcDashboard({ session, businessDate, timeZone }: BdcDashboardPr
   };
   const query = useBdcLeads(params);
   const queryClient = useQueryClient();
+
+  /** Riporta un lead chiuso fra quelli da fare: tocco sbagliato o riprogrammazione saltata. */
+  const onReopen = async (lead: BdcLeadView): Promise<void> => {
+    setErrore(null);
+    setInCorso(lead.eventId);
+    try {
+      await postLeadReopen(lead.eventId);
+      await queryClient.invalidateQueries({ queryKey: bdcKeys.all });
+    } catch (cause) {
+      setErrore(
+        cause instanceof ApiError
+          ? cause.message
+          : 'Non è stato possibile riaprire il lead: riprova fra poco.',
+      );
+    } finally {
+      setInCorso(null);
+    }
+  };
 
   const onContacted = async (lead: BdcLeadView, note: string | null): Promise<void> => {
     setErrore(null);
@@ -81,8 +99,8 @@ export function BdcDashboard({ session, businessDate, timeZone }: BdcDashboardPr
             {data === undefined
               ? '—'
               : data.handledCount === 1
-                ? '1 già ricontattato'
-                : `${data.handledCount} già ricontattati`}
+                ? '1 già gestito'
+                : `${data.handledCount} già gestiti`}
           </Badge>
         </div>
       </header>
@@ -109,7 +127,7 @@ export function BdcDashboard({ session, businessDate, timeZone }: BdcDashboardPr
             onChange={(event) => setMostraChiusi(event.target.checked)}
             className="size-6 rounded border-slate-300 accent-[#0065a0]"
           />
-          Mostra anche i già ricontattati
+          Mostra anche i già gestiti
         </label>
         <span className="ml-auto text-xs text-slate-500">Operatore BDC: {session.displayName}</span>
       </div>
@@ -134,6 +152,9 @@ export function BdcDashboard({ session, businessDate, timeZone }: BdcDashboardPr
           pendingId={inCorso}
           onContacted={(lead, note) => {
             void onContacted(lead, note);
+          }}
+          onReopen={(lead) => {
+            void onReopen(lead);
           }}
         />
       )}

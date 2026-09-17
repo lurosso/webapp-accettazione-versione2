@@ -205,6 +205,21 @@ export function postPublicLateNotice(body: {
 }
 
 /**
+ * POST /api/v1/public/arrival: "sono arrivato", dalla pagina di tracciamento. La risposta è lo
+ * stato aggiornato più `registered`, che dice se l'ora è stata presa adesso o era già segnata.
+ */
+export function postPublicArrival(body: {
+  readonly targa: string;
+  readonly token?: string | null;
+}): Promise<PublicStatus & { readonly registered: boolean }> {
+  return apiFetch('/api/v1/public/arrival', {
+    method: 'POST',
+    json: { targa: body.targa, t: body.token ?? undefined },
+    publicEndpoint: true,
+  });
+}
+
+/**
  * GET /api/v1/public/display: stato del monitor di una campata (kiosk senza sessione).
  * `bayRef` accetta il numero ("1") o il codice ("C1"); `token` è opzionale.
  */
@@ -330,6 +345,11 @@ export function postLeadContacted(
     method: 'POST',
     json: { note },
   });
+}
+
+/** POST /api/v1/crm/leads/{id}/reopen: riporta un lead chiuso fra quelli da ricontattare. */
+export function postLeadReopen(eventId: string): Promise<{ readonly lead: BdcLeadView }> {
+  return apiFetch(`/api/v1/crm/leads/${encodeURIComponent(eventId)}/reopen`, { method: 'POST' });
 }
 
 /** POST /api/v1/system/close-day: chiude la giornata (responsabile e amministratore). */

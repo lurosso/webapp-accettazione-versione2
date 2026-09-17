@@ -27,16 +27,22 @@ export interface PortalStatusCardProps {
   readonly action?: React.ReactNode;
 }
 
+/*
+ * Il colore fa metà del lavoro. In attesa: bianco e blu istituzionale, niente che chieda
+ * attenzione, perché non c'è niente da fare. Chiamato: il verde del marchio prende tutta la
+ * scheda, con il bordo spesso — da mezzo metro si vede che è cambiato qualcosa prima ancora di
+ * mettere a fuoco le parole.
+ */
 const TONE_CARD: Record<StatusTone, string> = {
   waiting: 'border-slate-200 bg-white',
-  serving: 'border-brand-secondary bg-sky-50',
+  serving: 'border-brand-primary bg-brand-primary/15 ring-4 ring-brand-primary/20',
   done: 'border-brand-primary bg-status-completed-soft',
   attention: 'border-red-300 bg-status-no-show-soft',
 };
 
 const TONE_CODE: Record<StatusTone, string> = {
   waiting: 'text-brand-blue-dark',
-  serving: 'text-brand-secondary',
+  serving: 'text-slate-950',
   done: 'text-emerald-900',
   attention: 'text-red-900',
 };
@@ -141,20 +147,27 @@ export function PortalStatusCard({
       <ProgressSteps stage={position.stage} tone={message.tone} />
 
       <div className="flex flex-col items-center gap-2 text-center" aria-live="polite">
-        <h1 id="stato-titolo" className="text-3xl font-bold text-slate-900">
+        <h1
+          id="stato-titolo"
+          className={cn(
+            'font-bold text-slate-900',
+            allosportello ? 'text-4xl tracking-tight' : 'text-3xl',
+          )}
+        >
           {message.headline}
         </h1>
 
         {allosportello ? (
-          // È il suo turno: la lettera dello sportello è l'unica cosa che deve cercare in sala.
+          // È il suo turno: la lettera dello sportello è la cosa più grande della pagina, su fondo
+          // verde e con l'alone che respira. Non c'è nient'altro da cercare in sala.
           <div
-            className="border-brand-secondary flex flex-col items-center rounded-2xl border-2 bg-white px-8 py-3"
+            className="chiamata-pulsa bg-brand-primary flex flex-col items-center rounded-3xl px-10 py-4 shadow-lg"
             data-testid="sportello"
           >
-            <span className="text-xs font-semibold tracking-widest text-slate-500 uppercase">
+            <span className="text-sm font-bold tracking-[0.3em] text-slate-900/70 uppercase">
               Sportello
             </span>
-            <span className="text-brand-secondary text-7xl leading-none font-black">
+            <span className="text-8xl leading-none font-black text-slate-950">
               {position.bayCode}
             </span>
           </div>

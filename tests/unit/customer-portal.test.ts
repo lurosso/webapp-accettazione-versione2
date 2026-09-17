@@ -340,3 +340,61 @@ describe('Portale: auto-segnalazione "sto arrivando in ritardo (+10 min)"', () =
     expect(!sconosciuta.ok && sconosciuta.error.code).toBe('NOT_FOUND');
   });
 });
+
+describe('Portale: "sono arrivato"', () => {
+  it("annota l'ora, pubblica l'evento e non cambia il posto in coda", async () => {
+    const { env, service, eventi } = setup();
+    await insert(env, makeAppointment({ scheduledAt: AT('06:30') }));
+    const mia = await insert(env, makeAppointment({ scheduledAt: AT('07:30') }));
+
+    const r = await service.registerArrival({ plate: mia.vehicle.plate });
+    expect(r.ok).toBe(true);
+    if (!r.ok) {
+      return;
+    }
+    expect(r.value.registered).toBe(true);
+    expect(r.value.status.arrivedAt).not.toBeNull();
+    // La posizione non si tocca: davanti c'è ancora chi era prenotato prima.
+    expect(r.value.status.queuePosition).toBe(2);
+    expect(r.value.status.status).toBe('WAITING');
+
+    const arrivo = eventi.find((e) => e.type === 'CUSTOMER_ARRIVED');
+    expect(arrivo).toBeDefined();
+    expect(arrivo?.actor.kind).toBe('CUSTOMER');
+    if (arrivo?.type === 'CUSTOMER_ARRIVED') {
+      expect(arrivo.channel).toBe('PORTAL');
+    }
+  });
+
+  it('il secondo tocco non sposta l’ora e non pubblica un altro evento', async () => {
+    const { env, clock, service, eventi } = setup();
+    const mia = await insert(env, makeAppointment({ scheduledAt: AT('07:30') }));
+
+    const primo = await service.registerArrival({ plate: mia.vehicle.plate });
+    const ora = primo.ok ? primo.value.status.arrivedAt : null;
+    clock.advance(4 * 60_000);
+    const secondo = await service.registerArrival({ plate: mia.vehicle.plate });
+
+    expect(secondo.ok && secondo.value.registered).toBe(false);
+    expect(secondo.ok && secondo.value.status.arrivedAt).toBe(ora);
+    expect(eventi.filter((e) => e.type === 'CUSTOMER_ARRIVED')).toHaveLength(1);
+  });
+
+  it('una pratica già allo sportello non viene toccata da un arrivo tardivo', async () => {
+    const { env, service, eventi } = setup();
+    const inCorso = await insert(
+      env,
+      makeAppointment({
+        status: 'IN_PROGRESS',
+        operatorId: asOperatorId('op-advisor-1'),
+        bayId: asBayId('bay-c2'),
+        takenAt: AT('06:50'),
+      }),
+    );
+
+    const r = await service.registerArrival({ plate: inCorso.vehicle.plate });
+    expect(r.ok && r.value.registered).toBe(false);
+    expect(r.ok && r.value.status.arrivedAt).toBeNull();
+    expect(eventi.filter((e) => e.type === 'CUSTOMER_ARRIVED')).toHaveLength(0);
+  });
+});
