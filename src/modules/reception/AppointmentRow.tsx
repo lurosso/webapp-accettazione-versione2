@@ -143,8 +143,14 @@ export function AppointmentRow({
           dove l'accettatore lo cerca quando deve chiamare il cliente. */}
       <TableCell>
         {a.customer.lastName} {a.customer.firstName}
+        {/* La lavorazione arriva da Infinity e può essere lunghissima: due righe in tabella, il
+            resto nel pannello di dettaglio. Senza limite una sola riga occupava mezzo schermo di
+            tablet e spingeva fuori vista tutte le altre pratiche. Niente `block` accanto a
+            `line-clamp-2`: sovrascriverebbe il display -webkit-box che fa il troncamento. */}
         {a.serviceDescription !== null ? (
-          <span className="block text-xs text-slate-500">{a.serviceDescription}</span>
+          <span className="line-clamp-2 text-xs text-slate-500" title={a.serviceDescription}>
+            {a.serviceDescription}
+          </span>
         ) : null}
       </TableCell>
       {showDesk ? (

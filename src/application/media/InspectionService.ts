@@ -6,9 +6,10 @@
 // deve far perdere il lavoro fatto: l'errore torna al tablet come valore, la pratica resta aperta
 // e l'accettatore può riprovare o concludere senza quel media.
 //
-// Nessuna ripresa è obbligatoria. Il giro fotografico resta consigliato e la sua mancanza viene
-// scritta nel fascicolo, ma non blocca la chiusura: con il cliente davanti e la corsia occupata,
-// un check-in che non si chiude per una foto è un danno peggiore della foto che manca.
+// Un solo requisito: il VIDEO del veicolo. È la ripresa che al ritiro risponde alla contestazione
+// di un graffio, e vale più di quattro foto slegate. Le foto restano facoltative e si aggiungono
+// quando servono, con gli slot del giro o con il pulsante "+". Se la fotocamera non funziona la
+// pratica si chiude comunque dalla coda in dashboard: l'officina non si ferma per un tablet.
 import type { Appointment } from '@/domain/entities/appointment';
 import {
   SUGGESTED_PHOTO_CATEGORIES,
@@ -118,8 +119,9 @@ export interface CheckInResult {
   readonly crmNotified: boolean;
 }
 
-/** Nota scritta nel fascicolo quando il veicolo non è stato documentato affatto. */
-export const NO_MEDIA_NOTE = 'Check-in concluso senza foto o video del veicolo.';
+/** Messaggio di rifiuto quando si prova a concludere senza la ripresa del veicolo. */
+export const VIDEO_MANCANTE =
+  'Manca il video del veicolo: registralo prima di concludere il check-in.';
 
 export class InspectionService {
   private readonly logger: ILogger;
@@ -247,8 +249,13 @@ export class InspectionService {
    * Se la pratica non è in lavorazione la chiusura è rifiutata dalla state machine, come in
    * dashboard: il tablet non è una scorciatoia per saltare i passaggi.
    *
-   * I media non sono mai un requisito. Se non ne è stato acquisito nessuno la pratica si chiude
-   * lo stesso e il fascicolo lo annota: al ritiro si saprà che quel veicolo non è documentato.
+   * Il VIDEO del veicolo è obbligatorio: è la ripresa che al ritiro racconta com'era la vettura
+   * all'arrivo, e senza di quella la contestazione di un graffio non ha risposta. Le foto restano
+   * facoltative, perché il video le contiene già. Il controllo vive qui e non solo nella UI: una
+   * seconda scheda aperta o una chiamata diretta all'API non devono poterlo saltare.
+   *
+   * Non è un blocco per l'officina: se la fotocamera non funziona, la pratica si chiude lo stesso
+   * dalla coda in dashboard ("Completato"), che resta la via manuale di sempre.
    */
   async completeCheckIn(
     input: CompleteCheckInInput,
@@ -260,21 +267,16 @@ export class InspectionService {
     }
 
     const acquisiti = await this.listPhotos(input.appointmentId);
-    const note = input.inspectionNotes?.trim();
-    let noteFinali = note === undefined || note.length === 0 ? corrente.notes : note;
-    if (acquisiti.length === 0) {
-      // Veicolo non documentato: deve restare leggibile nel fascicolo e nell'evento verso il CRM.
-      noteFinali =
-        noteFinali === null || noteFinali.trim() === ''
-          ? NO_MEDIA_NOTE
-          : noteFinali.includes(NO_MEDIA_NOTE)
-            ? noteFinali
-            : `${noteFinali}\n${NO_MEDIA_NOTE}`;
-      this.logger.warn(`check-in senza foto né video per ${corrente.code}`, {
+    if (!acquisiti.some((m) => m.asset.kind === 'VIDEO')) {
+      this.logger.warn(`check-in senza video per ${corrente.code}`, {
         appointmentId: corrente.id,
         operatorId: ctx.operatorId,
       });
+      return err(domainError('VALIDATION', VIDEO_MANCANTE, { videoMancante: true }));
     }
+
+    const note = input.inspectionNotes?.trim();
+    const noteFinali = note === undefined || note.length === 0 ? corrente.notes : note;
 
     // Le note vanno salvate prima della chiusura: se il completamento fallisce per un conflitto
     // fra postazioni, il lavoro dell'accettatore al veicolo non è andato perso.

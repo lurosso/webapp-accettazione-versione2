@@ -5,6 +5,12 @@
 // torna alla coda, esci), due schede grandi ("In attesa" del mio sportello, "Le mie prese in
 // carico") e una scheda alta per ogni pratica con un solo comando. Da un PC la pagina non serve:
 // si dice dove andare invece di mostrare una fotocamera che non c'è.
+//
+// Le schede sono tarate sui tablet piccoli (8-10 pollici, cioè 768-1024 px): tre blocchi separati
+// e respirati — codice, targa e ora; veicolo e cliente; lavorazione richiesta — e il comando in
+// fondo, a tutta larghezza, staccato dal testo da un bordo. Le descrizioni dei difetti arrivano da
+// Infinity e possono essere lunghe una riga di terminale: si fermano a due righe e si aprono con
+// "Mostra tutto", così una scheda non spinge fuori schermo tutte le altre.
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useEffect, useState } from 'react';
@@ -30,10 +36,16 @@ import { AppointmentDetailPanel } from '@/modules/reception/AppointmentDetailPan
 import { deskOf } from '@/modules/reception/QueueTable';
 import { CheckInScreen } from './CheckInScreen';
 
+/**
+ * Oltre questa lunghezza la lavorazione richiesta viene troncata a due righe con "Mostra tutto":
+ * sotto ci sta in due righe anche su un tablet da 8 pollici, sopra no.
+ */
+const DESCRIZIONE_LUNGA = 90;
+
 export interface CheckInQueueProps {
   readonly session: Session;
   readonly homeDeskId: string | null;
-  /** "Accettazione 2": dove l'operatore ha fatto il login. */
+  /** "Sportello A": dove l'operatore ha fatto il login. */
   readonly workstationLabel: string;
   /**
    * Pratica da aprire subito in check-in (parametro `?pratica=`). È così che ci si arriva dalla
@@ -58,6 +70,8 @@ export function CheckInQueue({
   const [conferma, setConferma] = useState<string | null>(null);
   // Dettaglio della pratica aperto dal tocco sulla scheda, prima di prenderla in carico.
   const [dettaglio, setDettaglio] = useState<string | null>(null);
+  // Pratica con la lavorazione richiesta aperta per intero (una alla volta: l'elenco resta corto).
+  const [descrizioneAperta, setDescrizioneAperta] = useState<string | null>(null);
   const [uscita, setUscita] = useState(false);
   // Ricorda se il check-in è stato aperto dalla dashboard: uscendo si torna da dove si è arrivati.
   // Vale solo per quella prima apertura: i check-in aperti poi dall'elenco si chiudono e basta.
@@ -195,7 +209,7 @@ export function CheckInQueue({
         </div>
       </header>
 
-      <main className="mx-auto flex w-full max-w-4xl flex-1 flex-col gap-5 px-4 py-5">
+      <main className="mx-auto flex w-full max-w-4xl flex-1 flex-col gap-5 px-4 py-5 md:px-6 md:py-6">
         {conferma !== null ? (
           <p
             role="status"
@@ -246,7 +260,7 @@ export function CheckInQueue({
               aria-selected={scheda === t.id}
               onClick={() => setScheda(t.id)}
               className={cn(
-                'min-h-14 rounded-xl px-4 text-lg font-semibold transition-colors',
+                'min-h-16 rounded-xl px-4 text-lg font-semibold transition-colors',
                 scheda === t.id
                   ? 'bg-brand-secondary text-white shadow-sm'
                   : 'text-slate-700 hover:bg-white/60',
@@ -275,18 +289,21 @@ export function CheckInQueue({
             }
           />
         ) : (
-          <ul className="flex flex-col gap-3">
+          <ul className="flex flex-col gap-4">
             {elenco.map((row) => {
               const a = row.appointment;
               const inLavorazione = a.status === 'IN_PROGRESS';
               // Orario atteso superato ma entro la tolleranza: scheda gialla, da servire ora.
               const daServire =
                 data !== undefined && isDueWithinGrace(a, data.serverTime, LATE_GRACE_MINUTES);
+              const descrizione = a.serviceDescription;
+              const apribile = descrizione !== null && descrizione.length > DESCRIZIONE_LUNGA;
+              const aperta = descrizioneAperta === a.id;
               return (
                 <li
                   key={a.id}
                   className={cn(
-                    'rounded-2xl border-2 bg-white p-4 shadow-sm',
+                    'overflow-hidden rounded-2xl border-2 bg-white shadow-sm',
                     inLavorazione
                       ? 'bg-status-in-progress-soft border-amber-400'
                       : daServire
@@ -294,7 +311,7 @@ export function CheckInQueue({
                         : 'border-slate-200',
                   )}
                 >
-                  {/* Tutta la scheda apre il dettaglio; il pulsante fa la sua azione e basta. */}
+                  {/* Tutta l'area informativa apre il dettaglio; il comando sta staccato, sotto. */}
                   <div
                     role="button"
                     tabIndex={0}
@@ -306,35 +323,68 @@ export function CheckInQueue({
                         setDettaglio(a.id);
                       }
                     }}
-                    className="flex cursor-pointer flex-wrap items-center justify-between gap-3 select-none"
+                    className="flex cursor-pointer flex-col gap-3 p-5 select-none"
                   >
-                    <div className="flex flex-col gap-1">
-                      <div className="flex flex-wrap items-baseline gap-3">
-                        <span className="font-mono text-3xl font-black tracking-wide">
-                          {a.code}
-                        </span>
-                        <span className="rounded-md border-2 border-slate-900 bg-white px-2 font-mono text-2xl font-bold tracking-widest text-slate-900">
-                          {a.vehicle.plate}
-                        </span>
-                        <span className="font-mono text-lg text-slate-500 tabular-nums">
-                          {data !== undefined
-                            ? localTimeHHmm(new Date(effectiveScheduleTime(a)), data.timeZone)
-                            : ''}
-                        </span>
-                      </div>
-                      <span className="text-lg text-slate-700">
-                        {brandName(a.brandId)} {a.vehicle.model} · {a.customer.lastName}{' '}
-                        {a.customer.firstName}
+                    {/* Codice e targa si leggono da un metro; l'ora sta all'estremo opposto. */}
+                    <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
+                      <span className="font-mono text-3xl leading-none font-black tracking-wide md:text-4xl">
+                        {a.code}
                       </span>
-                      {a.serviceDescription !== null ? (
-                        <span className="text-base text-slate-500">{a.serviceDescription}</span>
-                      ) : null}
-                      {daServire ? (
-                        <span className="text-sm font-semibold text-amber-800">
-                          orario superato · da servire ora
-                        </span>
-                      ) : null}
+                      <span className="rounded-md border-2 border-slate-900 bg-white px-2 py-0.5 font-mono text-xl leading-none font-bold tracking-widest text-slate-900 md:text-2xl">
+                        {a.vehicle.plate}
+                      </span>
+                      <span className="ml-auto font-mono text-xl leading-none text-slate-500 tabular-nums">
+                        {data !== undefined
+                          ? localTimeHHmm(new Date(effectiveScheduleTime(a)), data.timeZone)
+                          : ''}
+                      </span>
                     </div>
+
+                    {/* Veicolo e cliente su due righe: a 768 px una riga sola andava a capo male. */}
+                    <div className="flex flex-col gap-0.5">
+                      <span className="text-xl leading-snug font-semibold text-slate-900">
+                        {brandName(a.brandId)} {a.vehicle.model}
+                      </span>
+                      <span className="text-lg leading-snug text-slate-600">
+                        {a.customer.lastName} {a.customer.firstName}
+                      </span>
+                    </div>
+
+                    {descrizione !== null ? (
+                      <div className="flex flex-col items-start gap-1">
+                        <p
+                          className={cn(
+                            'text-base leading-snug text-slate-600',
+                            apribile && !aperta && 'line-clamp-2',
+                          )}
+                        >
+                          {descrizione}
+                        </p>
+                        {apribile ? (
+                          <button
+                            type="button"
+                            onClick={(event) => {
+                              event.stopPropagation();
+                              setDescrizioneAperta(aperta ? null : a.id);
+                            }}
+                            aria-expanded={aperta}
+                            className="text-brand-secondary inline-flex min-h-11 items-center text-base font-semibold underline underline-offset-4"
+                          >
+                            {aperta ? 'Mostra meno' : 'Mostra tutto'}
+                          </button>
+                        ) : null}
+                      </div>
+                    ) : null}
+
+                    {daServire ? (
+                      <span className="text-sm font-semibold text-amber-800">
+                        orario superato · da servire ora
+                      </span>
+                    ) : null}
+                  </div>
+
+                  {/* Comando in fondo, a tutta larghezza e separato: niente tocchi per sbaglio. */}
+                  <div className="border-t-2 border-slate-100 bg-slate-50/70 p-4">
                     <button
                       type="button"
                       disabled={actions.pendingId === a.id}
@@ -343,7 +393,7 @@ export function CheckInQueue({
                         iniziaCheckIn(row);
                       }}
                       className={cn(
-                        'min-h-14 shrink-0 rounded-xl px-6 text-lg font-bold shadow-sm disabled:opacity-60',
+                        'min-h-16 w-full rounded-xl px-6 text-xl font-bold shadow-sm disabled:opacity-60',
                         // Blu in entrambi i casi: prendere in carico e riprendere sono azioni di
                         // lavoro; il verde è riservato a "Completa check-in".
                         inLavorazione

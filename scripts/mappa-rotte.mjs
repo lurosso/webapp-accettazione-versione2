@@ -84,7 +84,7 @@ export const ROTTE = [
     path: '/check-in',
     area: AREE[2],
     descrizione:
-      "Vista tablet a tutto schermo: pratiche in attesa del mio sportello, prese in carico, foto e video facoltativi del veicolo e conclusione dell'accettazione. Da PC rimanda alla coda.",
+      "Vista tablet a tutto schermo: pratiche in attesa del mio sportello, prese in carico, video obbligatorio e foto facoltative, conclusione con conferma. Da PC rimanda alla coda.",
     accesso: ACCESSO.sessione,
   },
   {
@@ -204,7 +204,7 @@ export const ROTTE = [
     path: '/api/v1/queue',
     area: AREE[9],
     descrizione:
-      'Coda della giornata (`?date=&deskId=&view=desk oppure global`): righe arricchite, campate, ultima sync, dati di riferimento. Polling della dashboard e del tablet.',
+      'Coda della giornata (`?date=&deskId=&view=desk oppure global`): righe arricchite, sportelli senza il token dei monitor, ultima sync, dati di riferimento. Polling della dashboard e del tablet.',
     accesso: ACCESSO.sessione,
   },
   {
@@ -225,7 +225,7 @@ export const ROTTE = [
     path: '/api/v1/appointments/:id/check-in',
     area: AREE[9],
     descrizione:
-      "Conclude l'accettazione dal tablet: note dell'ispezione, chiusura pratica (nessuna foto obbligatoria), notifica al CRM.",
+      "Conclude l'accettazione dal tablet: note dell'ispezione, chiusura pratica (serve il video del veicolo, le foto no), notifica al CRM.",
     accesso: ACCESSO.sessione,
   },
   {

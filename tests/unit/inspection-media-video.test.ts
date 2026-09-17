@@ -42,7 +42,7 @@ function setup() {
 
 const bytes = (n: number): Uint8Array => new Uint8Array(n).fill(3);
 
-describe('Check-in: video e foto facoltative', () => {
+describe('Check-in: video obbligatorio e foto facoltative', () => {
   it('accetta un video mp4 come media VIDEO senza categoria, con il limite dedicato', async () => {
     const { env, inspection, ctx } = setup();
     const a = await env.appointments.insert(makeAppointment());
@@ -102,7 +102,7 @@ describe('Check-in: video e foto facoltative', () => {
     ).toBe(true);
   });
 
-  it('il check-in si chiude senza alcuna foto, annotandolo, e conta foto e video separatamente', async () => {
+  it('il check-in vuole il video ma non le foto, e conta i due tipi separatamente', async () => {
     const { env, queueService, inspection, ctx } = setup();
     const inserita = await env.appointments.insert(makeAppointment());
     if (!inserita.ok) {
@@ -111,57 +111,54 @@ describe('Check-in: video e foto facoltative', () => {
     const a = inserita.value;
     await queueService.takeInCharge({ appointmentId: a.id, expectedVersion: 1, bayId: null }, ctx);
 
+    // Senza alcun media la chiusura è rifiutata: manca la ripresa del veicolo.
     const senzaNulla = await inspection.completeCheckIn(
       { appointmentId: a.id, expectedVersion: 2, inspectionNotes: 'Nessun danno visibile' },
       ctx,
     );
-    expect(senzaNulla.ok).toBe(true);
-    if (senzaNulla.ok) {
-      expect(senzaNulla.value.appointment.status).toBe('COMPLETED');
-      expect(senzaNulla.value.photoCount).toBe(0);
-      expect(senzaNulla.value.videoCount).toBe(0);
-      expect(senzaNulla.value.appointment.notes).toContain('Nessun danno visibile');
-      expect(senzaNulla.value.appointment.notes).toContain('senza foto o video');
-    }
+    expect(!senzaNulla.ok && senzaNulla.error.code === 'VALIDATION').toBe(true);
 
-    // Seconda pratica: un video e una foto aggiuntiva, nessuna delle quattro riprese guidate.
-    const seconda = await env.appointments.insert(makeAppointment());
-    if (!seconda.ok) {
-      throw new Error('insert');
-    }
-    const b = seconda.value;
-    await queueService.takeInCharge({ appointmentId: b.id, expectedVersion: 1, bayId: null }, ctx);
+    // Una foto non basta: il requisito è il video.
     await inspection.addMedia({
-      appointmentId: b.id,
-      operatorId: ctx.operatorId,
-      bytes: bytes(4096),
-      mimeType: 'video/webm',
-      category: null,
-    });
-    await inspection.addMedia({
-      appointmentId: b.id,
+      appointmentId: a.id,
       operatorId: ctx.operatorId,
       bytes: bytes(2048),
       mimeType: 'image/jpeg',
       category: 'EXTRA',
     });
-    expect(await inspection.missingSuggestedCategories(b.id)).toEqual([
+    const soloFoto = await inspection.completeCheckIn(
+      { appointmentId: a.id, expectedVersion: 2, inspectionNotes: 'Nessun danno visibile' },
+      ctx,
+    );
+    expect(!soloFoto.ok && soloFoto.error.code === 'VALIDATION').toBe(true);
+    expect(env.crm.received).toHaveLength(0);
+
+    // Con il video la pratica si chiude, senza nessuna delle quattro riprese consigliate.
+    await inspection.addMedia({
+      appointmentId: a.id,
+      operatorId: ctx.operatorId,
+      bytes: bytes(4096),
+      mimeType: 'video/webm',
+      category: null,
+    });
+    expect(await inspection.missingSuggestedCategories(a.id)).toEqual([
       'FRONT',
       'REAR',
       'LEFT',
       'RIGHT',
     ]);
-    const conMedia = await inspection.completeCheckIn(
-      { appointmentId: b.id, expectedVersion: 2, inspectionNotes: null },
+    const conVideo = await inspection.completeCheckIn(
+      { appointmentId: a.id, expectedVersion: 2, inspectionNotes: 'Nessun danno visibile' },
       ctx,
     );
-    expect(conMedia.ok).toBe(true);
-    if (conMedia.ok) {
-      expect(conMedia.value.photoCount).toBe(1);
-      expect(conMedia.value.videoCount).toBe(1);
-      expect(conMedia.value.appointment.notes ?? '').not.toContain('senza foto o video');
+    expect(conVideo.ok).toBe(true);
+    if (conVideo.ok) {
+      expect(conVideo.value.appointment.status).toBe('COMPLETED');
+      expect(conVideo.value.photoCount).toBe(1);
+      expect(conVideo.value.videoCount).toBe(1);
+      expect(conVideo.value.appointment.notes).toContain('Nessun danno visibile');
     }
-    // Il CRM riceve anche il video nell'elenco dei media.
+    // Il CRM riceve foto e video insieme.
     const ricevuto = env.crm.received.at(-1) as { readonly photos: readonly unknown[] };
     expect(ricevuto.photos).toHaveLength(2);
   });

@@ -1,5 +1,9 @@
 import { describe, expect, it } from 'vitest';
-import { InspectionService, MAX_PHOTO_BYTES } from '@/application/media/InspectionService';
+import {
+  InspectionService,
+  MAX_PHOTO_BYTES,
+  VIDEO_MANCANTE,
+} from '@/application/media/InspectionService';
 import { QueueService, type ActionContext } from '@/application/queue/QueueService';
 import type { Appointment } from '@/domain/entities/appointment';
 import type { CrmCheckInPayloadDto } from '@/services/dto/crm.dto';
@@ -49,6 +53,24 @@ async function insert(env: ReturnType<typeof buildTestEnv>, a: Appointment): Pro
 
 /** Finto contenuto di una foto: al mock interessano dimensione e tipo, non i pixel. */
 const fotoFinta = (bytes = 2048): Uint8Array => new Uint8Array(bytes).fill(7);
+
+/** Registra il video del veicolo: senza, la chiusura del check-in viene rifiutata. */
+async function registraVideo(
+  inspection: InspectionService,
+  appointmentId: Appointment['id'],
+  operatorId: ActionContext['operatorId'],
+): Promise<void> {
+  const r = await inspection.addMedia({
+    appointmentId,
+    operatorId,
+    bytes: new Uint8Array(4096).fill(3),
+    mimeType: 'video/mp4',
+    category: null,
+  });
+  if (!r.ok) {
+    throw new Error(r.error.message);
+  }
+}
 
 /** Scatta il giro completo delle quattro riprese consigliate. */
 async function giroCompleto(
@@ -156,6 +178,7 @@ describe('InspectionService: chiusura del check-in', () => {
     const a = await insert(env, makeAppointment());
     await queueService.takeInCharge({ appointmentId: a.id, expectedVersion: 1, bayId: null }, ctx);
     await giroCompleto(inspection, a.id, ctx.operatorId);
+    await registraVideo(inspection, a.id, ctx.operatorId);
 
     const r = await inspection.completeCheckIn(
       {
@@ -172,25 +195,32 @@ describe('InspectionService: chiusura del check-in', () => {
     expect(r.value.appointment.status).toBe('COMPLETED');
     expect(r.value.appointment.notes).toContain('paraurti');
     expect(r.value.photoCount).toBe(4);
-    expect(r.value.videoCount).toBe(0);
+    expect(r.value.videoCount).toBe(1);
     expect(r.value.crmNotified).toBe(true);
 
     const ricevuto = env.crm.received.at(-1) as CrmCheckInPayloadDto;
     expect(ricevuto.code).toBe(a.code);
     expect(ricevuto.inspectionNotes).toContain('paraurti');
-    expect(ricevuto.photos).toHaveLength(4);
-    expect(ricevuto.photos.map((f) => f.category)).toEqual(['FRONT', 'REAR', 'LEFT', 'RIGHT']);
+    // Al CRM vanno tutti i media, video compreso (che non ha una parte del veicolo).
+    expect(ricevuto.photos).toHaveLength(5);
+    expect(ricevuto.photos.map((f) => f.category)).toEqual([
+      'FRONT',
+      'REAR',
+      'LEFT',
+      'RIGHT',
+      null,
+    ]);
 
     // L'evento resta tracciato nella coda di uscita come inviato.
     const inviati = await env.crmOutbox.listByStatus(['SENT']);
     expect(inviati.filter((e) => e.type === 'CHECK_IN')).toHaveLength(1);
   });
 
-  it('con il giro a metà il check-in si chiude lo stesso: le foto non sono un requisito', async () => {
+  it('con il giro fotografico a metà il check-in si chiude: le foto non sono un requisito', async () => {
     const { env, queueService, inspection, ctx } = setup();
     const a = await insert(env, makeAppointment());
     await queueService.takeInCharge({ appointmentId: a.id, expectedVersion: 1, bayId: null }, ctx);
-    // Solo frontale e posteriore: il giro del veicolo è a metà.
+    // Solo frontale e posteriore, più il video: il giro fotografico è a metà.
     for (const category of ['FRONT', 'REAR'] as const) {
       await inspection.addPhoto({
         appointmentId: a.id,
@@ -200,6 +230,7 @@ describe('InspectionService: chiusura del check-in', () => {
         category,
       });
     }
+    await registraVideo(inspection, a.id, ctx.operatorId);
 
     const r = await inspection.completeCheckIn(
       { appointmentId: a.id, expectedVersion: 2, inspectionNotes: 'Nota del giro a metà' },
@@ -209,16 +240,15 @@ describe('InspectionService: chiusura del check-in', () => {
     if (r.ok) {
       expect(r.value.appointment.status).toBe('COMPLETED');
       expect(r.value.photoCount).toBe(2);
+      expect(r.value.videoCount).toBe(1);
       expect(r.value.appointment.notes).toContain('giro a metà');
-      // Qualcosa è stato documentato: nessun avviso di veicolo non documentato.
-      expect(r.value.appointment.notes ?? '').not.toContain('senza foto o video');
     }
     // Le riprese mancanti restano un promemoria per il tablet, non un blocco.
     expect(await inspection.missingSuggestedCategories(a.id)).toEqual(['LEFT', 'RIGHT']);
     expect(env.crm.received).toHaveLength(1);
   });
 
-  it('le foto facoltative da sole bastano a chiudere, e il giro consigliato resta un promemoria', async () => {
+  it('le foto facoltative con il video bastano a chiudere: il giro consigliato è un promemoria', async () => {
     const { env, queueService, inspection, ctx } = setup();
     const a = await insert(env, makeAppointment());
     await queueService.takeInCharge({ appointmentId: a.id, expectedVersion: 1, bayId: null }, ctx);
@@ -231,6 +261,8 @@ describe('InspectionService: chiusura del check-in', () => {
         category,
       });
     }
+
+    await registraVideo(inspection, a.id, ctx.operatorId);
 
     expect(await inspection.missingSuggestedCategories(a.id)).toEqual([
       'FRONT',
@@ -246,11 +278,44 @@ describe('InspectionService: chiusura del check-in', () => {
     expect(r.ok && r.value.photoCount).toBe(2);
   });
 
+  it('senza il video il check-in non si chiude, nemmeno con il giro fotografico completo', async () => {
+    const { env, queueService, inspection, ctx } = setup();
+    const a = await insert(env, makeAppointment());
+    await queueService.takeInCharge({ appointmentId: a.id, expectedVersion: 1, bayId: null }, ctx);
+    await giroCompleto(inspection, a.id, ctx.operatorId);
+
+    const r = await inspection.completeCheckIn(
+      { appointmentId: a.id, expectedVersion: 2, inspectionNotes: 'Nessun danno' },
+      ctx,
+    );
+    expect(r.ok).toBe(false);
+    if (!r.ok) {
+      expect(r.error.code).toBe('VALIDATION');
+      expect(r.error.message).toBe(VIDEO_MANCANTE);
+      expect(r.error.details?.['videoMancante']).toBe(true);
+    }
+    // La pratica resta in lavorazione, il CRM non riceve nulla e le note non vengono toccate.
+    const corrente = await env.appointments.findById(a.id);
+    expect(corrente?.status).toBe('IN_PROGRESS');
+    expect(corrente?.notes).toBeNull();
+    expect(env.crm.received).toHaveLength(0);
+
+    // Registrato il video, la stessa chiamata passa.
+    await registraVideo(inspection, a.id, ctx.operatorId);
+    const dopo = await inspection.completeCheckIn(
+      { appointmentId: a.id, expectedVersion: 2, inspectionNotes: 'Nessun danno' },
+      ctx,
+    );
+    expect(dopo.ok && dopo.value.appointment.status).toBe('COMPLETED');
+    expect(dopo.ok && dopo.value.videoCount).toBe(1);
+  });
+
   it('completato il giro non manca più nulla e la chiusura passa', async () => {
     const { env, queueService, inspection, ctx } = setup();
     const a = await insert(env, makeAppointment());
     await queueService.takeInCharge({ appointmentId: a.id, expectedVersion: 1, bayId: null }, ctx);
     await giroCompleto(inspection, a.id, ctx.operatorId);
+    await registraVideo(inspection, a.id, ctx.operatorId);
 
     expect(await inspection.missingSuggestedCategories(a.id)).toEqual([]);
     const r = await inspection.completeCheckIn(
@@ -264,6 +329,7 @@ describe('InspectionService: chiusura del check-in', () => {
     const { env, inspection, ctx } = setup();
     const a = await insert(env, makeAppointment());
     await giroCompleto(inspection, a.id, ctx.operatorId);
+    await registraVideo(inspection, a.id, ctx.operatorId);
 
     const r = await inspection.completeCheckIn(
       { appointmentId: a.id, expectedVersion: 1, inspectionNotes: null },
@@ -281,6 +347,7 @@ describe('InspectionService: chiusura del check-in', () => {
     const a = await insert(env, makeAppointment());
     await queueService.takeInCharge({ appointmentId: a.id, expectedVersion: 1, bayId: null }, ctx);
     await giroCompleto(inspection, a.id, ctx.operatorId);
+    await registraVideo(inspection, a.id, ctx.operatorId);
 
     const r = await inspection.completeCheckIn(
       { appointmentId: a.id, expectedVersion: 1, inspectionNotes: 'Nota scritta al veicolo' },
@@ -342,6 +409,7 @@ describe('InspectionService: chiusura del check-in', () => {
     const a = await insert(env, makeAppointment());
     await queueService.takeInCharge({ appointmentId: a.id, expectedVersion: 1, bayId: null }, ctx);
     await giroCompleto(inspection, a.id, ctx.operatorId);
+    await registraVideo(inspection, a.id, ctx.operatorId);
     const r = await inspection.completeCheckIn(
       { appointmentId: a.id, expectedVersion: 2, inspectionNotes: 'Tutto in ordine' },
       ctx,

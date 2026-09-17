@@ -116,6 +116,15 @@ describe('QueueService.reopenCompleted: "Completato" premuto per errore', () => 
       throw new Error('riapertura fallita');
     }
     env.clock.advance(5 * 60_000);
+    // Il video è obbligatorio anche al secondo giro: la riapertura non salta il requisito.
+    const video = await inspection.addMedia({
+      appointmentId: chiusa.id,
+      operatorId: mario.operatorId,
+      bytes: new Uint8Array(4096).fill(3),
+      mimeType: 'video/mp4',
+      category: null,
+    });
+    expect(video.ok).toBe(true);
     const secondo = await inspection.completeCheckIn(
       {
         appointmentId: chiusa.id,

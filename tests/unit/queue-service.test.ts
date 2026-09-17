@@ -1,5 +1,9 @@
 import { describe, expect, it } from 'vitest';
-import { QueueService, type ActionContext } from '@/application/queue/QueueService';
+import {
+  QueueService,
+  toBayOccupancyOptions,
+  type ActionContext,
+} from '@/application/queue/QueueService';
 import type { Appointment } from '@/domain/entities/appointment';
 import { asBayId, asBrandId, asDeskId, asOperatorId, asWorkstationId } from '@/domain/ids';
 import { buildTestEnv, makeAppointment, TEST_DATE } from '../helpers/fixtures';
@@ -166,5 +170,32 @@ describe('QueueService', () => {
     });
     expect(all).toHaveLength(3);
     expect(all.every((row) => row.operatorName === null && row.bayCode === null)).toBe(true);
+  });
+
+  it("l'occupazione esposta dall'API porta lettera e nome, mai il token del monitor", async () => {
+    const { env, service, ctx } = setup();
+    const a = await insert(env, makeAppointment());
+    await service.takeInCharge(
+      { appointmentId: a.id, expectedVersion: 1, bayId: asBayId('bay-c2') },
+      ctx,
+    );
+
+    const occupazione = await service.getBayOccupancy(TEST_DATE);
+    // Dentro il dominio lo sportello ha il suo token: è così che il monitor kiosk si autentica.
+    expect(occupazione.every((o) => o.bay.displayToken.length > 0)).toBe(true);
+
+    const esposta = toBayOccupancyOptions(occupazione);
+    expect(esposta.map((o) => o.bay.code)).toEqual(['A', 'B', 'C', 'D']);
+    expect(Object.keys(esposta[0]?.bay ?? {}).sort()).toEqual([
+      'code',
+      'id',
+      'isActive',
+      'name',
+      'number',
+    ]);
+    // Nessun token nella risposta, nemmeno annidato: la dashboard non ne ha bisogno.
+    expect(JSON.stringify(esposta)).not.toContain(env.seed.bays[0]?.displayToken ?? 'token');
+    // La pratica che occupa lo sportello resta, perché la dashboard mostra chi c'è.
+    expect(esposta.find((o) => o.bay.code === 'B')?.appointment?.code).toBe(a.code);
   });
 });

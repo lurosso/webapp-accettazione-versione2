@@ -6,10 +6,13 @@
 // - al centro la documentazione del veicolo (foto a slot, "+ Foto", video) e le note;
 // - in basso, fissi e a portata di pollice, i due soli comandi: "Completa check-in" (verde: fa
 //   avanzare la pratica) e "Salta per ora" (grigio: si esce senza perdere nulla).
-// Foto e video sono FACOLTATIVI: la pratica si chiude anche senza, e il fascicolo lo annota.
+// Il VIDEO del veicolo è obbligatorio e finché manca il pulsante verde resta spento, con scritto
+// perché; le foto restano facoltative. Prima di chiudere davvero si passa da una conferma: su un
+// tablet tenuto in mano un tocco involontario non deve concludere un'accettazione.
 // Testi grandi, bordi spessi, contrasto alto, niente stati che dipendono dal passaggio del mouse.
 import { useQueryClient } from '@tanstack/react-query';
 import { useEffect, useState } from 'react';
+import { Dialog } from '@/components/ui/dialog';
 import type { QueueRowView } from '@/domain/read-models';
 import {
   ApiError,
@@ -60,6 +63,8 @@ export function CheckInScreen({
   const [note, setNote] = useState(a.notes ?? '');
   const [inChiusura, setInChiusura] = useState(false);
   const [errore, setErrore] = useState<string | null>(null);
+  // Doppio controllo prima di chiudere: il tablet si tiene in mano e si tocca per sbaglio.
+  const [confermaAperta, setConfermaAperta] = useState(false);
 
   // Media già acquisiti: riaprendo il check-in si ritrova quanto fatto prima.
   useEffect(() => {
@@ -80,9 +85,12 @@ export function CheckInScreen({
 
   const foto = media.filter((m) => m.kind !== 'VIDEO').length;
   const video = media.filter((m) => m.kind === 'VIDEO').length;
+  // Unico requisito: la ripresa del veicolo. Senza, il pulsante verde non si accende.
+  const videoMancante = video === 0;
 
   const completa = async (): Promise<void> => {
     setErrore(null);
+    setConfermaAperta(false);
     setInChiusura(true);
     try {
       const esito = await postCheckIn(a.id, {
@@ -111,10 +119,9 @@ export function CheckInScreen({
     });
   };
 
-  const riepilogoMedia =
-    foto + video === 0
-      ? 'Nessuna foto o video: la pratica si chiude comunque, e il fascicolo lo annota.'
-      : `${foto} foto e ${video} video nel fascicolo. Tutto pronto: la pratica si chiude e lo sportello si libera.`;
+  const riepilogoMedia = videoMancante
+    ? 'Registra il video del veicolo: è l’unico passaggio obbligatorio. Le foto restano facoltative.'
+    : `${foto} foto e ${video} video nel fascicolo. Tutto pronto: la pratica si chiude e lo sportello si libera.`;
 
   return (
     <div className="fixed inset-0 z-50 flex flex-col bg-slate-100 text-slate-900">
@@ -152,19 +159,29 @@ export function CheckInScreen({
               </span>
             </div>
           </div>
-          {/* Contatore dei media: informa, non blocca. */}
+          {/* Contatore dei media: le foto informano, il video dice se si può chiudere. */}
           <div
             className="flex shrink-0 flex-col items-end gap-0.5 text-right"
-            aria-label={`${foto} foto e ${video} video acquisiti`}
+            aria-label={`${foto} foto e ${video} video acquisiti${videoMancante ? '; il video è obbligatorio' : ''}`}
           >
             <span className="font-mono text-2xl leading-none font-black tabular-nums">
               {foto}
               <span className="text-base font-semibold text-slate-500"> foto</span>
             </span>
-            <span className="font-mono text-xl leading-none font-black tabular-nums">
+            <span
+              className={cn(
+                'font-mono text-xl leading-none font-black tabular-nums',
+                videoMancante ? 'text-amber-700' : 'text-status-completed',
+              )}
+            >
               {video}
-              <span className="text-sm font-semibold text-slate-500"> video</span>
+              <span className="text-sm font-semibold"> video</span>
             </span>
+            {videoMancante ? (
+              <span className="text-xs font-bold tracking-wide text-amber-700 uppercase">
+                obbligatorio
+              </span>
+            ) : null}
           </div>
         </div>
       </header>
@@ -234,13 +251,16 @@ export function CheckInScreen({
             </button>
             <button
               type="button"
-              onClick={() => void completa()}
-              disabled={inChiusura}
+              onClick={() => setConfermaAperta(true)}
+              disabled={inChiusura || videoMancante}
               aria-describedby="stato-check-in"
               data-testid="completa-check-in"
               className={cn(
                 'bg-brand-primary focus-visible:ring-brand-lime-dark active:bg-brand-lime-dark flex h-16 flex-[2] items-center justify-center rounded-2xl text-xl font-bold text-slate-950 shadow-sm focus-visible:ring-4 focus-visible:outline-none active:text-white',
-                'disabled:opacity-60',
+                // Spento finché manca il video: grigio, non verde sbiadito, così si vede da lontano
+                // che non è un pulsante in attesa ma un passaggio che manca.
+                videoMancante && !inChiusura && 'bg-slate-300 text-slate-600 shadow-none',
+                'disabled:cursor-not-allowed disabled:opacity-80',
               )}
             >
               {inChiusura ? 'Conclusione in corso…' : 'Completa check-in'}
@@ -250,13 +270,52 @@ export function CheckInScreen({
             id="stato-check-in"
             className={cn(
               'text-center text-base font-semibold',
-              foto + video === 0 ? 'text-slate-600' : 'text-status-completed',
+              videoMancante ? 'text-amber-800' : 'text-status-completed',
             )}
           >
             {riepilogoMedia}
           </p>
         </div>
       </footer>
+
+      {/* Doppio controllo: una schermata a parte, con due bersagli lontani fra loro. */}
+      <Dialog
+        open={confermaAperta}
+        title="Completare il check-in?"
+        description={`Pratica ${a.code} · ${a.vehicle.plate}. La pratica si chiude, lo sportello si libera e il fascicolo parte verso il CRM.`}
+        onClose={() => setConfermaAperta(false)}
+        className="max-w-xl"
+        footer={
+          <div className="flex w-full flex-col-reverse gap-3 sm:flex-row">
+            <button
+              type="button"
+              onClick={() => setConfermaAperta(false)}
+              className="min-h-14 flex-1 rounded-2xl border-2 border-slate-300 bg-white text-lg font-bold text-slate-800 active:bg-slate-100"
+            >
+              Annulla
+            </button>
+            <button
+              type="button"
+              onClick={() => void completa()}
+              data-testid="conferma-check-in"
+              className="bg-brand-primary active:bg-brand-lime-dark min-h-14 flex-[2] rounded-2xl text-lg font-bold text-slate-950 shadow-sm active:text-white"
+            >
+              Sì, completa
+            </button>
+          </div>
+        }
+      >
+        <p className="text-lg text-slate-800">
+          Nel fascicolo ci sono <strong>{foto} foto</strong> e <strong>{video} video</strong>.
+        </p>
+        {note.trim() !== '' ? (
+          <p className="mt-2 rounded-xl bg-slate-50 px-4 py-3 text-base whitespace-pre-wrap text-slate-700">
+            {note.trim()}
+          </p>
+        ) : (
+          <p className="mt-2 text-base text-slate-500">Nessuna nota sul veicolo.</p>
+        )}
+      </Dialog>
     </div>
   );
 }

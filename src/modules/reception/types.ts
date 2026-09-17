@@ -1,14 +1,14 @@
 // Contratto dati fra Route Handler (`/api/v1/queue`, `/api/v1/appointments/[id]/actions`) e
 // dashboard client. Solo tipi: nessuna dipendenza da implementazioni.
 import type { Session } from '@/application/auth/IAuthService';
-import type { BayOccupancyView } from '@/application/queue/QueueService';
+
 import type { AppointmentFlow } from '@/domain/entities/appointment';
 import type { Brand } from '@/domain/entities/brand';
 import type { Desk } from '@/domain/entities/desk';
 import type { SyncRun } from '@/domain/entities/sync-run';
 import type { Workstation } from '@/domain/entities/workstation';
 import type { DeskId } from '@/domain/ids';
-import type { QueueRowView } from '@/domain/read-models';
+import type { BayOccupancyOptionView, QueueRowView } from '@/domain/read-models';
 import type { IsoDate, IsoDateTime } from '@/domain/value-objects/iso-date';
 
 /** Vista della dashboard: il proprio sportello, tutta l'accettazione, oppure le riconsegne. */
@@ -27,7 +27,8 @@ export interface QueueResponse {
   /** Sportello filtrato (vista sportello) o null (vista globale o riconsegne). */
   readonly deskId: DeskId | null;
   readonly rows: readonly QueueRowView[];
-  readonly bays: readonly BayOccupancyView[];
+  /** Sportelli con la pratica che li occupa; senza il token del monitor, che è un segreto kiosk. */
+  readonly bays: readonly BayOccupancyOptionView[];
   readonly lastSync: SyncRun | null;
   readonly desks: readonly Desk[];
   readonly brands: readonly Brand[];

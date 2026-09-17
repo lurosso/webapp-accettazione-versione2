@@ -44,9 +44,9 @@ digita la targa e vede il proprio codice, quanti clienti ha davanti e cosa deve 
 che si aggiorna da sola mentre l'operatore lavora. Sopra ogni postazione un **monitor** mostra il
 codice in lavorazione e, appena l'accettatore chiude la pratica, invita il cliente successivo ad
 avanzare. Le **comunicazioni** partono da sole dopo la sincronizzazione dell'agenda, con WhatsApp
-via Spoki e ripiego automatico su SMS. Dal **tablet** l'accettatore fa il giro della vettura,
-scatta le foto o gira un breve video, annota i danni e chiude il check-in: niente è obbligatorio e
-nulla blocca la chiusura. Note, foto e video finiscono nel fascicolo della pratica, si rivedono
+via Spoki e ripiego automatico su SMS. Dal **tablet** l'accettatore fa il giro della vettura, gira
+il video (l'unico passaggio obbligatorio), aggiunge le foto che servono, annota i danni e chiude il
+check-in dopo una conferma. Note, foto e video finiscono nel fascicolo della pratica, si rivedono
 dalla dashboard e arrivano al CRM. Chi non si presenta finisce nel **cruscotto
 BDC**, dove il back office lo richiama e chiude il lead. Restano da sviluppare il registro degli
 invii, i video e la vista tecnica degli eventi CRM. La priorità di sviluppo è definita in [`CLAUDE.md`](CLAUDE.md); i
@@ -225,7 +225,9 @@ pratica dalla dashboard, il monitor dello sportello assegnato mostra codice e ta
 scuro; premendo **Completato** diventa verde con "SPORTELLO A LIBERO / AVANZARE". Se il server
 smette di rispondere lo schermo lo dichiara, invece di lasciare a video un codice non più valido.
 
-Ogni sportello ha un token nel seed (`display-demo-token-a`…`-d`). Passandolo come `?token=` viene
+Il token di uno sportello non esce dalla coda: `GET /api/v1/queue` restituisce degli sportelli solo
+identificativo, lettera, numero, nome e stato, perché quel segreto serve ai kiosk e non alla
+dashboard. Ogni sportello ha un token nel seed (`display-demo-token-a`…`-d`). Passandolo come `?token=` viene
 verificato e un token errato riceve 403; senza token l'accesso resta consentito, perché i monitor
 sono su rete interna. L'obbligatorietà è prevista con l'hardening. Nel profilo `real` i token
 derivano dalla lettera: dopo questo cambio vanno riletti con `npm run seed:credenziali` e
@@ -263,26 +265,30 @@ sportello dell'operatore collegato, con due schede, **In attesa** e **Le mie pre
 pulsanti grandi da usare in piedi accanto alla vettura.
 
 1. **Inizia check-in** prende in carico la pratica e apre a tutto schermo la scheda di ispezione.
-2. **Giro del veicolo**: quattro slot consigliati (Frontale, Posteriore, Fiancata sinistra,
-   Fiancata destra) più _Interni_ e _Dettaglio danni_. **Nessuna ripresa è obbligatoria**: sono
-   suggerimenti, ogni slot accetta più scatti e la pratica si chiude anche a slot vuoti. Toccando
-   uno slot si apre la fotocamera posteriore del tablet (su un computer si sceglie un file);
-   l'anteprima compare subito con la rotella di attesa e resta nello slot a caricamento concluso.
-   Sotto agli slot due comandi grandi: **+ Foto** per uno scatto libero fuori dalle caselle (finisce
-   fra le "Foto aggiuntive") e **▶ Video** per una ripresa breve del giro (mp4, mov, webm; fino a
-   80 MB, contro gli 8 MB di una foto). I file finiscono dietro `IMediaStorage`, cioè in
+2. **Video del veicolo (obbligatorio)**: il pulsante **▶ Video · obbligatorio** è ambra finché la
+   ripresa manca e apre la fotocamera del tablet (mp4, mov, webm; fino a 80 MB, contro gli 8 MB di
+   una foto). È l'unico passaggio richiesto: al ritiro è la ripresa che risponde alla contestazione
+   di un graffio. Se la fotocamera non funziona la pratica si chiude comunque dalla coda in
+   dashboard con **Completato**: l'officina non si ferma per un tablet.
+3. **Foto, tutte facoltative**: quattro slot consigliati (Frontale, Posteriore, Fiancata sinistra,
+   Fiancata destra) più _Interni_ e _Dettaglio danni_, ognuno con più scatti, e **+ Foto** per uno
+   scatto libero fuori dalle caselle (finisce fra le "Foto aggiuntive"). Toccando uno slot si apre
+   la fotocamera posteriore del tablet (su un computer si sceglie un file); l'anteprima compare
+   subito con la rotella di attesa e resta nello slot a caricamento concluso. I file finiscono
+   dietro `IMediaStorage`, cioè in
    `.data/uploads/<giornata>/<codice>/<parte>-<id>.<estensione>`, e si rileggono da
    `GET /api/v1/media/<chiave>` con la sessione attiva. Restano lì anche dopo un riavvio.
-3. In **Note veicolo / danni rilevati** si annota quanto visto durante il giro dell'auto.
-4. **Completa check-in** è sempre attivo e non chiede conferme: la riga sotto al pulsante dice cosa
-   c'è nel fascicolo ("3 foto e 1 video") oppure avvisa che senza nulla la chiusura viene annotata.
-   Chiudendo un veicolo non documentato, nelle note resta scritto "Check-in concluso senza foto o
-   video del veicolo", così al ritiro si sa com'è andata. Una pratica completata per errore si
-   riapre dal dettaglio ("Riapri pratica / Modifica check-in") e torna in carico a chi la riapre.
-   La chiusura libera lo sportello e invia al CRM note e indirizzi dei media. Nel terminale del server compaiono le righe `[Media] file salvato: ...` e
+4. In **Note veicolo / danni rilevati** si annota quanto visto durante il giro dell'auto.
+5. **Completa check-in** resta spento finché non c'è il video, con scritto sotto cosa manca; con il
+   video diventa verde e apre una **conferma** ("Completare il check-in?" con il riepilogo del
+   fascicolo e le note), perché su un tablet tenuto in mano un tocco involontario non deve chiudere
+   un'accettazione. Lo stesso controllo è ripetuto dal server, quindi non si aggira da un'altra
+   scheda. Una pratica completata per errore si riapre dal dettaglio ("Riapri pratica / Modifica
+   check-in") e torna in carico a chi la riapre. La chiusura libera lo sportello e invia al CRM
+   note e indirizzi dei media. Nel terminale del server compaiono le righe `[Media] file salvato: ...` e
    `[MOCK][Crm] notifyCheckIn {...}`; allo stesso modo, segnando un cliente assente dalla
    dashboard, compare `[MOCK][Crm] notifyNoShow {...}`.
-5. Nella dashboard di accettazione, il clic sulla pratica apre il pannello con la sezione
+6. Nella dashboard di accettazione, il clic sulla pratica apre il pannello con la sezione
    **Ispezione al veicolo**: le note, i video e le foto, raggruppati per parte del veicolo e
    apribili con un clic (il video parte nel riquadro a schermo intero).
 
@@ -319,7 +325,15 @@ I controlli principali rispettano il bersaglio minimo di 44×44 px: campi di tes
 caselle di spunta da 24 px con etichette alte 44 px. A 768 px (iPad verticale) e 1024 px
 (orizzontale) la pagina non scorre mai in orizzontale: le tabelle larghe scorrono dentro il proprio
 riquadro e la coda nasconde le colonne Sportello e Operatore sotto i 1024 px (si leggono nel
-dettaglio). Nel check-in i comandi **+ Foto** e **▶ Video** sono alti 56 px, sopra il minimo di 44. I badge «In diretta» e «Dati non aggiornati» stanno nella barra dei comandi, che va a
+dettaglio). Nel check-in i comandi **+ Foto** e **▶ Video** sono alti 56 px, sopra il minimo di 44.
+
+Sui tablet piccoli (8-10 pollici) contano soprattutto due cose. Le **schede delle pratiche** nel
+tablet hanno tre blocchi separati e respirati (codice, targa e ora; veicolo e cliente; lavorazione
+richiesta) e il comando **Inizia check-in** in fondo, alto 64 px e a tutta larghezza, staccato dal
+testo da un bordo: non si preme per sbaglio leggendo la scheda. Le **descrizioni lunghe** che
+arrivano da Infinity (una sola può superare le venti righe) si fermano a due righe e si aprono con
+"Mostra tutto" nel tablet, mentre in coda sono troncate con i puntini e per intero nel dettaglio.
+Senza quel limite una riga sola occupava mezzo schermo e spingeva fuori vista tutte le altre. I badge «In diretta» e «Dati non aggiornati» stanno nella barra dei comandi, che va a
 capo invece di sovrapporsi.
 
 ### Provare il cruscotto BDC
@@ -576,10 +590,10 @@ per i cron esterni.
 
 ### Tablet e check-in veicolo
 
-| Rotta       | Metodo | Descrizione                                                                                                                                                                         | Accesso                                                   |
-| ----------- | ------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------- |
-| `/check-in` | pagina | Vista tablet a tutto schermo: pratiche in attesa del mio sportello, prese in carico, foto e video facoltativi del veicolo e conclusione dell'accettazione. Da PC rimanda alla coda. | Sessione operatore (Accettatore, Manager, Amministratore) |
-| `/tablet`   | pagina | Vecchio indirizzo del tablet: rimanda a /check-in conservando la pratica richiesta.                                                                                                 | Sessione operatore (Accettatore, Manager, Amministratore) |
+| Rotta       | Metodo | Descrizione                                                                                                                                                                    | Accesso                                                   |
+| ----------- | ------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | --------------------------------------------------------- |
+| `/check-in` | pagina | Vista tablet a tutto schermo: pratiche in attesa del mio sportello, prese in carico, video obbligatorio e foto facoltative, conclusione con conferma. Da PC rimanda alla coda. | Sessione operatore (Accettatore, Manager, Amministratore) |
+| `/tablet`   | pagina | Vecchio indirizzo del tablet: rimanda a /check-in conservando la pratica richiesta.                                                                                            | Sessione operatore (Accettatore, Manager, Amministratore) |
 
 ### Manager e BDC
 
@@ -628,17 +642,17 @@ per i cron esterni.
 
 ### API: coda e pratiche
 
-| Rotta                               | Metodo    | Descrizione                                                                                                                                                        | Accesso                                                                                   |
-| ----------------------------------- | --------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ----------------------------------------------------------------------------------------- |
-| `/api/v1/queue`                     | GET       | Coda della giornata (`?date=&deskId=&view=desk oppure global`): righe arricchite, campate, ultima sync, dati di riferimento. Polling della dashboard e del tablet. | Sessione operatore (Accettatore, Manager, Amministratore)                                 |
-| `/api/v1/appointments`              | POST      | Inserimento manuale di una pratica (cliente senza appuntamento) nella coda di oggi.                                                                                | Sessione operatore (Accettatore, Manager, Amministratore)                                 |
-| `/api/v1/appointments/:id/actions`  | POST      | Azioni sulla pratica: take, skip, complete, release, restore, no-show, reactivate, cancel, confirm-auto-close (con `expectedVersion`, 409 sui conflitti).          | Sessione operatore; `cancel` e `confirm-auto-close` solo Manager e Amministratore         |
-| `/api/v1/appointments/:id/check-in` | POST      | Conclude l'accettazione dal tablet: note dell'ispezione, chiusura pratica (nessuna foto obbligatoria), notifica al CRM.                                            | Sessione operatore (Accettatore, Manager, Amministratore)                                 |
-| `/api/v1/appointments/:id/media`    | GET, POST | Media dell'ispezione: elenco (GET) e caricamento multipart di una foto o di un video dal tablet (POST, campo `foto`, `categoria` facoltativa).                     | Sessione operatore (Accettatore, Manager, Amministratore)                                 |
-| `/api/v1/media/:key`                | GET       | Rilegge una foto o un video dell'ispezione dallo storage.                                                                                                          | Sessione operatore (Accettatore, Manager, Amministratore)                                 |
-| `/api/v1/inspections/archive`       | GET       | Storico dei check-in con i media acquisiti (`?q=` targa o codice; vuoto = ultimi cinquanta).                                                                       | Sessione operatore (Accettatore, Manager, Amministratore)                                 |
-| `/api/v1/events/stream`             | GET       | Eventi in tempo reale (SSE) per l'area operatore: segnala cosa è cambiato, i dati si rileggono dagli endpoint.                                                     | Sessione operatore (Accettatore, Manager, Amministratore)                                 |
-| `/api/v1/sync`                      | POST      | Sincronizzazione manuale dell'agenda Infinity di oggi.                                                                                                             | Manager e Amministratore; Accettatore solo come «Riprova» dopo una sync fallita o assente |
+| Rotta                               | Metodo    | Descrizione                                                                                                                                                                                     | Accesso                                                                                   |
+| ----------------------------------- | --------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------- |
+| `/api/v1/queue`                     | GET       | Coda della giornata (`?date=&deskId=&view=desk oppure global`): righe arricchite, sportelli senza il token dei monitor, ultima sync, dati di riferimento. Polling della dashboard e del tablet. | Sessione operatore (Accettatore, Manager, Amministratore)                                 |
+| `/api/v1/appointments`              | POST      | Inserimento manuale di una pratica (cliente senza appuntamento) nella coda di oggi.                                                                                                             | Sessione operatore (Accettatore, Manager, Amministratore)                                 |
+| `/api/v1/appointments/:id/actions`  | POST      | Azioni sulla pratica: take, skip, complete, release, restore, no-show, reactivate, cancel, confirm-auto-close (con `expectedVersion`, 409 sui conflitti).                                       | Sessione operatore; `cancel` e `confirm-auto-close` solo Manager e Amministratore         |
+| `/api/v1/appointments/:id/check-in` | POST      | Conclude l'accettazione dal tablet: note dell'ispezione, chiusura pratica (serve il video del veicolo, le foto no), notifica al CRM.                                                            | Sessione operatore (Accettatore, Manager, Amministratore)                                 |
+| `/api/v1/appointments/:id/media`    | GET, POST | Media dell'ispezione: elenco (GET) e caricamento multipart di una foto o di un video dal tablet (POST, campo `foto`, `categoria` facoltativa).                                                  | Sessione operatore (Accettatore, Manager, Amministratore)                                 |
+| `/api/v1/media/:key`                | GET       | Rilegge una foto o un video dell'ispezione dallo storage.                                                                                                                                       | Sessione operatore (Accettatore, Manager, Amministratore)                                 |
+| `/api/v1/inspections/archive`       | GET       | Storico dei check-in con i media acquisiti (`?q=` targa o codice; vuoto = ultimi cinquanta).                                                                                                    | Sessione operatore (Accettatore, Manager, Amministratore)                                 |
+| `/api/v1/events/stream`             | GET       | Eventi in tempo reale (SSE) per l'area operatore: segnala cosa è cambiato, i dati si rileggono dagli endpoint.                                                                                  | Sessione operatore (Accettatore, Manager, Amministratore)                                 |
+| `/api/v1/sync`                      | POST      | Sincronizzazione manuale dell'agenda Infinity di oggi.                                                                                                                                          | Manager e Amministratore; Accettatore solo come «Riprova» dopo una sync fallita o assente |
 
 ### API: pubbliche (portale cliente, monitor, tabellone)
 

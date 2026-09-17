@@ -190,7 +190,9 @@ export function QueueDashboard({
 
   return (
     <div className="flex flex-col gap-4">
-      <div className="flex flex-wrap items-end justify-between gap-3">
+      {/* Intestazione e comandi: su un tablet piccolo i comandi prendono tutta la riga sotto al
+          titolo, con spazi larghi fra loro; da 1024 px in su tornano accanto al titolo. */}
+      <div className="flex flex-wrap items-end justify-between gap-4">
         <div>
           <h1 className="text-2xl font-bold tracking-tight">
             {view === 'returns' ? 'Riconsegne veicoli' : 'Coda accettazione'}
@@ -207,12 +209,12 @@ export function QueueDashboard({
             ) : null}
           </p>
         </div>
-        <div className="flex flex-wrap items-center gap-2">
+        <div className="flex w-full flex-wrap items-center gap-3 lg:w-auto">
           {view === 'desk' ? (
-            <label className="flex items-center gap-2 text-sm">
+            <label className="flex min-w-0 flex-1 items-center gap-2 text-sm lg:flex-none">
               <span className="text-slate-600">Sportello</span>
               <Select
-                className="w-auto min-w-56"
+                className="w-full min-w-0 lg:w-auto lg:min-w-56"
                 value={deskId ?? ''}
                 onChange={(event) => updateUrl({ deskId: event.target.value })}
                 aria-label="Sportello visualizzato"

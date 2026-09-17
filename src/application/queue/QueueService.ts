@@ -17,6 +17,7 @@ import { domainError, type DomainError } from '@/domain/errors';
 import type { AppointmentId, BayId, DeskId, OperatorId, WorkstationId } from '@/domain/ids';
 import type {
   BayDisplayView,
+  BayOccupancyOptionView,
   QueuePositionView,
   QueueRowView,
   WaitingBoardView,
@@ -107,6 +108,27 @@ export interface TakeInChargeInput extends TransitionInput {
 export interface BayOccupancyView {
   readonly bay: Bay;
   readonly appointment: Appointment | null;
+}
+
+/**
+ * L'occupazione degli sportelli come esce dall'API della coda: lo sportello perde il
+ * `displayToken`, che è il segreto con cui i monitor kiosk si autenticano. Alla dashboard servono
+ * lettera e nome; il token no, e una risposta che ogni sessione operatore può leggere non è il
+ * posto dove tenerlo.
+ */
+export function toBayOccupancyOptions(
+  occupancy: readonly BayOccupancyView[],
+): readonly BayOccupancyOptionView[] {
+  return occupancy.map((o) => ({
+    bay: {
+      id: o.bay.id,
+      code: o.bay.code,
+      number: o.bay.number,
+      name: o.bay.name,
+      isActive: o.bay.isActive,
+    },
+    appointment: o.appointment,
+  }));
 }
 
 export class QueueService {

@@ -1,11 +1,12 @@
 'use client';
 
-// Documentazione fotografica del veicolo al check-in, tutta FACOLTATIVA: nessuna foto blocca la
-// chiusura della pratica. Tre modi di documentare, dal più guidato al più libero:
+// Documentazione del veicolo al check-in. Un solo passaggio obbligatorio, il VIDEO: finché manca,
+// il suo pulsante è ambra e la pratica non si chiude. Le foto sono tutte facoltative e si fanno in
+// tre modi, dal più guidato al più libero:
 // - il giro dell'auto a slot (davanti, dietro, fiancate, interni, danni): caselle grandi che aprono
 //   la fotocamera posteriore e dicono a colpo d'occhio cosa è stato ripreso (bordo verde);
 // - "+ Foto": uno scatto in più quando serve, senza dover scegliere una casella;
-// - "Video": una breve ripresa del giro (mp4/mov/webm dalla fotocamera del tablet).
+// - "Video": la ripresa breve del giro (mp4/mov/webm dalla fotocamera del tablet).
 // Anteprima subito, rotella mentre il file viaggia; se il salvataggio fallisce il media sparisce e
 // compare l'errore, perché una foto che sembra esserci ma non è stata salvata è peggio di nessuna
 // foto. Tutti i bersagli sono almeno 44 px: si usa in piedi, con i guanti.
@@ -284,7 +285,7 @@ export function PhotoCapture({ appointmentId, media, onUploaded }: PhotoCaptureP
         <div className="flex items-baseline justify-between gap-3">
           <h2 className="text-2xl font-bold">Giro del veicolo</h2>
           <span className="text-base font-semibold text-slate-600">
-            facoltativo · {foto.length} foto, {video.length} video
+            foto facoltative · {foto.length} foto, {video.length} video
           </span>
         </div>
         <ul className="grid grid-cols-2 gap-4 lg:grid-cols-4">{suggerite.map(slot)}</ul>
@@ -292,13 +293,35 @@ export function PhotoCapture({ appointmentId, media, onUploaded }: PhotoCaptureP
 
       <div className="flex flex-col gap-3">
         <div className="flex items-baseline justify-between gap-3">
-          <h2 className="text-xl font-bold text-slate-700">Se serve</h2>
-          <span className="text-base text-slate-500">interni, danni, foto libere e video</span>
+          <h2 className="text-xl font-bold text-slate-700">Video e altri scatti</h2>
+          <span className="text-base text-slate-500">il video è obbligatorio, il resto no</span>
         </div>
         <ul className="grid grid-cols-2 gap-4 lg:grid-cols-4">{facoltative.map(slot)}</ul>
 
-        {/* Comandi liberi: bersagli alti 56 px, si premono con il pollice tenendo il tablet. */}
+        {/* Comandi liberi: bersagli alti 56 px, si premono con il pollice tenendo il tablet.
+            Il video è l'unico obbligatorio, quindi finché manca è il pulsante più evidente. */}
         <div className="flex flex-wrap gap-3" aria-label="Foto aggiuntive e video">
+          <button
+            type="button"
+            onClick={() => inputRefs.current.get('VIDEO')?.click()}
+            aria-label={
+              video.length === 0
+                ? 'Registra il video del veicolo (obbligatorio)'
+                : 'Registra un altro video del veicolo'
+            }
+            data-testid="registra-video"
+            className={cn(
+              'flex min-h-14 min-w-14 flex-[2] items-center justify-center gap-3 rounded-2xl border-[3px] px-5 text-xl font-bold shadow-sm focus-visible:ring-4 focus-visible:ring-slate-400 focus-visible:outline-none',
+              video.length === 0
+                ? 'border-amber-500 bg-amber-100 text-amber-900 active:bg-amber-200'
+                : 'border-status-completed bg-white text-slate-900 active:bg-slate-100',
+            )}
+          >
+            <span aria-hidden="true" className="text-2xl leading-none">
+              {video.length === 0 ? '▶' : '✓'}
+            </span>
+            {video.length === 0 ? 'Video · obbligatorio' : 'Rifai il video'}
+          </button>
           <button
             type="button"
             onClick={() => inputRefs.current.get('EXTRA')?.click()}
@@ -310,18 +333,6 @@ export function PhotoCapture({ appointmentId, media, onUploaded }: PhotoCaptureP
               +
             </span>
             Foto
-          </button>
-          <button
-            type="button"
-            onClick={() => inputRefs.current.get('VIDEO')?.click()}
-            aria-label="Registra un video del veicolo"
-            data-testid="registra-video"
-            className="flex min-h-14 min-w-14 flex-1 items-center justify-center gap-3 rounded-2xl border-[3px] border-slate-900 bg-white px-5 text-xl font-bold text-slate-900 shadow-sm focus-visible:ring-4 focus-visible:ring-slate-400 focus-visible:outline-none active:bg-slate-100"
-          >
-            <span aria-hidden="true" className="text-2xl leading-none">
-              ▶
-            </span>
-            Video
           </button>
           {inputNascosto('EXTRA', 'image/*', (file) => void onFile(file, 'EXTRA', 'PHOTO'))}
           {inputNascosto('VIDEO', 'video/*', (file) => void onFile(file, null, 'VIDEO'))}

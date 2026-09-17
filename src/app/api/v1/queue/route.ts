@@ -1,10 +1,12 @@
 // GET /api/v1/queue?date=YYYY-MM-DD&deskId=&view=desk|global|returns
-// Coda della giornata per la dashboard (polling ogni 3 s): righe arricchite, occupazione campate,
+// Coda della giornata per la dashboard (polling ogni 3 s): righe arricchite, occupazione degli
+// sportelli (senza il token dei monitor, che resta un segreto dei kiosk),
 // ultima sync e dati di riferimento. Senza `deskId` usa lo sportello della postazione di sessione.
 // Con `view=returns` le righe sono le riconsegne (flusso RETURN), che non passano dalla coda;
 // `returnsCount` dice quante sono anche nelle altre viste, per il pulsante della scheda.
 import { NextResponse, type NextRequest } from 'next/server';
 import { readApiSession } from '@/app/_server/session';
+import { toBayOccupancyOptions } from '@/application/queue/QueueService';
 import { getContainer } from '@/config/container';
 import { asDeskId } from '@/domain/ids';
 import { isIsoDate } from '@/domain/value-objects/iso-date';
@@ -67,7 +69,7 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
     returnsCount: riconsegne.length,
     deskId,
     rows,
-    bays,
+    bays: toBayOccupancyOptions(bays),
     lastSync,
     desks,
     brands,

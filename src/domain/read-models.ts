@@ -4,6 +4,7 @@
 import type { Appointment, AppointmentStatus } from './entities/appointment';
 import type { CrmEventType, CrmOutboxStatus } from './entities/crm-outbox-event';
 import type { NotificationChannel, NotificationJobStatus } from './entities/notification';
+import type { BayId } from './ids';
 import type { IsoDate, IsoDateTime } from './value-objects/iso-date';
 import type { PlateNumber } from './value-objects/plate';
 import type { QueueCode } from './value-objects/queue-code';
@@ -47,6 +48,26 @@ export interface BayDisplayView {
   readonly since: IsoDateTime | null;
   readonly lastCompletedCode: QueueCode | null;
   readonly lastCompletedAt: IsoDateTime | null;
+}
+
+/**
+ * Sportello come lo vede la dashboard: identificativo, lettera, nome e stato. Niente
+ * `displayToken`: quel segreto serve solo ai monitor kiosk per autenticarsi, e una risposta letta
+ * da ogni sessione operatore non è il posto dove farlo circolare.
+ */
+export interface BayOptionView {
+  readonly id: BayId;
+  readonly code: string;
+  readonly number: number;
+  readonly name: string;
+  readonly isActive: boolean;
+}
+
+/** Occupazione di uno sportello come esce dall'API della coda. */
+export interface BayOccupancyOptionView {
+  readonly bay: BayOptionView;
+  /** Pratica che lo occupa adesso; null se è libero. */
+  readonly appointment: Appointment | null;
 }
 
 /** Riga del tabellone della sala d'attesa: codice chiamato e dove presentarsi. */
