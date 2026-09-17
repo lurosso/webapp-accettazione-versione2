@@ -25,10 +25,11 @@ export type ButtonVariant =
   | 'onDark';
 
 /**
- * `md` è il predefinito e vale 44 px. `sm` è la stessa altezza con meno respiro ai lati, per i
- * comandi di contorno che stanno in una riga fitta. `lg` (56 px) è l'azione primaria di una
- * schermata usata in piedi. `touch` resta come alias di `md`: è scritto in una trentina di punti
- * e non ha più senso distinguerlo, visto che adesso ogni taglia è una taglia da tocco.
+ * Le altezze non sono più numeri fissi: le decide la densità (`controllo`, `controllo-lg` in
+ * `globals.css`), che cambia da sola secondo il puntatore. `md` è il predefinito — 44 px al banco,
+ * 52 col dito. `sm` è la stessa altezza con meno respiro ai lati, per i comandi di contorno che
+ * stanno in una riga fitta. `lg` è l'azione primaria di una schermata: 48 al banco, 60 sul
+ * piazzale. `touch` resta come alias di `md`, scritto com'è in una trentina di punti.
  */
 export type ButtonSize = 'sm' | 'md' | 'lg' | 'touch';
 
@@ -55,10 +56,10 @@ const VARIANT_CLASSES: Record<ButtonVariant, string> = {
 };
 
 const SIZE_CLASSES: Record<ButtonSize, string> = {
-  sm: 'min-h-touch min-w-touch px-3 text-sm',
-  md: 'min-h-touch min-w-touch px-4 text-sm',
-  touch: 'min-h-touch min-w-touch px-4 text-sm',
-  lg: 'min-h-touch-lg min-w-touch px-6 text-base',
+  sm: 'controllo min-w-touch testo-nota px-3.5',
+  md: 'controllo min-w-touch testo-corpo px-5',
+  touch: 'controllo min-w-touch testo-corpo px-5',
+  lg: 'controllo-lg min-w-touch testo-dato px-7',
 };
 
 export function Button({

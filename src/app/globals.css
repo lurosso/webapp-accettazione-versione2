@@ -191,13 +191,13 @@
   --shadow-2xl: 0 28px 56px -16px rgb(20 44 61 / 0.22);
 
   /*
-   * Misure del tocco. `touch` è il pavimento: 44 px di lato, la soglia sotto la quale un dito
-   * sbaglia bersaglio. `touch-lg` è l'azione primaria di una schermata usata in piedi. `riga` è
-   * l'altezza minima di una riga di tabella: sotto, si tocca la pratica sbagliata.
+   * Misure del tocco. `touch` è il pavimento assoluto: 44 px di lato, la soglia sotto la quale un
+   * dito sbaglia bersaglio, e vale anche al banco perché costa niente. `touch-lg` è l'azione
+   * primaria di una schermata usata in piedi. Le misure che CAMBIANO con il dispositivo stanno
+   * più sotto, nel blocco della densità.
    */
   --spacing-touch: 2.75rem;
   --spacing-touch-lg: 3.5rem;
-  --spacing-riga: 3.5rem;
 
   /*
    * Una sola curva per tutto il movimento: parte decisa e si posa piano, che è come si muove un
@@ -232,6 +232,84 @@
   --durata-lenta: 320ms;
   /* Colore dell'anello di focus, sovrascrivibile sulle barre blu (vedi variante `onDark`). */
   --anello-colore: var(--color-brand-blue-light);
+}
+
+/*
+ * DENSITÀ — una sola applicazione, due tarature.
+ *
+ * La stessa schermata si usa seduti al banco con il mouse e in piedi sul piazzale con l'iPad in
+ * mano. Sono due condizioni diverse di lettura e di mira, non due prodotti: colori, caratteri,
+ * forme e moto restano identici, cambiano sei misure.
+ *
+ * A decidere è il PUNTATORE, non la larghezza della finestra: un iPad in orizzontale è più largo
+ * di parecchi monitor, ma si usa con le dita. `(pointer: coarse)` è la stessa condizione che usa
+ * `useIsTouchLayout()` per le differenze di struttura (colonna a sinistra o barra in alto,
+ * pannello affiancato o foglio che sale): così CSS e TypeScript non possono dissentire.
+ *
+ * Il vantaggio di tenerlo qui e non nei componenti è che una schermata scritta domani prende la
+ * taratura giusta senza saperne niente: usa `controllo`, `riga`, `testo-corpo` e basta.
+ */
+:root {
+  /* Al banco: il puntatore è preciso al pixel e il testo si legge a sessanta centimetri. */
+  --h-controllo: 2.75rem; /* 44 px */
+  --h-controllo-lg: 3rem; /* 48 px */
+  --h-riga: 3.5rem; /* 56 px */
+  --testo-nota: 0.8125rem; /* 13 px */
+  --testo-corpo: 0.875rem; /* 14 px */
+  --testo-dato: 0.9375rem; /* 15 px */
+  --testo-codice: 1.0625rem; /* 17 px */
+}
+
+@media (pointer: coarse) {
+  :root {
+    /* Sul piazzale: mezzo metro di distanza, tablet inclinato, spesso col sole di traverso. */
+    --h-controllo: 3.25rem; /* 52 px */
+    --h-controllo-lg: 3.75rem; /* 60 px */
+    --h-riga: 4.25rem; /* 68 px */
+    --testo-nota: 0.9375rem; /* 15 px */
+    --testo-corpo: 1.0625rem; /* 17 px */
+    --testo-dato: 1.1875rem; /* 19 px */
+    --testo-codice: 1.625rem; /* 26 px */
+  }
+}
+
+/** Altezza di un comando: 44 px al banco, 52 col dito. */
+@utility controllo {
+  min-height: var(--h-controllo);
+}
+
+/** L'azione primaria di una schermata: 48 px al banco, 60 col dito. */
+@utility controllo-lg {
+  min-height: var(--h-controllo-lg);
+}
+
+/** Altezza minima di una riga d'elenco: sotto, si tocca la pratica sbagliata. */
+@utility riga {
+  height: var(--h-riga);
+}
+
+/** Informazione di contorno (l'orario originale, «saltata 2 volte»). Mai sotto i 13 px. */
+@utility testo-nota {
+  font-size: var(--testo-nota);
+  line-height: 1.35;
+}
+
+/** Il testo corrente di un elenco o di una scheda. */
+@utility testo-corpo {
+  font-size: var(--testo-corpo);
+  line-height: 1.45;
+}
+
+/** Un dato che si cerca con l'occhio: la targa, il nome del cliente, un conteggio. */
+@utility testo-dato {
+  font-size: var(--testo-dato);
+  line-height: 1.3;
+}
+
+/** Il codice della pratica: è l'ancora visiva della riga, e quello che il cliente sente chiamare. */
+@utility testo-codice {
+  font-size: var(--testo-codice);
+  line-height: 1.1;
 }
 
 /*

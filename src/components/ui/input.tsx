@@ -6,7 +6,7 @@ export function Input({ className, ...props }: InputHTMLAttributes<HTMLInputElem
   return (
     <input
       className={cn(
-        'min-h-touch border-line bg-surface text-ink w-full rounded-md border px-3.5 text-sm shadow-xs',
+        'controllo border-line bg-surface text-ink testo-corpo w-full rounded-md border px-3.5 shadow-xs',
         // Il segnaposto è testo: `slate-400` dava 3,2:1 e a mezzo metro non si leggeva.
         'placeholder:text-ink-muted',
         'transizione focus-anello',
