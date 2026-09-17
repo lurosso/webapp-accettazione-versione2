@@ -7,14 +7,17 @@
 // coda con un tocco. Rimetterla in attesa resta possibile, ma dall'assistenza in amministrazione.
 //
 // Le azioni di routine (prendi in carico, salta, completato) restano a un solo tocco: si fanno
-// decine di volte al giorno e una finestra di conferma le renderebbe insopportabili. "Segna
-// assente" è diverso: genera un lead per il BDC e un evento verso il CRM, e solo un responsabile
-// può riaprire la pratica. Per questo chiede un secondo tocco sullo stesso pulsante — una
-// conferma in linea, non una finestra — che dopo pochi secondi torna da sola allo stato iniziale.
-import { useEffect, useState } from 'react';
+// decine di volte al giorno e una finestra di conferma le renderebbe insopportabili. Si disfano
+// dall'avviso «Annulla» che compare in basso per cinque secondi (`UndoToast` nella dashboard).
+//
+// "Segna assente" è di un'altra natura: genera un lead per il BDC e un evento verso il CRM, cioè
+// esce dall'officina, e solo un responsabile può riaprire la pratica. Passa da `HoldButton`, che
+// chiede il dito tenuto premuto sul tablet e un secondo clic al banco — la difesa giusta per il
+// rischio giusto, senza che questa riga debba sapere su cosa sta girando.
 import { canTransition } from '@/domain/appointment-state-machine';
 import { isInQueue, type Appointment } from '@/domain/entities/appointment';
 import { Button, type ButtonVariant } from '@/components/ui/button';
+import { HoldButton } from '@/components/ui/hold-button';
 import type { AppointmentAction } from './types';
 
 export interface ActionButtonsProps {
@@ -31,20 +34,14 @@ export interface ActionButtonsProps {
   readonly onAction: (action: AppointmentAction) => void;
 }
 
-/** Azioni che richiedono il secondo tocco, con il testo mostrato in attesa della conferma. */
-const CONFIRM_LABELS: Partial<Record<AppointmentAction, string>> = {
-  'no-show': 'Confermi assente?',
-};
-
-/** Dopo quanto la richiesta di conferma decade da sola. */
-const CONFIRM_TIMEOUT_MS = 6_000;
-
 interface ActionSpec {
   readonly action: AppointmentAction;
   readonly label: string;
   /** Nome per esteso, quando l'etichetta visibile è abbreviata per stare nella riga. */
   readonly fullLabel?: string;
   readonly variant: ButtonVariant;
+  /** Esce dall'officina: vuole un gesto deliberato, non un tocco. Testo della conferma. */
+  readonly confirmLabel?: string;
 }
 
 export function ActionButtons({
@@ -55,17 +52,6 @@ export function ActionButtons({
   onAction,
 }: ActionButtonsProps) {
   const { status } = appointment;
-  const [confirming, setConfirming] = useState<AppointmentAction | null>(null);
-
-  // La conferma non deve restare appesa: se l'accettatore si distrae, il pulsante torna normale.
-  useEffect(() => {
-    if (confirming === null) {
-      return undefined;
-    }
-    const timer = setTimeout(() => setConfirming(null), CONFIRM_TIMEOUT_MS);
-    return () => clearTimeout(timer);
-  }, [confirming]);
-
   const buttons: ActionSpec[] = [];
 
   // Solo dalla coda: una pratica completata torna in carico dal dettaglio ("Riapri pratica"), non
@@ -94,6 +80,7 @@ export function ActionButtons({
       label: 'Assente',
       fullLabel: 'Segna assente',
       variant: 'destructiveQuiet',
+      confirmLabel: 'Confermi assente?',
     });
   } else {
     if (status === 'WAITING' && canTransition(status, 'SKIPPED')) {
@@ -124,43 +111,35 @@ export function ActionButtons({
     return <span className="text-ink-muted text-xs">—</span>;
   }
 
-  const onClick = (spec: ActionSpec): void => {
-    const richiedeConferma = CONFIRM_LABELS[spec.action] !== undefined;
-    if (richiedeConferma && confirming !== spec.action) {
-      setConfirming(spec.action);
-      return;
-    }
-    setConfirming(null);
-    onAction(spec.action);
-  };
-
   return (
     <div className="flex flex-wrap items-center justify-end gap-2">
       {buttons.map((b) => {
-        const inConferma = confirming === b.action;
-        return (
+        const nome = `${b.fullLabel ?? b.label} pratica ${appointment.code}`;
+        return b.confirmLabel === undefined ? (
           <Button
             key={b.action}
             size="sm"
-            variant={inConferma ? 'destructive' : b.variant}
+            variant={b.variant}
             disabled={pending}
-            onClick={() => onClick(b)}
-            aria-label={
-              inConferma
-                ? `Conferma: ${(b.fullLabel ?? b.label).toLowerCase()} pratica ${appointment.code}`
-                : `${b.fullLabel ?? b.label} pratica ${appointment.code}`
-            }
-            className={inConferma ? 'ring-2 ring-red-300 ring-offset-1' : undefined}
+            onClick={() => onAction(b.action)}
+            aria-label={nome}
           >
-            {inConferma ? CONFIRM_LABELS[b.action] : b.label}
+            {b.label}
           </Button>
+        ) : (
+          <HoldButton
+            key={b.action}
+            size="sm"
+            variant={b.variant}
+            disabled={pending}
+            onConfirm={() => onAction(b.action)}
+            confirmLabel={b.confirmLabel}
+            actionLabel={nome}
+          >
+            {b.label}
+          </HoldButton>
         );
       })}
-      {confirming !== null ? (
-        <Button size="sm" variant="ghost" onClick={() => setConfirming(null)}>
-          Annulla
-        </Button>
-      ) : null}
     </div>
   );
 }

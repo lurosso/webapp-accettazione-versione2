@@ -13,6 +13,7 @@ import { Button } from '@/components/ui/button';
 import { Dialog } from '@/components/ui/dialog';
 import { Select } from '@/components/ui/select';
 import { TableSkeleton } from '@/components/ui/skeleton';
+import { UndoToast } from '@/components/ui/undo-toast';
 import { EmptyState } from '@/components/shared/EmptyState';
 import { STALE_WARNING_MS } from '@/config/constants';
 import { useAppointmentActions } from '@/hooks/useAppointmentActions';
@@ -30,6 +31,30 @@ import { ReturnsTable } from './ReturnsTable';
 import { StatusBadge } from './StatusBadge';
 import { SyncBanner } from './SyncBanner';
 import type { AppointmentAction, QueueParams, QueueView } from './types';
+
+/**
+ * L'azione contraria di quelle che si disfano. Esistono già nella macchina a stati — una pratica
+ * presa in carico si rimette in coda, una saltata si ripristina — quindi «Annulla» non è un
+ * percorso speciale: è un comando normale mandato al posto dell'operatore.
+ */
+const AZIONE_CONTRARIA: Partial<Record<AppointmentAction, AppointmentAction>> = {
+  take: 'release',
+  skip: 'restore',
+};
+
+/** Come si chiama, in officina, quello che è appena successo. */
+const ESITO_ANNULLABILE: Partial<Record<AppointmentAction, string>> = {
+  take: 'presa in carico',
+  skip: 'saltata',
+};
+
+/** Quello che serve per tornare indietro: la pratica, la sua versione nuova, il comando inverso. */
+interface Annullabile {
+  readonly messaggio: string;
+  readonly appointmentId: string;
+  readonly version: number;
+  readonly contraria: AppointmentAction;
+}
 
 export interface QueueDashboardProps {
   readonly session: Session;
@@ -95,6 +120,7 @@ export function QueueDashboard({
   );
   const queue = useQueue(params);
   const actions = useAppointmentActions();
+  const [annullabile, setAnnullabile] = useState<Annullabile | null>(null);
   // Separazione PC / tablet: stessa applicazione, comportamento diverso secondo il dispositivo.
   // Al banco la presa in carico apre il pannello di dettaglio e l'operatore resta sulla coda,
   // senza alcun passaggio alle foto (da un PC non si scattano); sul piazzale, tablet in mano,
@@ -160,17 +186,48 @@ export function QueueDashboard({
 
   const onAction = useCallback(
     (appointmentId: string, action: AppointmentAction, expectedVersion: number): void => {
+      const contraria = AZIONE_CONTRARIA[action];
       actions.run(
         appointmentId,
         { action, expectedVersion },
-        // Anche la riapertura rimette la pratica in carico: stesso seguito della presa in carico.
-        action === 'take' || action === 'reopen-completed'
-          ? { onSuccess: () => dopoPresaInCarico(appointmentId) }
-          : undefined,
+        {
+          onSuccess: (appointment) => {
+            // Anche la riapertura rimette la pratica in carico: stesso seguito della presa in carico.
+            if (action === 'take' || action === 'reopen-completed') {
+              dopoPresaInCarico(appointmentId);
+            }
+            // Sul tablet la presa in carico porta subito al check-in: un avviso su una schermata
+            // che si sta lasciando non lo leggerebbe nessuno.
+            const siCambiaSchermata =
+              touchLayout && (action === 'take' || action === 'reopen-completed');
+            if (contraria === undefined || siCambiaSchermata) {
+              setAnnullabile(null);
+              return;
+            }
+            setAnnullabile({
+              messaggio: `${appointment.code} ${ESITO_ANNULLABILE[action] ?? 'aggiornata'}`,
+              appointmentId,
+              // La versione è cambiata con l'azione appena riuscita: l'annullamento deve partire
+              // da quella nuova, altrimenti il server risponde 409 a un comando che è nostro.
+              version: appointment.version,
+              contraria,
+            });
+          },
+        },
       );
     },
-    [actions, dopoPresaInCarico],
+    [actions, dopoPresaInCarico, touchLayout],
   );
+
+  /** Manda l'azione contraria. Non trattiene niente: quella di prima è già sul server. */
+  const annulla = useCallback((): void => {
+    if (annullabile === null) {
+      return;
+    }
+    const { appointmentId, version, contraria } = annullabile;
+    setAnnullabile(null);
+    actions.run(appointmentId, { action: contraria, expectedVersion: version });
+  }, [actions, annullabile]);
 
   const onSync = async (): Promise<void> => {
     setSyncing(true);
@@ -452,6 +509,12 @@ export function QueueDashboard({
           {formatDateTimeIt(data.serverTime, data.timeZone)}
         </p>
       ) : null}
+
+      <UndoToast
+        message={annullabile?.messaggio ?? null}
+        onUndo={annulla}
+        onDismiss={() => setAnnullabile(null)}
+      />
 
       <AppointmentDetailPanel
         row={selectedRow}
