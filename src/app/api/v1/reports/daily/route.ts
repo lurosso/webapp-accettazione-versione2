@@ -1,6 +1,7 @@
 // GET /api/v1/reports/daily?giornata=YYYY-MM-DD — indicatori della giornata (M7).
-// Riservato a responsabili e amministratori: sono numeri sulle persone che lavorano in officina,
-// non un dato operativo da lasciare aperto.
+// Riservato agli AMMINISTRATORI (dal 2026-09-17): sono numeri sulle persone che lavorano in
+// officina, e la visione d'insieme è di chi ha la responsabilità dell'insieme. Il BDC lavora
+// sull'elenco degli assenti, non su medie e percentuali.
 import { NextResponse, type NextRequest } from 'next/server';
 import { readApiSession } from '@/app/_server/session';
 import { getContainer } from '@/config/container';
@@ -15,8 +16,8 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
   if (session === null) {
     return unauthorizedResponse();
   }
-  if (!canAccess('manager', session.role)) {
-    return forbiddenResponse('Le statistiche sono riservate a responsabili e amministratori.');
+  if (!canAccess('admin', session.role)) {
+    return forbiddenResponse("Le statistiche della giornata sono riservate all'amministratore.");
   }
 
   const container = getContainer();

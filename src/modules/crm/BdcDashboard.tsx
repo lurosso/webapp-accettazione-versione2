@@ -2,8 +2,11 @@
 
 // Cruscotto del BDC (modulo F): la lista di lavoro del back office.
 // Chi non si presenta in officina finisce qui entro pochi secondi, con nome, telefono e veicolo;
-// il reparto telefona e chiude la riga. Nient'altro: una pagina di lavoro, non un cruscotto di
-// indicatori, perché quello che serve al BDC è sapere chi chiamare adesso.
+// il reparto telefona, riprogramma l'appuntamento su Infinity e chiude la riga.
+//
+// Nient'altro: niente statistiche, niente medie, niente grafici. Dal 2026-09-17 gli indicatori
+// della giornata stanno nella vista amministratore; qui resta l'elenco degli assenti, che è il
+// lavoro del BDC, più la chiusura di giornata che quell'elenco lo riempie.
 import { useState } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import type { Session } from '@/application/auth/IAuthService';
@@ -15,7 +18,6 @@ import { ApiError, postCloseDay, postLeadContacted } from '@/lib/api-client/clie
 import { queueKeys } from '@/lib/api-client/query-keys';
 import { bdcKeys, useBdcLeads, BDC_POLLING_MS } from '@/hooks/useBdcLeads';
 import { BdcLeadsTable } from './BdcLeadsTable';
-import { DailyReportPanel } from './DailyReportPanel';
 import { TableSkeleton } from '@/components/ui/skeleton';
 
 export interface BdcDashboardProps {
@@ -132,10 +134,6 @@ export function BdcDashboard({ session, businessDate, timeZone }: BdcDashboardPr
           </Badge>
         </div>
       </header>
-
-      {/* Statistiche della giornata operativa del server: il riquadro guarda sempre oggi, anche
-          quando l'elenco dei lead è impostato su tutte le giornate. */}
-      <DailyReportPanel businessDate={businessDate} />
 
       <div className="flex flex-wrap items-center gap-2">
         <Button

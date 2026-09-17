@@ -74,6 +74,12 @@ export interface AppEnv {
   readonly spokiUrlReminderSameDay: string | null;
   readonly spokiSecretReminderPreviousDay: string | null;
   readonly spokiSecretReminderSameDay: string | null;
+  /**
+   * Segreto delle risposte in entrata (SPOKI_INBOUND_SECRET): Spoki lo rimanda nel corpo o
+   * nell'intestazione `x-spoki-secret` quando il cliente tocca «Arrivato», «In ritardo» o
+   * «Assente». Senza segreto configurato il webhook risponde 404: meglio spento che aperto.
+   */
+  readonly spokiInboundSecret: string | null;
   /** URL delle automazioni degli altri template (non integrati in questa fase); null se non impostati. */
   readonly spokiUrlConfirmation: string | null;
   readonly spokiUrlTurnApproaching: string | null;
@@ -319,6 +325,7 @@ export function parseEnv(
     spokiUrlReminderSameDay: pickStringOrNull(source, 'SPOKI_URL_REMINDER_SAME_DAY'),
     spokiSecretReminderPreviousDay: pickStringOrNull(source, 'SPOKI_SECRET_REMINDER_PREVIOUS_DAY'),
     spokiSecretReminderSameDay: pickStringOrNull(source, 'SPOKI_SECRET_REMINDER_SAME_DAY'),
+    spokiInboundSecret: pickStringOrNull(source, 'SPOKI_INBOUND_SECRET'),
     remindersEnabled: pickBool(source, 'REMINDERS_ENABLED', true, warn),
     reminderPreviousDayHourLocal: pickHourLocal(
       source,

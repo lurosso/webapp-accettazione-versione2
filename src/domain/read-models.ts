@@ -211,6 +211,15 @@ export interface PortalStatusView extends QueuePositionView {
     readonly etaAt: IsoDateTime;
     readonly minutes: number;
   } | null;
+  /**
+   * Posizione in fila: 1 = è il prossimo. Vale mentre la pratica è in coda, altrimenti è null
+   * (chiamato, in accettazione o concluso non si sta più "in fila").
+   */
+  readonly queuePosition: number | null;
+  /** Quando il cliente ha dichiarato di essere arrivato (risposta «Arrivato» o portale). */
+  readonly arrivedAt: IsoDateTime | null;
+  /** Quando l'accettatore lo ha chiamato allo sportello; null finché è in attesa. */
+  readonly startedAt: IsoDateTime | null;
   /** True se il pulsante "Sto arrivando in ritardo" ha senso adesso. */
   readonly canReportDelay: boolean;
   /** Pratica conclusa da oltre la soglia (24 h) o di una giornata passata: si mostra solo la chiusura. */

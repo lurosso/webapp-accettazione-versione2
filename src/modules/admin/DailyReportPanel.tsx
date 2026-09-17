@@ -1,10 +1,14 @@
 'use client';
 
-// Riquadro "Statistiche del giorno" del cruscotto responsabile (M7).
+// Riquadro "Statistiche del giorno" della vista amministratore (M7).
 //
 // Tre numeri e tre percentuali, non un cruscotto di grafici: servono a rispondere a "come è andata
 // oggi?" in cinque secondi. Accanto a ogni media c'è su quante pratiche è calcolata, perché una
 // media su tre pratiche non è un indicatore, è un aneddoto.
+//
+// Dal 2026-09-17 sta qui e non più nel cruscotto BDC: sono numeri sulle persone che lavorano in
+// officina e li guarda chi ha la responsabilità dell'insieme. Al BDC serve un elenco di clienti da
+// richiamare, e una fila di indicatori sopra quell'elenco non lo aiuta a telefonare.
 import { keepPreviousData, useQuery } from '@tanstack/react-query';
 import type { DailyReportView } from '@/application/reporting/DailyReportService';
 import { Badge } from '@/components/ui/badge';

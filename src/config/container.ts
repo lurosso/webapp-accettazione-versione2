@@ -16,6 +16,7 @@ import { DailyReportService } from '@/application/reporting/DailyReportService';
 import { AppointmentReminderService } from '@/application/notifications/AppointmentReminderService';
 import { CustomerMessagingPolicy } from '@/application/notifications/CustomerMessagingPolicy';
 import { NotificationOrchestrator } from '@/application/notifications/NotificationOrchestrator';
+import { WhatsAppInboundService } from '@/application/notifications/WhatsAppInboundService';
 import { CustomerPortalService } from '@/application/portal/CustomerPortalService';
 import { createPortalTokenFactory } from '@/application/portal/portal-token';
 import { CodeGenerator } from '@/application/queue/CodeGenerator';
@@ -62,6 +63,8 @@ export interface Container {
   readonly queueService: QueueService;
   readonly manualIntakeService: ManualIntakeService;
   readonly customerPortalService: CustomerPortalService;
+  /** Risposte del cliente su WhatsApp («Arrivato», «In ritardo», «Assente»). */
+  readonly whatsAppInboundService: WhatsAppInboundService;
   readonly crmNotifier: CrmNotifier;
   readonly bdcLeadService: BdcLeadService;
   readonly crmOutboxService: CrmOutboxService;
@@ -312,6 +315,20 @@ export function createContainer(overrides: ContainerOverrides = {}): Container {
     logger,
   });
 
+  // Le risposte del cliente su WhatsApp arrivano dopo la coda: usano portale e coda come farebbe
+  // una persona allo sportello, senza logica propria.
+  const whatsAppInboundService = new WhatsAppInboundService({
+    appointments: repos.appointments,
+    referenceData: repos.referenceData,
+    portal: customerPortalService,
+    queueService,
+    orchestrator: notificationOrchestrator,
+    eventBus,
+    clock,
+    ids,
+    logger,
+  });
+
   const inspectionService = new InspectionService({
     appointments: repos.appointments,
     media: repos.media,
@@ -428,6 +445,7 @@ export function createContainer(overrides: ContainerOverrides = {}): Container {
     queueService,
     manualIntakeService,
     customerPortalService,
+    whatsAppInboundService,
     spokiDiagnosticsService,
     crmNotifier,
     bdcLeadService,

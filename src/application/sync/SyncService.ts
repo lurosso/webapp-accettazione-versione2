@@ -324,6 +324,7 @@ export class SyncService {
       autoClosedAt: null,
       autoCloseConfirmedAt: null,
       customerLateNoticeAt: null,
+      customerArrivedAt: null,
       customerEtaAt: null,
       lastSyncRunId: run.id,
       version: 1,

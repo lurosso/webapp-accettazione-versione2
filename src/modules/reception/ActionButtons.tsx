@@ -3,6 +3,9 @@
 // Pulsanti d'azione rapida per riga, mostrati in base alle transizioni ammesse dalla state machine
 // (mai disabilitati da guasti esterni: solo dalle regole e dall'azione in corso sulla stessa riga).
 //
+// Una pratica presa in carico ha un solo comando, "Completato": nulla che la faccia sparire dalla
+// coda con un tocco. Rimetterla in attesa resta possibile, ma dall'assistenza in amministrazione.
+//
 // Le azioni di routine (prendi in carico, salta, completato) restano a un solo tocco: si fanno
 // decine di volte al giorno e una finestra di conferma le renderebbe insopportabili. "Segna
 // assente" è diverso: genera un lead per il BDC e un evento verso il CRM, e solo un responsabile
@@ -86,13 +89,12 @@ export function ActionButtons({
       buttons.push({ action: 'restore', label: 'Ripristina', variant: 'ghost' });
     }
   }
-  if (status === 'IN_PROGRESS') {
-    if (canTransition(status, 'COMPLETED')) {
-      buttons.push({ action: 'complete', label: 'Completato', variant: 'success' });
-    }
-    if (canTransition(status, 'WAITING')) {
-      buttons.push({ action: 'release', label: 'Rilascia', variant: 'ghost' });
-    }
+  if (status === 'IN_PROGRESS' && canTransition(status, 'COMPLETED')) {
+    // Solo "Completato". "Rilascia" è stato tolto dalla riga (2026-09-17): riportava la pratica
+    // in coda svuotando operatore e sportello, stava accanto al pulsante verde ed era un tocco
+    // involontario a un centimetro di distanza. Una presa in carico sbagliata si sistema dal
+    // pannello di assistenza, che è di responsabili e amministratori.
+    buttons.push({ action: 'complete', label: 'Completato', variant: 'success' });
   }
 
   if (status === 'NO_SHOW' && canTransition(status, 'WAITING')) {

@@ -170,6 +170,7 @@ export class ManualIntakeService {
       autoClosedAt: null,
       autoCloseConfirmedAt: null,
       customerLateNoticeAt: null,
+      customerArrivedAt: null,
       customerEtaAt: null,
       lastSyncRunId: null,
       version: 1,

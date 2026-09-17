@@ -16,6 +16,7 @@ const METODI = ['GET', 'POST', 'PUT', 'PATCH', 'DELETE'];
 /** Livelli di accesso, con la stessa dicitura ovunque. */
 const ACCESSO = {
   pubblico: 'Pubblico',
+  webhook: 'Pubblico · segreto condiviso (`SPOKI_INBOUND_SECRET`)',
   monitor: 'Pubblico · token del monitor (`?token=`, obbligatorio con DISPLAY_TOKEN_REQUIRED=true)',
   sessione: 'Sessione operatore (Accettatore, Manager, Amministratore)',
   sessioneProvvisoria: 'Sessione operatore, anche con password provvisoria',
@@ -84,7 +85,7 @@ export const ROTTE = [
     path: '/check-in',
     area: AREE[2],
     descrizione:
-      "Vista tablet a tutto schermo: pratiche in attesa del mio sportello, prese in carico, video obbligatorio e foto facoltative, conclusione con conferma. Da PC rimanda alla coda.",
+      'Vista tablet a tutto schermo: pratiche in attesa del mio sportello, prese in carico, video obbligatorio e foto facoltative, conclusione con conferma. Da PC rimanda alla coda.',
     accesso: ACCESSO.sessione,
   },
   {
@@ -99,7 +100,7 @@ export const ROTTE = [
     path: '/manager',
     area: AREE[3],
     descrizione:
-      'Cruscotto del responsabile e del BDC: clienti assenti da ricontattare, chiusura giornata, indicatori e CSV.',
+      'Cruscotto BDC: solo i clienti assenti da ricontattare e riprogrammare su Infinity, più la chiusura di giornata.',
     accesso: ACCESSO.manager,
   },
   // Admin
@@ -107,7 +108,7 @@ export const ROTTE = [
     path: '/admin',
     area: AREE[4],
     descrizione:
-      'Operatori (crea, modifica, disattiva, reset password), assistenza (accettazioni occupate, pratiche ferme) e integrazione Spoki.',
+      'Statistiche della giornata con esporta CSV, operatori (crea, modifica, disattiva, reset password), assistenza (sportelli occupati, pratiche ferme) e integrazione Spoki.',
     accesso: ACCESSO.admin,
   },
   {
@@ -145,7 +146,7 @@ export const ROTTE = [
     path: '/portal',
     area: AREE[7],
     descrizione:
-      'Portale cliente mobile dal link WhatsApp o dal QR (`?targa=` e `&t=` token): avanzamento in 4 tappe, posizione in coda, "Sto arrivando in ritardo".',
+      'Tracciamento del cliente dal link WhatsApp o dal QR (`?targa=` e `&t=` token): posizione in fila, lettera dello sportello, orari di arrivo e chiamata, "Sto arrivando in ritardo".',
     accesso: ACCESSO.pubblico,
   },
   {
@@ -278,6 +279,13 @@ export const ROTTE = [
     accesso: ACCESSO.pubblico,
   },
   {
+    path: '/api/v1/webhooks/spoki',
+    area: AREE[10],
+    descrizione:
+      'Risposte del cliente su WhatsApp (Arrivato, In ritardo, Assente): registra arrivo o ritardo, segna assente e risponde con codice e link al tracciamento.',
+    accesso: ACCESSO.webhook,
+  },
+  {
     path: '/api/v1/public/late-notice',
     area: AREE[10],
     descrizione:
@@ -308,14 +316,14 @@ export const ROTTE = [
   {
     path: '/api/v1/reports/daily',
     area: AREE[11],
-    descrizione: 'Indicatori della giornata (`?giornata=`).',
-    accesso: ACCESSO.manager,
+    descrizione: 'Indicatori della giornata (`?giornata=`): attesa media, durata, esiti.',
+    accesso: ACCESSO.admin,
   },
   {
     path: '/api/v1/reports/daily/csv',
     area: AREE[11],
     descrizione: 'Riepilogo dettagliato della giornata in CSV (con BOM per Excel).',
-    accesso: ACCESSO.manager,
+    accesso: ACCESSO.admin,
   },
   {
     path: '/api/v1/crm/leads',

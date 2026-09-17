@@ -22,6 +22,8 @@ import type { QueueCode } from '../value-objects/queue-code';
 export type NotificationKind =
   | 'REMINDER_PREVIOUS_DAY'
   | 'REMINDER_SAME_DAY'
+  /** Risposta automatica a chi ha toccato «Arrivato»: codice in coda e link al tracciamento. */
+  | 'ARRIVAL_CONFIRMED'
   | 'BOOKING_CONFIRMED'
   | 'TURN_APPROACHING'
   | 'YOUR_TURN'

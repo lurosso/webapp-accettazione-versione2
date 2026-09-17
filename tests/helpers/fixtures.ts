@@ -201,6 +201,7 @@ export function makeAppointment(overrides: Partial<Appointment> = {}): Appointme
     autoClosedAt: null,
     autoCloseConfirmedAt: null,
     customerLateNoticeAt: null,
+    customerArrivedAt: null,
     customerEtaAt: null,
     lastSyncRunId: null,
     version: 1,

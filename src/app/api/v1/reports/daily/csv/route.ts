@@ -19,8 +19,8 @@ export async function GET(request: NextRequest): Promise<Response> {
   if (session === null) {
     return unauthorizedResponse();
   }
-  if (!canAccess('manager', session.role)) {
-    return forbiddenResponse('Il report è riservato a responsabili e amministratori.');
+  if (!canAccess('admin', session.role)) {
+    return forbiddenResponse("Il report della giornata è riservato all'amministratore.");
   }
 
   const container = getContainer();

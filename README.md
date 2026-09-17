@@ -35,20 +35,29 @@ la mette in coda. Gli accettatori lavorano su una dashboard monopagina con tre a
 | **Salta**            | Saltata                     | Pospone la pratica lasciandola al proprio orario            |
 | **Completato**       | Completata (evidenza verde) | Libera lo sportello; la pratica esce dalla vista attiva     |
 
+Una pratica presa in carico ha un solo comando, **Completato**. Il vecchio pulsante _Rilascia_, che
+la rimetteva in coda svuotando operatore e sportello, è stato tolto dalla riga (2026-09-17): stava
+a un centimetro dal verde ed era un tocco involontario che faceva sparire una prenotazione. Rimane
+possibile rimetterla in coda, ma dal **pannello di assistenza** in Amministrazione, e l'API la
+consente solo a responsabili e amministratori.
+
 Chi era atteso da più di dieci minuti e non è ancora stato preso in carico finisce nel blocco
 **In ritardo / assenti**, dove l'accettatore lo rimette in coda quando arriva, oppure lo segnala
 assente perché il BDC lo ricontatti.
 
-Il **portale cliente** completa il quadro: chi entra in officina inquadra il QR code della corsia,
-digita la targa e vede il proprio codice, quanti clienti ha davanti e cosa deve fare, con la pagina
-che si aggiorna da sola mentre l'operatore lavora. Sopra ogni postazione un **monitor** mostra il
+Il **portale cliente** completa il quadro: la mattina il cliente riceve su WhatsApp il promemoria
+con tre risposte — «Arrivato», «In ritardo», «Assente» — e toccando **Arrivato** gli tornano il
+codice e il link alla sua pagina di tracciamento (il QR in corsia resta come strada alternativa).
+Lì vede la posizione in fila, la lettera dello sportello quando tocca a lui e gli orari di arrivo e
+chiamata, con la pagina che si aggiorna da sola mentre l'operatore lavora. Sopra ogni postazione un **monitor** mostra il
 codice in lavorazione e, appena l'accettatore chiude la pratica, invita il cliente successivo ad
 avanzare. Le **comunicazioni** partono da sole dopo la sincronizzazione dell'agenda, con WhatsApp
 via Spoki e ripiego automatico su SMS. Dal **tablet** l'accettatore fa il giro della vettura, gira
 il video (l'unico passaggio obbligatorio), aggiunge le foto che servono, annota i danni e chiude il
 check-in dopo una conferma. Note, foto e video finiscono nel fascicolo della pratica, si rivedono
 dalla dashboard e arrivano al CRM. Chi non si presenta finisce nel **cruscotto
-BDC**, dove il back office lo richiama e chiude il lead. Restano da sviluppare il registro degli
+BDC**, che è solo l'elenco degli assenti da richiamare e riprogrammare; le statistiche della
+giornata stanno in Amministrazione. Restano da sviluppare il registro degli
 invii, i video e la vista tecnica degli eventi CRM. La priorità di sviluppo è definita in [`CLAUDE.md`](CLAUDE.md); i
 requisiti completi sono in [`docs/ANALISI_REQUISITI.md`](docs/ANALISI_REQUISITI.md).
 
@@ -338,8 +347,10 @@ capo invece di sovrapporsi.
 
 ### Provare il cruscotto BDC
 
-Serve un account con ruolo responsabile: `responsabile` / `demo`. Dalla dashboard di accettazione
-segna assente un cliente del blocco **In ritardo / assenti**, poi apri
+Il cruscotto BDC è **solo l'elenco dei clienti assenti**: chi non si è presentato, da richiamare e
+da riprogrammare su Infinity. Niente statistiche, niente medie, niente grafici — quelli stanno in
+Amministrazione. Serve un account con ruolo responsabile: `responsabile` / `demo`. Dalla dashboard
+di accettazione segna assente un cliente del blocco **In ritardo / assenti**, poi apri
 <http://localhost:3000/manager>: la riga compare subito nel cruscotto con nome, numero richiamabile
 con un tocco, targa, veicolo, motivo e ora dell'assenza. **Segna come ricontattato** chiude il lead
 (con **Con esito** si aggiunge una nota, per esempio "richiama lunedì"), e la spunta _Mostra anche i
@@ -353,11 +364,19 @@ raggiungibile", ma il BDC può comunque telefonare e chiudere: l'evento resta in
 Il portale si apre su <http://localhost:3000/qr> (alias breve di `/cliente`, adatto ai cartelli con
 il QR code) oppure direttamente su `/portal?targa=AB123CD`, l'indirizzo che il cliente riceve via
 WhatsApp (con in più `&t=<token>`, il token unico della pratica che apre la pagina senza login e
-senza limiti di frequenza). La schermata mobile mostra codice e targa in grande, la **barra di
-avanzamento** a quattro tappe (In attesa → In accettazione → In lavorazione → Pronta per il
-ritiro), quanti clienti ci sono prima nella stessa fila, orario previsto, accettatore e sede, e il
-pulsante **"Sto arrivando in ritardo (+10 min)"**: un tocco avvisa l'accettazione (avviso ambra
-sulla riga della dashboard, nessuna telefonata) senza cambiare codice né posizione in coda. Una
+senza limiti di frequenza).
+
+La schermata mobile è pensata per chi la guarda due secondi ogni tanto, in piedi in sala. In alto
+codice e targa, poi la **barra di avanzamento** a quattro tappe (In attesa → In accettazione → In
+lavorazione → Pronta per il ritiro), e al centro **un solo numero grande**, che cambia significato
+con lo stato: mentre si aspetta è la posizione in fila ("Sei il numero 3 in attesa", con i clienti
+davanti sotto), quando tocca a lui è la **lettera dello sportello** ("È il tuo turno · SPORTELLO
+A"). Mai due numeri grandi insieme: davanti a un "3" e a una "B" della stessa dimensione nessuno
+capisce quale contare. Sotto, la **riga del tempo** con tre orari — arrivo registrato, chiamata
+allo sportello, orario previsto — che risponde alla domanda di chi aspetta, "da quanto sono qui e
+quando tocca a me". Chiudono la pagina targa, accettatore, sede e il pulsante **"Sto arrivando in
+ritardo (+10 min)"**: un tocco avvisa l'accettazione (avviso ambra sulla riga della dashboard,
+nessuna telefonata) senza cambiare codice né posizione in coda. Una
 targa sconosciuta, un token non valido o una pratica conclusa da oltre 24 ore mostrano una
 schermata cortese al posto della coda. Serve una targa presente nell'agenda del giorno: le targhe
 finte sono generate in modo deterministico dal seme dei mock **e dalla data**, quindi cambiano ogni
@@ -384,18 +403,37 @@ endpoint. Per questo esistono due canali — `/api/v1/events/stream` per l'area 
 `/api/v1/public/events/stream` per gli schermi pubblici, che ricevono solo il tipo dell'evento e
 nessun identificativo.
 
-## Promemoria WhatsApp con Spoki (sandbox bloccata)
+## Il giro di WhatsApp: promemoria, risposte del cliente e tracciamento
 
-In questa fase l'integrazione Spoki copre **due soli promemoria** ai clienti:
+**In uscita** l'integrazione Spoki manda due promemoria e una risposta:
 
 - **Giorno prima** (alle `REMINDER_PREVIOUS_DAY_HOUR_LOCAL`, predefinito 18:00): il sistema
   anticipa la sincronizzazione dell'agenda di domani, così ogni pratica ha già il suo codice, e
   scrive a chi è in attesa domani con data, orario, targa, codice (es. F041) e link al portale.
 - **Giorno stesso** (alle `REMINDER_SAME_DAY_HOUR_LOCAL`, predefinito 07:30, dopo la sync): a chi è
-  in coda oggi arrivano orario, targa e codice.
+  in coda oggi arrivano orario, targa, codice e **tre risposte rapide**: «Arrivato», «In ritardo»,
+  «Assente». I pulsanti stanno nel template Spoki; il testo che li accompagna vale anche per l'SMS
+  di ripiego, dove si risponde scrivendo.
+- **Conferma di arrivo**, appena il cliente tocca «Arrivato»: il suo codice e il link alla pagina di
+  tracciamento. È così che oggi il cliente arriva alla pagina, senza inquadrare nessun QR.
 
-Entrambi sono idempotenti per pratica e giornata e si possono lanciare anche da un cron esterno
+I promemoria sono idempotenti per pratica e giornata e si possono lanciare anche da un cron esterno
 (`POST /api/v1/system/cron/reminders?kind=previous-day|same-day` con `x-cron-secret`).
+
+**In entrata** le tre risposte tornano su `POST /api/v1/webhooks/spoki`, autenticato con il segreto
+condiviso `SPOKI_INBOUND_SECRET` (nel corpo `secret` o nell'intestazione `x-spoki-secret`; senza
+segreto configurato la rotta risponde 404). Ogni risposta diventa un fatto dell'officina:
+
+| Risposta       | Cosa succede                                                                                              |
+| -------------- | --------------------------------------------------------------------------------------------------------- |
+| **Arrivato**   | Si annota l'ora dell'arrivo, la pratica resta al suo posto in coda e parte la risposta con codice e link  |
+| **In ritardo** | Come il pulsante del portale: l'arrivo atteso si sposta di 10 minuti e la dashboard mostra l'avviso ambra |
+| **Assente**    | La pratica diventa assente e finisce nel cruscotto BDC, con scritto che è stato il cliente a dirlo        |
+
+Il webhook è prudente per costruzione: un testo che non è una delle tre risposte, o un numero senza
+pratica in agenda oggi, riceve `200 {"handled": false}` e non tocca niente — sul numero
+dell'officina arriva di tutto, e un «grazie» non deve segnare nessuno come assente. Un secondo
+tocco sullo stesso pulsante non sposta l'ora già registrata e non manda un secondo messaggio.
 
 **Guardrail anti-invio.** Nessun cliente reale riceve un WhatsApp finché `SPOKI_MODE` non è `live`
 **e** `SPOKI_SAFETY_LOCK` non è `false` (predefinito `true`). Con il blocco attivo l'adapter non
@@ -549,11 +587,15 @@ amministratore o header `x-cron-secret`); la risposta riporta file archiviati e 
 
 ## Statistiche ed esportazione
 
-Il cruscotto responsabile apre con il riquadro **Statistiche del giorno**: attesa media (dal
+La vista **Amministrazione** apre con il riquadro **Statistiche del giorno**: attesa media (dal
 momento in cui il cliente era atteso alla presa in carico), durata media dell'accettazione (dalla
 presa in carico alla chiusura) ed esito della giornata in percentuale — completate, assenti,
 annullate. Accanto a ogni media c'è su quante pratiche è calcolata: una media su tre pratiche non
 è un indicatore.
+
+Dal 2026-09-17 i numeri della giornata sono **riservati all'amministratore**, insieme
+all'esportazione CSV: `GET /api/v1/reports/daily` e la sua variante CSV rispondono 403 a chiunque
+altro, responsabile compreso. Al BDC serve sapere chi richiamare adesso, non la media di attesa.
 
 **Esporta report CSV** scarica il dettaglio di tutte le pratiche della giornata (codice, orari,
 targa, veicolo, cliente, sportello, accettazione, stato, operatore, minuti di attesa e di
@@ -597,16 +639,16 @@ per i cron esterni.
 
 ### Manager e BDC
 
-| Rotta      | Metodo | Descrizione                                                                                                 | Accesso                  |
-| ---------- | ------ | ----------------------------------------------------------------------------------------------------------- | ------------------------ |
-| `/manager` | pagina | Cruscotto del responsabile e del BDC: clienti assenti da ricontattare, chiusura giornata, indicatori e CSV. | Manager e Amministratore |
+| Rotta      | Metodo | Descrizione                                                                                                     | Accesso                  |
+| ---------- | ------ | --------------------------------------------------------------------------------------------------------------- | ------------------------ |
+| `/manager` | pagina | Cruscotto BDC: solo i clienti assenti da ricontattare e riprogrammare su Infinity, più la chiusura di giornata. | Manager e Amministratore |
 
 ### Amministrazione e configurazione
 
-| Rotta               | Metodo | Descrizione                                                                                                                     | Accesso             |
-| ------------------- | ------ | ------------------------------------------------------------------------------------------------------------------------------- | ------------------- |
-| `/admin`            | pagina | Operatori (crea, modifica, disattiva, reset password), assistenza (accettazioni occupate, pratiche ferme) e integrazione Spoki. | Solo Amministratore |
-| `/admin/spoki-test` | pagina | Prova controllata dei due promemoria WhatsApp verso un numero digitato a mano; registro dei payload.                            | Solo Amministratore |
+| Rotta               | Metodo | Descrizione                                                                                                                                                              | Accesso             |
+| ------------------- | ------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ------------------- |
+| `/admin`            | pagina | Statistiche della giornata con esporta CSV, operatori (crea, modifica, disattiva, reset password), assistenza (sportelli occupati, pratiche ferme) e integrazione Spoki. | Solo Amministratore |
+| `/admin/spoki-test` | pagina | Prova controllata dei due promemoria WhatsApp verso un numero digitato a mano; registro dei payload.                                                                     | Solo Amministratore |
 
 ### Sistema e diagnostica
 
@@ -623,12 +665,12 @@ per i cron esterni.
 
 ### Portale cliente (live tracking)
 
-| Rotta            | Metodo | Descrizione                                                                                                                                         | Accesso  |
-| ---------------- | ------ | --------------------------------------------------------------------------------------------------------------------------------------------------- | -------- |
-| `/portal`        | pagina | Portale cliente mobile dal link WhatsApp o dal QR (`?targa=` e `&t=` token): avanzamento in 4 tappe, posizione in coda, "Sto arrivando in ritardo". | Pubblico |
-| `/cliente`       | pagina | Ingresso dal QR code: ricerca per targa.                                                                                                            | Pubblico |
-| `/cliente/stato` | pagina | Esito della ricerca per targa: la stessa schermata del portale.                                                                                     | Pubblico |
-| `/qr`            | pagina | Alias corto stampato sui cartelli: rimanda a /cliente (con `?src=` corsia).                                                                         | Pubblico |
+| Rotta            | Metodo | Descrizione                                                                                                                                                                        | Accesso  |
+| ---------------- | ------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------- |
+| `/portal`        | pagina | Tracciamento del cliente dal link WhatsApp o dal QR (`?targa=` e `&t=` token): posizione in fila, lettera dello sportello, orari di arrivo e chiamata, "Sto arrivando in ritardo". | Pubblico |
+| `/cliente`       | pagina | Ingresso dal QR code: ricerca per targa.                                                                                                                                           | Pubblico |
+| `/cliente/stato` | pagina | Esito della ricerca per targa: la stessa schermata del portale.                                                                                                                    | Pubblico |
+| `/qr`            | pagina | Alias corto stampato sui cartelli: rimanda a /cliente (con `?src=` corsia).                                                                                                        | Pubblico |
 
 ### API: autenticazione
 
@@ -656,21 +698,22 @@ per i cron esterni.
 
 ### API: pubbliche (portale cliente, monitor, tabellone)
 
-| Rotta                          | Metodo | Descrizione                                                                                                        | Accesso                                                                                |
-| ------------------------------ | ------ | ------------------------------------------------------------------------------------------------------------------ | -------------------------------------------------------------------------------------- |
-| `/api/v1/health`               | GET    | Liveness del processo e stato aggregato delle quattro porte esterne (`?strict=` per il readiness).                 | Pubblico                                                                               |
-| `/api/v1/public/status`        | GET    | Stato della pratica per il portale (`?targa=` o `?t=` token): tappa, posizione in coda, orario, accettatore, sede. | Pubblico                                                                               |
-| `/api/v1/public/late-notice`   | POST   | "Sto arrivando in ritardo (+10 min)" dal portale: sposta l'arrivo atteso e avvisa la dashboard.                    | Pubblico                                                                               |
-| `/api/v1/public/board`         | GET    | Dati del tabellone della sala d'attesa (`?prossimi=`).                                                             | Pubblico                                                                               |
-| `/api/v1/public/display`       | GET    | Stato del monitor di uno sportello (`?campata=A`, `?bay=`, `?bayCode=`): solo lettera, codice e targa.             | Pubblico · token del monitor (`?token=`, obbligatorio con DISPLAY_TOKEN_REQUIRED=true) |
-| `/api/v1/public/events/stream` | GET    | Eventi in tempo reale (SSE) per monitor e tabellone: solo il tipo di evento, senza identificativi.                 | Pubblico                                                                               |
+| Rotta                          | Metodo | Descrizione                                                                                                                                              | Accesso                                                                                |
+| ------------------------------ | ------ | -------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------- |
+| `/api/v1/health`               | GET    | Liveness del processo e stato aggregato delle quattro porte esterne (`?strict=` per il readiness).                                                       | Pubblico                                                                               |
+| `/api/v1/public/status`        | GET    | Stato della pratica per il portale (`?targa=` o `?t=` token): tappa, posizione in coda, orario, accettatore, sede.                                       | Pubblico                                                                               |
+| `/api/v1/webhooks/spoki`       | POST   | Risposte del cliente su WhatsApp (Arrivato, In ritardo, Assente): registra arrivo o ritardo, segna assente e risponde con codice e link al tracciamento. | Pubblico · segreto condiviso (`SPOKI_INBOUND_SECRET`)                                  |
+| `/api/v1/public/late-notice`   | POST   | "Sto arrivando in ritardo (+10 min)" dal portale: sposta l'arrivo atteso e avvisa la dashboard.                                                          | Pubblico                                                                               |
+| `/api/v1/public/board`         | GET    | Dati del tabellone della sala d'attesa (`?prossimi=`).                                                                                                   | Pubblico                                                                               |
+| `/api/v1/public/display`       | GET    | Stato del monitor di uno sportello (`?campata=A`, `?bay=`, `?bayCode=`): solo lettera, codice e targa.                                                   | Pubblico · token del monitor (`?token=`, obbligatorio con DISPLAY_TOKEN_REQUIRED=true) |
+| `/api/v1/public/events/stream` | GET    | Eventi in tempo reale (SSE) per monitor e tabellone: solo il tipo di evento, senza identificativi.                                                       | Pubblico                                                                               |
 
 ### API: manager, report e BDC
 
 | Rotta                             | Metodo | Descrizione                                                                                                | Accesso                  |
 | --------------------------------- | ------ | ---------------------------------------------------------------------------------------------------------- | ------------------------ |
-| `/api/v1/reports/daily`           | GET    | Indicatori della giornata (`?giornata=`).                                                                  | Manager e Amministratore |
-| `/api/v1/reports/daily/csv`       | GET    | Riepilogo dettagliato della giornata in CSV (con BOM per Excel).                                           | Manager e Amministratore |
+| `/api/v1/reports/daily`           | GET    | Indicatori della giornata (`?giornata=`): attesa media, durata, esiti.                                     | Solo Amministratore      |
+| `/api/v1/reports/daily/csv`       | GET    | Riepilogo dettagliato della giornata in CSV (con BOM per Excel).                                           | Solo Amministratore      |
 | `/api/v1/crm/leads`               | GET    | Clienti da ricontattare per il BDC (`?giornata=&gestiti=1`): nomi e telefoni degli assenti.                | Manager e Amministratore |
 | `/api/v1/crm/leads/:id/contacted` | POST   | Il BDC dichiara di aver ricontattato il cliente (chi, esito).                                              | Manager e Amministratore |
 | `/api/v1/system/close-day`        | POST   | Chiusura della giornata: chi è in coda diventa assente (lead BDC), chi è in carico viene chiuso d'ufficio. | Manager e Amministratore |

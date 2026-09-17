@@ -1,6 +1,7 @@
-// POST /api/v1/appointments/[id]/actions: Prendi in carico / Salta / Completato / Rilascia /
-// Ripristina. Body `{ action, expectedVersion, bayId? }`. 409 su conflitto di versione (con la
-// pratica aggiornata in `details.current`), transizione vietata o campata occupata.
+// POST /api/v1/appointments/[id]/actions: Prendi in carico / Salta / Completato / Ripristina e le
+// azioni riservate (annulla, rilascia, conferma chiusura d'ufficio). Body
+// `{ action, expectedVersion, bayId? }`. 409 su conflitto di versione (con la pratica aggiornata
+// in `details.current`), transizione vietata o sportello occupato.
 import { NextResponse, type NextRequest } from 'next/server';
 import { z } from 'zod';
 import { correlationIdFrom, readApiSession } from '@/app/_server/session';
@@ -69,6 +70,13 @@ export async function POST(request: NextRequest, context: RouteContext): Promise
   if (action === 'cancel' && !canAccess('manager', session.role)) {
     return forbiddenResponse(
       "L'annullamento di una pratica è riservato a responsabili e amministratori.",
+    );
+  }
+  // Rimettere in coda una pratica presa in carico svuota operatore e sportello: non è più un
+  // pulsante da banco (tolto dalla riga il 2026-09-17), la fa l'assistenza in amministrazione.
+  if (action === 'release' && !canAccess('manager', session.role)) {
+    return forbiddenResponse(
+      'Il rilascio di una pratica in carico è riservato a responsabili e amministratori (pannello di assistenza).',
     );
   }
   // Confermare una chiusura d'ufficio è dire "il veicolo era stato accettato": lo dice un responsabile.

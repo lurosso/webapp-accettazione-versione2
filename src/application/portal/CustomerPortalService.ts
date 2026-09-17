@@ -247,6 +247,11 @@ export class CustomerPortalService {
       code: a.code,
       status: a.status,
       aheadCount: isInQueue(a.status) ? countAheadInSameDesk(a, inQueue, desks) : 0,
+      // "Sei il numero N in attesa": i clienti davanti più se stesso. Fuori dalla coda non ha
+      // senso una posizione, e mostrarne una vecchia confonderebbe chi è già allo sportello.
+      queuePosition: isInQueue(a.status) ? countAheadInSameDesk(a, inQueue, desks) + 1 : null,
+      arrivedAt: a.customerArrivedAt,
+      startedAt: a.takenAt,
       // Lettera dello sportello: è l'indicazione che il cliente deve seguire in sala.
       bayCode: a.status === 'IN_PROGRESS' ? (bay?.code ?? null) : null,
       brandCode: brands.find((b) => b.id === a.brandId)?.code ?? '',

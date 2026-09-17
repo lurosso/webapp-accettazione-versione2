@@ -16,5 +16,12 @@ export default async function AdminPage() {
   if (!canAccess('admin', session.role)) {
     return <AccessDenied area="area di amministrazione" role={session.role} />;
   }
-  return <AdminDashboard session={session} timeZone={getContainer().env.timeZone} />;
+  const container = getContainer();
+  return (
+    <AdminDashboard
+      session={session}
+      businessDate={container.clock.today()}
+      timeZone={container.env.timeZone}
+    />
+  );
 }

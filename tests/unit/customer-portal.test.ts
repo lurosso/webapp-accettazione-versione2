@@ -96,6 +96,11 @@ describe('Portale: rendering dello stato', () => {
     expect(v.stage).toBe(1);
     expect(v.status).toBe('WAITING');
     expect(v.aheadCount).toBe(2);
+    // "Sei il numero 3 in attesa": i due davanti più se stesso. Fuori dalla coda la posizione
+    // sparisce, perché chi è già allo sportello non sta più in fila.
+    expect(v.queuePosition).toBe(3);
+    expect(v.arrivedAt).toBeNull();
+    expect(v.startedAt).toBeNull();
     expect(v.expectedTime).toBe(mia.scheduledAt);
     expect(v.siteName).toBe('Autoclub Group Bari');
     expect(v.deskName).toBe('Sportelli A e B');
@@ -124,6 +129,9 @@ describe('Portale: rendering dello stato', () => {
     expect(r.ok && r.value.operatorName).toBe('Mario Rossi');
     expect(r.ok && r.value.bayCode).toBe('B');
     expect(r.ok && r.value.canReportDelay).toBe(false);
+    expect(r.ok && r.value.queuePosition).toBeNull();
+    // L'ora della chiamata allo sportello è quella che il cliente legge nella riga del tempo.
+    expect(r.ok && r.value.startedAt).toBe(AT('06:50'));
 
     const completata = await insert(
       env,

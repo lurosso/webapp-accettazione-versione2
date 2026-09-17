@@ -15,6 +15,7 @@ export type DomainEventType =
   | 'APPOINTMENT_STATUS_CHANGED'
   | 'APPOINTMENT_CODE_ASSIGNED'
   | 'CUSTOMER_LATE_NOTICE'
+  | 'CUSTOMER_ARRIVED'
   | 'SYNC_RUN_FINISHED'
   | 'NOTIFICATION_JOB_CHANGED'
   | 'CRM_EVENT_CHANGED'
@@ -64,6 +65,18 @@ export type DomainEventPayload =
       readonly appointmentId: AppointmentId;
       readonly minutes: number;
       readonly etaAt: IsoDateTime;
+    }
+  | {
+      /**
+       * Il cliente ha risposto «Arrivato» al messaggio WhatsApp (o dal portale): è in sala e
+       * aspetta il proprio turno. La coda non cambia ordine; l'accettazione sa chi è presente e
+       * il cliente riceve codice e link alla pagina di tracciamento.
+       */
+      readonly type: 'CUSTOMER_ARRIVED';
+      readonly appointmentId: AppointmentId;
+      readonly code: QueueCode;
+      /** Come si è annunciato: la risposta su WhatsApp oppure il portale. */
+      readonly channel: 'WHATSAPP' | 'PORTAL';
     }
   | {
       readonly type: 'SYNC_RUN_FINISHED';

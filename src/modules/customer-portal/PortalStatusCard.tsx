@@ -1,6 +1,15 @@
-// Schermata di stato del cliente (mobile-first, brandizzata Autoclub): codice e targa in grande,
-// barra di avanzamento a quattro tappe, messaggio di cortesia, clienti prima di te, riquadro con
-// orario previsto, accettatore e sede. Pensata per essere letta al volo su smartphone.
+// Pagina di tracciamento del cliente (mobile-first, brandizzata Autoclub). È quello che si apre
+// dal link WhatsApp dopo aver risposto «Arrivato», e sostituisce il QR da inquadrare in officina.
+//
+// La gerarchia è pensata per una persona in piedi in sala d'attesa, che guarda lo schermo per due
+// secondi ogni tanto:
+// 1. il codice, perché è quello che sentirà chiamare;
+// 2. UN SOLO numero grande al centro, che cambia significato con lo stato: la posizione in fila
+//    mentre aspetta, la lettera dello sportello quando tocca a lui. Mai due numeri grandi insieme:
+//    davanti a "3" e "B" della stessa dimensione nessuno capisce quale contare;
+// 3. la riga del tempo (arrivo registrato, chiamata allo sportello, orario previsto), che risponde
+//    alla domanda vera di chi aspetta, "da quanto sono qui e quando tocca a me";
+// 4. i dati di contorno e, in fondo, l'unica azione concessa.
 import type { PortalStatusView } from '@/domain/read-models';
 import { localTimeHHmm } from '@/lib/dates';
 import { cn } from '@/lib/utils/cn';
@@ -49,6 +58,38 @@ function InfoItem({
   );
 }
 
+/** Una tappa della riga del tempo: ora grande, etichetta piccola. Assente = non ancora successa. */
+function Tappa({
+  label,
+  time,
+  tone = 'neutral',
+}: {
+  readonly label: string;
+  readonly time: string | null;
+  readonly tone?: 'neutral' | 'done';
+}) {
+  return (
+    <div
+      className={cn(
+        'flex flex-1 flex-col items-center gap-0.5 rounded-xl px-2 py-2 text-center',
+        tone === 'done' ? 'bg-white ring-1 ring-slate-200' : 'bg-white/60',
+      )}
+    >
+      <span className="text-[11px] font-semibold tracking-wide text-slate-500 uppercase">
+        {label}
+      </span>
+      <span
+        className={cn(
+          'font-mono text-lg font-bold tabular-nums',
+          time === null ? 'text-slate-300' : 'text-slate-900',
+        )}
+      >
+        {time ?? '—'}
+      </span>
+    </div>
+  );
+}
+
 export function PortalStatusCard({
   position,
   timeZone,
@@ -57,8 +98,13 @@ export function PortalStatusCard({
   action,
 }: PortalStatusCardProps) {
   const message = statusMessage(position.status, position.bayCode);
+  const ora = (iso: string | null): string | null =>
+    iso === null ? null : localTimeHHmm(new Date(iso), timeZone);
   const orario = localTimeHHmm(new Date(position.expectedTime), timeZone);
   const orarioAgenda = localTimeHHmm(new Date(position.scheduledAt), timeZone);
+  // Il numero grande al centro: la posizione mentre si aspetta, la lettera quando si è chiamati.
+  const inFila = position.queuePosition !== null;
+  const allosportello = position.status === 'IN_PROGRESS' && position.bayCode !== null;
 
   return (
     <section
@@ -98,27 +144,60 @@ export function PortalStatusCard({
         <h1 id="stato-titolo" className="text-3xl font-bold text-slate-900">
           {message.headline}
         </h1>
-        {message.showAheadCount ? (
-          <p className="text-2xl font-semibold text-slate-900" data-testid="ahead-count">
-            {aheadCountMessage(position.aheadCount)}
-          </p>
+
+        {allosportello ? (
+          // È il suo turno: la lettera dello sportello è l'unica cosa che deve cercare in sala.
+          <div
+            className="border-brand-secondary flex flex-col items-center rounded-2xl border-2 bg-white px-8 py-3"
+            data-testid="sportello"
+          >
+            <span className="text-xs font-semibold tracking-widest text-slate-500 uppercase">
+              Sportello
+            </span>
+            <span className="text-brand-secondary text-7xl leading-none font-black">
+              {position.bayCode}
+            </span>
+          </div>
+        ) : inFila ? (
+          <div className="flex flex-col items-center gap-1" data-testid="posizione">
+            <p className="text-2xl font-semibold text-slate-900">
+              Sei il numero{' '}
+              <span className="font-mono text-5xl leading-none font-black tabular-nums">
+                {position.queuePosition}
+              </span>{' '}
+              in attesa
+            </p>
+            <p className="text-lg text-slate-600" data-testid="ahead-count">
+              {aheadCountMessage(position.aheadCount)}
+            </p>
+          </div>
         ) : null}
+
         <p className="text-lg text-slate-700">{message.detail}</p>
       </div>
 
-      <dl className="grid grid-cols-2 gap-2">
-        <InfoItem
-          label="Orario previsto"
-          value={orario === orarioAgenda ? orario : `${orario} (agenda ${orarioAgenda})`}
-          mono
+      {/* Riga del tempo: da quando è qui, da quando è allo sportello, a che ora era atteso. */}
+      <div className="flex gap-2" aria-label="Orari della tua accettazione">
+        <Tappa
+          label="Arrivo"
+          time={ora(position.arrivedAt)}
+          tone={position.arrivedAt === null ? 'neutral' : 'done'}
         />
-        <InfoItem label="Codice in coda" value={position.code} mono />
+        <Tappa
+          label="Allo sportello"
+          time={ora(position.startedAt)}
+          tone={position.startedAt === null ? 'neutral' : 'done'}
+        />
+        <Tappa label="Orario previsto" time={orario} tone="done" />
+      </div>
+
+      <dl className="grid grid-cols-2 gap-2">
         <InfoItem label="Targa" value={position.plate} mono />
         <InfoItem
           label="Accettatore"
           value={
             position.operatorName ??
-            (position.status === 'IN_PROGRESS' ? 'in corsia' : 'da assegnare')
+            (position.status === 'IN_PROGRESS' ? 'allo sportello' : 'da assegnare')
           }
         />
         <div className="col-span-2">
@@ -128,6 +207,12 @@ export function PortalStatusCard({
           />
         </div>
       </dl>
+
+      {orario !== orarioAgenda ? (
+        <p className="text-center text-sm text-slate-500">
+          Orario in agenda {orarioAgenda}, riprogrammato in officina alle {orario}.
+        </p>
+      ) : null}
 
       {action}
 

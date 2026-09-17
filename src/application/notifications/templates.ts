@@ -1,8 +1,12 @@
 // Testi dei messaggi al cliente (italiano) e chiavi dei template Spoki approvati da Meta.
 //
-// In questa fase l'integrazione WhatsApp copre due promemoria:
+// In questa fase l'integrazione WhatsApp copre il giro completo di una giornata:
 // - REMINDER_PREVIOUS_DAY, il giorno prima: data, orario, targa, codice, link al portale;
-// - REMINDER_SAME_DAY, la mattina dell'appuntamento: orario, targa, codice.
+// - REMINDER_SAME_DAY, la mattina dell'appuntamento: orario, targa, codice e le TRE risposte
+//   rapide «Arrivato», «In ritardo», «Assente» (i pulsanti stanno nel template Spoki; qui c'è il
+//   testo che li accompagna, che vale anche per l'SMS di ripiego, dove si risponde scrivendo);
+// - ARRIVAL_CONFIRMED, la risposta a chi tocca «Arrivato»: codice in coda e link alla pagina di
+//   tracciamento, che sostituisce il QR da inquadrare in officina.
 // Gli altri tipi hanno il testo per SMS e log ma nessuna automazione Spoki.
 
 import type { Appointment } from '@/domain/entities/appointment';
@@ -56,7 +60,12 @@ export const NOTIFICATION_TEMPLATES: Readonly<Record<NotificationKind, Notificat
   REMINDER_SAME_DAY: {
     spokiTemplateKey: 'reminder_same_day_v1',
     render: (v) =>
-      `Buongiorno ${v.firstName}, le ricordiamo l'appuntamento di oggi alle ${v.scheduledTime} presso Autoclub Group per la vettura ${v.plate}. Il suo codice di accettazione è ${v.code}.`,
+      `Buongiorno ${v.firstName}, le ricordiamo l'appuntamento di oggi alle ${v.scheduledTime} presso Autoclub Group per la vettura ${v.plate}. Il suo codice di accettazione è ${v.code}. Quando è qui ci risponda ARRIVATO; se è in ritardo IN RITARDO, se non può venire ASSENTE.`,
+  },
+  ARRIVAL_CONFIRMED: {
+    spokiTemplateKey: 'arrival_confirmed_v1',
+    render: (v) =>
+      `Bentornato ${v.firstName}, la aspettiamo. Il suo codice è ${v.code}: lo vedrà comparire sul monitor dello sportello. Segua il suo turno in tempo reale qui: ${v.portalUrl}`,
   },
   BOOKING_CONFIRMED: {
     spokiTemplateKey: 'booking_confirmed_v1',
