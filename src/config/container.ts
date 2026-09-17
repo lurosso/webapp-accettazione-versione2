@@ -169,7 +169,9 @@ export function createContainer(overrides: ContainerOverrides = {}): Container {
     portalToken: (appointmentId) => portalTokens.forAppointment(appointmentId),
     whatsappConsentOverride: env.spokiOverrideConsent,
   });
-  if (env.spokiOverrideConsent) {
+  // Con lo standby attivo la riga sull'override di consenso direbbe una cosa che non succede:
+  // i promemoria non partono affatto. Si stampa solo quando l'integrazione è accesa.
+  if (env.spokiOverrideConsent && !env.messagingStandby) {
     logger.info(
       '[Messaggi] SPOKI_OVERRIDE_CONSENT=true: i promemoria tentano WhatsApp anche senza opt-in in anagrafica (comunicazioni di servizio); il guardrail degli invii reali resta SPOKI_MODE/SPOKI_SAFETY_LOCK.',
     );
@@ -212,12 +214,23 @@ export function createContainer(overrides: ContainerOverrides = {}): Container {
       publicBaseUrl: env.publicBaseUrl,
       reminderPreviousDayHourLocal: env.reminderPreviousDayHourLocal,
       reminderSameDayHourLocal: env.reminderSameDayHourLocal,
-      remindersEnabled: env.remindersEnabled,
+      remindersEnabled: env.remindersEnabled && !env.messagingStandby,
+      standby: env.messagingStandby,
     },
     ids,
     clock,
     logger,
   });
+
+  // STANDBY della messaggistica (MESSAGING_STANDBY=true): promemoria, messaggi guidati dagli
+  // eventi e risposte in entrata restano nel codice ma non partono. L'officina lavora lo stesso e
+  // i log non si riempiono di invii che nessuno ha chiesto: è la modalità di sviluppo mentre si
+  // completa il resto dell'applicazione.
+  if (env.messagingStandby) {
+    logger.info(
+      "[Messaggi] MESSAGING_STANDBY=true: integrazione cliente in pausa (nessun promemoria, nessun messaggio a evento, webhook delle risposte spento). Il resto dell'applicazione funziona normalmente.",
+    );
+  }
 
   // Messaggi al cliente guidati dagli eventi: ascolta il bus e manda conferme, "turno vicino" e
   // annullamenti senza che coda o sync sappiano nulla di WhatsApp.
@@ -228,7 +241,7 @@ export function createContainer(overrides: ContainerOverrides = {}): Container {
     orchestrator: notificationOrchestrator,
     ids,
     logger,
-    enabled: env.messagingTriggersEnabled,
+    enabled: env.messagingTriggersEnabled && !env.messagingStandby,
     liveDeliveryAllowed: spokiLiveDeliveryAllowed,
   });
   messagingPolicy.start();
@@ -396,7 +409,7 @@ export function createContainer(overrides: ContainerOverrides = {}): Container {
     clock,
     ids,
     logger,
-    enabled: env.remindersEnabled,
+    enabled: env.remindersEnabled && !env.messagingStandby,
     liveDeliveryAllowed: spokiLiveDeliveryAllowed,
   });
 

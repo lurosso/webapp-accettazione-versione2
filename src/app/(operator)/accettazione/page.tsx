@@ -44,6 +44,7 @@ export default async function AccettazionePage({ searchParams }: PageProps) {
         initialView={initialView}
         initialDeskId={initialDeskId}
         manualIntakeEnabled={manualIntakeEnabled}
+        debugCustomerLink={container.env.devQuickLogin}
       />
     </Suspense>
   );

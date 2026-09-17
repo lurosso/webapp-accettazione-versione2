@@ -348,8 +348,8 @@ capo invece di sovrapporsi.
 ### Provare il cruscotto BDC
 
 Il cruscotto BDC è **solo l'elenco dei clienti assenti**: chi non si è presentato, da richiamare e
-da riprogrammare su Infinity. Niente statistiche, niente medie, niente grafici — quelli stanno in
-Amministrazione. Serve un account con ruolo responsabile: `responsabile` / `demo`. Dalla dashboard
+da riprogrammare su Infinity. Niente statistiche, niente medie, niente grafici e nemmeno la
+chiusura di giornata: stanno tutti in Amministrazione. Serve un account con ruolo responsabile: `responsabile` / `demo`. Dalla dashboard
 di accettazione segna assente un cliente del blocco **In ritardo / assenti**, poi apri
 <http://localhost:3000/manager>: la riga compare subito nel cruscotto con nome, numero richiamabile
 con un tocco, targa, veicolo, motivo e ora dell'assenza. **Segna come ricontattato** chiude il lead
@@ -387,6 +387,11 @@ interroga l'API:
 curl -s -c /tmp/c.txt -H 'content-type: application/json' -d '{"username":"mario.rossi","password":"demo","workstationId":"ws-p2"}' http://localhost:3000/api/v1/auth/login >/dev/null && curl -s -b /tmp/c.txt 'http://localhost:3000/api/v1/queue?view=global'
 ```
 
+Per provare la pagina senza passare da un messaggio WhatsApp, in sviluppo c'è una scorciatoia: con
+`DEV_QUICK_LOGIN=true` il dettaglio di una pratica in dashboard mostra il collegamento ambra **Apri
+il tracciamento cliente (solo sviluppo)**, che apre `/portal?targa=…` in una scheda nuova. In
+produzione non compare.
+
 Con la dashboard aperta su una postazione e il portale su un'altra scheda, ogni azione
 dell'operatore si riflette sulla schermata del cliente entro cinque secondi.
 
@@ -404,6 +409,13 @@ endpoint. Per questo esistono due canali — `/api/v1/events/stream` per l'area 
 nessun identificativo.
 
 ## Il giro di WhatsApp: promemoria, risposte del cliente e tracciamento
+
+> **In standby dal 2026-09-17.** Con `MESSAGING_STANDBY=true` (impostato in `.env.local`) tutta
+> l'integrazione con il cliente è in pausa: nessun promemoria programmato, nessun messaggio guidato
+> dagli eventi, webhook delle risposte che risponde 404. Il codice resta dov'è e nulla dipende dalle
+> credenziali Spoki: l'officina lavora, i log non si riempiono di invii che nessuno voleva. Per
+> riaccendere basta togliere la variabile e riavviare. Quello che segue descrive il comportamento a
+> integrazione accesa.
 
 **In uscita** l'integrazione Spoki manda due promemoria e una risposta:
 
@@ -515,8 +527,10 @@ tipo, niente inclusione in pagine esterne, fotocamera solo per la stessa origine
 
 ## Fine giornata e coda verso il CRM
 
-**Chiusura giornata.** A officina chiusa il responsabile preme _Esegui chiusura giornata_ nel
-cruscotto BDC e conferma. Chi era ancora in coda viene segnato **assente** e compare subito fra i
+**Chiusura giornata.** A officina chiusa l'amministratore preme _Esegui chiusura giornata_ nella
+vista **Amministrazione**, accanto alle statistiche, e conferma. Dal 2026-09-17 il comando non sta
+più nel cruscotto BDC: chiudere la giornata è un atto di supervisione, e chi telefona ai clienti
+assenti quella lista se la ritrova già fatta. Chi era ancora in coda viene segnato **assente** e compare subito fra i
 lead da ricontattare (con l'evento verso il CRM); le accettazioni rimaste **in carico** vengono
 chiuse **d'ufficio**: risultano completate ma "da confermare", perché a quell'ora un veicolo in
 carico è quasi sempre stato accettato senza il tocco finale. La mattina dopo il responsabile le
@@ -577,11 +591,17 @@ scritta con spazi o in minuscolo) o per codice pratica: la scheda mostra veicolo
 note e le foto raggruppate per parte del veicolo. Serve al ritiro, quando un cliente contesta un
 danno.
 
-**Retention.** Ogni foto nasce con una scadenza: `PHOTO_RETENTION_DAYS` giorni (default 30). Dopo
-la chiusura della giornata lo scheduler elimina i file scaduti e marca il record come archiviato:
-la scheda resta con data, categorie e note e al posto della foto compare "file eliminato". Dopo
-altri `PHOTO_HARD_DELETE_DAYS` giorni (default 90, contati dall'archiviazione) anche la scheda
-viene eliminata dal database: in tutto una foto lascia traccia per 120 giorni. Lo stesso lavoro
+**Retention.** Ogni foto e ogni video nascono con una scadenza: `MEDIA_RETENTION_DAYS` giorni,
+**90 di default** (tre mesi: i tempi dell'officina sono questi, fra una lavorazione lunga, un
+ricambio che tarda e un cliente che contesta un graffio settimane dopo il ritiro). Si cambia da
+`.env.local` senza toccare il codice, e la pulizia resta automatica: nessun operatore deve
+ricordarsi di cancellare niente. Con i video, che pesano fino a 80 MB l'uno, conviene guardare lo
+spazio su disco prima di allungare ancora. Dopo la chiusura della giornata lo scheduler elimina i
+file scaduti e marca il record come archiviato: la scheda resta con data, categorie e note e al
+posto della foto compare "file eliminato". Dopo altri `MEDIA_HARD_DELETE_DAYS` giorni (default 90,
+contati dall'archiviazione) anche la scheda viene eliminata dal database. I vecchi nomi
+`PHOTO_RETENTION_DAYS` e `PHOTO_HARD_DELETE_DAYS` continuano a funzionare, ma i nuovi hanno la
+precedenza. Lo stesso lavoro
 si può affidare a un cron esterno con `POST /api/v1/system/cron/media-retention` (sessione
 amministratore o header `x-cron-secret`); la risposta riporta file archiviati e record eliminati.
 
@@ -639,16 +659,16 @@ per i cron esterni.
 
 ### Manager e BDC
 
-| Rotta      | Metodo | Descrizione                                                                                                     | Accesso                  |
-| ---------- | ------ | --------------------------------------------------------------------------------------------------------------- | ------------------------ |
-| `/manager` | pagina | Cruscotto BDC: solo i clienti assenti da ricontattare e riprogrammare su Infinity, più la chiusura di giornata. | Manager e Amministratore |
+| Rotta      | Metodo | Descrizione                                                                        | Accesso                  |
+| ---------- | ------ | ---------------------------------------------------------------------------------- | ------------------------ |
+| `/manager` | pagina | Cruscotto BDC: solo i clienti assenti da ricontattare e riprogrammare su Infinity. | Manager e Amministratore |
 
 ### Amministrazione e configurazione
 
-| Rotta               | Metodo | Descrizione                                                                                                                                                              | Accesso             |
-| ------------------- | ------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ------------------- |
-| `/admin`            | pagina | Statistiche della giornata con esporta CSV, operatori (crea, modifica, disattiva, reset password), assistenza (sportelli occupati, pratiche ferme) e integrazione Spoki. | Solo Amministratore |
-| `/admin/spoki-test` | pagina | Prova controllata dei due promemoria WhatsApp verso un numero digitato a mano; registro dei payload.                                                                     | Solo Amministratore |
+| Rotta               | Metodo | Descrizione                                                                                                                                                                                                 | Accesso             |
+| ------------------- | ------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------- |
+| `/admin`            | pagina | Statistiche della giornata con esporta CSV, chiusura della giornata operativa, operatori (crea, modifica, disattiva, reset password), assistenza (sportelli occupati, pratiche ferme) e integrazione Spoki. | Solo Amministratore |
+| `/admin/spoki-test` | pagina | Prova controllata dei due promemoria WhatsApp verso un numero digitato a mano; registro dei payload.                                                                                                        | Solo Amministratore |
 
 ### Sistema e diagnostica
 
@@ -698,15 +718,15 @@ per i cron esterni.
 
 ### API: pubbliche (portale cliente, monitor, tabellone)
 
-| Rotta                          | Metodo | Descrizione                                                                                                                                              | Accesso                                                                                |
-| ------------------------------ | ------ | -------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------- |
-| `/api/v1/health`               | GET    | Liveness del processo e stato aggregato delle quattro porte esterne (`?strict=` per il readiness).                                                       | Pubblico                                                                               |
-| `/api/v1/public/status`        | GET    | Stato della pratica per il portale (`?targa=` o `?t=` token): tappa, posizione in coda, orario, accettatore, sede.                                       | Pubblico                                                                               |
-| `/api/v1/webhooks/spoki`       | POST   | Risposte del cliente su WhatsApp (Arrivato, In ritardo, Assente): registra arrivo o ritardo, segna assente e risponde con codice e link al tracciamento. | Pubblico · segreto condiviso (`SPOKI_INBOUND_SECRET`)                                  |
-| `/api/v1/public/late-notice`   | POST   | "Sto arrivando in ritardo (+10 min)" dal portale: sposta l'arrivo atteso e avvisa la dashboard.                                                          | Pubblico                                                                               |
-| `/api/v1/public/board`         | GET    | Dati del tabellone della sala d'attesa (`?prossimi=`).                                                                                                   | Pubblico                                                                               |
-| `/api/v1/public/display`       | GET    | Stato del monitor di uno sportello (`?campata=A`, `?bay=`, `?bayCode=`): solo lettera, codice e targa.                                                   | Pubblico · token del monitor (`?token=`, obbligatorio con DISPLAY_TOKEN_REQUIRED=true) |
-| `/api/v1/public/events/stream` | GET    | Eventi in tempo reale (SSE) per monitor e tabellone: solo il tipo di evento, senza identificativi.                                                       | Pubblico                                                                               |
+| Rotta                          | Metodo | Descrizione                                                                                                                                              | Accesso                                                                                 |
+| ------------------------------ | ------ | -------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------- |
+| `/api/v1/health`               | GET    | Liveness del processo e stato aggregato delle quattro porte esterne (`?strict=` per il readiness).                                                       | Pubblico                                                                                |
+| `/api/v1/public/status`        | GET    | Stato della pratica per il portale (`?targa=` o `?t=` token): tappa, posizione in coda, orario, accettatore, sede.                                       | Pubblico                                                                                |
+| `/api/v1/webhooks/spoki`       | POST   | Risposte del cliente su WhatsApp (Arrivato, In ritardo, Assente): registra arrivo o ritardo, segna assente e risponde con codice e link al tracciamento. | Pubblico · segreto condiviso (`SPOKI_INBOUND_SECRET`); 404 con `MESSAGING_STANDBY=true` |
+| `/api/v1/public/late-notice`   | POST   | "Sto arrivando in ritardo (+10 min)" dal portale: sposta l'arrivo atteso e avvisa la dashboard.                                                          | Pubblico                                                                                |
+| `/api/v1/public/board`         | GET    | Dati del tabellone della sala d'attesa (`?prossimi=`).                                                                                                   | Pubblico                                                                                |
+| `/api/v1/public/display`       | GET    | Stato del monitor di uno sportello (`?campata=A`, `?bay=`, `?bayCode=`): solo lettera, codice e targa.                                                   | Pubblico · token del monitor (`?token=`, obbligatorio con DISPLAY_TOKEN_REQUIRED=true)  |
+| `/api/v1/public/events/stream` | GET    | Eventi in tempo reale (SSE) per monitor e tabellone: solo il tipo di evento, senza identificativi.                                                       | Pubblico                                                                                |
 
 ### API: manager, report e BDC
 

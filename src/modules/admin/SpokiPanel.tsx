@@ -93,6 +93,9 @@ export function SpokiPanel({ timeZone }: SpokiPanelProps) {
         </div>
         {data !== undefined ? (
           <div className="flex flex-wrap gap-2">
+            {/* Lo standby viene prima di tutto: se è acceso, il resto della riga è cronaca di una
+                configurazione che in questo momento non manda niente. */}
+            {data.standby ? <Badge tone="warning">INTEGRAZIONE IN STANDBY</Badge> : null}
             <Badge tone={data.provider === 'mock' ? 'neutral' : 'info'}>
               provider {data.provider}
             </Badge>
@@ -116,6 +119,15 @@ export function SpokiPanel({ timeZone }: SpokiPanelProps) {
         <TableSkeleton rows={4} columns={3} label="Caricamento dello stato Spoki" />
       ) : (
         <div className="flex flex-col gap-6">
+          {data.standby ? (
+            <p className="rounded-md border border-amber-300 bg-amber-50 px-3 py-2 text-sm text-amber-900">
+              <strong>Integrazione con il cliente in pausa</strong> (`MESSAGING_STANDBY=true`):
+              promemoria programmati, messaggi guidati dagli eventi e webhook delle risposte sono
+              fermi di proposito, mentre si lavora al resto dell&apos;applicazione. Il resto del
+              sistema funziona normalmente e non servono credenziali Spoki. Per riaccendere,
+              togliere la variabile da <code>.env.local</code> e riavviare.
+            </p>
+          ) : null}
           {bloccato && data.blockReason !== null ? (
             <p
               role="status"

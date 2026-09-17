@@ -53,6 +53,12 @@ export interface AppointmentDetailPanelProps {
    * tablet, dove il dettaglio si apre prima di iniziare e da lì si parte.
    */
   readonly showTake?: boolean;
+  /**
+   * Collegamento di servizio alla pagina di tracciamento del cliente (solo sviluppo, acceso da
+   * `DEV_QUICK_LOGIN`): apre `/portal?targa=…` in una scheda nuova. Senza, per provare la pagina
+   * del cliente bisognerebbe simulare un messaggio WhatsApp o copiare la targa a mano ogni volta.
+   */
+  readonly debugCustomerLink?: boolean;
 }
 
 /** Riga etichetta/valore della scheda. */
@@ -155,6 +161,7 @@ export function AppointmentDetailPanel({
   canConfirmAutoClose = false,
   actionPending = false,
   showTake = false,
+  debugCustomerLink = false,
 }: AppointmentDetailPanelProps) {
   // Chiusura con Esc: al banco l'accettatore lavora molto da tastiera.
   useEffect(() => {
@@ -467,6 +474,19 @@ export function AppointmentDetailPanel({
                 ))}
               </ul>
             </details>
+          ) : null}
+
+          {debugCustomerLink === true ? (
+            <a
+              href={`/portal?targa=${encodeURIComponent(a.vehicle.plate)}`}
+              target="_blank"
+              rel="noreferrer"
+              data-testid="link-tracciamento-cliente"
+              className="inline-flex min-h-11 items-center gap-2 rounded-md border border-dashed border-amber-400 bg-amber-50 px-3 text-sm font-semibold text-amber-900"
+            >
+              <span aria-hidden="true">↗</span>
+              Apri il tracciamento cliente (solo sviluppo)
+            </a>
           ) : null}
 
           <p className="text-xs text-slate-400">

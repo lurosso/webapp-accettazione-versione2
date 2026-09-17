@@ -41,6 +41,12 @@ export interface QueueDashboardProps {
    * quindi di norma agli accettatori non si mostra (UI_MANUAL_INTAKE); l'API e il dialogo restano.
    */
   readonly manualIntakeEnabled: boolean;
+  /**
+   * Collegamenti di servizio per lo sviluppo (`DEV_QUICK_LOGIN`): nel dettaglio di una pratica
+   * compare il link alla pagina di tracciamento del cliente, per provarla senza simulare un
+   * messaggio WhatsApp. In produzione è sempre spento.
+   */
+  readonly debugCustomerLink?: boolean;
 }
 
 /** Data della giornata in formato italiano lungo. */
@@ -60,6 +66,7 @@ export function QueueDashboard({
   initialView,
   initialDeskId,
   manualIntakeEnabled,
+  debugCustomerLink = false,
 }: QueueDashboardProps) {
   const router = useRouter();
   const pathname = usePathname();
@@ -428,6 +435,7 @@ export function QueueDashboard({
         deskLabel={selectedDesk === null ? null : `${selectedDesk.code} · ${selectedDesk.name}`}
         timeZone={data?.timeZone ?? 'Europe/Rome'}
         currentOperatorName={session.displayName}
+        debugCustomerLink={debugCustomerLink}
         onClose={() => setSelectedId(null)}
         actionPending={selectedRow !== null && actions.pendingId === selectedRow.appointment.id}
         canConfirmAutoClose={canAccess('manager', session.role)}

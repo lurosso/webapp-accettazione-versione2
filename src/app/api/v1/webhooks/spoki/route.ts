@@ -4,8 +4,9 @@
 // Endpoint PUBBLICO chiamato da Spoki quando il cliente tocca uno dei tre pulsanti del messaggio
 // del mattino. Non c'è sessione: l'autenticazione è il segreto condiviso `SPOKI_INBOUND_SECRET`,
 // che Spoki manda nel corpo (`secret`) o nell'intestazione `x-spoki-secret` e che si confronta a
-// tempo costante. Senza segreto configurato la rotta risponde 404: un webhook aperto sull'agenda
-// dell'officina è peggio di un webhook spento.
+// tempo costante. Senza segreto configurato — o con `MESSAGING_STANDBY=true`, l'interruttore che
+// mette in pausa tutta l'integrazione con il cliente — la rotta risponde 404: un webhook aperto
+// sull'agenda dell'officina è peggio di un webhook spento.
 //
 // Il corpo cambia da automazione ad automazione, quindi si accettano più nomi per gli stessi tre
 // dati: numero, testo della risposta, codice della pratica (se c'è).
@@ -47,8 +48,9 @@ const Body = z.object({
 export async function POST(request: NextRequest): Promise<NextResponse> {
   const container = getContainer();
   const atteso = container.env.spokiInboundSecret;
-  if (atteso === null) {
-    // Funzione non configurata: si comporta come una rotta che non esiste.
+  // Senza segreto, oppure con l'integrazione in standby (MESSAGING_STANDBY=true), la rotta si
+  // comporta come una rotta che non esiste: resta nel codice, dormiente, e non tocca l'agenda.
+  if (atteso === null || container.env.messagingStandby) {
     return NextResponse.json(
       { error: { code: 'NOT_FOUND' as const, message: 'Webhook non attivo.' } },
       { status: 404, headers: NO_STORE },

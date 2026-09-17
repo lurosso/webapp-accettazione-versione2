@@ -16,7 +16,8 @@ const METODI = ['GET', 'POST', 'PUT', 'PATCH', 'DELETE'];
 /** Livelli di accesso, con la stessa dicitura ovunque. */
 const ACCESSO = {
   pubblico: 'Pubblico',
-  webhook: 'Pubblico · segreto condiviso (`SPOKI_INBOUND_SECRET`)',
+  webhook:
+    'Pubblico · segreto condiviso (`SPOKI_INBOUND_SECRET`); 404 con `MESSAGING_STANDBY=true`',
   monitor: 'Pubblico · token del monitor (`?token=`, obbligatorio con DISPLAY_TOKEN_REQUIRED=true)',
   sessione: 'Sessione operatore (Accettatore, Manager, Amministratore)',
   sessioneProvvisoria: 'Sessione operatore, anche con password provvisoria',
@@ -100,7 +101,7 @@ export const ROTTE = [
     path: '/manager',
     area: AREE[3],
     descrizione:
-      'Cruscotto BDC: solo i clienti assenti da ricontattare e riprogrammare su Infinity, più la chiusura di giornata.',
+      'Cruscotto BDC: solo i clienti assenti da ricontattare e riprogrammare su Infinity.',
     accesso: ACCESSO.manager,
   },
   // Admin
@@ -108,7 +109,7 @@ export const ROTTE = [
     path: '/admin',
     area: AREE[4],
     descrizione:
-      'Statistiche della giornata con esporta CSV, operatori (crea, modifica, disattiva, reset password), assistenza (sportelli occupati, pratiche ferme) e integrazione Spoki.',
+      'Statistiche della giornata con esporta CSV, chiusura della giornata operativa, operatori (crea, modifica, disattiva, reset password), assistenza (sportelli occupati, pratiche ferme) e integrazione Spoki.',
     accesso: ACCESSO.admin,
   },
   {

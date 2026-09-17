@@ -152,19 +152,24 @@ export const INFINITY_RESILIENCE = {
 export const TURN_APPROACHING_AHEAD = 2;
 
 /**
- * Giorni di conservazione dei file delle foto (env PHOTO_RETENTION_DAYS). Un mese copre il tempo
- * in cui un cliente può contestare un danno al ritiro; oltre, i file occupano solo il disco
- * dell'officina. I record restano per sempre: dicono che il giro era stato fatto.
+ * Giorni di conservazione dei FILE di foto e video dell'ispezione (env `MEDIA_RETENTION_DAYS`,
+ * storicamente `PHOTO_RETENTION_DAYS`). Tre mesi: i tempi dell'officina sono questi, fra una
+ * lavorazione lunga, un ricambio che tarda e un cliente che contesta un graffio settimane dopo il
+ * ritiro. Oltre, i file occupano solo il disco. I record restano: dicono che il giro era stato
+ * fatto, con data e parte del veicolo, anche quando l'immagine non c'è più.
+ *
+ * Attenzione al disco: con i video (fino a 80 MB l'uno) tre mesi pesano molto più di tre mesi di
+ * sole foto. Se lo spazio stringe si abbassa il numero, senza toccare il codice.
  */
-export const DEFAULT_PHOTO_RETENTION_DAYS = 30;
+export const DEFAULT_MEDIA_RETENTION_DAYS = 90;
 
 /**
- * Giorni dopo l'archiviazione oltre i quali anche il RECORD della foto viene eliminato (env
- * PHOTO_HARD_DELETE_DAYS). Un trimestre dopo la sparizione del file nessuno cerca più la scheda:
- * tenerla ancora sarebbe solo accumulo. In totale, quindi, una foto lascia traccia per
- * PHOTO_RETENTION_DAYS + PHOTO_HARD_DELETE_DAYS giorni (default 120).
+ * Giorni dopo l'archiviazione oltre i quali anche il RECORD del media viene eliminato (env
+ * `MEDIA_HARD_DELETE_DAYS`, storicamente `PHOTO_HARD_DELETE_DAYS`). Un trimestre dopo la
+ * sparizione del file nessuno cerca più la scheda: tenerla ancora sarebbe solo accumulo. In
+ * totale un media lascia traccia per MEDIA_RETENTION_DAYS + MEDIA_HARD_DELETE_DAYS giorni.
  */
-export const DEFAULT_PHOTO_HARD_DELETE_DAYS = 90;
+export const DEFAULT_MEDIA_HARD_DELETE_DAYS = 90;
 
 /** Nome della sede mostrato al cliente nel portale (accanto allo sportello). */
 export const SITE_NAME = 'Autoclub Group';

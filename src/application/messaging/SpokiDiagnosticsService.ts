@@ -67,6 +67,8 @@ export interface SpokiOverview {
   readonly reminderPreviousDayHourLocal: string;
   readonly reminderSameDayHourLocal: string;
   readonly remindersEnabled: boolean;
+  /** MESSAGING_STANDBY: l'integrazione con il cliente è in pausa, di proposito. */
+  readonly standby: boolean;
   readonly log: readonly SpokiActivityEntry[];
 }
 
@@ -90,6 +92,8 @@ export interface SpokiDiagnosticsConfig {
   readonly reminderPreviousDayHourLocal: string;
   readonly reminderSameDayHourLocal: string;
   readonly remindersEnabled: boolean;
+  /** MESSAGING_STANDBY (facoltativo nei test). */
+  readonly standby?: boolean;
 }
 
 export interface SpokiDiagnosticsDeps {
@@ -197,6 +201,7 @@ export class SpokiDiagnosticsService {
       reminderPreviousDayHourLocal: c.reminderPreviousDayHourLocal,
       reminderSameDayHourLocal: c.reminderSameDayHourLocal,
       remindersEnabled: c.remindersEnabled,
+      standby: c.standby === true,
       log: this.deps.activityLog.list(limit),
     };
   }

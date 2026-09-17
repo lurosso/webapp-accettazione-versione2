@@ -19,8 +19,8 @@ import type {
 import {
   DEFAULT_BUSINESS_DAY_END,
   DEFAULT_CODE_PREFIX,
-  DEFAULT_PHOTO_HARD_DELETE_DAYS,
-  DEFAULT_PHOTO_RETENTION_DAYS,
+  DEFAULT_MEDIA_HARD_DELETE_DAYS,
+  DEFAULT_MEDIA_RETENTION_DAYS,
   DEFAULT_MEDIA_DIR,
   DEFAULT_REMINDER_PREVIOUS_DAY_HOUR,
   DEFAULT_REMINDER_SAME_DAY_HOUR,
@@ -102,9 +102,20 @@ export interface AppEnv {
   readonly displayTokenRequired: boolean;
   /** Messaggi al cliente guidati dagli eventi (conferma, turno vicino, annullamento). */
   readonly messagingTriggersEnabled: boolean;
-  /** Giorni di conservazione dei file delle foto dell'ispezione. */
+  /**
+   * `MESSAGING_STANDBY` (predefinito false): mette in pausa TUTTA l'integrazione con il cliente —
+   * promemoria programmati, messaggi guidati dagli eventi e webhook delle risposte. Serve mentre
+   * si lavora al resto dell'applicazione: senza credenziali Spoki l'officina funziona lo stesso,
+   * e nei log non compaiono errori di invii che nessuno voleva fare.
+   */
+  readonly messagingStandby: boolean;
+  /**
+   * Giorni di conservazione dei file di foto e video dell'ispezione (`MEDIA_RETENTION_DAYS`, o il
+   * vecchio nome `PHOTO_RETENTION_DAYS` per chi ha già un .env). La pulizia è automatica: nessun
+   * operatore deve ricordarsi di cancellare niente.
+   */
   readonly photoRetentionDays: number;
-  /** Giorni dopo l'archiviazione oltre i quali il record della foto viene eliminato. */
+  /** Giorni dopo l'archiviazione oltre i quali il record del media viene eliminato. */
   readonly photoHardDeleteDays: number;
   /** Segreto per il cron esterno dei rinvii CRM (null = solo sessione amministratore). */
   readonly cronSecret: string | null;
@@ -366,11 +377,19 @@ export function parseEnv(
     crmRetryEnabled: pickBool(source, 'CRM_RETRY_ENABLED', true, warn),
     displayTokenRequired: pickBool(source, 'DISPLAY_TOKEN_REQUIRED', false, warn),
     messagingTriggersEnabled: pickBool(source, 'MESSAGING_TRIGGERS_ENABLED', true, warn),
-    photoRetentionDays: pickInt(source, 'PHOTO_RETENTION_DAYS', DEFAULT_PHOTO_RETENTION_DAYS, warn),
+    messagingStandby: pickBool(source, 'MESSAGING_STANDBY', false, warn),
+    // Nome nuovo (MEDIA_*, perché ormai ci sono anche i video) con il vecchio come ripiego: un
+    // .env già scritto continua a valere senza modifiche.
+    photoRetentionDays: pickInt(
+      source,
+      'MEDIA_RETENTION_DAYS',
+      pickInt(source, 'PHOTO_RETENTION_DAYS', DEFAULT_MEDIA_RETENTION_DAYS, warn),
+      warn,
+    ),
     photoHardDeleteDays: pickInt(
       source,
-      'PHOTO_HARD_DELETE_DAYS',
-      DEFAULT_PHOTO_HARD_DELETE_DAYS,
+      'MEDIA_HARD_DELETE_DAYS',
+      pickInt(source, 'PHOTO_HARD_DELETE_DAYS', DEFAULT_MEDIA_HARD_DELETE_DAYS, warn),
       warn,
     ),
     cronSecret:
