@@ -70,7 +70,7 @@ export function ExpandableText({
     >
       <p
         ref={paragrafo}
-        className={cn('text-ink-soft text-sm leading-relaxed', !espanso && CLAMP[lines])}
+        className={cn('text-ink-soft testo-corpo leading-relaxed', !espanso && CLAMP[lines])}
       >
         {children}
       </p>
@@ -81,7 +81,7 @@ export function ExpandableText({
           aria-expanded={espanso}
           aria-label={espanso ? `Riduci ${label}` : `Mostra tutto ${label}`}
           className={cn(
-            'focus-anello premibile text-brand-blue-dark controllo -mx-2 inline-flex w-fit items-center gap-1.5 rounded-md px-2 text-sm font-semibold',
+            'focus-anello premibile text-brand-blue-dark controllo -mx-2 inline-flex w-fit items-center gap-1.5 rounded-md px-2 testo-corpo font-semibold',
             variant === 'block' && '-mb-2',
           )}
         >

@@ -31,7 +31,7 @@ export function Alert({
       className={cn(
         // Niente bordo: il fondo pieno basta a staccarlo, e un bordo colorato sopra un fondo
         // colorato è la doppia sottolineatura che rendeva pesante ogni avviso.
-        'flex flex-col gap-3 rounded-md px-5 py-4 text-sm sm:flex-row sm:items-center sm:justify-between',
+        'testo-corpo flex flex-col gap-3 rounded-md px-5 py-4 sm:flex-row sm:items-center sm:justify-between',
         TONE_CLASSES[tone],
         className,
       )}

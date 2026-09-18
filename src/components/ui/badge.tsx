@@ -24,7 +24,7 @@ const TONE_CLASSES: Record<BadgeTone, string> = {
 };
 
 const DOT_CLASSES: Record<BadgeTone, string> = {
-  neutral: 'bg-slate-400',
+  neutral: 'bg-status-waiting',
   info: 'bg-status-info',
   success: 'bg-status-completed',
   warning: 'bg-status-in-progress',
@@ -41,7 +41,7 @@ export function Badge({
   return (
     <span
       className={cn(
-        'inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-semibold whitespace-nowrap',
+        'inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 testo-nota font-semibold whitespace-nowrap',
         TONE_CLASSES[tone],
         className,
       )}

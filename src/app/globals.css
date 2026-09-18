@@ -72,6 +72,14 @@
   /* Bordo di card e campi. `slate-200` come bordo pesa più del contenuto che racchiude. */
   --color-line: #d8e5ee;
   --color-ink: #142c3d;
+  /*
+   * Testo scuro sui RIEMPIMENTI PIENI del marchio, dove il bianco non si legge: il verde
+   * #87BD22 col bianco sopra fa 2,6:1, l'ambra piena anche meno. Qui stava `slate-950`, che
+   * funzionava ma era la tavolozza grezza: questo e' lo stesso nero portato nella famiglia
+   * dell'inchiostro del progetto. Misurato: 8,1:1 sul verde, 9,6:1 sull'ambra, 18,1:1 su bianco.
+   * Non e' un ink piu' scuro da usare ovunque: serve a due varianti di pulsante e basta.
+   */
+  --color-ink-forte: #0a1721;
   --color-ink-soft: #24475f;
   /*
    * L'ultimo grigio ammesso per il testo: 5,1:1 su bianco. Sotto questo (`slate-400`, 3,2:1) si

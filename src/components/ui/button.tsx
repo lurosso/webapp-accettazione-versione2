@@ -41,16 +41,17 @@ export interface ButtonProps extends ButtonHTMLAttributes<HTMLButtonElement> {
 const VARIANT_CLASSES: Record<ButtonVariant, string> = {
   // Blu Autoclub: struttura, navigazione e azioni di lavoro (prendi in carico, filtri).
   default: 'bg-brand-secondary text-white shadow-xs hover:bg-brand-blue-dark',
-  secondary: 'bg-surface-sunken text-ink hover:bg-slate-200',
+  secondary: 'bg-surface-sunken text-ink hover:bg-line',
   outline: 'border-line bg-surface text-ink-soft hover:bg-surface-sunken border',
   ghost: 'text-ink-soft hover:bg-surface-sunken',
   destructive: 'bg-status-no-show-solid hover:bg-status-no-show-solid-hover text-white shadow-xs',
   destructiveQuiet:
     'border-status-no-show/35 bg-surface text-status-no-show-ink hover:bg-status-no-show-soft border',
   // Verde Autoclub: solo completamento e avanzamento. Testo scuro: il verde del marchio con il
-  // bianco sopra non si legge (contrasto 2,6:1), con il testo scuro supera 8:1.
-  success: 'bg-brand-primary text-slate-950 shadow-xs hover:bg-brand-lime-dark hover:text-white',
-  warning: 'bg-status-in-progress text-slate-900 hover:brightness-95',
+  // bianco sopra non si legge (2,6:1). `ink-forte` e' il nero della famiglia dell'inchiostro,
+  // misurato 8,1:1 sul verde e 9,6:1 sull'ambra qui sotto. Prima erano `slate-950` e `slate-900`.
+  success: 'bg-brand-primary text-ink-forte shadow-xs hover:bg-brand-lime-dark hover:text-white',
+  warning: 'bg-status-in-progress text-ink-forte hover:brightness-95',
   // Sul fondo blu l'anello di focus blu sparisce: qui diventa bianco.
   onDark: 'border border-white/40 bg-white/10 text-white hover:bg-white/20 [--anello-colore:#fff]',
 };

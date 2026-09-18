@@ -81,7 +81,7 @@ export function Dialog({
           {title}
         </h2>
         {description !== undefined ? (
-          <p className="text-ink-soft mt-1.5 text-sm">{description}</p>
+          <p className="text-ink-soft testo-corpo mt-1.5">{description}</p>
         ) : null}
         {children !== undefined ? <div className="mt-6">{children}</div> : null}
         {footer !== undefined ? (

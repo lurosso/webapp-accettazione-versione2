@@ -39,7 +39,7 @@ export function PanelHeader({ title, description, actions, meta, className }: Pa
           {meta}
         </div>
         {description !== undefined ? (
-          <p className="text-ink-soft max-w-prose text-sm">{description}</p>
+          <p className="text-ink-soft testo-corpo max-w-prose">{description}</p>
         ) : null}
       </div>
       {actions !== undefined ? (

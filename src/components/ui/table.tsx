@@ -19,7 +19,7 @@ export function TableHeader({ className, ...props }: HTMLAttributes<HTMLTableSec
     <thead
       className={cn(
         // L'intestazione non è una riga da toccare: non prende l'altezza minima delle altre.
-        'bg-surface-sunken text-ink-muted text-xs tracking-wide uppercase [&_tr]:h-auto',
+        'bg-surface-sunken text-ink-muted testo-nota tracking-wide uppercase [&_tr]:h-auto',
         className,
       )}
       {...props}
