@@ -264,6 +264,14 @@ export function QueueDashboard({
    * della tavola qui non è distinguibile — il check-in è una pratica in carico con le foto in
    * corso — e al suo posto c'è «in ritardo», che è la colonna su cui si interviene.
    */
+  // Sezione chiesta da un contatore. Il contatore cambia da solo mentre la giornata va avanti,
+  // quindi il nonce non è il numero: è quante volte l'hanno chiesta, altrimenti chiedere due volte
+  // la stessa sezione con lo stesso numero non farebbe niente la seconda.
+  const [vaiA, setVaiA] = useState<{ chiave: string; nonce: number } | null>(null);
+  const vaiASezione = useCallback((sezione: string): void => {
+    setVaiA((corrente) => ({ chiave: sezione, nonce: (corrente?.nonce ?? 0) + 1 }));
+  }, []);
+
   const contatori = useMemo(() => {
     const righe = data?.rows ?? [];
     const inCoda = righe.filter(
@@ -278,19 +286,22 @@ export function QueueDashboard({
         etichetta: 'in attesa',
         valore: inCoda.length - inRitardo,
         riga: 'bg-status-waiting',
+        sezione: 'queued',
       },
       {
         etichetta: 'in carico',
         valore: righe.filter((r) => r.appointment.status === 'IN_PROGRESS').length,
         riga: 'bg-status-in-progress',
+        sezione: 'in-progress',
       },
-      { etichetta: 'in ritardo', valore: inRitardo, riga: 'bg-priority-late' },
+      { etichetta: 'in ritardo', valore: inRitardo, riga: 'bg-priority-late', sezione: 'late' },
       {
         etichetta: 'chiuse',
         valore: righe.filter((r) =>
           ['COMPLETED', 'NO_SHOW', 'CANCELLED'].includes(r.appointment.status),
         ).length,
         riga: 'bg-status-completed',
+        sezione: 'closed',
       },
     ];
   }, [data?.rows, data?.serverTime]);
@@ -318,6 +329,7 @@ export function QueueDashboard({
         view={view}
         returnsCount={data?.returnsCount ?? 0}
         counters={contatori}
+        onCounter={vaiASezione}
         onView={(prossima) =>
           updateUrl({ view: prossima, deskId: prossima === 'desk' ? homeDeskId : null })
         }
@@ -488,6 +500,7 @@ export function QueueDashboard({
             onAction={onAction}
             selectedId={selectedId}
             readOnly={readOnly}
+            vaiA={vaiA}
             // Stessa riga toccata due volte: il pannello si chiude. Sul tablet è il gesto naturale.
             onSelect={(row) =>
               setSelectedId((corrente) =>

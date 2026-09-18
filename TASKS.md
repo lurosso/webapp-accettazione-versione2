@@ -1704,6 +1704,14 @@ Cuore del modulo A; dipende solo da interfacce.
 - [x] M8-T27-S04 Il cursore del livello 2 passa dalla finestra al PIEDE, come nella tavola. La finestra serviva a dire quante foto e quanti video c'erano: adesso lo dicono le pastiglie in testata e la riga della documentazione, e restava solo un passaggio in più fra l'accettatore e la fine del suo lavoro.
 - [x] M8-T27-S05 Gate verde: typecheck, lint, 411 test, build. Schermate a confronto con le tavole.
 
+### M8-T29 — I quattro numeri portano al loro elenco _(2026-09-18, chiesto dal committente)_
+
+- [x] M8-T29-S01 **I contatori della testata diventano comandi.** I quattro numeri e le quattro sezioni della coda erano già la stessa cosa detta due volte, e chi legge «3 in ritardo» sta già cercando dove sono: adesso il riquadro ci porta. Ogni contatore dichiara la propria sezione (`queued`, `in-progress`, `late`, `closed`), la tabella espone l'ancora `sezione-<chiave>` e ci scorre.
+  - **Con zero resta un dato, non un bottone.** Un comando che non porta da nessuna parte insegna che i riquadri non sono affidabili: a zero il riquadro è un `div` come prima, sopra zero è un `button` con etichetta accessibile («12 chiuse: vai all'elenco»).
+  - **Apre le sezioni ripiegate.** «Chiuse oggi» è collassata e i ritardi stanno in una riga sola: atterrare su un'intestazione chiusa sarebbe rispondere «è là dentro» a chi ha chiesto di vederla. L'apertura è un aggiustamento di stato durante il disegno, non un effetto — in un effetto costringerebbe a un secondo disegno con la sezione ancora chiusa, ed è anche ciò che vieta `react-hooks/set-state-in-effect`.
+  - **Rispetta `prefers-reduced-motion`.** Per chi ha chiesto meno movimento il salto è istantaneo: è la stessa regola che `globals.css` applica alle transizioni, e uno scorrimento lungo due schermi è esattamente il moto che quella preferenza vuole evitare.
+  - Provato nel browser sui dati veri: «chiuse» passa da 0 a 12 righe e atterra a `top: 0`; il secondo clic sullo stesso contatore funziona, ed è il motivo del `nonce` (il numero può non essere cambiato). `QueueHeader` non è in nessuna lista del cricchetto, quindi scritto con soli ruoli di colore e misure di densità.
+
 ### M8-T28 — Il sistema di stile smette di dipendere dalla disciplina _(2026-09-18)_
 
 Censimento di tutte le sezioni contro le tavole, chiesto dal committente dopo aver visto per la terza volta la «versione di prima» sull'iPad. Il risultato non è una schermata sbagliata: il sistema è arrivato a **17 file su 91**, e la metà mancante è proprio quella che si nota al tocco.

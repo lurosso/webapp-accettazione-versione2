@@ -22,6 +22,12 @@ export interface QueueCounter {
   readonly valore: number;
   /** Riga di colore sotto il numero: è lo stato, non una decorazione. */
   readonly riga: string;
+  /**
+   * Sezione dell'elenco a cui il numero si riferisce. Quando c'è — e quando il numero non è zero —
+   * il riquadro diventa un comando che ci porta: i quattro numeri e le quattro sezioni sono la
+   * stessa cosa detta due volte, e chi legge «3 in ritardo» sta già cercando dove sono.
+   */
+  readonly sezione?: string;
 }
 
 export interface QueueHeaderProps {
@@ -39,6 +45,8 @@ export interface QueueHeaderProps {
   } | null;
   readonly actions?: React.ReactNode;
   readonly badges?: React.ReactNode;
+  /** Chiesta la sezione di un contatore: chi compone la testata decide come portarci. */
+  readonly onCounter?: (sezione: string) => void;
 }
 
 function Scheda({
@@ -69,6 +77,50 @@ function Scheda({
   );
 }
 
+/**
+ * Un numero della giornata. Quando la sua sezione esiste e il numero non è zero diventa un
+ * comando: un riquadro che non porta da nessuna parte è peggio di un riquadro fermo, quindi con
+ * zero resta quello che era — un dato, non un bottone che delude.
+ */
+function Contatore({
+  contatore,
+  onCounter,
+}: {
+  readonly contatore: QueueCounter;
+  readonly onCounter?: ((sezione: string) => void) | undefined;
+}) {
+  const { etichetta, valore, riga, sezione } = contatore;
+  const cornice = 'border-line bg-surface flex w-full flex-col gap-1 rounded-md border px-4 py-3';
+  const corpo = (
+    <>
+      <span className="flex items-baseline gap-2">
+        <span className="testo-codice font-mono font-bold tabular-nums">{valore}</span>
+        <span className="text-ink-soft testo-nota font-semibold">{etichetta}</span>
+      </span>
+      <span aria-hidden="true" className={cn('h-1 rounded-full', riga)} />
+    </>
+  );
+
+  if (sezione === undefined || valore === 0 || onCounter === undefined) {
+    return <div className={cornice}>{corpo}</div>;
+  }
+  return (
+    <button
+      type="button"
+      data-testid={`contatore-${sezione}`}
+      onClick={() => onCounter(sezione)}
+      aria-label={`${valore} ${etichetta}: vai all'elenco`}
+      className={cn(
+        cornice,
+        'transizione focus-anello premibile text-left',
+        'hover:border-ink-muted hover:bg-surface-sunken',
+      )}
+    >
+      {corpo}
+    </button>
+  );
+}
+
 export function QueueHeader({
   title,
   subtitle,
@@ -79,6 +131,7 @@ export function QueueHeader({
   deskPicker = null,
   actions,
   badges,
+  onCounter,
 }: QueueHeaderProps) {
   return (
     <div className="flex flex-col gap-4">
@@ -133,16 +186,11 @@ export function QueueHeader({
       {counters.length > 0 ? (
         <dl className="grid grid-cols-2 gap-3 sm:grid-cols-4">
           {counters.map((c) => (
-            <div
-              key={c.etichetta}
-              className="border-line bg-surface flex flex-col gap-1 rounded-md border px-4 py-3"
-            >
-              <span className="flex items-baseline gap-2">
-                <dt className="sr-only">{c.etichetta}</dt>
-                <dd className="testo-codice font-mono font-bold tabular-nums">{c.valore}</dd>
-                <span className="text-ink-soft testo-nota font-semibold">{c.etichetta}</span>
-              </span>
-              <span aria-hidden="true" className={cn('h-1 rounded-full', c.riga)} />
+            <div key={c.etichetta}>
+              <dt className="sr-only">{c.etichetta}</dt>
+              <dd>
+                <Contatore contatore={c} onCounter={onCounter} />
+              </dd>
             </div>
           ))}
         </dl>

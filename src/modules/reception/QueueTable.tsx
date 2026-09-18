@@ -2,7 +2,7 @@
 
 // Tabella della coda con tre sezioni: In carico (in alto), In coda (attesa + saltate per orario) e
 // Chiuse oggi (completate, no-show, annullate; collassabile).
-import { Fragment, useState } from 'react';
+import { Fragment, useEffect, useState } from 'react';
 import {
   compareQueueOrder,
   effectiveScheduleTime,
@@ -45,6 +45,11 @@ export interface QueueTableProps {
   readonly selectedId?: string | null;
   /** Monitoraggio in sola lettura: nessuna azione sulle righe. */
   readonly readOnly?: boolean;
+  /**
+   * Sezione chiesta dai contatori della testata. Il `nonce` serve perché la stessa sezione si può
+   * chiedere due volte di fila, e senza un valore che cambia il secondo clic non farebbe niente.
+   */
+  readonly vaiA?: { readonly chiave: string; readonly nonce: number } | null;
 }
 
 interface Section {
@@ -94,9 +99,47 @@ export function QueueTable({
   onSelect,
   selectedId = null,
   readOnly = false,
+  vaiA = null,
 }: QueueTableProps) {
   const [closedOpen, setClosedOpen] = useState(false);
   const [ritardiAperti, setRitardiAperti] = useState(false);
+
+  // Chiesta una sezione dalla testata: prima la si apre, se era ripiegata, poi ci si porta. Portare
+  // qualcuno davanti a un'intestazione chiusa sarebbe rispondere «è là dentro» a chi ha chiesto di
+  // vederla.
+  //
+  // L'apertura è un aggiustamento di stato durante il disegno, non un effetto: reagisce a una
+  // proprietà cambiata, e farlo in un effetto costringerebbe a un secondo disegno con la sezione
+  // ancora chiusa. Resta una richiesta, non un vincolo: chi la richiude dopo la trova richiusa.
+  const [nonceVisto, setNonceVisto] = useState(0);
+  if (vaiA !== null && vaiA.nonce !== nonceVisto) {
+    setNonceVisto(vaiA.nonce);
+    if (vaiA.chiave === 'closed') {
+      setClosedOpen(true);
+    }
+    if (vaiA.chiave === 'late') {
+      setRitardiAperti(true);
+    }
+  }
+
+  // Lo scorrimento invece è un effetto vero, e parte dopo il disegno: prima la sezione appena
+  // aperta non ha ancora la sua altezza, e si atterrerebbe nel posto sbagliato.
+  useEffect(() => {
+    if (vaiA === null) {
+      return;
+    }
+    const frame = requestAnimationFrame(() => {
+      // Chi ha chiesto meno movimento non lo riceve nemmeno qui: il salto è istantaneo. È la stessa
+      // regola che `globals.css` applica alle transizioni, e uno scorrimento lungo due schermi è
+      // esattamente il tipo di moto che quella preferenza vuole evitare.
+      const motoRidotto = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+      document.getElementById(`sezione-${vaiA.chiave}`)?.scrollIntoView({
+        behavior: motoRidotto ? 'auto' : 'smooth',
+        block: 'start',
+      });
+    });
+    return () => cancelAnimationFrame(frame);
+  }, [vaiA]);
 
   /** Ordina per orario effettivo: una pratica rimessa in coda si ricolloca al nuovo orario. */
   const byTime = (list: readonly QueueRowView[]): QueueRowView[] =>
@@ -203,7 +246,7 @@ export function QueueTable({
         // notizia; i nomi servono solo a chi ha deciso di occuparsene adesso.
         if (compattaChiusa) {
           return (
-            <section key={section.key}>
+            <section key={section.key} id={`sezione-${section.key}`}>
               <div className="border-priority-late-line bg-surface flex flex-wrap items-center gap-x-3 gap-y-2 rounded-lg border px-5 py-3">
                 <span className="bg-priority-late-soft text-priority-late-ink testo-nota flex size-7 shrink-0 items-center justify-center rounded-full font-bold tabular-nums">
                   {section.rows.length}
@@ -230,7 +273,7 @@ export function QueueTable({
         }
 
         return (
-          <section key={section.key} aria-labelledby={`section-${section.key}`}>
+          <section key={section.key} id={`sezione-${section.key}`} aria-labelledby={`section-${section.key}`}>
             <div className="mb-3 flex items-start justify-between gap-4">
               <div>
                 <h2
