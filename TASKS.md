@@ -1704,6 +1704,17 @@ Cuore del modulo A; dipende solo da interfacce.
 - [x] M8-T27-S04 Il cursore del livello 2 passa dalla finestra al PIEDE, come nella tavola. La finestra serviva a dire quante foto e quanti video c'erano: adesso lo dicono le pastiglie in testata e la riga della documentazione, e restava solo un passaggio in più fra l'accettatore e la fine del suo lavoro.
 - [x] M8-T27-S05 Gate verde: typecheck, lint, 411 test, build. Schermate a confronto con le tavole.
 
+### M8-T28 — Il sistema di stile smette di dipendere dalla disciplina _(2026-09-18)_
+
+Censimento di tutte le sezioni contro le tavole, chiesto dal committente dopo aver visto per la terza volta la «versione di prima» sull'iPad. Il risultato non è una schermata sbagliata: il sistema è arrivato a **17 file su 91**, e la metà mancante è proprio quella che si nota al tocco.
+
+- [x] M8-T28-S01 **Refuso, tre schermi al muro senza fondo.** `bg-status-in-progress-soft0` — uno zero di troppo rimasto da una sostituzione automatica — in `BayDisplayBoard`, `WaitingBoardScreen` e `(display)/error.tsx`. La classe non esiste, quindi non produceva niente: verificato sul CSS compilato, dove `soft0` non compare e `in-progress-soft` sì. Tre caratteri.
+- [x] M8-T28-S02 **Il cricchetto sullo stile** (`tests/unit/stile-densita.test.ts`), stessa tecnica del «lei» nel portale: una regola che dipende dalla disciplina rientra dalla finestra. Due liste di debito scritte per nome — 48 file con la tavolozza grezza, 58 con le misure fisse — e due direzioni di fallimento: un file NUOVO che viola fallisce subito, un file RIPULITO che resta in lista fallisce finché non lo si toglie. Verde oggi (415 test), e le liste possono solo accorciarsi. Provato in tutte e due le direzioni prima di consegnarlo.
+- [ ] M8-T28-S03 Le correzioni a blocchi, con le liste che scendono. Ordine: primitive condivise (`button`, `badge`, `label`, `panel`, `card`, `table`) → coda e dettaglio → check-in e archivio → amministrazione → portale.
+- [ ] M8-T28-S04 Ultimo, a liste vuote: togliere `--color-slate-*` da `@theme`. **Va fatto per ultimo** — farlo per primo romperebbe la compilazione in 48 file nello stesso momento, e un gate rosso da 48 voci non si legge, si disattiva. A liste vuote invece non rompe niente e diventa il chiavistello che impedisce il ritorno. _(Ordine corretto da Claude Code: la mia prima proposta lo metteva per primo.)_
+- [ ] M8-T28-S05 Le schermate ancora lontane dalla tavola, dopo il sistema: dettaglio pratica (foglio a due colonne), BDC (schede, non tabella; telefono come pulsante), monitoraggio (pastiglie di stato, «tieni premuto per liberare»), archivio (striscia sola col video scuro e «+N foto»).
+- [ ] M8-T28-S06 `MonitoringPanel`: «Libera sportello» è l'unica delle tre azioni del pannello senza protezione, ed è l'unica che tocca un CLIENTE — rimette la sua pratica in coda. Le altre due, che riguardano un collega, hanno `HoldButton`. Incoerenza interna, verificabile senza tavole.
+
 ### M8-T26 — La coda rifatta sulla tavola _(2026-09-18, segnalato dal committente)_
 
 - [x] M8-T26-S01 **Errore mio, trovato dal committente.** Per giorni gli ho risposto che la variante B era applicata: era applicato il SISTEMA — misure, colori, conferme, il cursore — ma la schermata della coda era ancora quella vecchia, con le sezioni tutte uguali e ogni riga dello stesso peso. Lui guardava la cosa che conta di più e io rispondevo sui token. Rimesse a confronto le tavole `VarianteB` e `PcCoda` con quello che gira, la differenza era evidente in due secondi.
