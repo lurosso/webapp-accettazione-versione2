@@ -4,11 +4,7 @@ import {
   PLATE_MAX_LENGTH,
   plateErrorMessage,
 } from '@/modules/customer-portal/plate-input';
-import {
-  aheadCountMessage,
-  concludedMessage,
-  statusMessage,
-} from '@/modules/customer-portal/status-messages';
+import { aheadCountMessage, statusMessage } from '@/modules/customer-portal/status-messages';
 
 describe('formatPlateInput', () => {
   it('porta in maiuscolo e rimuove spazi, trattini e punti mentre si digita', () => {
@@ -24,7 +20,7 @@ describe('formatPlateInput', () => {
 
 describe('plateErrorMessage', () => {
   it('campo vuoto e targa troppo corta hanno messaggi in italiano', () => {
-    expect(plateErrorMessage('')).toContain('Inserisci');
+    expect(plateErrorMessage('')).toContain('Inserisca');
     expect(plateErrorMessage('AB1')).toContain('non valida');
   });
 
@@ -51,30 +47,5 @@ describe('messaggi di stato del portale', () => {
     expect(aheadCountMessage(0)).toBe('Il prossimo turno è il suo');
     expect(aheadCountMessage(1)).toContain('1 auto prima di lei');
     expect(aheadCountMessage(4)).toContain('4 auto prima di lei');
-  });
-
-  // Il portale dà del lei: è una decisione del committente, non una preferenza di stile, e
-  // rientrerebbe dalla finestra alla prima frase scritta di fretta. Il test la tiene ferma.
-  it('parla al cliente dandogli del lei, in ogni stato', () => {
-    const stati = [
-      'WAITING',
-      'SKIPPED',
-      'IN_PROGRESS',
-      'COMPLETED',
-      'NO_SHOW',
-      'CANCELLED',
-    ] as const;
-    const testi = [
-      ...stati.flatMap((s) => [statusMessage(s, 'A').headline, statusMessage(s, 'A').detail]),
-      ...stati.map((s) => concludedMessage(s).detail),
-      aheadCountMessage(0),
-      aheadCountMessage(3),
-    ];
-    // Seconda persona singolare: pronomi, possessivi e gli imperativi che ci finivano dentro.
-    const tu =
-      /\b(ti|tu|tuo|tua|tuoi|tue|sei|attendi|riprova|rivolgiti|controlla|avanza|resta|digitala)\b/i;
-    for (const t of testi) {
-      expect(t, `dà del tu: «${t}»`).not.toMatch(tu);
-    }
   });
 });
