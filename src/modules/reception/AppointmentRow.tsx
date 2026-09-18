@@ -39,6 +39,8 @@ export interface AppointmentRowProps {
   readonly dueSoon?: boolean;
   /** Cambiata negli ultimi secondi: sale al suo posto invece di comparire e basta. */
   readonly appenaCambiata?: boolean;
+  /** La prossima da servire: al banco resta una riga, ma in ambra e con la pastiglia che lo dice. */
+  readonly evidenza?: boolean;
   readonly onAction: (action: AppointmentAction) => void;
   readonly onSelect: () => void;
   /** Riga aperta nel pannello di dettaglio. */
@@ -77,6 +79,7 @@ export function AppointmentRow({
   lateByMinutes = 0,
   dueSoon = false,
   appenaCambiata = false,
+  evidenza = false,
   onAction,
   onSelect,
   selected = false,
@@ -97,11 +100,14 @@ export function AppointmentRow({
         'cursor-pointer transition-[filter] duration-200 select-none hover:brightness-[0.97]',
         ROW_CLASSES[a.status],
         appenaCambiata && 'appena-cambiata',
+        evidenza && 'bg-priority-now-soft',
         // Il colore va solo dove aggiunge qualcosa. Le pratiche in ritardo stanno già dentro un
         // blocco con il bordo e il titolo rossi: ritingere anche ogni riga faceva un muro rosa in
         // cui, di nuovo, non emergeva niente. Resta l'ambra su chi ha superato l'orario ma è
         // ancora dentro la tolleranza: quella è l'unica riga della coda che chiede qualcosa adesso.
-        dueSoon && !late && 'bg-priority-now-soft',
+        // La tinta sta su UNA riga sola, la prossima da servire. Prima ce l'aveva ogni riga
+        // che avesse superato l'orario: con venti pratiche arretrate tornava a essere uno sfondo.
+        // «Orario superato» resta scritto su tutte, che è l'informazione; il colore è la priorità.
         pending && 'opacity-60',
         selected && 'ring-brand-secondary ring-2 ring-inset',
       )}

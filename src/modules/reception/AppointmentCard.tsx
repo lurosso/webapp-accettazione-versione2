@@ -84,7 +84,7 @@ export function AppointmentCard({
         evidenza && 'bg-priority-now-soft border-priority-now rounded-lg border-2 px-5 py-5',
         appenaCambiata && 'appena-cambiata',
         STATO_SPENTO[a.status],
-        dueSoon && !late && 'bg-priority-now-soft',
+
         pending && 'opacity-60',
         selected && 'ring-brand-secondary bg-surface-sunken ring-2 ring-inset',
       )}

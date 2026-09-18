@@ -2,7 +2,7 @@
 
 // Tabella della coda con tre sezioni: In carico (in alto), In coda (attesa + saltate per orario) e
 // Chiuse oggi (completate, no-show, annullate; collassabile).
-import { useState } from 'react';
+import { Fragment, useState } from 'react';
 import {
   compareQueueOrder,
   effectiveScheduleTime,
@@ -56,7 +56,12 @@ interface Section {
   readonly emptyLabel: string;
   /** Nota sotto il titolo: spiega cosa fare con le pratiche di questo blocco. */
   readonly hint?: string;
-  /** La prima riga è la prossima da servire: si vede da lontano. */
+  /**
+   * La prima riga è la prossima da servire, e si vede da lontano — col dito diventa una scheda a
+   * sé sotto «Tocca a lui adesso», al banco resta la prima riga della stessa tabella, in ambra.
+   * Sono due modi di dire la stessa cosa: dividerla in due sezioni anche al banco voleva dire due
+   * tabelle con la stessa intestazione ripetuta per una riga ciascuna.
+   */
   readonly evidenzaPrima?: boolean;
   /** Ridotta a una riga sola finché non la si apre: vale per i ritardi. */
   readonly compatta?: boolean;
@@ -130,8 +135,6 @@ export function QueueTable({
    * I ritardi stanno in una riga sola finché non li si apre. Venti righe rosse in fondo alla coda
    * non sono venti avvisi: sono uno sfondo, e chi le guarda ogni mattina smette di vederle.
    */
-  const [prossimo, ...poiQuesti] = queued;
-
   const sections: Section[] = [
     {
       key: 'in-progress',
@@ -140,27 +143,13 @@ export function QueueTable({
       collapsible: false,
       emptyLabel: 'Nessuna pratica in lavorazione.',
     },
-    ...(prossimo !== undefined
-      ? [
-          {
-            key: 'prossimo',
-            title: 'Tocca a lui adesso',
-            rows: [prossimo],
-            collapsible: false,
-            evidenzaPrima: true,
-            emptyLabel: '',
-          } satisfies Section,
-        ]
-      : []),
     {
       key: 'queued',
-      title: prossimo === undefined ? 'In coda · 0' : `Poi questi · ${poiQuesti.length}`,
-      rows: poiQuesti,
+      title: `In coda · ${queued.length}`,
+      rows: queued,
       collapsible: false,
-      emptyLabel:
-        prossimo === undefined
-          ? 'Nessuna pratica in coda.'
-          : 'Nessun altro in attesa: sei in pari.',
+      evidenzaPrima: true,
+      emptyLabel: 'Nessuna pratica in coda.',
     },
     {
       key: 'late',
@@ -292,28 +281,40 @@ export function QueueTable({
                   dopo l'idratazione — cioè sfarfallerebbe sotto gli occhi dell'accettatore.
                 */}
                 <ul className="divide-line-subtle banco:hidden divide-y">
-                  {righe.map(({ row, deskLabel, foreignDesk, dueSoon, appenaCambiata }) => (
-                    <AppointmentCard
-                      key={row.appointment.id}
-                      row={row}
-                      brandName={brandName(row.appointment.brandId)}
-                      deskLabel={deskLabel}
-                      showDesk={showDesk}
-                      foreignDesk={foreignDesk}
-                      dueSoon={dueSoon}
-                      appenaCambiata={appenaCambiata}
-                      evidenza={section.evidenzaPrima === true}
-                      timeZone={timeZone}
-                      pending={pendingId === row.appointment.id}
-                      late={section.late === true}
-                      lateByMinutes={section.late === true ? lateBy(row) : 0}
-                      selected={row.appointment.id === selectedId}
-                      readOnly={readOnly}
-                      onAction={(action) =>
-                        onAction(row.appointment.id, action, row.appointment.version)
-                      }
-                      onSelect={() => onSelect(row)}
-                    />
+                  {righe.map(({ row, deskLabel, foreignDesk, dueSoon, appenaCambiata }, indice) => (
+                    <Fragment key={`gruppo-${row.appointment.id}`}>
+                      {section.evidenzaPrima === true && indice === 0 ? (
+                        <li className="text-priority-now-ink testo-nota px-5 pt-4 font-semibold tracking-wide uppercase">
+                          Tocca a lui adesso
+                        </li>
+                      ) : null}
+                      {section.evidenzaPrima === true && indice === 1 ? (
+                        <li className="text-ink-soft testo-nota px-5 pt-4 font-semibold tracking-wide uppercase">
+                          Poi questi · {righe.length - 1}
+                        </li>
+                      ) : null}
+                      <AppointmentCard
+                        key={row.appointment.id}
+                        row={row}
+                        brandName={brandName(row.appointment.brandId)}
+                        deskLabel={deskLabel}
+                        showDesk={showDesk}
+                        foreignDesk={foreignDesk}
+                        dueSoon={dueSoon}
+                        appenaCambiata={appenaCambiata}
+                        evidenza={section.evidenzaPrima === true && indice === 0}
+                        timeZone={timeZone}
+                        pending={pendingId === row.appointment.id}
+                        late={section.late === true}
+                        lateByMinutes={section.late === true ? lateBy(row) : 0}
+                        selected={row.appointment.id === selectedId}
+                        readOnly={readOnly}
+                        onAction={(action) =>
+                          onAction(row.appointment.id, action, row.appointment.version)
+                        }
+                        onSelect={() => onSelect(row)}
+                      />
+                    </Fragment>
                   ))}
                 </ul>
 
@@ -336,29 +337,32 @@ export function QueueTable({
                       </TableRow>
                     </TableHeader>
                     <TableBody>
-                      {righe.map(({ row, deskLabel, foreignDesk, dueSoon, appenaCambiata }) => (
-                        <AppointmentRow
-                          key={row.appointment.id}
-                          row={row}
-                          brandName={brandName(row.appointment.brandId)}
-                          dueSoon={dueSoon}
-                          appenaCambiata={appenaCambiata}
-                          deskLabel={deskLabel}
-                          showDesk={showDesk}
-                          foreignDesk={foreignDesk}
-                          timeZone={timeZone}
-                          pending={pendingId === row.appointment.id}
-                          currentOperatorName={currentOperatorName}
-                          late={section.late === true}
-                          lateByMinutes={section.late === true ? lateBy(row) : 0}
-                          selected={row.appointment.id === selectedId}
-                          readOnly={readOnly}
-                          onAction={(action) =>
-                            onAction(row.appointment.id, action, row.appointment.version)
-                          }
-                          onSelect={() => onSelect(row)}
-                        />
-                      ))}
+                      {righe.map(
+                        ({ row, deskLabel, foreignDesk, dueSoon, appenaCambiata }, indice) => (
+                          <AppointmentRow
+                            key={row.appointment.id}
+                            row={row}
+                            brandName={brandName(row.appointment.brandId)}
+                            dueSoon={dueSoon}
+                            appenaCambiata={appenaCambiata}
+                            evidenza={section.evidenzaPrima === true && indice === 0}
+                            deskLabel={deskLabel}
+                            showDesk={showDesk}
+                            foreignDesk={foreignDesk}
+                            timeZone={timeZone}
+                            pending={pendingId === row.appointment.id}
+                            currentOperatorName={currentOperatorName}
+                            late={section.late === true}
+                            lateByMinutes={section.late === true ? lateBy(row) : 0}
+                            selected={row.appointment.id === selectedId}
+                            readOnly={readOnly}
+                            onAction={(action) =>
+                              onAction(row.appointment.id, action, row.appointment.version)
+                            }
+                            onSelect={() => onSelect(row)}
+                          />
+                        ),
+                      )}
                     </TableBody>
                   </Table>
                 </div>
