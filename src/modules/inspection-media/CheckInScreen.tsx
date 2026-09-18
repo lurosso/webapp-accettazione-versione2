@@ -12,7 +12,6 @@
 // Testi grandi, bordi spessi, contrasto alto, niente stati che dipendono dal passaggio del mouse.
 import { useQueryClient } from '@tanstack/react-query';
 import { useEffect, useState } from 'react';
-import { Dialog } from '@/components/ui/dialog';
 import { SlideToConfirm } from '@/components/ui/slide-to-confirm';
 import type { QueueRowView } from '@/domain/read-models';
 import {
@@ -65,7 +64,6 @@ export function CheckInScreen({
   const [inChiusura, setInChiusura] = useState(false);
   const [errore, setErrore] = useState<string | null>(null);
   // Doppio controllo prima di chiudere: il tablet si tiene in mano e si tocca per sbaglio.
-  const [confermaAperta, setConfermaAperta] = useState(false);
 
   // Media già acquisiti: riaprendo il check-in si ritrova quanto fatto prima.
   useEffect(() => {
@@ -91,7 +89,6 @@ export function CheckInScreen({
 
   const completa = async (): Promise<void> => {
     setErrore(null);
-    setConfermaAperta(false);
     setInChiusura(true);
     try {
       const esito = await postCheckIn(a.id, {
@@ -250,25 +247,23 @@ export function CheckInScreen({
               Salta per ora
               <span className="text-xs font-medium text-slate-500">torna alla coda</span>
             </button>
-            <button
-              type="button"
-              onClick={() => setConfermaAperta(true)}
-              disabled={inChiusura || videoMancante}
-              aria-describedby="stato-check-in"
-              data-testid="completa-check-in"
-              className={cn(
-                'bg-brand-primary active:bg-brand-lime-dark premibile focus-anello controllo-lg flex flex-[2] items-center justify-center rounded-2xl text-xl font-bold text-slate-950 shadow-sm active:text-white',
-                // Spento finché manca il video: non un verde sbiadito e nemmeno un altro
-                // pieno di colore, che da lontano sembrerebbe un pulsante da premere. Vuoto e
-                // spento: si vede subito che manca un passaggio, non che sta caricando.
-                videoMancante &&
-                  !inChiusura &&
-                  'border-line text-ink-muted border-2 bg-transparent shadow-none',
-                'disabled:cursor-not-allowed disabled:opacity-80',
-              )}
-            >
-              {inChiusura ? 'Conclusione in corso…' : 'Completa check-in'}
-            </button>
+            {/*
+             * Il cursore sta QUI, nel piede, non dentro una finestra di conferma. La finestra
+             * serviva a dire quante foto e quanti video c'erano: adesso lo dicono le pastiglie in
+             * testata e la riga della documentazione, e restava solo un passaggio in più fra
+             * l'accettatore e la fine del suo lavoro.
+             */}
+            <SlideToConfirm
+              className="flex-[2]"
+              tone="success"
+              label="Scorri per completare il check-in"
+              pendingLabel="Conclusione in corso…"
+              actionLabel={`Completa il check-in della pratica ${a.code}`}
+              pending={inChiusura}
+              disabled={videoMancante}
+              onConfirm={() => void completa()}
+              data-testid="conferma-check-in"
+            />
           </div>
           <p
             id="stato-check-in"
@@ -281,53 +276,6 @@ export function CheckInScreen({
           </p>
         </div>
       </footer>
-
-      {/* Doppio controllo: una schermata a parte, con due bersagli lontani fra loro. */}
-      <Dialog
-        open={confermaAperta}
-        title="Completare il check-in?"
-        description={`Pratica ${a.code} · ${a.vehicle.plate}. La pratica si chiude, lo sportello si libera e il fascicolo parte verso il CRM.`}
-        onClose={() => setConfermaAperta(false)}
-        className="max-w-xl"
-        footer={
-          <div className="flex w-full flex-col-reverse gap-3 sm:flex-row">
-            <button
-              type="button"
-              onClick={() => setConfermaAperta(false)}
-              className="controllo-lg border-line text-ink-soft premibile focus-anello flex-1 rounded-2xl border-2 bg-white text-lg font-bold active:bg-slate-100"
-            >
-              Annulla
-            </button>
-            {/*
-             * Livello 2: qui la pratica si chiude e il fascicolo parte verso il CRM. La finestra
-             * resta perché porta quello che un pulsante non può dire — quante foto, quanti video,
-             * le note — ma il comando che la chiude è un cursore, non un bersaglio da premere
-             * accanto ad «Annulla» con il tablet in mano e il cliente che parla.
-             */}
-            <SlideToConfirm
-              className="flex-[2]"
-              tone="success"
-              label="Scorri per completare il check-in"
-              pendingLabel="Conclusione in corso…"
-              actionLabel={`Completa il check-in della pratica ${a.code}`}
-              pending={inChiusura}
-              onConfirm={() => void completa()}
-              data-testid="conferma-check-in"
-            />
-          </div>
-        }
-      >
-        <p className="text-lg text-slate-800">
-          Nel fascicolo ci sono <strong>{foto} foto</strong> e <strong>{video} video</strong>.
-        </p>
-        {note.trim() !== '' ? (
-          <p className="mt-2 rounded-xl bg-slate-50 px-4 py-3 text-base whitespace-pre-wrap text-slate-700">
-            {note.trim()}
-          </p>
-        ) : (
-          <p className="mt-2 text-base text-slate-500">Nessuna nota sul veicolo.</p>
-        )}
-      </Dialog>
     </div>
   );
 }
