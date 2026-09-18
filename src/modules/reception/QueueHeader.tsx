@@ -37,11 +37,19 @@ export interface QueueHeaderProps {
   readonly returnsCount: number;
   readonly counters: readonly QueueCounter[];
   readonly onView: (view: QueueView) => void;
-  /** Sportelli selezionabili quando si guarda il proprio: null quando non c'è scelta. */
+  /**
+   * Sportelli selezionabili quando si guarda il proprio: i quattro banchi fisici, raggruppati per
+   * area di marchio. Il raggruppamento non è decorativo — è l'unico modo di dire che A e B guardano
+   * la stessa coda, cosa vera nel dominio e altrimenti invisibile a chi sceglie.
+   */
   readonly deskPicker?: {
+    /** Sportello scelto adesso (id dello sportello fisico, non dell'area). */
     readonly value: string;
-    readonly options: readonly { readonly id: string; readonly label: string }[];
-    readonly onChange: (deskId: string) => void;
+    readonly groups: readonly {
+      readonly label: string;
+      readonly options: readonly { readonly id: string; readonly label: string }[];
+    }[];
+    readonly onChange: (bayId: string) => void;
   } | null;
   readonly actions?: React.ReactNode;
   readonly badges?: React.ReactNode;
@@ -167,17 +175,23 @@ export function QueueHeader({
           </Scheda>
         </div>
         {/* Il menu degli sportelli resta, ma solo dove serve: dentro la scheda del proprio. */}
-        {view === 'desk' && deskPicker !== null && deskPicker.options.length > 1 ? (
+        {view === 'desk' &&
+        deskPicker !== null &&
+        deskPicker.groups.reduce((n, g) => n + g.options.length, 0) > 1 ? (
           <Select
-            className="w-auto min-w-52"
+            className="w-auto min-w-64"
             value={deskPicker.value}
             onChange={(event) => deskPicker.onChange(event.target.value)}
             aria-label="Sportello visualizzato"
           >
-            {deskPicker.options.map((o) => (
-              <option key={o.id} value={o.id}>
-                {o.label}
-              </option>
+            {deskPicker.groups.map((g) => (
+              <optgroup key={g.label} label={g.label}>
+                {g.options.map((o) => (
+                  <option key={o.id} value={o.id}>
+                    {o.label}
+                  </option>
+                ))}
+              </optgroup>
             ))}
           </Select>
         ) : null}

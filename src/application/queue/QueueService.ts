@@ -15,6 +15,8 @@ import { RELEASING_DISPLAY_MS } from '@/config/constants';
 import { assertTransition } from '@/domain/appointment-state-machine';
 import { domainError, type DomainError } from '@/domain/errors';
 import type { AppointmentId, BayId, DeskId, OperatorId, WorkstationId } from '@/domain/ids';
+import type { Workstation } from '@/domain/entities/workstation';
+import type { WorkstationClaim } from '@/domain/entities/workstation-claim';
 import type {
   BayDisplayView,
   BayOccupancyOptionView,
@@ -118,17 +120,28 @@ export interface BayOccupancyView {
  */
 export function toBayOccupancyOptions(
   occupancy: readonly BayOccupancyView[],
+  /** Postazioni: legano lo sportello alla sua area di marchio (`defaultBayId`). */
+  workstations: readonly Workstation[] = [],
+  /** Rivendicazioni attive: dicono chi è seduto a ogni postazione, e quindi a ogni sportello. */
+  claims: readonly WorkstationClaim[] = [],
 ): readonly BayOccupancyOptionView[] {
-  return occupancy.map((o) => ({
-    bay: {
-      id: o.bay.id,
-      code: o.bay.code,
-      number: o.bay.number,
-      name: o.bay.name,
-      isActive: o.bay.isActive,
-    },
-    appointment: o.appointment,
-  }));
+  return occupancy.map((o) => {
+    const postazione = workstations.find((w) => w.defaultBayId === o.bay.id) ?? null;
+    const claim =
+      postazione === null ? null : (claims.find((c) => c.workstationId === postazione.id) ?? null);
+    return {
+      bay: {
+        id: o.bay.id,
+        code: o.bay.code,
+        number: o.bay.number,
+        name: o.bay.name,
+        isActive: o.bay.isActive,
+      },
+      appointment: o.appointment,
+      deskId: postazione?.deskId ?? null,
+      operatorName: claim?.operatorName ?? null,
+    };
+  });
 }
 
 export class QueueService {

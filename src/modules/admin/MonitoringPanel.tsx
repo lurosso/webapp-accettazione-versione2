@@ -43,10 +43,16 @@ export interface MonitoringPanelProps {
 const STALE_MINUTES = 45;
 
 /** Coda di uno sportello, filtrata sulla sua area per marchio e marcata come monitoraggio. */
-function monitorHref(deskId: string | null, etichetta: string): string {
+function monitorHref(deskId: string | null, etichetta: string, bayId: string | null): string {
   const params = new URLSearchParams({ view: 'desk', monitor: etichetta });
   if (deskId !== null) {
     params.set('deskId', deskId);
+  }
+  // Anche lo sportello, non solo la sua area: chi ha cliccato «Monitora» sulla scheda di B vuole
+  // trovarsi su B, non sul primo banco dell'area. La coda mostrata è la stessa — è dell'area — ma
+  // il selettore e il sottotitolo devono dire il banco che si è scelto.
+  if (bayId !== null) {
+    params.set('bayId', bayId);
   }
   return `/accettazione?${params.toString()}`;
 }
@@ -217,6 +223,7 @@ export function MonitoringPanel({ timeZone }: MonitoringPanelProps) {
                       href={monitorHref(
                         bay.deskId,
                         `${bay.name}${bay.deskCode === null ? '' : ` · ${bay.deskCode}`}`,
+                        bay.bayId,
                       )}
                       data-testid={`monitora-${bay.code}`}
                       className={cn(

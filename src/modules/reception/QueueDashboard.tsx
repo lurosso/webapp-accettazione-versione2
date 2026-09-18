@@ -160,7 +160,7 @@ export function QueueDashboard({
   }, []);
 
   const updateUrl = useCallback(
-    (next: { view?: QueueView; deskId?: string | null }): void => {
+    (next: { view?: QueueView; deskId?: string | null; bayId?: string | null }): void => {
       const sp = new URLSearchParams(searchParams.toString());
       const nextView = next.view ?? view;
       sp.set('view', nextView);
@@ -169,6 +169,15 @@ export function QueueDashboard({
         sp.set('deskId', nextDesk);
       } else {
         sp.delete('deskId');
+      }
+      // Lo sportello scelto resta nell'indirizzo accanto alla sua area: l'area decide quali
+      // pratiche si vedono, lo sportello decide di chi è il banco che si sta guardando. Servono
+      // tutt'e due, perché due sportelli condividono la stessa area e la stessa coda.
+      const nextBay = next.bayId === undefined ? null : next.bayId;
+      if (nextView === 'desk' && nextBay !== null) {
+        sp.set('bayId', nextBay);
+      } else if (next.bayId !== undefined || nextView !== 'desk') {
+        sp.delete('bayId');
       }
       router.replace(`${pathname}?${sp.toString()}`, { scroll: false });
     },
@@ -258,6 +267,38 @@ export function QueueDashboard({
   const isStale = queue.dataUpdatedAt > 0 && now - queue.dataUpdatedAt > STALE_WARNING_MS;
   const desks = data?.desks ?? [];
   const currentDesk = desks.find((d) => d.id === deskId) ?? null;
+
+  /*
+   * Il selettore degli sportelli: i quattro banchi fisici, uno per uno, con accanto chi ci sta
+   * seduto. Prima offriva le due AREE di marchio («FCA · Sportelli A e B»), che è l'unità con cui
+   * la coda è divisa ma non è quello che un accettatore chiama «il mio sportello»: lui sta al
+   * banco B, e il collega di fianco al banco A.
+   *
+   * L'area resta l'intestazione del gruppo, e non per ordine: A e B guardano la STESSA coda, ed è
+   * una verità del dominio, non un difetto. Scritta così si vede scegliendo; nascosta, chi prova A
+   * e poi B vedrebbe due volte lo stesso elenco e penserebbe che il filtro è rotto.
+   */
+  const bays = data?.bays ?? [];
+  const bayDiSessione =
+    data?.workstations.find((w) => w.id === session.workstationId)?.defaultBayId ?? null;
+  const bayScelto =
+    searchParams.get('bayId') ??
+    (bayDiSessione !== null && bays.some((b) => b.bay.id === bayDiSessione)
+      ? bayDiSessione
+      : (bays.find((b) => b.deskId === deskId)?.bay.id ?? ''));
+  const gruppiSportelli = desks
+    .map((d) => ({
+      label: `${d.code} · ${d.name}${d.id === homeDeskId ? ' (mio)' : ''}`,
+      options: bays
+        .filter((b) => b.deskId === d.id)
+        .map((b) => ({
+          id: b.bay.id,
+          // «libero» dice che il banco non ha nessuno: è l'informazione che serve a chi cerca un
+          // collega, e a chi cerca un posto dove sedersi.
+          label: `${b.bay.name} · ${b.operatorName ?? 'libero'}`,
+        })),
+    }))
+    .filter((g) => g.options.length > 0);
   /*
    * I quattro numeri della testata. Sono quelli su cui l'accettatore decide se è in pari o
    * indietro: chi aspetta, chi è sotto mano, chi è in ritardo e quanto si è chiuso. «Al check-in»
@@ -306,10 +347,21 @@ export function QueueDashboard({
     ];
   }, [data?.rows, data?.serverTime]);
 
+  /*
+   * Il sottotitolo nomina il banco che si sta guardando e, se ne condivide la coda con un altro,
+   * lo dice: «Sportello B · coda condivisa con A». Chi sceglie B e poi A vedrebbe altrimenti due
+   * volte lo stesso elenco senza capirne il motivo, e concluderebbe che il selettore non funziona.
+   */
+  const bayCorrente = bays.find((b) => b.bay.id === bayScelto) ?? null;
+  const compagni = bays
+    .filter((b) => b.deskId === bayCorrente?.deskId && b.bay.id !== bayCorrente?.bay.id)
+    .map((b) => b.bay.code);
   const deskLabel =
     view === 'global'
       ? 'tutti gli sportelli'
-      : (desks.find((d) => d.id === deskId)?.name ?? 'sportello');
+      : bayCorrente === null
+        ? (desks.find((d) => d.id === deskId)?.name ?? 'sportello')
+        : `${bayCorrente.bay.name}${compagni.length > 0 ? ` · coda condivisa con ${compagni.join(' e ')}` : ''}`;
 
   const outcome = actions.outcome;
   const selectedRow = data?.rows.find((r) => r.appointment.id === selectedId) ?? null;
@@ -334,12 +386,12 @@ export function QueueDashboard({
           updateUrl({ view: prossima, deskId: prossima === 'desk' ? homeDeskId : null })
         }
         deskPicker={{
-          value: deskId ?? '',
-          options: desks.map((d) => ({
-            id: d.id,
-            label: `${d.code} · ${d.name}${d.id === homeDeskId ? ' (mio)' : ''}`,
-          })),
-          onChange: (id) => updateUrl({ deskId: id }),
+          value: bayScelto,
+          groups: gruppiSportelli,
+          onChange: (bayId) => {
+            const scelto = bays.find((b) => b.bay.id === bayId) ?? null;
+            updateUrl({ deskId: scelto?.deskId ?? deskId, bayId });
+          },
         }}
         actions={
           manualIntakeEnabled && !readOnly ? (

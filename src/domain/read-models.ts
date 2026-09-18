@@ -68,6 +68,14 @@ export interface BayOccupancyOptionView {
   readonly bay: BayOptionView;
   /** Pratica che lo occupa adesso; null se è libero. */
   readonly appointment: Appointment | null;
+  /**
+   * Area di marchio a cui lo sportello appartiene (A e B su FCA, C e D su PSA). Non sta sullo
+   * sportello — si deduce dalla postazione che ce l'ha come predefinito — ma serve a chi sceglie
+   * quale coda guardare, perché la coda è dell'area, non del singolo sportello.
+   */
+  readonly deskId: string | null;
+  /** Chi è seduto adesso, dalla rivendicazione della postazione; null se lo sportello è libero. */
+  readonly operatorName: string | null;
 }
 
 /** Riga del tabellone della sala d'attesa: codice chiamato e dove presentarsi. */

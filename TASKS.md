@@ -1704,6 +1704,17 @@ Cuore del modulo A; dipende solo da interfacce.
 - [x] M8-T27-S04 Il cursore del livello 2 passa dalla finestra al PIEDE, come nella tavola. La finestra serviva a dire quante foto e quanti video c'erano: adesso lo dicono le pastiglie in testata e la riga della documentazione, e restava solo un passaggio in più fra l'accettatore e la fine del suo lavoro.
 - [x] M8-T27-S05 Gate verde: typecheck, lint, 411 test, build. Schermate a confronto con le tavole.
 
+### M8-T30 — Gli sportelli uno per uno, con chi ci sta seduto _(2026-09-18, chiesto dal committente)_
+
+Il selettore offriva le due **aree di marchio** («FCA · Sportelli A e B»), che è l'unità con cui la coda è divisa ma non è quello che un accettatore chiama «il mio sportello»: lui sta al banco B, e il collega di fianco al banco A.
+
+- [x] M8-T30-S01 **Il selettore elenca i quattro banchi fisici, con accanto chi li occupa.** «Sportello A · Mario Rossi», «Sportello B · libero». Il nome viene dalla rivendicazione della postazione (`WorkstationClaim.operatorName`), la stessa fonte del pannello di amministrazione: chi è **seduto**, non chi ha in carico una pratica — un banco può avere l'accettatore collegato e nessun cliente davanti.
+  - Dati: `BayOccupancyOptionView` porta ora `deskId` e `operatorName`. Lo sportello non conosce la propria area (`Bay` non ha `deskId`): si deduce dalla postazione che ce l'ha come `defaultBayId`, che è la ricetta già usata da `AssistanceService`. La rotta della coda legge anche le rivendicazioni attive; nessuna modifica alle dipendenze di `QueueService`.
+- [x] M8-T30-S02 **L'area resta, come intestazione di gruppo, e non per ordine.** A e B guardano la **stessa coda**: è una verità del dominio — gli sportelli lavorano in coppia sui marchi — non un difetto. Il menu la mostra con due `optgroup`, e il sottotitolo la scrive: «Sportello B · coda condivisa con A». Nascondendola, chi prova A e poi B vedrebbe due volte lo stesso elenco e concluderebbe che il filtro è rotto.
+- [x] M8-T30-S03 **`bayId` nell'indirizzo accanto a `deskId`.** L'area decide quali pratiche si vedono, lo sportello di chi è il banco che si guarda: servono tutt'e due. Il valore predefinito è il banco della propria postazione di sessione.
+- [x] M8-T30-S04 **Admin: «Monitora la coda» porta sullo sportello scelto, non sulla sua area.** `monitorHref` passa anche `bayId`, quindi chi clicca sulla scheda di B si ritrova su B. La scelta di quale sportello monitorare c'era già (quattro schede, una per banco); mancava che la destinazione se lo ricordasse.
+- [x] M8-T30-S05 Provato nel browser sui dati veri: quattro voci in due gruppi, il proprio banco preselezionato con il proprio nome, e il passaggio fra aree cambia davvero la coda (A: 1 in attesa e 12 chiuse; C: 4 in ritardo e 10 chiuse). Gate verde: typecheck, lint, 415 test, build.
+
 ### M8-T29 — I quattro numeri portano al loro elenco _(2026-09-18, chiesto dal committente)_
 
 - [x] M8-T29-S01 **I contatori della testata diventano comandi.** I quattro numeri e le quattro sezioni della coda erano già la stessa cosa detta due volte, e chi legge «3 in ritardo» sta già cercando dove sono: adesso il riquadro ci porta. Ogni contatore dichiara la propria sezione (`queued`, `in-progress`, `late`, `closed`), la tabella espone l'ancora `sezione-<chiave>` e ci scorre.
