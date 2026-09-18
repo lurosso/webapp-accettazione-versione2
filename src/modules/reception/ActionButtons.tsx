@@ -121,10 +121,12 @@ export function ActionButtons({
   // via d'uscita accanto. Mostrare cursore e pulsanti insieme darebbe due strade per la stessa
   // cosa, e una delle due sarebbe quella che volevamo rendere difficile.
   if (daScorrere !== null && daScorrere.slide !== undefined) {
+    // `flex-wrap`: quando la colonna si stringe va a capo «Annulla», non il cursore — che ha una
+    // larghezza minima propria, perché sotto una certa misura non c'è più un gesto da fare.
     return (
-      <div className="flex w-full min-w-0 items-center gap-2">
+      <div className="flex w-full flex-wrap items-center justify-end gap-2">
         <SlideToConfirm
-          className="min-w-0 flex-1"
+          className="flex-1"
           tone={daScorrere.slide.tone}
           label={daScorrere.slide.label}
           actionLabel={`${daScorrere.fullLabel ?? daScorrere.label} pratica ${appointment.code}`}

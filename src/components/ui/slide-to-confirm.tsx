@@ -25,9 +25,35 @@ import { useCallback, useRef, useState } from 'react';
 import { cn } from '@/lib/utils/cn';
 
 /** Sopra questa percentuale il gesto vale: gli ultimi pixel non si pretendono col dito. */
-const SOGLIA = 96;
+export const SOGLIA = 96;
 /** Quanto avanza ogni freccia: cinque colpi per arrivare in fondo. */
-const PASSO = 20;
+export const PASSO = 20;
+/**
+ * Sotto questa larghezza non c'è un gesto da fare: il cursore diventa una fessura e chi ha premuto
+ * «Assente» si trova davanti un pulsante «Annulla» e nient'altro. È successo davvero, in una
+ * finestra stretta: il cursore era `flex-1` accanto a un pulsante di larghezza fissa e cedeva tutto
+ * lui, fino a zero pixel. Sotto questa soglia il pulsante accanto va a capo, e il cursore resta.
+ */
+const LARGHEZZA_MINIMA = '16rem';
+
+/** Come si è concluso il gesto. La tastiera non è il dito, e finiscono in modo diverso. */
+export type Rilascio = 'dito' | 'tastiera' | 'uscita';
+export type EsitoRilascio = 'conferma' | 'azzera' | 'resta';
+
+/**
+ * La regola del rilascio, in chiaro e fuori dai gestori: è la parte che decide se un cliente esce
+ * dall'officina, e va potuta leggere e provare senza montare un browser.
+ *
+ * Il dito che si alza a metà strada è un ripensamento: si torna a zero. Una freccia premuta una
+ * volta no: con la tastiera il gesto si compone un colpo alla volta, e azzerare a ogni tasto
+ * renderebbe il comando irraggiungibile. Uscire dal campo azzera come il dito.
+ */
+export function esitoRilascio(valore: number, come: Rilascio): EsitoRilascio {
+  if (valore >= SOGLIA) {
+    return 'conferma';
+  }
+  return come === 'tastiera' ? 'resta' : 'azzera';
+}
 
 export type SlideTone = 'destructive' | 'success';
 
@@ -88,23 +114,14 @@ export function SlideToConfirm({
     onConfirm();
   }, [onConfirm]);
 
-  const rilasciaDito = (): void => {
-    setTrascinando(false);
-    if (valore >= SOGLIA) {
-      conferma();
-      return;
+  const applica = (come: Rilascio): void => {
+    if (come === 'dito') {
+      setTrascinando(false);
     }
-    setValore(0);
-  };
-
-  const rilasciaTasto = (): void => {
-    if (valore >= SOGLIA) {
+    const esito = esitoRilascio(valore, come);
+    if (esito === 'conferma') {
       conferma();
-    }
-  };
-
-  const esci = (): void => {
-    if (!partita.current) {
+    } else if (esito === 'azzera' && !partita.current) {
       setValore(0);
     }
   };
@@ -120,6 +137,7 @@ export function SlideToConfirm({
         spento && 'pointer-events-none opacity-60',
         className,
       )}
+      style={{ minWidth: LARGHEZZA_MINIMA }}
     >
       {/* Il riempimento è il disegno; l'input vero è trasparente e sta sopra. */}
       <span
@@ -136,7 +154,10 @@ export function SlideToConfirm({
       <span
         aria-hidden="true"
         className={cn(
-          'testo-corpo pointer-events-none absolute inset-0 flex items-center justify-center px-14 text-center font-semibold',
+          // Spazio a sinistra solo per il pollice; a destra basta un margine. Con `px-14` su un
+          // cursore stretto restavano cento pixel di testo e l'etichetta andava a capo tre volte,
+          // sbordando da una pista alta una riga sola. `truncate`: una riga, sempre.
+          'testo-corpo pointer-events-none absolute inset-0 flex items-center justify-center truncate pr-5 pl-16 text-center font-semibold',
           colori.testo,
         )}
         style={{
@@ -172,10 +193,10 @@ export function SlideToConfirm({
         className="focus-anello absolute inset-0 h-full w-full cursor-grab opacity-0"
         onPointerDown={() => setTrascinando(true)}
         onChange={(event) => setValore(Number(event.target.value))}
-        onPointerUp={rilasciaDito}
-        onPointerCancel={rilasciaDito}
-        onKeyUp={rilasciaTasto}
-        onBlur={esci}
+        onPointerUp={() => applica('dito')}
+        onPointerCancel={() => applica('dito')}
+        onKeyUp={() => applica('tastiera')}
+        onBlur={() => applica('uscita')}
       />
     </div>
   );
