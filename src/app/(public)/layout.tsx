@@ -14,7 +14,7 @@ export default function PublicLayout({ children }: { readonly children: ReactNod
       </header>
       <main className="mx-auto w-full max-w-xl flex-1 px-5 py-8">{children}</main>
       <footer className="mx-auto w-full max-w-xl px-5 pb-8 text-center text-sm text-slate-500">
-        Per assistenza rivolgiti allo sportello dell&apos;accettazione.
+        Per assistenza si rivolga allo sportello dell&apos;accettazione.
       </footer>
     </div>
   );

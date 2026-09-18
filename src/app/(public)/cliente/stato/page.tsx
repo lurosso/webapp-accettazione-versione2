@@ -5,7 +5,7 @@ import { redirect } from 'next/navigation';
 import { PublicStatusView } from '@/modules/customer-portal/PublicStatusView';
 import { formatPlateInput } from '@/modules/customer-portal/plate-input';
 
-export const metadata: Metadata = { title: 'Il tuo turno in officina' };
+export const metadata: Metadata = { title: 'Il suo turno in officina' };
 
 interface PageProps {
   readonly searchParams: Promise<Record<string, string | string[] | undefined>>;

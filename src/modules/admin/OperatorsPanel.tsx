@@ -96,6 +96,7 @@ export function OperatorsPanel({ currentOperatorId }: OperatorsPanelProps) {
   const [editing, setEditing] = useState<OperatorView | 'nuovo' | null>(null);
   const [form, setForm] = useState<FormState>(FORM_VUOTO);
   const [errore, setErrore] = useState<string | null>(null);
+  const [ricerca, setRicerca] = useState('');
   const [inCorso, setInCorso] = useState(false);
   const [passwordProvvisoria, setPasswordProvvisoria] = useState<{
     operatore: string;
@@ -196,12 +197,46 @@ export function OperatorsPanel({ currentOperatorId }: OperatorsPanelProps) {
   const data = query.data;
   const monitoraggioRotto = monitoraggio.isError;
 
+  /*
+   * Con sei persone la ricerca non serve; con trenta, e con i kiosk in mezzo agli accettatori, è
+   * l'unico modo di arrivare a una riga senza scorrere. Cerca su quello che uno ha in testa
+   * mentre cerca: il nome, l'account, o la lettera dello sportello.
+   */
+  const cercato = ricerca.trim().toLowerCase();
+  const elenco = useMemo(() => {
+    const tutte = data?.operators ?? [];
+    if (cercato === '') {
+      return tutte;
+    }
+    return tutte.filter((op) =>
+      [op.displayName, op.username, ROLE_LABELS[op.role], ...op.deskCodes]
+        .join(' ')
+        .toLowerCase()
+        .includes(cercato),
+    );
+  }, [data?.operators, cercato]);
+
   return (
     <Panel>
       <PanelHeader
         title="Persone e postazioni"
         description="Tutti gli account del sistema in un elenco solo — accettatori, BDC, amministratori e dispositivi kiosk — con lo sportello a cui sono collegati adesso. Un operatore disattivato non entra più, ma resta nei registri."
-        actions={<Button onClick={() => apri('nuovo')}>Nuova persona</Button>}
+        actions={
+          <>
+            <label className="sr-only" htmlFor="cerca-persona">
+              Cerca una persona
+            </label>
+            <Input
+              id="cerca-persona"
+              type="search"
+              value={ricerca}
+              onChange={(event) => setRicerca(event.target.value)}
+              placeholder="Cerca una persona"
+              className="w-48"
+            />
+            <Button onClick={() => apri('nuovo')}>Nuova persona</Button>
+          </>
+        }
       />
 
       {errore !== null ? (
@@ -234,7 +269,7 @@ export function OperatorsPanel({ currentOperatorId }: OperatorsPanelProps) {
             </TableRow>
           </TableHeader>
           <TableBody>
-            {data.operators.map((op) => {
+            {elenco.map((op) => {
               const dove = postazioni.get(op.id);
               return (
                 <TableRow key={op.id} className={op.isActive ? undefined : 'text-ink-muted'}>
@@ -316,6 +351,13 @@ export function OperatorsPanel({ currentOperatorId }: OperatorsPanelProps) {
                 </TableRow>
               );
             })}
+            {elenco.length === 0 ? (
+              <TableRow>
+                <TableCell colSpan={6} className="text-ink-muted text-center">
+                  Nessuna persona corrisponde a «{ricerca.trim()}».
+                </TableCell>
+              </TableRow>
+            ) : null}
           </TableBody>
         </Table>
       )}

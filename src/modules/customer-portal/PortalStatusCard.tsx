@@ -125,7 +125,7 @@ export function PortalStatusCard({
       <div className="flex items-start justify-between gap-3">
         <div className="flex flex-col">
           <p className="text-xs font-semibold tracking-wide text-slate-500 uppercase">
-            Il tuo codice
+            Il suo codice
           </p>
           <p
             className={cn(
@@ -174,7 +174,7 @@ export function PortalStatusCard({
         ) : inFila ? (
           <div className="flex flex-col items-center gap-1" data-testid="posizione">
             <p className="text-2xl font-semibold text-slate-900">
-              Sei il numero{' '}
+              È il numero{' '}
               <span className="font-mono text-5xl leading-none font-black tabular-nums">
                 {position.queuePosition}
               </span>{' '}
@@ -190,7 +190,7 @@ export function PortalStatusCard({
       </div>
 
       {/* Riga del tempo: da quando è qui, da quando è allo sportello, a che ora era atteso. */}
-      <div className="flex gap-2" aria-label="Orari della tua accettazione">
+      <div className="flex gap-2" aria-label="Orari della sua accettazione">
         <Tappa
           label="Arrivo"
           time={ora(position.arrivedAt)}

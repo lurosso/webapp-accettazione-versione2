@@ -164,6 +164,19 @@ export function MediaGallery({ appointmentId, inspectionNotes, timeZone }: Media
         </p>
       ) : null}
 
+      {/*
+       * Il video è l'unico passaggio obbligatorio del check-in: se non c'è, il giro fotografico
+       * non è stato concluso. Dirlo qui evita la domanda che nasceva prima — «il tablet non ha
+       * caricato o il collega non ha finito?» — e che si risolveva solo telefonando al piazzale.
+       */}
+      {video.length === 0 ? (
+        <p className="text-status-in-progress-ink mb-2 text-sm font-semibold">
+          {media.length === 0
+            ? 'Nessun video: il check-in non è ancora stato completato.'
+            : 'Nessun video: il check-in non è ancora stato completato (le foto sì).'}
+        </p>
+      ) : null}
+
       {media.length === 0 ? (
         <p className="text-sm text-slate-500">Nessuna foto o video acquisiti dal tablet.</p>
       ) : (

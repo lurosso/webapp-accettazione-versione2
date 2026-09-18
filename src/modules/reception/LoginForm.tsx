@@ -1,9 +1,12 @@
 'use client';
 
-// Form di login: nome utente, password e UN solo menu, lo sportello (A, B, C, D). Ogni sportello
-// porta con sé la propria area per marchio e i marchi che serve (badge sotto al menu), quindi non
-// c'è più niente da scegliere prima. Gli sportelli occupati restano in elenco ma non selezionabili,
-// con il motivo accanto: chi arriva capisce perché "il suo" non c'è e a chi chiedere.
+// Form di login: nome utente, password e la postazione. Ogni sportello porta con sé la propria
+// area per marchio e i marchi che serve (badge sotto la scelta), quindi non c'è altro da scegliere.
+//
+// La scelta offre SOLO le postazioni libere, e sotto c'è com'è messo il banco adesso: tutte,
+// con chi c'è sopra. Sono due domande diverse — «dove mi siedo» e «chi c'è agli altri banchi» —
+// e prima erano la stessa tendina, con le occupate dentro ma spente. Chi arrivava e non trovava
+// la sua doveva aprire il menu e leggere le voci grigie per capire il perché.
 import { useRouter } from 'next/navigation';
 import { useState, type FormEvent } from 'react';
 import type { OperatorRole } from '@/domain/entities/operator';
@@ -14,8 +17,9 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { Select } from '@/components/ui/select';
+import { Notice } from '@/components/ui/notice';
 import { ApiError, postLogin, postQuickLogin } from '@/lib/api-client/client';
+import { cn } from '@/lib/utils/cn';
 import type { QuickLoginProfile } from '@/application/auth/DevQuickLoginService';
 
 export interface DemoAccount {
@@ -46,7 +50,7 @@ export function LoginForm({
   const [submitting, setSubmitting] = useState(false);
 
   const selected = options.find((o) => o.id === workstationId) ?? null;
-  const occupied = options.filter((o) => o.disabled);
+  const libere = options.filter((o) => !o.disabled);
 
   const onSubmit = async (event: FormEvent<HTMLFormElement>): Promise<void> => {
     event.preventDefault();
@@ -112,28 +116,45 @@ export function LoginForm({
               onChange={(event) => setPassword(event.target.value)}
             />
           </div>
-          <div className="flex flex-col gap-1.5">
-            <Label htmlFor="workstation">Sportello</Label>
-            <Select
-              id="workstation"
-              name="workstation"
-              value={workstationId}
-              onChange={(event) => setWorkstationId(event.target.value)}
-              disabled={options.length === 0}
-            >
-              {options.length === 0 ? (
-                <option value="">Nessuno sportello configurato</option>
-              ) : null}
-              {workstationId === '' && options.length > 0 ? (
-                <option value="">Tutti gli sportelli sono occupati</option>
-              ) : null}
-              {options.map((o) => (
-                <option key={o.id} value={o.id} disabled={o.disabled}>
-                  {o.label}
-                  {o.reason !== null ? ` — ${o.reason}` : ''}
-                </option>
-              ))}
-            </Select>
+          {/*
+           * La scelta della postazione offre SOLO quelle libere, e sotto mostra com'è messo il
+           * banco adesso — tutte e quattro, con chi c'è sopra. Prima era una tendina con le
+           * occupate dentro ma non selezionabili: per capire perché "la sua" non si sceglieva
+           * bisognava aprire il menu e leggere le voci spente, e la riga di testo grigio sotto
+           * diceva la stessa cosa una seconda volta, più piccola.
+           */}
+          <fieldset className="flex flex-col gap-2 border-0 p-0">
+            <legend className="text-ink testo-corpo mb-1.5 font-semibold">Dove ti siedi</legend>
+            {libere.length === 0 ? (
+              <Notice tone="warning">
+                Tutte le postazioni sono occupate. Chiedi a un collega di uscire dalla sua, oppure
+                fatti scollegare da un amministratore.
+              </Notice>
+            ) : (
+              <div className="flex flex-col gap-2">
+                {libere.map((o) => (
+                  <label
+                    key={o.id}
+                    className={cn(
+                      'controllo transizione premibile flex cursor-pointer items-center gap-3 rounded-md border px-4',
+                      o.id === workstationId
+                        ? 'border-brand-secondary bg-surface-sunken text-ink font-semibold'
+                        : 'border-line text-ink-soft hover:bg-surface-sunken',
+                    )}
+                  >
+                    <input
+                      type="radio"
+                      name="workstation"
+                      value={o.id}
+                      checked={o.id === workstationId}
+                      onChange={() => setWorkstationId(o.id)}
+                      className="casella"
+                    />
+                    <span className="testo-corpo">{o.label}</span>
+                  </label>
+                ))}
+              </div>
+            )}
             {selected !== null && selected.brands.length > 0 ? (
               <div className="flex flex-wrap gap-1.5" aria-label="Marchi serviti dallo sportello">
                 {selected.brands.map((b) => (
@@ -143,16 +164,37 @@ export function LoginForm({
                 ))}
               </div>
             ) : null}
-            {occupied.length > 0 ? (
-              <ul className="flex flex-col gap-0.5 text-xs text-slate-500" aria-live="polite">
-                {occupied.map((o) => (
-                  <li key={o.id}>
-                    <span className="font-medium text-slate-600">{o.label}</span>: {o.reason}
+          </fieldset>
+
+          {/* Com'è messo il banco adesso: si legge senza aprire niente, e si aggiorna da sé. */}
+          {options.length > 0 ? (
+            <section
+              aria-label="Stato delle postazioni"
+              className="border-line bg-surface-sunken/60 flex flex-col gap-2 rounded-md border p-3"
+            >
+              <h2 className="text-ink-soft testo-nota font-semibold tracking-wide uppercase">
+                Le postazioni adesso
+              </h2>
+              <ul className="flex flex-col gap-1" aria-live="polite">
+                {options.map((o) => (
+                  <li key={o.id} className="testo-nota flex flex-wrap items-baseline gap-x-2">
+                    <span className="text-ink font-semibold">{o.label}</span>
+                    <span className={o.disabled ? 'text-status-in-progress-ink' : 'text-ink-muted'}>
+                      {o.reason ?? 'libera'}
+                    </span>
                   </li>
                 ))}
               </ul>
-            ) : null}
-          </div>
+              <p className="text-ink-muted testo-nota">
+                Si scelgono solo le postazioni libere: due colleghi sullo stesso banco farebbero
+                chiamare due clienti allo stesso sportello.
+              </p>
+            </section>
+          ) : (
+            <Notice tone="warning">
+              Nessuna postazione configurata: un amministratore deve crearne almeno una.
+            </Notice>
+          )}
 
           {error !== null ? (
             <p

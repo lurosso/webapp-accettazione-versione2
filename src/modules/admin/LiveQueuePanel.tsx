@@ -23,11 +23,14 @@ function Numero({
   etichetta,
   valore,
   dettaglio,
+  consiglio,
   tono = 'neutro',
 }: {
   readonly etichetta: string;
   readonly valore: string;
   readonly dettaglio: string;
+  /** Cosa farne, quando il numero chiede di fare qualcosa. Un dato senza soglia è solo un dato. */
+  readonly consiglio?: string | undefined;
   readonly tono?: 'neutro' | 'attenzione';
 }) {
   return (
@@ -42,6 +45,9 @@ function Numero({
       <dt className="text-ink-muted text-xs font-semibold tracking-wide uppercase">{etichetta}</dt>
       <dd className="text-ink mt-1.5 font-mono text-3xl font-semibold tabular-nums">{valore}</dd>
       <p className="text-ink-muted mt-1 text-xs">{dettaglio}</p>
+      {consiglio !== undefined ? (
+        <p className="text-priority-now-ink mt-1.5 text-xs font-semibold">{consiglio}</p>
+      ) : null}
     </div>
   );
 }
@@ -87,6 +93,11 @@ export function LiveQueuePanel() {
                 ? 'nessuno si è ancora annunciato'
                 : `da quando hanno dichiarato l'arrivo · su ${live.announced} auto`
             }
+            consiglio={
+              live.averageWaitMinutes !== null && live.averageWaitMinutes >= ATTESA_DA_GUARDARE
+                ? `sopra i ${ATTESA_DA_GUARDARE}: valuta un altro sportello`
+                : undefined
+            }
             tono={
               live.averageWaitMinutes !== null && live.averageWaitMinutes >= ATTESA_DA_GUARDARE
                 ? 'attenzione'
@@ -99,7 +110,7 @@ export function LiveQueuePanel() {
             dettaglio={
               live.longestWaitMinutes === null
                 ? 'nessuna auto annunciata in fila'
-                : 'il cliente che aspetta da più tempo'
+                : [live.longestWaitCustomer, live.longestWaitCode].filter(Boolean).join(' · ')
             }
             tono={
               live.longestWaitMinutes !== null && live.longestWaitMinutes >= ATTESA_DA_GUARDARE * 2

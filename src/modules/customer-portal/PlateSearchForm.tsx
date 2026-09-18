@@ -62,7 +62,7 @@ export function PlateSearchForm({ initialPlate = '', source }: PlateSearchFormPr
           className="controllo-lg border-line focus-anello w-full rounded-xl border-2 bg-white text-center font-mono text-3xl font-bold tracking-[0.2em] text-slate-900 uppercase shadow-sm placeholder:font-normal placeholder:tracking-normal placeholder:text-slate-300"
         />
         <p id="targa-aiuto" className="text-base text-slate-600">
-          Digita la targa senza spazi, come è scritta sul veicolo.
+          Digiti la targa senza spazi, come è scritta sul veicolo.
         </p>
       </div>
 

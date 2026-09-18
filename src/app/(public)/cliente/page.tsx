@@ -4,8 +4,8 @@ import type { Metadata } from 'next';
 import { PlateSearchForm } from '@/modules/customer-portal/PlateSearchForm';
 
 export const metadata: Metadata = {
-  title: 'Il tuo turno in officina',
-  description: 'Inserisci la targa per vedere il tuo codice e quanti clienti ci sono prima di te.',
+  title: 'Il suo turno in officina',
+  description: 'Inserisca la targa per vedere il suo codice e quante auto ci sono prima di lei.',
 };
 
 interface PageProps {
@@ -22,10 +22,10 @@ export default async function ClientePage({ searchParams }: PageProps) {
   return (
     <div className="flex flex-col gap-8">
       <header className="flex flex-col gap-2 text-center">
-        <h1 className="text-3xl font-bold tracking-tight text-slate-900">Il tuo turno</h1>
+        <h1 className="text-3xl font-bold tracking-tight text-slate-900">Il suo turno</h1>
         <p className="text-lg text-slate-600">
-          Inserisci la targa del veicolo per vedere il tuo codice di prenotazione e quanti clienti
-          ci sono prima di te.
+          Inserisca la targa del veicolo per vedere il suo codice di prenotazione e quante auto ci
+          sono prima di lei.
         </p>
       </header>
 
@@ -37,7 +37,7 @@ export default async function ClientePage({ searchParams }: PageProps) {
       </div>
 
       <p className="text-center text-sm text-slate-500">
-        Usiamo la targa solo per mostrarti la tua posizione in coda: non vengono mostrati dati
+        Usiamo la targa solo per mostrare la sua posizione in coda: non vengono mostrati dati
         personali e non conserviamo la ricerca.
       </p>
     </div>

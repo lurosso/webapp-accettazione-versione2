@@ -33,8 +33,8 @@ export function LateNoticeButton({ position, targa, token, timeZone }: LateNotic
         role="status"
         className="border-status-in-progress/40 bg-status-in-progress-soft text-status-in-progress-ink rounded-xl border px-4 py-3 text-center text-base"
       >
-        Hai avvisato che arrivi in ritardo: ti aspettiamo verso le{' '}
-        <strong>{localTimeHHmm(new Date(position.lateNotice.etaAt), timeZone)}</strong>. Il tuo
+        Il ritardo è stato segnalato: la aspettiamo verso le{' '}
+        <strong>{localTimeHHmm(new Date(position.lateNotice.etaAt), timeZone)}</strong>. Il suo
         codice <strong>{position.code}</strong> resta valido.
       </p>
     );
@@ -46,10 +46,10 @@ export function LateNoticeButton({ position, targa, token, timeZone }: LateNotic
   const errore =
     mutation.error instanceof ApiError
       ? mutation.error.status === 429
-        ? 'Hai già avvisato da poco: riprova fra qualche minuto.'
+        ? 'Ha già avvisato da poco: riprovi fra qualche minuto.'
         : mutation.error.message
       : mutation.isError
-        ? 'Non siamo riusciti a inviare l’avviso. Riprova o chiama lo sportello.'
+        ? 'Non siamo riusciti a inviare l’avviso. Riprovi o chiami lo sportello.'
         : null;
 
   return (
@@ -66,7 +66,7 @@ export function LateNoticeButton({ position, targa, token, timeZone }: LateNotic
           : `Sto arrivando in ritardo (+${CUSTOMER_LATE_NOTICE_MINUTES} min)`}
       </button>
       <p className="text-center text-sm text-slate-500">
-        Avvisi l&apos;accettazione con un tocco, senza telefonare. Il tuo codice non cambia.
+        Avvisa l&apos;accettazione con un tocco, senza telefonare. Il suo codice non cambia.
       </p>
       {errore !== null ? (
         <p

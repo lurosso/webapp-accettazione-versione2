@@ -21,5 +21,5 @@ export function plateErrorMessage(raw: string): string | null {
     return 'Inserisci la targa del veicolo.';
   }
   const parsed = parsePlate(formatted);
-  return parsed.ok ? null : 'Targa non valida: controlla di averla digitata correttamente.';
+  return parsed.ok ? null : 'Targa non valida: controlli di averla digitata correttamente.';
 }

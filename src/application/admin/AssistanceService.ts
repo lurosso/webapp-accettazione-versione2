@@ -90,6 +90,13 @@ export interface LiveQueueView {
   readonly averageWaitMinutes: number | null;
   /** Attesa più lunga fra chi è in fila adesso, con la stessa regola. */
   readonly longestWaitMinutes: number | null;
+  /**
+   * Chi è quel cliente. Un numero solo dice che qualcuno aspetta da mezz'ora ma non chi andare a
+   * cercare: con codice e nome l'amministratore può alzarsi e andare, invece di aprire la coda e
+   * ricostruirlo da sé.
+   */
+  readonly longestWaitCode: string | null;
+  readonly longestWaitCustomer: string | null;
 }
 
 export interface AssistanceView {
@@ -161,14 +168,21 @@ export class AssistanceService {
     // Attese di chi è in fila adesso, da quando ha dichiarato l'arrivo: è l'unico istante che
     // sappiamo per certo, perché l'orario di prenotazione dice quando era atteso, non da quando
     // sta aspettando davvero.
-    const attese = inFila
+    const annunciate = inFila
       .filter((a) => a.customerArrivedAt !== null)
-      .map((a) =>
-        Math.max(
+      .map((a) => ({
+        pratica: a,
+        minuti: Math.max(
           0,
           Math.floor((now.getTime() - new Date(a.customerArrivedAt!).getTime()) / 60_000),
         ),
-      );
+      }));
+    const attese = annunciate.map((x) => x.minuti);
+    // Chi aspetta da più tempo, non solo da quanto: serve il nome per poterlo andare a chiamare.
+    const piuInAttesa = annunciate.reduce<(typeof annunciate)[number] | null>(
+      (peggiore, x) => (peggiore === null || x.minuti > peggiore.minuti ? x : peggiore),
+      null,
+    );
     const live: LiveQueueView = {
       inQueue: inFila.length,
       announced: attese.length,
@@ -177,7 +191,10 @@ export class AssistanceService {
         attese.length === 0
           ? null
           : Math.round(attese.reduce((somma, m) => somma + m, 0) / attese.length),
-      longestWaitMinutes: attese.length === 0 ? null : Math.max(...attese),
+      longestWaitMinutes: piuInAttesa?.minuti ?? null,
+      longestWaitCode: piuInAttesa?.pratica.code ?? null,
+      longestWaitCustomer:
+        piuInAttesa === null ? null : customerFullName(piuInAttesa.pratica.customer),
     };
 
     const viste = await Promise.all(inCarico.map(async (a) => this.toView(a, now, desks, bays)));

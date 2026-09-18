@@ -12,7 +12,7 @@ export interface StatusMessage {
   /** Riga di dettaglio sotto il titolo. */
   readonly detail: string;
   readonly tone: StatusTone;
-  /** Il conteggio "clienti prima di te" ha senso solo mentre si è in coda. */
+  /** Il conteggio "auto prima di lei" ha senso solo mentre si è in coda. */
   readonly showAheadCount: boolean;
 }
 
@@ -36,30 +36,39 @@ export function stageLabel(stage: PortalStage): string {
  * acceso e il telefono in mano. I testi lo danno per scontato — si aspetta in auto, si avanza
  * verso lo sportello — perché un messaggio che descrive una scena diversa da quella che il cliente
  * ha davanti lo fa dubitare di aver capito.
+ *
+ * Si dà del LEI. È la voce dell'azienda verso un cliente che non conosce, e su una schermata che
+ * parla al posto dell'accettatore il tu suona come una confidenza che nessuno ha concesso.
+ *
+ * Nessuna frase ha un participio o un aggettivo riferito al cliente («non l'abbiamo vista»,
+ * «è il primo»): con il lei di cortesia la concordanza è terreno minato — la norma la vuole
+ * femminile anche a un uomo, l'uso corrente segue il genere reale, e in mezzo c'è un cliente che
+ * si sente chiamare al femminile senza esserlo. Le frasi qui sono costruite per non doverlo
+ * decidere: si parla del turno, dell'arrivo, del veicolo.
  */
 export function statusMessage(status: AppointmentStatus, bayCode: string | null): StatusMessage {
   switch (status) {
     case 'WAITING':
       return {
-        headline: 'Sei in fila',
-        detail: 'Attendi in auto: ti chiamiamo noi quando è il tuo turno.',
+        headline: 'È in fila',
+        detail: 'Resti pure in auto: la chiamiamo noi quando arriva il suo turno.',
         tone: 'waiting',
         showAheadCount: true,
       };
     case 'SKIPPED':
       return {
         headline: 'Ancora in fila',
-        detail: 'Il tuo turno è stato posticipato di poco: resta in auto, ti chiamiamo a breve.',
+        detail: 'Il suo turno è stato posticipato di poco: resti in auto, la chiamiamo a breve.',
         tone: 'waiting',
         showAheadCount: true,
       };
     case 'IN_PROGRESS':
       return {
-        headline: 'Tocca a te',
+        headline: 'Tocca a lei',
         detail:
           bayCode === null
-            ? "Avanza verso l'accettazione: l'accettatore ti sta aspettando."
-            : `Avanza verso lo sportello ${bayCode}: l'accettatore ti sta aspettando.`,
+            ? "Si presenti all'accettazione: l'accettatore la sta aspettando."
+            : `Si presenti allo sportello ${bayCode}: l'accettatore la sta aspettando.`,
         tone: 'serving',
         showAheadCount: false,
       };
@@ -67,22 +76,22 @@ export function statusMessage(status: AppointmentStatus, bayCode: string | null)
       return {
         headline: 'Vettura in lavorazione',
         detail:
-          "L'accettazione è conclusa e la vettura è in officina. Ti avviseremo quando sarà pronta per il ritiro.",
+          "L'accettazione è conclusa e la vettura è in officina. La avvisiamo noi quando sarà pronta per il ritiro.",
         tone: 'done',
         showAheadCount: false,
       };
     case 'NO_SHOW':
       return {
-        headline: 'Non ti abbiamo trovato',
+        headline: "L'appuntamento di oggi è chiuso",
         detail:
-          "Il turno è stato chiuso come assente: se sei ancora qui, avvicinati a uno sportello dell'accettazione.",
+          "Il suo arrivo non risulta registrato. Se è ancora in officina si rivolga a uno sportello dell'accettazione; altrimenti la richiamiamo noi per fissare una nuova data.",
         tone: 'attention',
         showAheadCount: false,
       };
     case 'CANCELLED':
       return {
         headline: 'Appuntamento annullato',
-        detail: "L'appuntamento di oggi non risulta più in agenda: rivolgiti allo sportello.",
+        detail: "L'appuntamento di oggi non risulta più in agenda: si rivolga allo sportello.",
         tone: 'attention',
         showAheadCount: false,
       };
@@ -96,7 +105,7 @@ export function concludedMessage(status: AppointmentStatus): StatusMessage {
       return {
         headline: 'Pratica conclusa',
         detail:
-          "Questo appuntamento è stato gestito. Per informazioni sulla vettura rivolgiti all'officina; per un nuovo appuntamento contatta Autoclub Group.",
+          "Questo appuntamento è stato gestito. Per informazioni sulla vettura si rivolga all'officina; per un nuovo appuntamento contatti Autoclub Group.",
         tone: 'done',
         showAheadCount: false,
       };
@@ -104,7 +113,7 @@ export function concludedMessage(status: AppointmentStatus): StatusMessage {
       return {
         headline: 'Appuntamento annullato',
         detail:
-          'Questo appuntamento non è più attivo. Per fissarne uno nuovo contatta Autoclub Group.',
+          'Questo appuntamento non è più attivo. Per fissarne uno nuovo contatti Autoclub Group.',
         tone: 'attention',
         showAheadCount: false,
       };
@@ -112,7 +121,7 @@ export function concludedMessage(status: AppointmentStatus): StatusMessage {
       return {
         headline: 'Appuntamento non utilizzato',
         detail:
-          "L'appuntamento risulta chiuso come assente. Per fissarne uno nuovo contatta Autoclub Group.",
+          "L'appuntamento risulta chiuso per mancato arrivo. Per fissarne uno nuovo contatti Autoclub Group.",
         tone: 'attention',
         showAheadCount: false,
       };
@@ -120,7 +129,7 @@ export function concludedMessage(status: AppointmentStatus): StatusMessage {
       return {
         headline: 'Appuntamento di una giornata passata',
         detail:
-          "Questa pagina si riferisce a un appuntamento già trascorso. Per oggi rivolgiti all'accettazione.",
+          "Questa pagina si riferisce a un appuntamento già trascorso. Per oggi si rivolga all'accettazione.",
         tone: 'attention',
         showAheadCount: false,
       };
@@ -130,7 +139,8 @@ export function concludedMessage(status: AppointmentStatus): StatusMessage {
 /** Riga sulle auto in fila prima del cliente. */
 export function aheadCountMessage(aheadCount: number): string {
   if (aheadCount === 0) {
-    return 'Sei il prossimo';
+    // «È il prossimo» costringerebbe a scegliere un genere: il turno non ne ha.
+    return 'Il prossimo turno è il suo';
   }
-  return aheadCount === 1 ? "C'è 1 auto prima di te" : `Ci sono ${aheadCount} auto prima di te`;
+  return aheadCount === 1 ? "C'è 1 auto prima di lei" : `Ci sono ${aheadCount} auto prima di lei`;
 }
