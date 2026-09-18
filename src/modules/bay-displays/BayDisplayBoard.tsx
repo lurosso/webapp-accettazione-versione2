@@ -30,7 +30,7 @@ const SCREEN: Record<BayDisplayState, string> = {
   SERVING: 'bg-brand-blue-dark text-white',
   RELEASING: 'bg-brand-lime text-slate-950',
   FREE: 'bg-brand-lime text-slate-950',
-  OFFLINE: 'bg-status-in-progress-soft0 text-slate-950',
+  OFFLINE: 'bg-status-in-progress-soft text-slate-950',
 };
 
 export function BayDisplayBoard({ bayRef, token }: BayDisplayBoardProps) {

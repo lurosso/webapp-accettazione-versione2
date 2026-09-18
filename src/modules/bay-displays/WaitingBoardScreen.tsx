@@ -61,7 +61,7 @@ export function WaitingBoardScreen({ nextCount }: WaitingBoardScreenProps) {
       </header>
 
       {offline ? (
-        <div className="bg-status-in-progress-soft0 flex flex-1 flex-col items-center justify-center text-center text-slate-950">
+        <div className="bg-status-in-progress-soft flex flex-1 flex-col items-center justify-center text-center text-slate-950">
           <p className="text-[7vw] leading-none font-black">TABELLONE SCOLLEGATO</p>
           <p className="mt-[2vh] text-[2.5vw] font-semibold">
             Nessuna risposta dal sistema: rivolgersi all&apos;accettazione
