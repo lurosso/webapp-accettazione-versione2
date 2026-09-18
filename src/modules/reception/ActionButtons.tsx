@@ -11,13 +11,18 @@
 // dall'avviso «Annulla» che compare in basso per cinque secondi (`UndoToast` nella dashboard).
 //
 // "Segna assente" è di un'altra natura: genera un lead per il BDC e un evento verso il CRM, cioè
-// esce dall'officina, e solo un responsabile può riaprire la pratica. Passa da `HoldButton`, che
-// chiede il dito tenuto premuto sul tablet e un secondo clic al banco — la difesa giusta per il
-// rischio giusto, senza che questa riga debba sapere su cosa sta girando.
+// ESCE DALL'OFFICINA, e solo un responsabile può riaprire la pratica. È il livello più alto della
+// scala delle conferme e vuole il gesto più deliberato: si scorre (`SlideToConfirm`).
+//
+// Lo scorrimento non sta sempre aperto nella riga — occuperebbe la larghezza di tre comandi su
+// ogni riga in ritardo. Il pulsante compatto resta, e quando lo si preme la riga di comandi
+// diventa il cursore: chi l'ha sfiorato per sbaglio si trova davanti un cursore fermo, che non fa
+// niente da solo.
+import { useState } from 'react';
 import { canTransition } from '@/domain/appointment-state-machine';
 import { isInQueue, type Appointment } from '@/domain/entities/appointment';
 import { Button, type ButtonVariant } from '@/components/ui/button';
-import { HoldButton } from '@/components/ui/hold-button';
+import { SlideToConfirm, type SlideTone } from '@/components/ui/slide-to-confirm';
 import type { AppointmentAction } from './types';
 
 export interface ActionButtonsProps {
@@ -40,8 +45,8 @@ interface ActionSpec {
   /** Nome per esteso, quando l'etichetta visibile è abbreviata per stare nella riga. */
   readonly fullLabel?: string;
   readonly variant: ButtonVariant;
-  /** Esce dall'officina: vuole un gesto deliberato, non un tocco. Testo della conferma. */
-  readonly confirmLabel?: string;
+  /** Esce dall'officina: al posto del tocco, un cursore da portare in fondo. */
+  readonly slide?: { readonly label: string; readonly tone: SlideTone };
 }
 
 export function ActionButtons({
@@ -51,6 +56,7 @@ export function ActionButtons({
   late = false,
   onAction,
 }: ActionButtonsProps) {
+  const [daScorrere, setDaScorrere] = useState<ActionSpec | null>(null);
   const { status } = appointment;
   const buttons: ActionSpec[] = [];
 
@@ -80,7 +86,7 @@ export function ActionButtons({
       label: 'Assente',
       fullLabel: 'Segna assente',
       variant: 'destructiveQuiet',
-      confirmLabel: 'Confermi assente?',
+      slide: { label: 'Scorri per segnare il cliente assente', tone: 'destructive' },
     });
   } else {
     if (status === 'WAITING' && canTransition(status, 'SKIPPED')) {
@@ -111,35 +117,42 @@ export function ActionButtons({
     return <span className="text-ink-muted text-xs">—</span>;
   }
 
+  // Chiesto il livello 2, la riga diventa il cursore: un comando solo, tutta la larghezza, e la
+  // via d'uscita accanto. Mostrare cursore e pulsanti insieme darebbe due strade per la stessa
+  // cosa, e una delle due sarebbe quella che volevamo rendere difficile.
+  if (daScorrere !== null && daScorrere.slide !== undefined) {
+    return (
+      <div className="flex w-full min-w-0 items-center gap-2">
+        <SlideToConfirm
+          className="min-w-0 flex-1"
+          tone={daScorrere.slide.tone}
+          label={daScorrere.slide.label}
+          actionLabel={`${daScorrere.fullLabel ?? daScorrere.label} pratica ${appointment.code}`}
+          pending={pending}
+          onConfirm={() => onAction(daScorrere.action)}
+          data-testid={`scorri-${daScorrere.action}`}
+        />
+        <Button variant="ghost" size="sm" onClick={() => setDaScorrere(null)}>
+          Annulla
+        </Button>
+      </div>
+    );
+  }
+
   return (
     <div className="flex flex-wrap items-center justify-end gap-2">
-      {buttons.map((b) => {
-        const nome = `${b.fullLabel ?? b.label} pratica ${appointment.code}`;
-        return b.confirmLabel === undefined ? (
-          <Button
-            key={b.action}
-            size="sm"
-            variant={b.variant}
-            disabled={pending}
-            onClick={() => onAction(b.action)}
-            aria-label={nome}
-          >
-            {b.label}
-          </Button>
-        ) : (
-          <HoldButton
-            key={b.action}
-            size="sm"
-            variant={b.variant}
-            disabled={pending}
-            onConfirm={() => onAction(b.action)}
-            confirmLabel={b.confirmLabel}
-            actionLabel={nome}
-          >
-            {b.label}
-          </HoldButton>
-        );
-      })}
+      {buttons.map((b) => (
+        <Button
+          key={b.action}
+          size="sm"
+          variant={b.variant}
+          disabled={pending}
+          onClick={() => (b.slide === undefined ? onAction(b.action) : setDaScorrere(b))}
+          aria-label={`${b.fullLabel ?? b.label} pratica ${appointment.code}`}
+        >
+          {b.label}
+        </Button>
+      ))}
     </div>
   );
 }

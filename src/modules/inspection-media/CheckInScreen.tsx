@@ -13,6 +13,7 @@
 import { useQueryClient } from '@tanstack/react-query';
 import { useEffect, useState } from 'react';
 import { Dialog } from '@/components/ui/dialog';
+import { SlideToConfirm } from '@/components/ui/slide-to-confirm';
 import type { QueueRowView } from '@/domain/read-models';
 import {
   ApiError,
@@ -297,14 +298,22 @@ export function CheckInScreen({
             >
               Annulla
             </button>
-            <button
-              type="button"
-              onClick={() => void completa()}
+            {/*
+             * Livello 2: qui la pratica si chiude e il fascicolo parte verso il CRM. La finestra
+             * resta perché porta quello che un pulsante non può dire — quante foto, quanti video,
+             * le note — ma il comando che la chiude è un cursore, non un bersaglio da premere
+             * accanto ad «Annulla» con il tablet in mano e il cliente che parla.
+             */}
+            <SlideToConfirm
+              className="flex-[2]"
+              tone="success"
+              label="Scorri per completare il check-in"
+              pendingLabel="Conclusione in corso…"
+              actionLabel={`Completa il check-in della pratica ${a.code}`}
+              pending={inChiusura}
+              onConfirm={() => void completa()}
               data-testid="conferma-check-in"
-              className="bg-brand-primary active:bg-brand-lime-dark premibile focus-anello controllo-lg flex-[2] rounded-2xl text-lg font-bold text-slate-950 shadow-sm active:text-white"
-            >
-              Sì, completa
-            </button>
+            />
           </div>
         }
       >
