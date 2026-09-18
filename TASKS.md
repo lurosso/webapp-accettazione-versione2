@@ -1704,6 +1704,12 @@ Cuore del modulo A; dipende solo da interfacce.
 - [x] M8-T27-S04 Il cursore del livello 2 passa dalla finestra al PIEDE, come nella tavola. La finestra serviva a dire quante foto e quanti video c'erano: adesso lo dicono le pastiglie in testata e la riga della documentazione, e restava solo un passaggio in più fra l'accettatore e la fine del suo lavoro.
 - [x] M8-T27-S05 Gate verde: typecheck, lint, 411 test, build. Schermate a confronto con le tavole.
 
+### M8-T31 — Prendere il cliente di un altro sportello è una decisione _(2026-09-18, chiesto dal committente)_
+
+- [x] M8-T31-S01 **Conferma sul «Prendi in carico (altro sportello)».** Era un tocco solo come sulla propria coda. Non è un gesto neutro: il cliente viene mandato a un banco diverso da quello che stava aspettando, e il collega che stava per chiamarlo non lo trova più. Ora passa da `HoldButton`, cioè il livello 1 della scala: col dito si tiene premuto 900 ms, al banco si clicca una seconda volta, da tastiera è sempre in due passi. **Sulla propria coda resta un tocco solo** con l'«Annulla» dei cinque secondi: si fa decine di volte al giorno e una conferma la renderebbe insopportabile.
+- [x] M8-T31-S02 **L'avviso al cliente c'era già, verificato invece che dato per scontato.** La presa in carico assegna lo sportello di CHI prende (richiesto → predefinito della postazione → primo libero), e il portale scrive «Si presenti allo sportello B: l'accettatore la sta aspettando» con la lettera aggiornata. Quindi il cliente viene dirottato da solo sul banco giusto; non serviva aggiungere nulla.
+- [x] M8-T31-S03 Provato nel browser in vista globale: il pulsante espone `data-testid="conferma-take"`, al primo clic diventa «Confermi? Passa al tuo sportello» e non fa nulla. Gate verde: typecheck, lint, 415 test.
+
 ### M8-T30 — Gli sportelli uno per uno, con chi ci sta seduto _(2026-09-18, chiesto dal committente)_
 
 Il selettore offriva le due **aree di marchio** («FCA · Sportelli A e B»), che è l'unità con cui la coda è divisa ma non è quello che un accettatore chiama «il mio sportello»: lui sta al banco B, e il collega di fianco al banco A.

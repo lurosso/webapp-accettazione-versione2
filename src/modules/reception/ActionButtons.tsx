@@ -22,6 +22,7 @@ import { useState } from 'react';
 import { canTransition } from '@/domain/appointment-state-machine';
 import { isInQueue, type Appointment } from '@/domain/entities/appointment';
 import { Button, type ButtonVariant } from '@/components/ui/button';
+import { HoldButton } from '@/components/ui/hold-button';
 import { SlideToConfirm, type SlideTone } from '@/components/ui/slide-to-confirm';
 import type { AppointmentAction } from './types';
 
@@ -47,6 +48,11 @@ interface ActionSpec {
   readonly variant: ButtonVariant;
   /** Esce dall'officina: al posto del tocco, un cursore da portare in fondo. */
   readonly slide?: { readonly label: string; readonly tone: SlideTone };
+  /**
+   * Conferma di livello 1: col dito si tiene premuto, al banco si clicca una seconda volta. Serve
+   * dove l'azione tocca il lavoro di un collega ma resta disfabile.
+   */
+  readonly hold?: { readonly confirmLabel: string };
 }
 
 export function ActionButtons({
@@ -68,6 +74,11 @@ export function ActionButtons({
       label: foreignDesk ? 'Prendi in carico (altro sportello)' : 'Prendi in carico',
       // Blu: è un'azione di lavoro, non un completamento.
       variant: 'default',
+      // La pratica di un altro banco si prende con una conferma. Non perché sia vietato — capita
+      // ogni giorno che un collega sia libero e un altro no — ma perché non è un gesto neutro: il
+      // cliente viene mandato a un altro sportello, e chi lo stava per chiamare non lo trova più.
+      // Sulla propria coda resta un tocco solo, con l'«Annulla» dei cinque secondi.
+      ...(foreignDesk ? { hold: { confirmLabel: 'Confermi? Passa al tuo sportello' } } : {}),
     });
   }
   if (late) {
@@ -143,18 +154,33 @@ export function ActionButtons({
 
   return (
     <div className="flex flex-wrap items-center justify-end gap-2">
-      {buttons.map((b) => (
-        <Button
-          key={b.action}
-          size="sm"
-          variant={b.variant}
-          disabled={pending}
-          onClick={() => (b.slide === undefined ? onAction(b.action) : setDaScorrere(b))}
-          aria-label={`${b.fullLabel ?? b.label} pratica ${appointment.code}`}
-        >
-          {b.label}
-        </Button>
-      ))}
+      {buttons.map((b) =>
+        b.hold === undefined ? (
+          <Button
+            key={b.action}
+            size="sm"
+            variant={b.variant}
+            disabled={pending}
+            onClick={() => (b.slide === undefined ? onAction(b.action) : setDaScorrere(b))}
+            aria-label={`${b.fullLabel ?? b.label} pratica ${appointment.code}`}
+          >
+            {b.label}
+          </Button>
+        ) : (
+          <HoldButton
+            key={b.action}
+            size="sm"
+            variant={b.variant}
+            disabled={pending}
+            confirmLabel={b.hold.confirmLabel}
+            actionLabel={`${b.fullLabel ?? b.label} pratica ${appointment.code}`}
+            data-testid={`conferma-${b.action}`}
+            onConfirm={() => onAction(b.action)}
+          >
+            {b.label}
+          </HoldButton>
+        ),
+      )}
     </div>
   );
 }
