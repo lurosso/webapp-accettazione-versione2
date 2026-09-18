@@ -3,6 +3,7 @@
 // Dashboard della coda (client): polling ogni 3 s, filtro sportello / vista globale (nell'URL, così
 // il link è condivisibile fra postazioni), banner sync, tabella con azioni rapide e gestione dei
 // conflitti fra postazioni (409) e delle campate occupate.
+import { isLate } from '@/domain/entities/appointment';
 import { useQueryClient } from '@tanstack/react-query';
 import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 import { useCallback, useEffect, useMemo, useState } from 'react';
@@ -11,7 +12,6 @@ import { Alert } from '@/components/ui/alert';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Dialog } from '@/components/ui/dialog';
-import { Select } from '@/components/ui/select';
 import { TableSkeleton } from '@/components/ui/skeleton';
 import { UndoToast } from '@/components/ui/undo-toast';
 import { EmptyState } from '@/components/shared/EmptyState';
@@ -55,6 +55,9 @@ interface Annullabile {
   readonly version: number;
   readonly contraria: AppointmentAction;
 }
+
+import { LATE_GRACE_MINUTES } from '@/config/constants';
+import { QueueHeader } from './QueueHeader';
 
 export interface QueueDashboardProps {
   readonly session: Session;
@@ -255,16 +258,47 @@ export function QueueDashboard({
   const isStale = queue.dataUpdatedAt > 0 && now - queue.dataUpdatedAt > STALE_WARNING_MS;
   const desks = data?.desks ?? [];
   const currentDesk = desks.find((d) => d.id === deskId) ?? null;
-  const counts = useMemo(() => {
-    const rows = data?.rows ?? [];
-    return {
-      waiting: rows.filter(
-        (r) => r.appointment.status === 'WAITING' || r.appointment.status === 'SKIPPED',
-      ).length,
-      inProgress: rows.filter((r) => r.appointment.status === 'IN_PROGRESS').length,
-      completed: rows.filter((r) => r.appointment.status === 'COMPLETED').length,
-    };
-  }, [data]);
+  /*
+   * I quattro numeri della testata. Sono quelli su cui l'accettatore decide se è in pari o
+   * indietro: chi aspetta, chi è sotto mano, chi è in ritardo e quanto si è chiuso. «Al check-in»
+   * della tavola qui non è distinguibile — il check-in è una pratica in carico con le foto in
+   * corso — e al suo posto c'è «in ritardo», che è la colonna su cui si interviene.
+   */
+  const contatori = useMemo(() => {
+    const righe = data?.rows ?? [];
+    const inCoda = righe.filter(
+      (r) => r.appointment.status === 'WAITING' || r.appointment.status === 'SKIPPED',
+    );
+    const adesso = data?.serverTime ?? new Date().toISOString();
+    const inRitardo = inCoda.filter((r) =>
+      isLate(r.appointment, adesso, LATE_GRACE_MINUTES),
+    ).length;
+    return [
+      {
+        etichetta: 'in attesa',
+        valore: inCoda.length - inRitardo,
+        riga: 'bg-status-waiting',
+      },
+      {
+        etichetta: 'in carico',
+        valore: righe.filter((r) => r.appointment.status === 'IN_PROGRESS').length,
+        riga: 'bg-status-in-progress',
+      },
+      { etichetta: 'in ritardo', valore: inRitardo, riga: 'bg-priority-late' },
+      {
+        etichetta: 'chiuse',
+        valore: righe.filter((r) =>
+          ['COMPLETED', 'NO_SHOW', 'CANCELLED'].includes(r.appointment.status),
+        ).length,
+        riga: 'bg-status-completed',
+      },
+    ];
+  }, [data?.rows, data?.serverTime]);
+
+  const deskLabel =
+    view === 'global'
+      ? 'tutti gli sportelli'
+      : (desks.find((d) => d.id === deskId)?.name ?? 'sportello');
 
   const outcome = actions.outcome;
   const selectedRow = data?.rows.find((r) => r.appointment.id === selectedId) ?? null;
@@ -272,93 +306,56 @@ export function QueueDashboard({
 
   return (
     <div className="flex flex-col gap-4">
-      {/* Intestazione e comandi: su un tablet piccolo i comandi prendono tutta la riga sotto al
-          titolo, con spazi larghi fra loro; da 1024 px in su tornano accanto al titolo. */}
-      <div className="flex flex-wrap items-end justify-between gap-4">
-        <div>
-          <h1 className="text-2xl font-bold tracking-tight">
-            {view === 'returns' ? 'Riconsegne veicoli' : 'Coda accettazione'}
-          </h1>
-          <p className="text-sm text-slate-600">
-            {data !== undefined ? formatBusinessDate(data.businessDate) : 'Caricamento…'}
-            {data !== undefined ? (
-              <>
-                {' · '}
-                {view === 'returns'
-                  ? `${counts.waiting} da riconsegnare, ${counts.completed} riconsegnate`
-                  : `${counts.waiting} in coda, ${counts.inProgress} in carico, ${counts.completed} completate`}
-              </>
-            ) : null}
-          </p>
-        </div>
-        <div className="flex w-full flex-wrap items-center gap-3 lg:w-auto">
-          {view === 'desk' ? (
-            <label className="flex min-w-0 flex-1 items-center gap-2 text-sm lg:flex-none">
-              <span className="text-slate-600">Sportello</span>
-              <Select
-                className="w-full min-w-0 lg:w-auto lg:min-w-56"
-                value={deskId ?? ''}
-                onChange={(event) => updateUrl({ deskId: event.target.value })}
-                aria-label="Sportello visualizzato"
-              >
-                {desks.map((d) => (
-                  <option key={d.id} value={d.id}>
-                    {d.code} · {d.name}
-                    {d.id === homeDeskId ? ' (mio)' : ''}
-                  </option>
-                ))}
-              </Select>
-            </label>
-          ) : view === 'global' ? (
-            <Badge tone="info">Vista globale: tutti gli sportelli</Badge>
-          ) : (
-            <Badge tone="info">Riconsegne di oggi: commesse in consegna, fuori dalla coda</Badge>
-          )}
-          {manualIntakeEnabled && !readOnly ? (
-            <Button variant="outline" size="touch" onClick={() => setNuovoCliente(true)}>
-              Nuovo cliente (senza appuntamento)
+      <QueueHeader
+        title={view === 'returns' ? 'Riconsegne veicoli' : 'Coda accettazione'}
+        subtitle={
+          data === undefined
+            ? 'Caricamento…'
+            : `${formatBusinessDate(data.businessDate)} · ${
+                view === 'returns' ? 'commesse in consegna, fuori dalla coda' : deskLabel
+              }`
+        }
+        view={view}
+        returnsCount={data?.returnsCount ?? 0}
+        counters={contatori}
+        onView={(prossima) =>
+          updateUrl({ view: prossima, deskId: prossima === 'desk' ? homeDeskId : null })
+        }
+        deskPicker={{
+          value: deskId ?? '',
+          options: desks.map((d) => ({
+            id: d.id,
+            label: `${d.code} · ${d.name}${d.id === homeDeskId ? ' (mio)' : ''}`,
+          })),
+          onChange: (id) => updateUrl({ deskId: id }),
+        }}
+        actions={
+          manualIntakeEnabled && !readOnly ? (
+            <Button variant="outline" onClick={() => setNuovoCliente(true)}>
+              + Pratica manuale
             </Button>
-          ) : null}
-          <Button
-            variant={view === 'global' ? 'default' : 'outline'}
-            size="touch"
-            onClick={() =>
-              updateUrl({ view: view === 'global' ? 'desk' : 'global', deskId: homeDeskId })
-            }
-            aria-pressed={view === 'global'}
-          >
-            {view === 'global' ? 'Torna al mio sportello' : 'Vista globale'}
-          </Button>
-          <Button
-            variant={view === 'returns' ? 'default' : 'outline'}
-            size="touch"
-            onClick={() =>
-              updateUrl({ view: view === 'returns' ? 'desk' : 'returns', deskId: homeDeskId })
-            }
-            aria-pressed={view === 'returns'}
-            data-testid="scheda-riconsegne"
-          >
-            {view === 'returns'
-              ? 'Torna alla coda'
-              : `Riconsegne${data !== undefined ? ` (${data.returnsCount})` : ''}`}
-          </Button>
-          {isStale ? (
-            <Badge tone="warning" title="I dati non vengono aggiornati da più di 15 secondi">
-              Dati non aggiornati
+          ) : null
+        }
+        badges={
+          <>
+            {isStale ? (
+              <Badge tone="warning" title="I dati non vengono aggiornati da più di 15 secondi">
+                Dati non aggiornati
+              </Badge>
+            ) : null}
+            <Badge
+              tone={live === 'live' ? 'success' : 'neutral'}
+              title={
+                live === 'live'
+                  ? 'Collegato al flusso eventi: la coda si aggiorna appena qualcosa cambia'
+                  : 'Flusso eventi non disponibile: la coda si aggiorna comunque ogni 3 secondi'
+              }
+            >
+              {live === 'live' ? 'In diretta' : 'Aggiornamento periodico'}
             </Badge>
-          ) : null}
-          <Badge
-            tone={live === 'live' ? 'success' : 'neutral'}
-            title={
-              live === 'live'
-                ? 'Collegato al flusso eventi: la coda si aggiorna appena qualcosa cambia'
-                : 'Flusso eventi non disponibile: la coda si aggiorna comunque ogni 3 secondi'
-            }
-          >
-            {live === 'live' ? 'In diretta' : 'Aggiornamento periodico'}
-          </Badge>
-        </div>
-      </div>
+          </>
+        }
+      />
 
       {readOnly ? (
         <Alert

@@ -36,6 +36,11 @@ export interface AppointmentCardProps {
   readonly late?: boolean;
   readonly lateByMinutes?: number;
   readonly dueSoon?: boolean;
+  /**
+   * La prossima da servire. Una sola per volta, e si vede da lontano: il resto della coda può
+   * aspettare che l'accettatore abbia finito con questa. È la differenza fra un elenco e una fila.
+   */
+  readonly evidenza?: boolean;
   /** Cambiata negli ultimi secondi: sale al suo posto invece di comparire e basta. */
   readonly appenaCambiata?: boolean;
   readonly selected?: boolean;
@@ -60,6 +65,7 @@ export function AppointmentCard({
   late = false,
   lateByMinutes = 0,
   dueSoon = false,
+  evidenza = false,
   appenaCambiata = false,
   selected = false,
   readOnly = false,
@@ -75,6 +81,7 @@ export function AppointmentCard({
       data-status={a.status}
       className={cn(
         'transizione flex flex-wrap items-center gap-x-5 gap-y-3 px-5 py-4',
+        evidenza && 'bg-priority-now-soft border-priority-now rounded-lg border-2 px-5 py-5',
         appenaCambiata && 'appena-cambiata',
         STATO_SPENTO[a.status],
         dueSoon && !late && 'bg-priority-now-soft',
@@ -89,7 +96,14 @@ export function AppointmentCard({
         className="focus-anello -mx-2 flex min-w-0 flex-1 items-center gap-5 rounded-md px-2 py-1 text-left select-none"
       >
         <span className="flex min-w-[5.5rem] flex-col gap-0.5">
-          <span className="testo-codice font-mono font-bold tracking-wide">{a.code}</span>
+          <span
+            className={cn(
+              'font-mono font-bold tracking-wide',
+              evidenza ? 'text-4xl leading-none' : 'testo-codice',
+            )}
+          >
+            {a.code}
+          </span>
           <span className="text-ink-soft font-mono text-xs tabular-nums">
             {localTimeHHmm(new Date(effectiveScheduleTime(a)), timeZone)}
           </span>
