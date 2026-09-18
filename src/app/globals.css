@@ -278,8 +278,35 @@
  * tabella diventa schede. Senza, ogni schermata dovrebbe leggere un hook, diventare client e
  * cambiare struttura dopo l'idratazione — cioè sfarfallare.
  */
-@custom-variant banco (@media (pointer: fine));
-@custom-variant tocco (@media (pointer: coarse));
+/*
+ * `banco:` e `tocco:` — la forma della struttura, non solo la misura.
+ *
+ * Ciascuna ha due strade: il puntatore (che è la verità) e l'attributo `data-densita` sull'html
+ * (che è la LENTE per guardare l'altra variante da un browser qualsiasi). La lente esiste perché
+ * chi apre il branch su un portatile vede il disegno da banco — giustamente, ha il mouse — e
+ * conclude che il lavoro non c'è; è successo davvero. Non è una seconda fonte di verità: senza
+ * l'attributo comanda il puntatore, esattamente come prima.
+ */
+@custom-variant banco {
+  @media (pointer: fine) {
+    &:where(:root:not([data-densita]) *, :root:not([data-densita])) {
+      @slot;
+    }
+  }
+  &:where(:root[data-densita='banco'] *, :root[data-densita='banco']) {
+    @slot;
+  }
+}
+@custom-variant tocco {
+  @media (pointer: coarse) {
+    &:where(:root:not([data-densita]) *, :root:not([data-densita])) {
+      @slot;
+    }
+  }
+  &:where(:root[data-densita='tocco'] *, :root[data-densita='tocco']) {
+    @slot;
+  }
+}
 
 /*
  * DENSITÀ — una sola applicazione, due tarature.
@@ -320,6 +347,33 @@
     --testo-codice: 1.625rem; /* 26 px */
     --casella: 1.5rem; /* 24 px */
   }
+}
+
+/*
+ * La lente, sulle misure. `:root[data-densita]` ha specificità maggiore di `:root`, quindi vince
+ * sulla media query senza dipendere dall'ordine. `?densita=auto` toglie l'attributo e si torna al
+ * puntatore.
+ */
+:root[data-densita='tocco'] {
+  --h-controllo: 3.25rem;
+  --h-controllo-lg: 3.75rem;
+  --h-riga: 4.25rem;
+  --testo-nota: 0.9375rem;
+  --testo-corpo: 1.0625rem;
+  --testo-dato: 1.1875rem;
+  --testo-codice: 1.625rem;
+  --casella: 1.5rem;
+}
+
+:root[data-densita='banco'] {
+  --h-controllo: 2.75rem;
+  --h-controllo-lg: 3rem;
+  --h-riga: 3.5rem;
+  --testo-nota: 0.8125rem;
+  --testo-corpo: 0.875rem;
+  --testo-dato: 0.9375rem;
+  --testo-codice: 1.0625rem;
+  --casella: 1.25rem;
 }
 
 /** Altezza di un comando: 44 px al banco, 52 col dito. */

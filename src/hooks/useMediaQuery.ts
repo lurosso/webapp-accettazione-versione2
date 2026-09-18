@@ -16,6 +16,24 @@ import { useEffect, useState } from 'react';
 /** Media query del flusso touch: dispositivi il cui puntatore principale è il dito. */
 export const TOUCH_LAYOUT_QUERY = '(pointer: coarse)';
 
+/**
+ * La lente: `?densita=tocco` mette `data-densita` sull'html (vedi lo script in `layout.tsx`) e
+ * forza la taratura dell'altro dispositivo, per guardarla da un browser qualsiasi.
+ *
+ * Si legge anche QUI e non solo nel CSS, perché la struttura non è tutta CSS: dopo «Prendi in
+ * carico» il tablet va al check-in e il PC no, e quella decisione la prende questo hook. Se la
+ * lente valesse per le misure ma non per il flusso, guardare la variante da tablet mostrerebbe una
+ * cosa che sul tablet non succede — cioè esattamente l'errore che questo impianto esiste per
+ * evitare. Senza l'attributo decide il puntatore, come sempre.
+ */
+function densitaForzata(): boolean | null {
+  if (typeof document === 'undefined') {
+    return null;
+  }
+  const valore = document.documentElement.dataset['densita'];
+  return valore === 'tocco' ? true : valore === 'banco' ? false : null;
+}
+
 /** True quando la media query è soddisfatta; si aggiorna se il dispositivo cambia modalità. */
 export function useMediaQuery(query: string): boolean {
   const [matches, setMatches] = useState(false);
@@ -25,7 +43,8 @@ export function useMediaQuery(query: string): boolean {
       return undefined;
     }
     const mql = window.matchMedia(query);
-    const update = (): void => setMatches(mql.matches);
+    const forzata = query === TOUCH_LAYOUT_QUERY ? densitaForzata() : null;
+    const update = (): void => setMatches(forzata ?? mql.matches);
     update();
     mql.addEventListener('change', update);
     return () => mql.removeEventListener('change', update);
@@ -54,7 +73,8 @@ export function useTouchLayoutKind(): TouchLayoutKind {
       return undefined;
     }
     const mql = window.matchMedia(TOUCH_LAYOUT_QUERY);
-    const update = (): void => setKind(mql.matches ? 'touch' : 'desktop');
+    const forzata = densitaForzata();
+    const update = (): void => setKind((forzata ?? mql.matches) ? 'touch' : 'desktop');
     update();
     mql.addEventListener('change', update);
     return () => mql.removeEventListener('change', update);

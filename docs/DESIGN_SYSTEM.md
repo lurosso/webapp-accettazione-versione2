@@ -5,7 +5,7 @@ Tutto quello che c'è qui vive in `src/app/globals.css` (blocco `@theme` e utili
 primitivi in `src/components/ui/`. Se una regola e il codice non vanno d'accordo, ha ragione il
 codice: aggiorna questa pagina.
 
-Le decisioni e il perché sono in `TASKS.md`, milestone M8-T21 e M8-T22.
+Le decisioni e il perché sono in `TASKS.md`, milestone da M8-T21 a M8-T25.
 
 ---
 
@@ -23,12 +23,9 @@ A decidere quale delle due è **il puntatore, non la larghezza della finestra**
 quindi CSS e codice non possono dissentire. Un tablet in orizzontale è largo quanto un portatile:
 la larghezza non dice niente su come lo si sta toccando.
 
-```css
-@custom-variant banco (@media (pointer: fine));   /* mouse   */
-@custom-variant tocco (@media (pointer: coarse)); /* dito    */
-```
-
-Le usi come qualunque variante Tailwind: `banco:w-60`, `tocco:flex-col`.
+Le varianti si usano come qualunque altra di Tailwind: `banco:w-60`, `tocco:flex-col`. Ciascuna
+ascolta due cose — il puntatore, che è la verità, e l'attributo `data-densita` sull'`html`, che è
+la lente per guardare (vedi sotto).
 
 ### Densità
 
@@ -51,6 +48,25 @@ prende la taratura giusta senza saperne niente.
 
 `--spacing-touch` (44 px) resta il pavimento assoluto: vale anche al banco, e `min-w-touch` lo usa
 per la larghezza minima dei comandi.
+
+### Guardare l'altra variante da un browser qualsiasi
+
+Restringere la finestra **non** cambia niente: non c'è una sola media query sulla larghezza in
+tutto il progetto. Chi apre il branch su un portatile vede il disegno da banco — giustamente, ha
+il mouse — e senza sapere questo conclude che il lavoro non c'è. È successo davvero.
+
+Per guardare l'altra taratura, aggiungi `?densita=tocco` (o `banco`) all'indirizzo. Resta per la
+scheda del browser finché non scrivi `?densita=auto`.
+
+La lente cambia **misure e struttura insieme** — anche il flusso, perché dopo «Prendi in carico»
+il tablet va al check-in e il PC no. Una lente che cambiasse le une senza l'altra mostrerebbe un
+terzo dispositivo che non esiste, che è il modo peggiore di sbagliare.
+
+Non è una seconda fonte di verità: senza il parametro comanda il puntatore, esattamente come
+prima. Quando l'attributo c'è, zittisce la media query; quando non c'è, non esiste.
+
+In alternativa, senza toccare l'indirizzo: in Chrome o Edge, F12 → ⋮ → *More tools* → *Rendering*
+→ *Emulate CSS media features* → `pointer: coarse`.
 
 ### Quando la struttura cambia, cambiala in CSS
 

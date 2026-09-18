@@ -38,10 +38,39 @@ export const viewport: Viewport = {
   viewportFit: 'cover',
 };
 
+/*
+ * La lente sulla densità, prima che la pagina si disegni.
+ *
+ * `?densita=tocco` (o `banco`) forza la taratura dell'altro dispositivo in QUALUNQUE browser, e
+ * resta per la scheda finché non si scrive `?densita=auto`. Serve a guardare: chi apre il branch su
+ * un portatile vede il disegno da banco — giustamente, ha il mouse — e senza un modo di chiedere
+ * l'altro conclude che il lavoro non c'è.
+ *
+ * Gira qui, in testa al corpo, e non in un effetto: un attributo messo dopo l'idratazione farebbe
+ * lampeggiare la pagina nella taratura sbagliata, che è proprio quello che questo impianto evita.
+ * Senza il parametro non fa niente e comanda il puntatore, come sempre.
+ */
+const LENTE_DENSITA = `(function(){try{
+var p=new URLSearchParams(location.search).get('densita');
+if(p==='auto'){sessionStorage.removeItem('densita')}
+else if(p==='tocco'||p==='banco'){sessionStorage.setItem('densita',p)}
+var d=sessionStorage.getItem('densita');
+if(d==='tocco'||d==='banco'){document.documentElement.dataset.densita=d}
+else{delete document.documentElement.dataset.densita}
+}catch(e){}})()`;
+
 export default function RootLayout({ children }: { readonly children: ReactNode }) {
   return (
-    <html lang="it">
+    /*
+     * `suppressHydrationWarning`: lo script della lente mette `data-densita` sull'html PRIMA
+     * dell'idratazione, e il server quell'attributo non l'ha scritto. È la differenza che React
+     * segnalerebbe — giustamente, se fosse un caso qualunque; qui è voluta, ed è l'unico modo di
+     * non far lampeggiare la pagina nella taratura sbagliata. Vale solo per gli attributi di
+     * questo elemento, non per l'albero sotto.
+     */
+    <html lang="it" suppressHydrationWarning>
       <body className="bg-surface-app text-ink min-h-screen font-sans antialiased">
+        <script dangerouslySetInnerHTML={{ __html: LENTE_DENSITA }} />
         <Providers>{children}</Providers>
       </body>
     </html>
