@@ -31,7 +31,7 @@
 // Quando tutte e due arrivano a zero si può togliere `--color-slate-*` da `@theme`: da quel
 // momento la tavolozza grezza non compila più, e questa metà del test diventa una formalità.
 import { readFileSync, readdirSync, statSync } from 'node:fs';
-import { join } from 'node:path';
+import { join, sep } from 'node:path';
 import { describe, expect, it } from 'vitest';
 
 /**
@@ -56,7 +56,7 @@ function senzaCommenti(sorgente: string): string {
 function fileDi(cartella: string): string[] {
   const trovati: string[] = [];
   for (const voce of readdirSync(cartella)) {
-    const percorso = join(cartella, voce);
+    const percorso = join(cartella, voce).split(sep).join('/');
     if (statSync(percorso).isDirectory()) {
       trovati.push(...fileDi(percorso));
     } else if (/\.tsx?$/.test(voce)) {
