@@ -4,6 +4,9 @@
 // erano pieni (`In carico` giallo, `Completata` verde su bianco) e quattro chiari: a colpo d'occhio
 // sembravano cose di natura diversa, mentre sono sei valori dello stesso campo. Il pallino è anche
 // il residuo leggibile quando il colore non arriva — report stampato, monitor scarico, daltonismo.
+//
+// Il colore cambia in 200 ms invece di saltare: una riga che cambia da sola — l'ha presa un
+// collega da un altro banco — si nota con la coda dell'occhio senza dover rileggere la coda.
 import type { AppointmentStatus } from '@/domain/entities/appointment';
 import { cn } from '@/lib/utils/cn';
 
@@ -46,13 +49,17 @@ export function StatusBadge({
       title={status}
       className={cn(
         'inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-semibold whitespace-nowrap',
+        'transition-colors duration-200 ease-[var(--ease-smooth)]',
         STATUS_CLASSES[status],
         className,
       )}
     >
       <span
         aria-hidden="true"
-        className={cn('size-2 shrink-0 rounded-full', DOT_CLASSES[status])}
+        className={cn(
+          'size-2 shrink-0 rounded-full transition-colors duration-200 ease-[var(--ease-smooth)]',
+          DOT_CLASSES[status],
+        )}
       />
       {STATUS_LABELS[status]}
     </span>

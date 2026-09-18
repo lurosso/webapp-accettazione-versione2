@@ -20,6 +20,9 @@ import { AppointmentCard } from './AppointmentCard';
 import { AppointmentRow } from './AppointmentRow';
 import type { AppointmentAction } from './types';
 
+/** Per quanto una pratica resta «appena cambiata»: oltre, il movimento sarebbe un ricordo. */
+const FINESTRA_MOVIMENTO_MS = 10_000;
+
 export interface QueueTableProps {
   readonly rows: readonly QueueRowView[];
   readonly brands: readonly Brand[];
@@ -162,6 +165,12 @@ export function QueueTable({
             dueSoon:
               section.late !== true &&
               isDueWithinGrace(row.appointment, serverTime, LATE_GRACE_MINUTES),
+            // Cambiata da poco: sale al suo posto invece di comparire e basta. Lo decide
+            // `updatedAt` del server, non un contatore nel browser, così la riga si muove anche
+            // quando a cambiarla è stato un collega da un altro banco — ed è lì che serve.
+            appenaCambiata:
+              new Date(serverTime).getTime() - new Date(row.appointment.updatedAt).getTime() <
+              FINESTRA_MOVIMENTO_MS,
           };
         });
         return (
@@ -212,7 +221,7 @@ export function QueueTable({
                   dopo l'idratazione — cioè sfarfallerebbe sotto gli occhi dell'accettatore.
                 */}
                 <ul className="divide-line-subtle banco:hidden divide-y">
-                  {righe.map(({ row, deskLabel, foreignDesk, dueSoon }) => (
+                  {righe.map(({ row, deskLabel, foreignDesk, dueSoon, appenaCambiata }) => (
                     <AppointmentCard
                       key={row.appointment.id}
                       row={row}
@@ -221,6 +230,7 @@ export function QueueTable({
                       showDesk={showDesk}
                       foreignDesk={foreignDesk}
                       dueSoon={dueSoon}
+                      appenaCambiata={appenaCambiata}
                       timeZone={timeZone}
                       pending={pendingId === row.appointment.id}
                       late={section.late === true}
@@ -254,12 +264,13 @@ export function QueueTable({
                       </TableRow>
                     </TableHeader>
                     <TableBody>
-                      {righe.map(({ row, deskLabel, foreignDesk, dueSoon }) => (
+                      {righe.map(({ row, deskLabel, foreignDesk, dueSoon, appenaCambiata }) => (
                         <AppointmentRow
                           key={row.appointment.id}
                           row={row}
                           brandName={brandName(row.appointment.brandId)}
                           dueSoon={dueSoon}
+                          appenaCambiata={appenaCambiata}
                           deskLabel={deskLabel}
                           showDesk={showDesk}
                           foreignDesk={foreignDesk}

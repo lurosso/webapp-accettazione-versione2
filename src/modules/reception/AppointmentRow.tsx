@@ -37,6 +37,8 @@ export interface AppointmentRowProps {
   readonly lateByMinutes?: number;
   /** Orario atteso superato ma entro la tolleranza: riga gialla, "da servire ora". */
   readonly dueSoon?: boolean;
+  /** Cambiata negli ultimi secondi: sale al suo posto invece di comparire e basta. */
+  readonly appenaCambiata?: boolean;
   readonly onAction: (action: AppointmentAction) => void;
   readonly onSelect: () => void;
   /** Riga aperta nel pannello di dettaglio. */
@@ -74,6 +76,7 @@ export function AppointmentRow({
   late = false,
   lateByMinutes = 0,
   dueSoon = false,
+  appenaCambiata = false,
   onAction,
   onSelect,
   selected = false,
@@ -93,6 +96,7 @@ export function AppointmentRow({
         // aprire il pannello.
         'cursor-pointer transition-[filter] duration-200 select-none hover:brightness-[0.97]',
         ROW_CLASSES[a.status],
+        appenaCambiata && 'appena-cambiata',
         // Il colore va solo dove aggiunge qualcosa. Le pratiche in ritardo stanno già dentro un
         // blocco con il bordo e il titolo rossi: ritingere anche ogni riga faceva un muro rosa in
         // cui, di nuovo, non emergeva niente. Resta l'ambra su chi ha superato l'orario ma è

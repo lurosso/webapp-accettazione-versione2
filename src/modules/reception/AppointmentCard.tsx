@@ -36,6 +36,8 @@ export interface AppointmentCardProps {
   readonly late?: boolean;
   readonly lateByMinutes?: number;
   readonly dueSoon?: boolean;
+  /** Cambiata negli ultimi secondi: sale al suo posto invece di comparire e basta. */
+  readonly appenaCambiata?: boolean;
   readonly selected?: boolean;
   readonly readOnly?: boolean;
   readonly onAction: (action: AppointmentAction) => void;
@@ -58,6 +60,7 @@ export function AppointmentCard({
   late = false,
   lateByMinutes = 0,
   dueSoon = false,
+  appenaCambiata = false,
   selected = false,
   readOnly = false,
   onAction,
@@ -72,6 +75,7 @@ export function AppointmentCard({
       data-status={a.status}
       className={cn(
         'transizione flex flex-wrap items-center gap-x-5 gap-y-3 px-5 py-4',
+        appenaCambiata && 'appena-cambiata',
         STATO_SPENTO[a.status],
         dueSoon && !late && 'bg-priority-now-soft',
         pending && 'opacity-60',
