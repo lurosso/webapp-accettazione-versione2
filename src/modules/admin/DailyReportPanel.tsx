@@ -14,6 +14,15 @@ import type { DailyReportView } from '@/application/reporting/DailyReportService
 import { Badge } from '@/components/ui/badge';
 import { Notice } from '@/components/ui/notice';
 import { Panel, PanelHeader } from '@/components/ui/panel';
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from '@/components/ui/table';
+import { cn } from '@/lib/utils/cn';
 import { fetchDailyReport } from '@/lib/api-client/client';
 
 export interface DailyReportPanelProps {
@@ -167,6 +176,71 @@ export function DailyReportPanel({ businessDate }: DailyReportPanelProps) {
           <div className="mt-3">
             <Conversione report={report} />
           </div>
+
+          {/*
+           * Gli indicatori sopra dicono com'è andata l'officina; questa dice DOVE. Un'attesa media
+           * di ventuno minuti può essere tre sportelli tranquilli e uno in affanno, e finché il
+           * numero resta uno solo la differenza non si vede — si vedeva aprendo il CSV.
+           */}
+          {report.byDesk.length > 1 ? (
+            <div className="mt-6">
+              <h3 className="text-ink testo-dato mb-2 font-semibold">Sportello per sportello</h3>
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>Sportello</TableHead>
+                    <TableHead className="text-right">Previste</TableHead>
+                    <TableHead className="text-right">Completate</TableHead>
+                    <TableHead className="text-right">Assenti</TableHead>
+                    <TableHead className="text-right">Attesa media</TableHead>
+                    <TableHead className="text-right">In coda</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {report.byDesk.map((d) => (
+                    <TableRow key={d.deskId ?? 'senza'}>
+                      <TableCell className="font-semibold">{d.label}</TableCell>
+                      <TableCell className="text-right tabular-nums">{d.expected}</TableCell>
+                      <TableCell className="text-right tabular-nums">{d.completed}</TableCell>
+                      <TableCell
+                        className={cn(
+                          'text-right tabular-nums',
+                          d.noShow > 0 && 'text-status-no-show-ink font-semibold',
+                        )}
+                      >
+                        {d.noShow}
+                      </TableCell>
+                      <TableCell className="text-right tabular-nums">
+                        {minuti(d.averageWaitMinutes)}
+                      </TableCell>
+                      <TableCell
+                        className={cn(
+                          'text-right tabular-nums',
+                          d.stillInQueue > 0 && 'text-priority-now-ink font-semibold',
+                        )}
+                      >
+                        {d.stillInQueue}
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                  <TableRow className="bg-surface-sunken font-semibold">
+                    <TableCell>Totale</TableCell>
+                    <TableCell className="text-right tabular-nums">{report.total}</TableCell>
+                    <TableCell className="text-right tabular-nums">
+                      {report.counts.COMPLETED}
+                    </TableCell>
+                    <TableCell className="text-right tabular-nums">
+                      {report.counts.NO_SHOW}
+                    </TableCell>
+                    <TableCell className="text-right tabular-nums">
+                      {minuti(report.averageWait.minutes)}
+                    </TableCell>
+                    <TableCell className="text-right tabular-nums">{report.stillOpen}</TableCell>
+                  </TableRow>
+                </TableBody>
+              </Table>
+            </div>
+          ) : null}
         </>
       )}
     </Panel>
