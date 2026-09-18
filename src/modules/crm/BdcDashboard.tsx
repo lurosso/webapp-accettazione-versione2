@@ -126,7 +126,7 @@ export function BdcDashboard({ session, businessDate, timeZone }: BdcDashboardPr
             type="checkbox"
             checked={mostraChiusi}
             onChange={(event) => setMostraChiusi(event.target.checked)}
-            className="size-6 rounded border-slate-300 accent-[#0065a0]"
+            className="casella border-line rounded border"
           />
           Mostra anche i già gestiti
         </label>

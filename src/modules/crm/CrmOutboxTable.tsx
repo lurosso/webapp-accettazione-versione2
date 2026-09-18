@@ -117,7 +117,7 @@ export function CrmOutboxTable({ timeZone }: CrmOutboxTableProps) {
             type="checkbox"
             checked={soloDaRisolvere}
             onChange={(event) => setSoloDaRisolvere(event.target.checked)}
-            className="size-6 rounded border-slate-300 accent-[#0065a0]"
+            className="casella border-line rounded border"
           />
           Mostra solo quelli da risolvere
         </label>

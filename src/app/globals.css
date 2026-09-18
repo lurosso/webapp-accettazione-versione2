@@ -287,6 +287,7 @@
   --testo-corpo: 0.875rem; /* 14 px */
   --testo-dato: 0.9375rem; /* 15 px */
   --testo-codice: 1.0625rem; /* 17 px */
+  --casella: 1.25rem; /* 20 px */
 }
 
 @media (pointer: coarse) {
@@ -299,6 +300,7 @@
     --testo-corpo: 1.0625rem; /* 17 px */
     --testo-dato: 1.1875rem; /* 19 px */
     --testo-codice: 1.625rem; /* 26 px */
+    --casella: 1.5rem; /* 24 px */
   }
 }
 
@@ -315,6 +317,17 @@
 /** Altezza minima di una riga d'elenco: sotto, si tocca la pratica sbagliata. */
 @utility riga {
   height: var(--h-riga);
+}
+
+/*
+ * Il quadrato di una casella di spunta. Il bersaglio vero è l'etichetta che la contiene — alta
+ * `controllo`, larga quanto il testo — ma il quadrato è quello che si guarda mentre si mira, e
+ * accanto a un testo da 17 px un quadrato da 20 sembra la casella di un'altra interfaccia.
+ */
+@utility casella {
+  width: var(--casella);
+  height: var(--casella);
+  accent-color: var(--color-brand-secondary);
 }
 
 /** Informazione di contorno (l'orario originale, «saltata 2 volte»). Mai sotto i 13 px. */

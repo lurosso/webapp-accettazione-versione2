@@ -148,7 +148,7 @@ export function NewWalkInDialog({
             <input
               id="wi-whatsapp"
               type="checkbox"
-              className="size-6 accent-[#0065a0]"
+              className="casella"
               checked={whatsappOptIn}
               onChange={(e) => setWhatsappOptIn(e.target.checked)}
             />
