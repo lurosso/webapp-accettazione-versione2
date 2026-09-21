@@ -18,7 +18,7 @@ import {
   type AppointmentFlow,
   type AppointmentStatus,
 } from '@/domain/entities/appointment';
-import type { IsoDateTime } from '@/domain/value-objects/iso-date';
+import type { IsoDate, IsoDateTime } from '@/domain/value-objects/iso-date';
 import { normalizePlate } from '@/domain/value-objects/plate';
 import type {
   IAppointmentRepository,
@@ -112,6 +112,20 @@ export class InspectionArchiveService {
   }
 
   /**
+   * Le pratiche di una giornata, con o senza foto, nell'ordine dell'agenda (orario, poi codice).
+   * È la vista che si apre al ritiro: il veicolo è entrato oggi e si vuole vedere com'era
+   * all'arrivo. Prima l'archivio si apriva sugli «ultimi check-in fotografici» di giorni
+   * imprecisati, e per trovare l'auto di stamattina si doveva scrivere la targa.
+   */
+  async listByDay(businessDate: IsoDate): Promise<readonly InspectionArchiveEntry[]> {
+    const pratiche = await this.deps.appointments.listByDate(businessDate);
+    const voci = await this.versoVoci(pratiche);
+    return [...voci].sort(
+      (x, y) => x.scheduledAt.localeCompare(y.scheduledAt) || x.code.localeCompare(y.code),
+    );
+  }
+
+  /**
    * Senza ricerca: gli ultimi check-in fotografici, dal più recente. Con una ricerca per targa
    * (normalizzata: spazi e minuscole non contano) o per codice pratica: la STORIA del veicolo, cioè
    * ogni ingresso in officina su tutte le giornate e i flussi, uno per riga dal più recente, con o
@@ -119,22 +133,14 @@ export class InspectionArchiveService {
    * pratica: il ritiro contestato di un veicolo abituale ha bisogno di tutta la sua storia.
    */
   async search(query: string, limit = 50): Promise<readonly InspectionArchiveEntry[]> {
-    const tutte = await this.deps.media.listAll();
-    const perPratica = new Map<string, MediaAsset[]>();
-    for (const asset of tutte) {
-      const gruppo = perPratica.get(asset.appointmentId) ?? [];
-      gruppo.push(asset);
-      perPratica.set(asset.appointmentId, gruppo);
-    }
-    const brands = await this.deps.referenceData.listBrands();
     const testo = query.trim();
 
     const pratiche: Appointment[] = [];
     if (testo === '') {
-      for (const appointmentId of perPratica.keys()) {
-        const a = await this.deps.appointments.findById(
-          appointmentId as MediaAsset['appointmentId'],
-        );
+      const tutte = await this.deps.media.listAll();
+      const conFoto = new Set(tutte.map((asset) => asset.appointmentId));
+      for (const appointmentId of conFoto) {
+        const a = await this.deps.appointments.findById(appointmentId);
         if (a !== null) {
           pratiche.push(a);
         }
@@ -148,7 +154,35 @@ export class InspectionArchiveService {
       );
     }
 
-    const voci = pratiche.map((a): InspectionArchiveEntry => {
+    const voci = await this.versoVoci(pratiche);
+    // Cronologico inverso: giornata, poi orario, poi codice.
+    return [...voci]
+      .sort(
+        (x, y) =>
+          y.businessDate.localeCompare(x.businessDate) ||
+          y.scheduledAt.localeCompare(x.scheduledAt) ||
+          y.code.localeCompare(x.code),
+      )
+      .slice(0, limit);
+  }
+
+  /** Da pratiche a voci d'archivio: marchio risolto, foto in ordine di scatto, link solo ai file esistenti. */
+  private async versoVoci(
+    pratiche: readonly Appointment[],
+  ): Promise<readonly InspectionArchiveEntry[]> {
+    if (pratiche.length === 0) {
+      return [];
+    }
+    const tutte = await this.deps.media.listAll();
+    const perPratica = new Map<string, MediaAsset[]>();
+    for (const asset of tutte) {
+      const gruppo = perPratica.get(asset.appointmentId) ?? [];
+      gruppo.push(asset);
+      perPratica.set(asset.appointmentId, gruppo);
+    }
+    const brands = await this.deps.referenceData.listBrands();
+
+    return pratiche.map((a): InspectionArchiveEntry => {
       const foto = [...(perPratica.get(a.id) ?? [])].sort((x, y) =>
         x.capturedAt.localeCompare(y.capturedAt),
       );
@@ -189,16 +223,6 @@ export class InspectionArchiveService {
         archived: foto.length > 0 && foto.every((asset) => asset.archivedAt !== null),
       };
     });
-
-    // Cronologico inverso: giornata, poi orario, poi codice.
-    return voci
-      .sort(
-        (x, y) =>
-          y.businessDate.localeCompare(x.businessDate) ||
-          y.scheduledAt.localeCompare(x.scheduledAt) ||
-          y.code.localeCompare(x.code),
-      )
-      .slice(0, limit);
   }
 
   /**

@@ -192,10 +192,10 @@ export interface CrmOutboxView {
 
 /**
  * Tappa del percorso mostrata dal portale cliente: 1 In attesa (in coda), 2 In accettazione
- * (presa in carico), 3 In lavorazione (check-in concluso, vettura in officina), 4 Pronta per il
- * ritiro (arriverà dallo stato "Veicolo pronto alla consegna" del gestionale).
+ * (presa in carico), 3 Accettazione conclusa (check-in finito, il cliente può ripartire). Il
+ * percorso raccontato è l'accettazione: il ritiro a fine riparazione non passa da qui.
  */
-export type PortalStage = 1 | 2 | 3 | 4;
+export type PortalStage = 1 | 2 | 3;
 
 /**
  * Stato della pratica come lo legge il cliente dal telefono (link WhatsApp o QR): posizione in

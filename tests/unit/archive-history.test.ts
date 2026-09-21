@@ -75,4 +75,43 @@ describe('Archivio: storico per targa', () => {
     expect(perCodice.map((e) => e.appointmentId)).toContain(storia[2]!.appointmentId);
     expect(asAppointmentId(storia[0]!.appointmentId)).toBe(storia[0]!.appointmentId);
   });
+
+  it('la giornata elenca tutte le pratiche del giorno, con o senza foto, in ordine di agenda', async () => {
+    const { env, service } = setup();
+    const giorno = '2026-09-16' as never;
+    const tardi = makeAppointment({
+      businessDate: giorno,
+      scheduledAt: '2026-09-16T09:30:00.000Z' as IsoDateTime,
+    });
+    const presto = makeAppointment({
+      businessDate: giorno,
+      scheduledAt: '2026-09-16T07:00:00.000Z' as IsoDateTime,
+    });
+    const altroGiorno = makeAppointment({ businessDate: '2026-09-15' as never });
+    for (const a of [tardi, presto, altroGiorno]) {
+      await env.appointments.insert(a);
+    }
+    await env.media.insert({
+      id: asMediaAssetId('video-1'),
+      appointmentId: tardi.id,
+      kind: 'VIDEO',
+      category: null,
+      mimeType: 'video/mp4',
+      sizeBytes: 5000,
+      storageKey: 'video-1.mp4',
+      thumbnailKey: null,
+      capturedByOperatorId: asOperatorId('op-advisor-1'),
+      capturedAt: '2026-09-16T09:40:00.000Z' as IsoDateTime,
+      note: null,
+      expiresAt: '2026-10-16T09:40:00.000Z' as IsoDateTime,
+      archivedAt: null,
+    });
+
+    const oggi = await service.listByDay(giorno);
+    // Prima chi è atteso prima; la pratica senza foto c'è lo stesso, quella di ieri no.
+    expect(oggi.map((e) => e.appointmentId)).toEqual([presto.id, tardi.id]);
+    expect(oggi.map((e) => e.photos.length)).toEqual([0, 1]);
+    expect(oggi[1]?.photos[0]?.categoryLabel).toBe('Video del veicolo');
+    expect(await service.listByDay('2026-09-14' as never)).toEqual([]);
+  });
 });

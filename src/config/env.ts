@@ -412,7 +412,9 @@ export function parseEnv(
     codeSequenceScope: pickEnum(source, 'CODE_SEQUENCE_SCOPE', SEQUENCE_SCOPES, 'SITE', warn),
     mockSeed: pickString(source, 'MOCK_SEED', 'autoclub-demo'),
     seedProfile: pickEnum(source, 'SEED_PROFILE', SEED_PROFILES, 'demo', warn),
-    uiManualIntake: pickEnum(source, 'UI_MANUAL_INTAKE', MANUAL_INTAKE_UI, 'managers', warn),
+    // Predefinito none: le pratiche nascono in Infinity (BDC) e il pulsante in accettazione era
+    // una porta laterale che nessuno deve usare. Dialogo e API restano, per riaccenderlo da env.
+    uiManualIntake: pickEnum(source, 'UI_MANUAL_INTAKE', MANUAL_INTAKE_UI, 'none', warn),
     devQuickLogin: pickDevQuickLogin(source, warn),
     seedAdminPasswordHash: pickStringOrNull(source, 'SEED_ADMIN_PASSWORD_HASH'),
     seedDisplayTokenSecret: pickStringOrNull(source, 'SEED_DISPLAY_TOKEN_SECRET'),

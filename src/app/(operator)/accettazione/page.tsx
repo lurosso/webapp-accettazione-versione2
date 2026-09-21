@@ -39,7 +39,8 @@ export default async function AccettazionePage({ searchParams }: PageProps) {
   // cosa si sta guardando. Solo l'amministratore ci arriva, dal proprio pannello.
   const readOnly = single(params['sola-lettura']) === '1' && canAccess('admin', session.role);
   const monitorLabel = single(params['monitor']);
-  // L'inserimento manuale nasce a monte in Infinity (BDC): il pulsante si mostra secondo UI_MANUAL_INTAKE.
+  // L'inserimento manuale nasce a monte in Infinity (BDC): il pulsante è nascosto per default e
+  // si mostra solo secondo UI_MANUAL_INTAKE (managers | all).
   const manualIntakeEnabled =
     container.env.uiManualIntake === 'all' ||
     (container.env.uiManualIntake === 'managers' && canAccess('manager', session.role));

@@ -18,6 +18,9 @@ export default async function ArchivioPage() {
     <InspectionArchive
       timeZone={container.env.timeZone}
       retentionDays={container.env.photoRetentionDays}
+      // La giornata la dice il server, nel fuso dell'officina: alle 23:30 il tablet di un
+      // accettatore che lavora tardi non deve saltare a domani.
+      today={container.clock.today()}
       // Vincolo legale e chiusura commessa si decidono anche da qui: è in archivio che si cerca la
       // targa di tre mesi fa quando arriva una contestazione. Solo l'amministratore ha i comandi.
       canEditRetention={canAccess('admin', session.role)}

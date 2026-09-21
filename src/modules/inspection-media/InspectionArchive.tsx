@@ -24,6 +24,8 @@ export interface InspectionArchiveProps {
   readonly retentionDays: number;
   /** Amministratore: sulle schede compaiono i comandi di conservazione (vincolo, commessa). */
   readonly canEditRetention?: boolean;
+  /** La giornata operativa del server (YYYY-MM-DD): è quella che l'archivio apre per prima. */
+  readonly today: string;
 }
 
 const STATO_IT: Record<string, string> = {
@@ -141,10 +143,15 @@ export function InspectionArchive({
   timeZone,
   retentionDays,
   canEditRetention = false,
+  today,
 }: InspectionArchiveProps) {
   const queryClient = useQueryClient();
   const [testo, setTesto] = useState('');
   const [query, setQuery] = useState('');
+  // Il giorno che si sta guardando. Si apre su oggi — al ritiro serve com'era il veicolo
+  // all'arrivo, e l'arrivo è oggi — e il calendario porta indietro. Con una ricerca per targa o
+  // codice il giorno non conta: la storia di un veicolo attraversa le giornate.
+  const [giorno, setGiorno] = useState(today);
 
   /** I comandi di conservazione per una scheda: dopo il cambio si ricarica l'archivio. */
   const comandiPer = (entry: InspectionArchiveEntry): ComandiConservazione =>
@@ -157,10 +164,13 @@ export function InspectionArchive({
         }
       : undefined;
   const risultati = useQuery({
-    queryKey: ['inspection-archive', query] as const,
-    queryFn: () => fetchInspectionArchive(query),
+    queryKey: ['inspection-archive', query, giorno] as const,
+    queryFn: () => fetchInspectionArchive(query === '' ? { date: giorno } : { query }),
     placeholderData: keepPreviousData,
   });
+  const giornoLeggibile = new Intl.DateTimeFormat('it-IT', { dateStyle: 'full' }).format(
+    new Date(`${giorno}T12:00:00Z`),
+  );
 
   return (
     <div className="flex flex-col gap-4">
@@ -168,34 +178,62 @@ export function InspectionArchive({
         <div>
           <h1 className="text-2xl font-bold tracking-tight">Archivio ispezioni</h1>
           <p className="text-sm text-slate-600">
-            Senza ricerca: i check-in fotografici degli ultimi giorni. Cercando una targa: tutti gli
-            ingressi storici di quel veicolo, dal più recente, con data, stato, commessa e foto se
-            ci sono. I file restano almeno {retentionDays} giorni, e vengono eliminati solo quando la
-            commessa è chiusa e non c&apos;è un vincolo legale: la scheda rimane.
+            Si apre sulle pratiche di oggi; il calendario porta a un giorno passato. Cercando una
+            targa o un codice: tutti gli ingressi storici di quel veicolo, su tutte le giornate, dal
+            più recente. I file restano almeno {retentionDays} giorni, e vengono eliminati solo
+            quando la commessa è chiusa e non c&apos;è un vincolo legale: la scheda rimane.
           </p>
         </div>
-        <form
-          className="flex items-center gap-2"
-          onSubmit={(event) => {
-            event.preventDefault();
-            setQuery(testo.trim());
-          }}
-        >
-          <Input
-            aria-label="Cerca per targa o codice pratica"
-            placeholder="Targa o codice (es. AB123CD, F012)"
-            value={testo}
-            onChange={(event) => setTesto(event.target.value)}
-            className="controllo w-64 font-mono uppercase"
-          />
-          <button
-            type="submit"
-            className="bg-brand-secondary hover:bg-brand-blue-dark premibile focus-anello controllo min-w-touch inline-flex items-center justify-center rounded-md px-4 text-sm font-semibold text-white"
+        <div className="flex flex-wrap items-end gap-3">
+          <label className="flex flex-col gap-1">
+            <span className="testo-nota text-ink-soft font-semibold">Giornata</span>
+            <Input
+              type="date"
+              value={giorno}
+              max={today}
+              aria-label="Giornata da consultare"
+              data-testid="archivio-giorno"
+              onChange={(event) => {
+                if (event.target.value !== '') {
+                  setGiorno(event.target.value);
+                  setQuery('');
+                  setTesto('');
+                }
+              }}
+              className="controllo w-44"
+            />
+          </label>
+          <form
+            className="flex items-center gap-2"
+            onSubmit={(event) => {
+              event.preventDefault();
+              setQuery(testo.trim());
+            }}
           >
-            Cerca
-          </button>
-        </form>
+            <Input
+              aria-label="Cerca per targa o codice pratica"
+              placeholder="Targa o codice (es. AB123CD, F012)"
+              value={testo}
+              onChange={(event) => setTesto(event.target.value)}
+              className="controllo w-64 font-mono uppercase"
+            />
+            <button
+              type="submit"
+              className="bg-brand-secondary hover:bg-brand-blue-dark premibile focus-anello controllo min-w-touch inline-flex items-center justify-center rounded-md px-4 text-sm font-semibold text-white"
+            >
+              Cerca
+            </button>
+          </form>
+        </div>
       </header>
+
+      <p className="testo-corpo text-ink-soft" data-testid="archivio-intestazione">
+        {query === ''
+          ? giorno === today
+            ? `Oggi, ${giornoLeggibile}`
+            : giornoLeggibile
+          : `Risultati per «${query}» su tutte le giornate`}
+      </p>
 
       {risultati.isPending ? (
         <TableSkeleton rows={3} columns={4} label="Caricamento dell'archivio" />
@@ -206,10 +244,12 @@ export function InspectionArchive({
       ) : (risultati.data?.entries.length ?? 0) === 0 ? (
         <EmptyState
           size="page"
-          title={query === '' ? 'Nessun check-in fotografico' : `Nessun risultato per "${query}"`}
+          title={
+            query === '' ? 'Nessuna pratica in questa giornata' : `Nessun risultato per "${query}"`
+          }
           description={
             query === ''
-              ? 'Le ispezioni fatte dal tablet compaiono qui appena scattata la prima foto.'
+              ? 'Nessun ingresso in agenda per il giorno scelto: prova un altro giorno dal calendario.'
               : 'Controlla la targa (senza spazi) o il codice pratica.'
           }
         />

@@ -501,13 +501,23 @@ export function fetchAssistance(): Promise<AssistanceView> {
   return apiFetch('/api/v1/admin/assistance');
 }
 
-/** GET /api/v1/inspections/archive: storico dei check-in fotografici. */
-export function fetchInspectionArchive(
-  query: string,
-): Promise<{ readonly query: string; readonly entries: readonly InspectionArchiveEntry[] }> {
+/**
+ * GET /api/v1/inspections/archive: con `query` la storia di targa o codice su tutte le giornate;
+ * senza, le pratiche della giornata `date` (oggi se manca).
+ */
+export function fetchInspectionArchive(params: {
+  readonly query?: string;
+  readonly date?: string;
+}): Promise<{
+  readonly query: string;
+  readonly date: string | null;
+  readonly entries: readonly InspectionArchiveEntry[];
+}> {
   const search = new URLSearchParams();
-  if (query !== '') {
-    search.set('q', query);
+  if (params.query !== undefined && params.query !== '') {
+    search.set('q', params.query);
+  } else if (params.date !== undefined && params.date !== '') {
+    search.set('date', params.date);
   }
   const qs = search.toString();
   return apiFetch(`/api/v1/inspections/archive${qs === '' ? '' : `?${qs}`}`);

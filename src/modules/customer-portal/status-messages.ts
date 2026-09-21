@@ -16,12 +16,17 @@ export interface StatusMessage {
   readonly showAheadCount: boolean;
 }
 
-/** Le quattro tappe del percorso del veicolo, nell'ordine mostrato dalla barra di avanzamento. */
+/**
+ * Le tre tappe del percorso, nell'ordine mostrato dalla barra di avanzamento. Il percorso che
+ * questa pagina racconta è l'ACCETTAZIONE — la fila, lo sportello, il check-in — e finisce quando
+ * il cliente riparte. Il ritiro a fine riparazione lo comunica l'officina per altra via: una
+ * quarta tappa «Pronta per il ritiro» qui restava grigia per giorni e faceva sembrare la pratica
+ * ferma a metà.
+ */
 export const PORTAL_STAGES: readonly { readonly stage: PortalStage; readonly label: string }[] = [
   { stage: 1, label: 'In attesa' },
   { stage: 2, label: 'In accettazione' },
-  { stage: 3, label: 'In lavorazione' },
-  { stage: 4, label: 'Pronta per il ritiro' },
+  { stage: 3, label: 'Accettazione conclusa' },
 ];
 
 /** Etichetta della tappa corrente. */
@@ -73,10 +78,13 @@ export function statusMessage(status: AppointmentStatus, bayCode: string | null)
         showAheadCount: false,
       };
     case 'COMPLETED':
+      // È un servizio in fila, in auto: finito il check-in con l'accettatore, l'accettazione è
+      // conclusa e il cliente può ripartire. Il ritiro a fine riparazione è un altro processo e
+      // non si annuncia qui — promettere un avviso da questa pagina era una promessa di un'altra.
       return {
-        headline: 'Vettura in lavorazione',
+        headline: 'Accettazione conclusa',
         detail:
-          "L'accettazione è conclusa e la vettura è in officina. La avvisiamo noi quando sarà pronta per il ritiro.",
+          'Grazie per la visita: la procedura è finita e può ripartire. La vettura rimane in officina per la lavorazione.',
         tone: 'done',
         showAheadCount: false,
       };

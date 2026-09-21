@@ -140,7 +140,6 @@ export function PhotoCapture({ appointmentId, media, onUploaded, onRemove }: Pho
   const foto = media.filter((m) => m.kind !== 'VIDEO');
   const video = media.filter((m) => m.kind === 'VIDEO');
   const inCaricamento = inCorso;
-  const ultimoVideo = video.at(-1);
 
   /** Un riquadro della riga: stessa misura per il video, per le foto e per il «più». */
   const RIQUADRO =
@@ -178,37 +177,39 @@ export function PhotoCapture({ appointmentId, media, onUploaded, onRemove }: Pho
          * diventavano sei caselle da riempire, cioè sei modi di sentirsi in difetto.
          */}
         <ul className="flex snap-x gap-3 overflow-x-auto pb-2">
-          <li className="snap-start">
-            <button
-              type="button"
-              onClick={() => inputRefs.current.get('VIDEO')?.click()}
-              data-testid="registra-video"
-              aria-label={
-                video.length === 0
-                  ? 'Registra il video del veicolo (obbligatorio)'
-                  : 'Registra un altro video del veicolo'
-              }
-              className={cn(
-                RIQUADRO,
-                'premibile focus-anello',
-                video.length === 0
-                  ? 'border-status-in-progress bg-status-in-progress-soft'
-                  : 'border-status-completed bg-status-completed-soft',
-              )}
-            >
-              <span className="flex flex-1 items-center justify-center text-4xl" aria-hidden="true">
-                {video.length === 0 ? '▶' : '✓'}
-              </span>
-              <span className="bg-surface/80 flex flex-col gap-0.5 px-3 py-2">
-                <span className="testo-corpo font-bold">Giro del veicolo</span>
-                <span className="text-ink-muted testo-nota">
-                  {ultimoVideo === undefined
-                    ? 'obbligatorio · tocca per registrare'
-                    : `registrato alle ${new Date(ultimoVideo.capturedAt).toLocaleTimeString('it-IT', { hour: '2-digit', minute: '2-digit' })}`}
+          {/*
+           * Il comando «Giro del veicolo» esiste solo finché il video manca. Registrato, sparisce:
+           * al suo posto restano i riquadri dei video, ciascuno con il suo «×» per rifarlo, e
+           * «+ Aggiungi video» per un secondo giro. Prima il riquadro diventava verde ma restava
+           * un pulsante, e un tocco ci caricava un altro video sopra: due cose nello stesso posto.
+           */}
+          {video.length === 0 ? (
+            <li className="snap-start">
+              <button
+                type="button"
+                onClick={() => inputRefs.current.get('VIDEO')?.click()}
+                data-testid="registra-video"
+                aria-label="Registra il video del veicolo (obbligatorio)"
+                className={cn(
+                  RIQUADRO,
+                  'premibile focus-anello border-status-in-progress bg-status-in-progress-soft',
+                )}
+              >
+                <span
+                  className="flex flex-1 items-center justify-center text-4xl"
+                  aria-hidden="true"
+                >
+                  ▶
                 </span>
-              </span>
-            </button>
-          </li>
+                <span className="bg-surface/80 flex flex-col gap-0.5 px-3 py-2">
+                  <span className="testo-corpo font-bold">Giro del veicolo</span>
+                  <span className="text-ink-muted testo-nota">
+                    obbligatorio · tocca per registrare
+                  </span>
+                </span>
+              </button>
+            </li>
+          ) : null}
 
           {/*
            * Ogni video ha il suo riquadro, con il suo «×». Prima si vedeva solo l'ultimo, dentro il

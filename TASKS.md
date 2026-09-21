@@ -1863,6 +1863,14 @@ Censimento di tutte le sezioni contro le tavole, chiesto dal committente dopo av
 - [x] M8-T11-S04 UI mobile-first brandizzata: `PortalStatusCard` (codice e targa in grande, `ProgressSteps` a quattro tappe blu/verde Autoclub, messaggio, clienti prima di te, riquadri orario/codice/targa/accettatore/sede), `LateNoticeButton` (mutazione + conferma "ti aspettiamo verso le HH:mm"), `ConcludedCard` (pratica conclusa / giornata passata), `PublicStatusView` con targa e token.
 - [x] M8-T11-S05 Test `tests/unit/customer-portal.test.ts` (12 casi: tappe ed etichette, vista in attesa/in accettazione/conclusa senza dati personali, token valido/sbagliato/con targa, link con token, targa vuota/malformata/sconosciuta, conclusa da oltre 24 h vs da poche ore, oggi vince su ieri, segnalazione ritardo con evento e ordine invariato, ritardo e tolleranza in dashboard, cooldown, stati non ammessi).
 
+### M8-T40 — Rifiniture operative UI _(2026-09-21, richiesta del committente)_
+
+- [x] M8-T40-S01 Pulsante «Pratica manuale» nascosto per default: `UI_MANUAL_INTAKE` predefinito `none` (era `managers`), `.env.example` e README aggiornati; dialogo e API intatti, `managers|all` per riaccenderlo.
+- [x] M8-T40-S02 Archivio ispezioni per giornata: `InspectionArchiveService.listByDay` (tutte le pratiche del giorno, con o senza foto, in ordine di agenda; mappatura condivisa `versoVoci`), `GET /api/v1/inspections/archive?date=YYYY-MM-DD` (predefinito oggi dal clock del server, 400 su data malformata), `fetchInspectionArchive({ query | date })`; `InspectionArchive` si apre su oggi (prop `today` dal server, fuso officina) con selettore data (`max` oggi) e intestazione «Oggi, …» / giorno scelto / «Risultati per … su tutte le giornate»; la ricerca per targa o codice resta su tutte le giornate.
+- [x] M8-T40-S03 Check-in: lo slot video obbligatorio («Giro del veicolo») compare solo finché il video manca; dopo il primo caricamento restano i riquadri dei video con «×» e «Aggiungi video».
+- [x] M8-T40-S04 Portale cliente a tre tappe: `PortalStage = 1|2|3`, `PORTAL_STAGES` In attesa → In accettazione → Accettazione conclusa, `statusMessage('COMPLETED')` «Accettazione conclusa · … può ripartire» (rimossi «Pronta per il ritiro» e la promessa di avviso al ritiro), `ProgressSteps` a 3 colonne.
+- [x] M8-T40-S05 Test: `archive-history.test.ts` (giornata in ordine di agenda, pratica senza foto inclusa, ieri escluso), `customer-portal.test.ts` (tre tappe, testo conclusivo senza «ritiro»), `photo-capture-video-lock.test.ts` (rendering statico: comando presente senza video, assente col video, × solo con `onRemove`).
+
 ---
 
 ## Backlog / Idee future

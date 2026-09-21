@@ -302,9 +302,9 @@ esclude del tutto.
 
 ### Inserimento manuale e BDC
 
-Il pulsante «Nuovo cliente (senza appuntamento)» resta nel codice e nell'API, ma l'inserimento
-avviene a monte in Infinity dal BDC: per default lo vedono solo responsabili e amministratori
-(`UI_MANUAL_INTAKE=managers`; `all` per tutti, `none` per nessuno).
+Il pulsante «Pratica manuale» resta nel codice e nell'API, ma l'inserimento avviene a monte in
+Infinity dal BDC: per default è nascosto a tutti (`UI_MANUAL_INTAKE=none`; `managers` per
+responsabili e amministratori, `all` per tutti).
 
 ### Archivio: la storia di una targa
 

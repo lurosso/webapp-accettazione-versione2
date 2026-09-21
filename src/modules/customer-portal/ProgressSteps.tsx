@@ -1,6 +1,6 @@
-// Barra di avanzamento a quattro tappe del portale cliente: In attesa → In accettazione →
-// In lavorazione → Pronta per il ritiro. Tappe passate in verde Autoclub, tappa corrente in blu,
-// future in grigio. Con tono "attention" (assente, annullata) la barra resta spenta.
+// Barra di avanzamento a tre tappe del portale cliente: In attesa → In accettazione →
+// Accettazione conclusa. Tappe passate in verde Autoclub, tappa corrente in blu, future in
+// grigio. Con tono "attention" (assente, annullata) la barra resta spenta.
 import type { PortalStage } from '@/domain/read-models';
 import { cn } from '@/lib/utils/cn';
 import { PORTAL_STAGES, type StatusTone } from './status-messages';
@@ -14,7 +14,7 @@ export function ProgressSteps({ stage, tone }: ProgressStepsProps) {
   const spenta = tone === 'attention';
   return (
     <ol
-      className="grid grid-cols-4 gap-1"
+      className="grid grid-cols-3 gap-1"
       aria-label="Avanzamento della pratica"
       data-stage={stage}
       data-testid="progress-steps"

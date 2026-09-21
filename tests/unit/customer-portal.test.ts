@@ -51,12 +51,11 @@ async function insert(env: ReturnType<typeof buildTestEnv>, a: Appointment): Pro
 }
 
 describe('Portale: rendering dello stato', () => {
-  it('le quattro tappe e le etichette sono quelle del percorso del cliente', () => {
+  it('le tre tappe e le etichette sono quelle del percorso del cliente', () => {
     expect(PORTAL_STAGES.map((s) => s.label)).toEqual([
       'In attesa',
       'In accettazione',
-      'In lavorazione',
-      'Pronta per il ritiro',
+      'Accettazione conclusa',
     ]);
     expect(portalStageOf('WAITING')).toBe(1);
     expect(portalStageOf('SKIPPED')).toBe(1);
@@ -65,7 +64,9 @@ describe('Portale: rendering dello stato', () => {
     expect(portalStageOf('NO_SHOW')).toBe(1);
     expect(stageLabel(2)).toBe('In accettazione');
     expect(statusMessage('IN_PROGRESS', 'C').detail).toContain('sportello C');
-    expect(statusMessage('COMPLETED', null).headline).toBe('Vettura in lavorazione');
+    expect(statusMessage('COMPLETED', null).headline).toBe('Accettazione conclusa');
+    expect(statusMessage('COMPLETED', null).detail).toContain('può ripartire');
+    expect(statusMessage('COMPLETED', null).detail).not.toContain('ritiro');
     expect(concludedMessage('COMPLETED').headline).toBe('Pratica conclusa');
     expect(aheadCountMessage(0)).toBe('Il prossimo turno è il suo');
     expect(aheadCountMessage(3)).toBe('Ci sono 3 auto prima di lei');
