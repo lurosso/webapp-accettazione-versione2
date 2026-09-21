@@ -5,6 +5,7 @@ import { redirect } from 'next/navigation';
 import type { NextRequest, NextResponse } from 'next/server';
 import type { Session } from '@/application/auth/IAuthService';
 import { SESSION_COOKIE_NAME } from '@/config/auth';
+import { clearedSessionCookieOptions, sessionCookieOptions } from '@/lib/http/session-cookie';
 import { getContainer } from '@/config/container';
 import { redirectForForbiddenArea, type ProtectedArea } from '@/lib/navigation';
 
@@ -82,27 +83,16 @@ export async function readApiSession(
 
 /** Imposta il cookie di sessione sulla risposta (HttpOnly, SameSite=Lax, Secure in produzione). */
 export function setSessionCookie(response: NextResponse, token: string, expiresAt: string): void {
-  response.cookies.set({
-    name: SESSION_COOKIE_NAME,
-    value: token,
-    httpOnly: true,
-    sameSite: 'lax',
-    secure: getContainer().env.nodeEnv === 'production',
-    path: '/',
-    expires: new Date(expiresAt),
-  });
+  // Gli attributi stanno in `session-cookie.ts`, provati a parte: qui non si aggiunge niente — in
+  // particolare nessun `domain`, che legherebbe il cookie a un host solo.
+  response.cookies.set(
+    sessionCookieOptions(SESSION_COOKIE_NAME, token, expiresAt, getContainer().env.nodeEnv),
+  );
 }
 
 /** Cancella il cookie di sessione. */
 export function clearSessionCookie(response: NextResponse): void {
-  response.cookies.set({
-    name: SESSION_COOKIE_NAME,
-    value: '',
-    httpOnly: true,
-    sameSite: 'lax',
-    path: '/',
-    maxAge: 0,
-  });
+  response.cookies.set(clearedSessionCookieOptions(SESSION_COOKIE_NAME));
 }
 
 /** Correlation id della richiesta: riusa l'header in ingresso oppure ne genera uno. */

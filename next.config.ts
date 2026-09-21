@@ -3,6 +3,7 @@
 // Node long-running (Docker/VM/servizio Windows), mai serverless, perché in fase mock lo stato
 // della coda vive in memoria nel processo (InMemoryStore su globalThis, vedi ARCHITECTURE.md §6.1).
 import type { NextConfig } from 'next';
+import { devOrigins } from './src/config/dev-origins';
 
 /**
  * Intestazioni di sicurezza su ogni risposta. Niente Content-Security-Policy per ora: richiede i
@@ -20,6 +21,11 @@ const SECURITY_HEADERS = [
 const nextConfig: NextConfig = {
   reactStrictMode: true,
   output: 'standalone',
+  // Il dev server accetta le proprie risorse (HMR, chunk) dagli indirizzi di questa macchina —
+  // così l'iPad in Wi-Fi apre http://<ip-del-pc>:3000 e la pagina si idrata — più quelli in
+  // ALLOWED_DEV_ORIGINS. Senza, la pagina arriva ma i pulsanti non fanno niente e il login non
+  // parte mai. Solo sviluppo: in produzione l'opzione è ignorata.
+  allowedDevOrigins: [...devOrigins()],
   // Il driver ODBC è un modulo nativo (binario .node): resta fuori dal bundle e viene richiesto a
   // runtime dal processo Node solo quando INFINITY_PROVIDER=real.
   serverExternalPackages: ['odbc'],

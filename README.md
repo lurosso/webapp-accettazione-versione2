@@ -861,7 +861,7 @@ per i cron esterni.
 
 | Comando                    | Descrizione                                                                                     |
 | -------------------------- | ----------------------------------------------------------------------------------------------- |
-| `npm run dev`              | Server di sviluppo su <http://localhost:3000>                                                   |
+| `npm run dev`              | Server di sviluppo su <http://localhost:3000> e sugli indirizzi di rete del PC: l'iPad in Wi-Fi apre `http://<ip-del-pc>:3000` (gli IP della macchina entrano da soli in `allowedDevOrigins`; nomi extra in `ALLOWED_DEV_ORIGINS`)                                                   |
 | `npm run build`            | Build di produzione (output `standalone`)                                                       |
 | `npm start`                | Avvio della build                                                                               |
 | `npm run typecheck`        | TypeScript strict senza emissione                                                               |

@@ -1704,6 +1704,12 @@ Cuore del modulo A; dipende solo da interfacce.
 - [x] M8-T27-S04 Il cursore del livello 2 passa dalla finestra al PIEDE, come nella tavola. La finestra serviva a dire quante foto e quanti video c'erano: adesso lo dicono le pastiglie in testata e la riga della documentazione, e restava solo un passaggio in più fra l'accettatore e la fine del suo lavoro.
 - [x] M8-T27-S05 Gate verde: typecheck, lint, 411 test, build. Schermate a confronto con le tavole.
 
+### M8-T35 — Accesso dall'iPad via IP di rete _(2026-09-21, PROMPT 37)_
+
+- [x] M8-T35-S01 **Diagnosi, misurata e non dedotta.** Via `http://10.50.193.83:3000` il server risponde al quick-login con `200` e lo **stesso identico** `Set-Cookie` di `localhost` (niente `Secure`, niente `Domain`, `SameSite=lax`): il cookie era già giusto. Il problema sta prima: nel browser all'IP la pagina **non si idrata** (nessuna proprietà React sul pulsante), il clic non produce nessuna richiesta di login, e il log del dev server dice «Blocked cross-origin request to Next.js dev resource /_next/hmr from "10.50.193.83"». È la protezione `allowedDevOrigins` di Next 16, non CORS e non le Server Actions (che qui non ci sono).
+- [x] M8-T35-S02 **`allowedDevOrigins` senza scrivere l'IP a mano.** L'indirizzo Wi-Fi cambia con la rete (192.168.178.45 il 18/09, 10.50.193.83 il 21/09): `src/config/dev-origins.ts` legge gli IPv4 non di loopback della macchina all'avvio (`os.networkInterfaces()`) e li aggiunge, più `ALLOWED_DEV_ORIGINS` per nomi extra (mDNS, alias). Solo dev server; in produzione l'opzione è ignorata.
+- [x] M8-T35-S03 **Attributi del cookie in una funzione pura**, `src/lib/http/session-cookie.ts`, usata da `session.ts`: la regola che conta — **mai un `domain`** — ora è scritta in un posto e provata. Test `accesso-da-ip-locale.test.ts`: nessun dominio, `Secure` solo in produzione, cancellazione coerente; `devOriginsFrom` prende solo IPv4 esterni, accetta famiglia numerica, unisce gli extra senza duplicati, lista vuota senza errori.
+
 ### M8-T34 — Più video al check-in, e la conservazione dove l'amministratore la vede _(2026-09-21, PROMPT 36)_
 
 - [x] M8-T34-S01 **Ogni video ha il suo riquadro, con il suo «×».** Prima si vedeva solo l'ultimo, dentro il riquadro del comando «Giro del veicolo»: il secondo video registrato spariva dalla vista e non si poteva togliere. Ora `video.map` rende un riquadro scuro per ciascuno («Video 1 · alle 09:42», «Video 2 · …») con il pulsante di eliminazione, e il riquadro del comando torna a essere solo il comando.
