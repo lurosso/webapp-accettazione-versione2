@@ -16,6 +16,7 @@ import { SlideToConfirm } from '@/components/ui/slide-to-confirm';
 import type { QueueRowView } from '@/domain/read-models';
 import {
   ApiError,
+  deleteInspectionMedia,
   fetchInspectionPhotos,
   postCheckIn,
   type InspectionPhoto,
@@ -200,6 +201,15 @@ export function CheckInScreen({
             appointmentId={a.id}
             media={media}
             onUploaded={(m) => setMedia((precedenti) => [...precedenti, m])}
+            // Si corregge finché il check-in è aperto. Dopo, il fascicolo è sigillato: niente «×».
+            onRemove={
+              a.status === 'IN_PROGRESS'
+                ? async (mediaId) => {
+                    await deleteInspectionMedia(a.id, mediaId);
+                    setMedia((precedenti) => precedenti.filter((m) => m.id !== mediaId));
+                  }
+                : undefined
+            }
           />
 
           <section className="flex flex-col gap-3 rounded-2xl border-2 border-slate-200 bg-white p-4">

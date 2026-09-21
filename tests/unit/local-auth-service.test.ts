@@ -315,6 +315,24 @@ describe('LocalAuthService: sportelli occupati', () => {
     expect((await login(service, 'andrea.conti', 'ws-p1')).ok).toBe(true);
   });
 
+  it('dopo un cambio di postazione il logout libera quella NUOVA, anche con la sessione vecchia in mano', async () => {
+    const { service } = setup();
+    const mario = await login(service, 'mario.rossi', 'ws-p1');
+    if (!mario.ok) {
+      throw new Error('login fallito');
+    }
+    // Mario si sposta al posto 2: il posto 1 si libera, il 2 diventa suo.
+    const spostato = await service.switchWorkstation(mario.value.session, 'ws-p2');
+    expect(spostato.ok).toBe(true);
+    expect((await login(service, 'andrea.conti', 'ws-p2')).ok).toBe(false);
+
+    // Esce con la sessione VECCHIA, che nomina ancora il posto 1: è il cookie che il client può
+    // avere in mano se il cambio non l'ha ancora aggiornato. Liberare «il posto del cookie» qui
+    // non libererebbe niente, e il 2 resterebbe il posto fantasma di fine giornata.
+    await service.logout(mario.value.session);
+    expect((await login(service, 'andrea.conti', 'ws-p2')).ok).toBe(true);
+  });
+
   it("una sessione scaduta libera l'accettazione da sola", async () => {
     const { env, service } = setup();
     expect((await login(service, 'mario.rossi', 'ws-p1')).ok).toBe(true);

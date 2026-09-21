@@ -246,6 +246,13 @@ export const ROTTE = [
     accesso: ACCESSO.banco,
   },
   {
+    path: '/api/v1/appointments/:id/media/:mediaId',
+    area: AREE[9],
+    descrizione:
+      'Elimina (DELETE) una foto o un video acquisiti per sbaglio durante il check-in: solo con la pratica in carico, dopo il fascicolo è sigillato (409).',
+    accesso: ACCESSO.banco,
+  },
+  {
     path: '/api/v1/media/:key',
     area: AREE[9],
     descrizione: "Rilegge una foto o un video dell'ispezione dallo storage.",

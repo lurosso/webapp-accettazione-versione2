@@ -297,6 +297,21 @@ export function fetchInspectionPhotos(
   return apiFetch(`/api/v1/appointments/${encodeURIComponent(appointmentId)}/media`);
 }
 
+/**
+ * DELETE /api/v1/appointments/{id}/media/{mediaId}: elimina una foto o un video acquisiti per
+ * sbaglio durante il check-in. Concluso il check-in il server rifiuta (409): il fascicolo è
+ * sigillato.
+ */
+export function deleteInspectionMedia(
+  appointmentId: string,
+  mediaId: string,
+): Promise<{ readonly ok: boolean }> {
+  return apiFetch(
+    `/api/v1/appointments/${encodeURIComponent(appointmentId)}/media/${encodeURIComponent(mediaId)}`,
+    { method: 'DELETE' },
+  );
+}
+
 /** POST /api/v1/appointments/{id}/check-in: conclude l'accettazione al veicolo. */
 export function postCheckIn(
   appointmentId: string,

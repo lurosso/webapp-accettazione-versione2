@@ -103,6 +103,12 @@ export interface StoredPhoto {
   readonly url: string;
 }
 
+export interface RemoveMediaInput {
+  readonly appointmentId: AppointmentId;
+  readonly mediaId: string;
+  readonly operatorId: OperatorId;
+}
+
 export interface CompleteCheckInInput {
   readonly appointmentId: AppointmentId;
   readonly expectedVersion: number;
@@ -120,6 +126,10 @@ export interface CheckInResult {
 }
 
 /** Messaggio di rifiuto quando si prova a concludere senza la ripresa del veicolo. */
+/** Il check-in è concluso: da qui non si elimina più niente, il fascicolo è sigillato. */
+export const MEDIA_SIGILLATI =
+  'Il check-in è concluso: foto e video non si eliminano più da qui.';
+
 export const VIDEO_MANCANTE =
   'Manca il video del veicolo: registralo prima di concludere il check-in.';
 
@@ -219,6 +229,52 @@ export class InspectionService {
     return ok({ asset, url: salvata.value.url });
   }
 
+  /**
+   * Elimina una foto o un video acquisiti per sbaglio — sfocati, del veicolo sbagliato — DURANTE il
+   * check-in, cioè finché la pratica è in carico. Concluso il check-in il fascicolo è sigillato: è
+   * la documentazione con cui si risponde a una contestazione, e chi la può toccare non è più
+   * l'accettatore. Un vincolo legale blocca anche prima.
+   *
+   * Il media si cerca fra quelli della pratica indicata: un id di un'altra pratica è NOT_FOUND,
+   * così la rotta non può eliminare per conto di una pratica quello che appartiene a un'altra.
+   * File già sparito dal disco: si elimina comunque il record, l'obiettivo è che non resti.
+   */
+  async removeMedia(input: RemoveMediaInput): Promise<Result<void, DomainError>> {
+    const appointment = await this.deps.appointments.findById(input.appointmentId);
+    if (appointment === null) {
+      return err(domainError('NOT_FOUND', `Pratica non trovata: ${input.appointmentId}.`));
+    }
+    if (appointment.status !== 'IN_PROGRESS') {
+      return err(
+        domainError('INVALID_TRANSITION', MEDIA_SIGILLATI, { status: appointment.status }),
+      );
+    }
+    if (appointment.legalHoldAt !== null) {
+      return err(
+        domainError('INVALID_TRANSITION', 'Vincolo legale: i media di questa pratica non si eliminano.'),
+      );
+    }
+    const asset = (await this.deps.media.listByAppointment(appointment.id)).find(
+      (m) => m.id === input.mediaId,
+    );
+    if (asset === undefined) {
+      return err(domainError('NOT_FOUND', 'Foto o video non trovati in questa pratica.'));
+    }
+    const eliminato = await this.deps.mediaStorage.delete(asset.storageKey);
+    if (!eliminato.ok && eliminato.error.code !== 'NOT_FOUND') {
+      return eliminato;
+    }
+    if (asset.thumbnailKey !== null) {
+      await this.deps.mediaStorage.delete(asset.thumbnailKey);
+    }
+    await this.deps.media.delete(asset.id);
+    this.logger.info(`media eliminato al check-in per ${appointment.code}`, {
+      mediaId: asset.id,
+      kind: asset.kind,
+      operatorId: input.operatorId,
+    });
+    return ok(undefined);
+  }
   /** Foto di uno slot del giro: firma storica, oggi un caso particolare di `addMedia`. */
   async addPhoto(input: AddPhotoInput): Promise<Result<StoredPhoto, DomainError>> {
     return this.addMedia(input);

@@ -19,6 +19,12 @@ export interface PhotoCaptureProps {
   readonly appointmentId: string;
   readonly media: readonly InspectionPhoto[];
   readonly onUploaded: (media: InspectionPhoto) => void;
+  /**
+   * Elimina una foto o un video acquisiti per sbaglio. C'è solo finché il check-in è aperto: dopo,
+   * il fascicolo è sigillato e il pulsante non compare. Un tocco solo, senza conferma — il costo
+   * dell'errore è rifare uno scatto, e si corregge mentre si è ancora davanti al veicolo.
+   */
+  readonly onRemove?: ((mediaId: string) => Promise<void>) | undefined;
 }
 
 /** Media in corso di caricamento, tenuto accanto al proprio slot (o fra gli extra). */
@@ -29,10 +35,48 @@ interface Caricamento {
   readonly previewUrl: string;
 }
 
-export function PhotoCapture({ appointmentId, media, onUploaded }: PhotoCaptureProps) {
+export function PhotoCapture({ appointmentId, media, onUploaded, onRemove }: PhotoCaptureProps) {
   const inputRefs = useRef(new Map<string, HTMLInputElement | null>());
   const [inCorso, setInCorso] = useState<readonly Caricamento[]>([]);
   const [errore, setErrore] = useState<string | null>(null);
+  /** Media di cui è in corso l'eliminazione: il suo pulsante resta spento finché non finisce. */
+  const [inEliminazione, setInEliminazione] = useState<string | null>(null);
+
+  const rimuovi = async (m: InspectionPhoto): Promise<void> => {
+    if (onRemove === undefined) {
+      return;
+    }
+    setErrore(null);
+    setInEliminazione(m.id);
+    try {
+      await onRemove(m.id);
+    } catch (cause) {
+      setErrore(
+        cause instanceof ApiError
+          ? cause.message
+          : `${m.kind === 'VIDEO' ? 'Video' : 'Foto'} non eliminat${m.kind === 'VIDEO' ? 'o' : 'a'}: riprova.`,
+      );
+    } finally {
+      setInEliminazione(null);
+    }
+  };
+
+  /** Il pulsante «×» in alto a destra di un riquadro: 44 px, si tocca con i guanti. */
+  const pulsanteElimina = (m: InspectionPhoto, etichetta: string): React.ReactNode =>
+    onRemove === undefined || m.archivedAt !== null ? null : (
+      <button
+        type="button"
+        onClick={() => void rimuovi(m)}
+        disabled={inEliminazione === m.id}
+        data-testid={`elimina-media-${m.id}`}
+        aria-label={etichetta}
+        className="premibile focus-anello bg-surface text-ink border-line absolute top-2 right-2 z-10 flex size-11 items-center justify-center rounded-full border shadow-sm disabled:opacity-50"
+      >
+        <span aria-hidden="true" className="text-2xl leading-none">
+          ×
+        </span>
+      </button>
+    );
 
   // Le anteprime locali occupano memoria finché non vengono liberate.
   useEffect(() => {
@@ -134,7 +178,9 @@ export function PhotoCapture({ appointmentId, media, onUploaded }: PhotoCaptureP
          * diventavano sei caselle da riempire, cioè sei modi di sentirsi in difetto.
          */}
         <ul className="flex snap-x gap-3 overflow-x-auto pb-2">
-          <li className="snap-start">
+          <li className="relative snap-start">
+            {/* Anche il video si può rifare: quello del veicolo sbagliato non deve restare nel fascicolo. */}
+            {ultimoVideo === undefined ? null : pulsanteElimina(ultimoVideo, 'Elimina il video')}
             <button
               type="button"
               onClick={() => inputRefs.current.get('VIDEO')?.click()}
@@ -167,7 +213,8 @@ export function PhotoCapture({ appointmentId, media, onUploaded }: PhotoCaptureP
           </li>
 
           {foto.map((f) => (
-            <li key={f.id} className="snap-start">
+            <li key={f.id} className="relative snap-start">
+              {pulsanteElimina(f, 'Elimina questa foto')}
               <span className={cn(RIQUADRO, 'border-line bg-slate-100')}>
                 {f.archivedAt !== null ? (
                   <span className="text-ink-muted flex flex-1 items-center justify-center px-2 text-center text-xs">

@@ -200,11 +200,12 @@ export class LocalAuthService implements IAuthService {
   }
 
   async logout(session: Session): Promise<void> {
-    const claim = await this.deps.claims.findByWorkstation(session.workstationId);
-    // Si libera solo il proprio posto: un cookie vecchio non deve buttare fuori un collega.
-    if (claim !== null && claim.operatorId === session.operatorId) {
-      await this.deps.claims.deleteByWorkstation(session.workstationId);
-    }
+    // Si libera il posto dell'OPERATORE, non quello scritto nel cookie. Se durante il turno ha
+    // cambiato postazione, il token nomina ancora la vecchia: liberare quella lasciava occupata la
+    // nuova — il posto «fantasma» che l'amministratore trovava a fine giornata. Un operatore ha al
+    // più una rivendicazione (il login la sposta), quindi liberare per operatore è esatto. E la
+    // sessione arriva già verificata, quindi non è un cookie vecchio che butta fuori un collega.
+    await this.deps.claims.deleteByOperator(session.operatorId);
   }
 
   /** Occupazione valida di un ALTRO operatore sulla postazione, altrimenti null. */
