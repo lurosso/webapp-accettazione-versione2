@@ -508,6 +508,44 @@ export function AppointmentDetailPanel({
             </Link>
           ) : null}
 
+          {/*
+           * Per l'amministratore la conservazione sta QUI, in alto e con il bordo colorato: è il
+           * motivo per cui apre la pratica dal monitoraggio, e in fondo al pannello — dopo tre
+           * sezioni e la galleria — non la trovava. Per gli altri ruoli resta in fondo, come
+           * informazione: leggono perché le foto ci sono ancora, non decidono.
+           */}
+          {retention !== undefined ? (
+            <div
+              data-testid="conservazione-in-evidenza"
+              className={cn(
+                'rounded-lg border-2 p-4',
+                retentionProtection(a) === null
+                  ? 'border-line bg-surface-sunken'
+                  : 'border-status-in-progress bg-status-in-progress-soft',
+              )}
+            >
+              <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
+                <h3 className="text-ink text-base font-bold">Conservazione dei media</h3>
+                <Badge
+                  tone={
+                    retentionProtection(a) === 'LEGAL_HOLD'
+                      ? 'danger'
+                      : retentionProtection(a) === 'ORDER_OPEN'
+                        ? 'warning'
+                        : 'neutral'
+                  }
+                >
+                  {retentionProtection(a) === 'LEGAL_HOLD'
+                    ? 'Vincolo legale'
+                    : retentionProtection(a) === 'ORDER_OPEN'
+                      ? 'Protetti · commessa aperta'
+                      : 'Scadono con la retention'}
+                </Badge>
+              </div>
+              <Conservazione a={a} timeZone={timeZone} retention={retention} />
+            </div>
+          ) : null}
+
           <Section title="Cliente" modal={modal}>
             <dl className={dl}>
               <Field label="Nome e cognome" roomy={modal}>
@@ -631,10 +669,12 @@ export function AppointmentDetailPanel({
           {/* Ispezione al veicolo: note e foto scattate al tablet, dove servono a chi sta al banco. */}
           <MediaGallery appointmentId={a.id} inspectionNotes={a.notes} timeZone={timeZone} />
 
-          {/* Perché quelle foto ci sono ancora — e, per l'amministratore, come decidere che restino. */}
-          <Section title="Conservazione dei media" modal={modal}>
-            <Conservazione a={a} timeZone={timeZone} retention={retention} />
-          </Section>
+          {/* Perché quelle foto ci sono ancora: per chi non decide, l'informazione sta in fondo. */}
+          {retention === undefined ? (
+            <Section title="Conservazione dei media" modal={modal}>
+              <Conservazione a={a} timeZone={timeZone} retention={undefined} />
+            </Section>
+          ) : null}
 
           {events.length > 0 ? (
             <details open={!modal} className="group">

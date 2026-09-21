@@ -126,7 +126,7 @@ export function MonitoringPanel({ timeZone }: MonitoringPanelProps) {
     <Panel>
       <PanelHeader
         title="Monitoraggio operativo"
-        description="Cosa sta succedendo ai banchi: da qui si guarda la coda di uno sportello, si scollega chi ha finito il turno e si sbloccano le pratiche rimaste ferme. Gli account delle persone stanno nella scheda «Persone e postazioni»."
+        description="Cosa sta succedendo ai banchi: da qui si guarda la coda di uno sportello, si scollega chi ha finito il turno e si sbloccano le pratiche rimaste ferme. Aprendo una pratica dalla coda si decide anche la conservazione dei suoi media (vincolo legale, chiusura commessa). Gli account delle persone stanno nella scheda «Persone e postazioni»."
         actions={
           <Link
             href="/accettazione?view=global&sola-lettura=1&monitor=Coda%20globale"

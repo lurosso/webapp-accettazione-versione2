@@ -178,9 +178,7 @@ export function PhotoCapture({ appointmentId, media, onUploaded, onRemove }: Pho
          * diventavano sei caselle da riempire, cioè sei modi di sentirsi in difetto.
          */}
         <ul className="flex snap-x gap-3 overflow-x-auto pb-2">
-          <li className="relative snap-start">
-            {/* Anche il video si può rifare: quello del veicolo sbagliato non deve restare nel fascicolo. */}
-            {ultimoVideo === undefined ? null : pulsanteElimina(ultimoVideo, 'Elimina il video')}
+          <li className="snap-start">
             <button
               type="button"
               onClick={() => inputRefs.current.get('VIDEO')?.click()}
@@ -211,6 +209,36 @@ export function PhotoCapture({ appointmentId, media, onUploaded, onRemove }: Pho
               </span>
             </button>
           </li>
+
+          {/*
+           * Ogni video ha il suo riquadro, con il suo «×». Prima si vedeva solo l'ultimo, dentro il
+           * riquadro del comando: il secondo video registrato spariva dalla vista e non si poteva
+           * togliere — e il video del veicolo sbagliato non deve restare nel fascicolo.
+           */}
+          {video.map((v, i) => (
+            <li key={v.id} className="relative snap-start">
+              {pulsanteElimina(v, `Elimina il video ${i + 1}`)}
+              <span
+                className={cn(RIQUADRO, 'border-line bg-ink text-white')}
+                data-testid={`video-${i + 1}`}
+              >
+                <span
+                  className="flex flex-1 items-center justify-center text-4xl"
+                  aria-hidden="true"
+                >
+                  ▶
+                </span>
+                <span className="bg-surface/90 text-ink flex flex-col gap-0.5 px-3 py-2">
+                  <span className="testo-corpo font-bold">Video {i + 1}</span>
+                  <span className="text-ink-muted testo-nota">
+                    {v.archivedAt !== null
+                      ? 'file archiviato'
+                      : `alle ${new Date(v.capturedAt).toLocaleTimeString('it-IT', { hour: '2-digit', minute: '2-digit' })}`}
+                  </span>
+                </span>
+              </span>
+            </li>
+          ))}
 
           {foto.map((f) => (
             <li key={f.id} className="relative snap-start">
@@ -268,6 +296,34 @@ export function PhotoCapture({ appointmentId, media, onUploaded, onRemove }: Pho
               </span>
             </button>
           </li>
+
+          {/*
+           * «Aggiungi video» compare solo dal secondo in poi: il primo si registra dal riquadro
+           * «Giro del veicolo», che è il passaggio obbligatorio e non va sdoppiato. Un giro in più,
+           * il dettaglio di un danno ripreso da vicino: stessa forma di «Aggiungi foto».
+           */}
+          {video.length > 0 ? (
+            <li className="snap-start">
+              <button
+                type="button"
+                onClick={() => inputRefs.current.get('VIDEO')?.click()}
+                data-testid="aggiungi-video"
+                aria-label="Aggiungi un altro video del veicolo"
+                className={cn(
+                  RIQUADRO,
+                  'premibile focus-anello border-line bg-surface items-center justify-center border-dashed',
+                )}
+              >
+                <span className="flex flex-1 flex-col items-center justify-center gap-1">
+                  <span aria-hidden="true" className="text-4xl leading-none">
+                    +
+                  </span>
+                  <span className="testo-corpo font-bold">Aggiungi video</span>
+                  <span className="text-ink-muted testo-nota">un altro giro o un dettaglio</span>
+                </span>
+              </button>
+            </li>
+          ) : null}
         </ul>
         {inputNascosto('EXTRA', 'image/*', (file) => void onFile(file, 'EXTRA', 'PHOTO'))}
         {inputNascosto('VIDEO', 'video/*', (file) => void onFile(file, null, 'VIDEO'))}

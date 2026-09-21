@@ -1704,6 +1704,12 @@ Cuore del modulo A; dipende solo da interfacce.
 - [x] M8-T27-S04 Il cursore del livello 2 passa dalla finestra al PIEDE, come nella tavola. La finestra serviva a dire quante foto e quanti video c'erano: adesso lo dicono le pastiglie in testata e la riga della documentazione, e restava solo un passaggio in più fra l'accettatore e la fine del suo lavoro.
 - [x] M8-T27-S05 Gate verde: typecheck, lint, 411 test, build. Schermate a confronto con le tavole.
 
+### M8-T34 — Più video al check-in, e la conservazione dove l'amministratore la vede _(2026-09-21, PROMPT 36)_
+
+- [x] M8-T34-S01 **Ogni video ha il suo riquadro, con il suo «×».** Prima si vedeva solo l'ultimo, dentro il riquadro del comando «Giro del veicolo»: il secondo video registrato spariva dalla vista e non si poteva togliere. Ora `video.map` rende un riquadro scuro per ciascuno («Video 1 · alle 09:42», «Video 2 · …») con il pulsante di eliminazione, e il riquadro del comando torna a essere solo il comando.
+- [x] M8-T34-S02 **«+ Aggiungi video»**, stessa forma di «+ Aggiungi foto», compare **dal secondo in poi**: il primo si registra dal riquadro obbligatorio, che non va sdoppiato. Apre lo stesso `input[type=file]` del video.
+- [x] M8-T34-S03 **La sezione «Conservazione dei media» era in fondo al pannello**, dopo Cliente, Veicolo, Appuntamento e la galleria: renderizzata e permessa correttamente (verificato: PATCH 200 da admin il 21/09), ma l'amministratore la trovava solo scorrendo un pannello laterale. Ora, quando chi guarda è admin (`retention` presente), sta **in alto, subito sotto i comandi**, in un riquadro col bordo colorato e una pastiglia di stato (Vincolo legale · Protetti, commessa aperta · Scadono con la retention). Per gli altri ruoli resta in fondo come informazione. La descrizione del pannello Monitoraggio dice dove si trova.
+
 ### M8-T33 — Correggere un errore al check-in, e lasciare libero il posto a fine turno _(2026-09-21, PROMPT 35)_
 
 - [x] M8-T33-S01 **Eliminare una foto o un video acquisiti per sbaglio, durante il check-in.** `InspectionService.removeMedia()` elimina file (e miniatura) e record, ma **solo con la pratica in carico**: concluso il check-in il fascicolo è sigillato e risponde `INVALID_TRANSITION` (409) con `MEDIA_SIGILLATI` — è la documentazione con cui si risponde a una contestazione, e non la tocca più l'accettatore. Un vincolo legale blocca anche prima. Il media si cerca fra quelli della pratica indicata: l'id di un'altra pratica è 404, così la rotta non elimina per conto di una pratica quello che appartiene a un'altra.
