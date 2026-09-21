@@ -11,6 +11,8 @@ import type { Appointment } from '@/domain/entities/appointment';
 import { asOperatorId } from '@/domain/ids';
 import type { IsoDate } from '@/domain/value-objects/iso-date';
 import type { IsoDateTime } from '@/domain/value-objects/iso-date';
+import { addMediaAsInProgress } from '../helpers/media-fixtures';
+import { jpegBytes } from '../helpers/media-bytes';
 import { buildTestEnv, makeAppointment, TestClock } from '../helpers/fixtures';
 
 function setup() {
@@ -62,10 +64,10 @@ async function conFoto(s: ReturnType<typeof setup>, a: Appointment): Promise<App
   if (!r.ok) {
     throw new Error(r.error.message);
   }
-  const foto = await s.inspection.addPhoto({
+  const foto = await addMediaAsInProgress(s.env.appointments, s.inspection, {
     appointmentId: r.value.id,
     operatorId: asOperatorId('op-advisor-1'),
-    bytes: new Uint8Array(256).fill(1),
+    bytes: jpegBytes(256),
     mimeType: 'image/jpeg',
     category: 'FRONT',
   });
@@ -90,7 +92,11 @@ describe('archivio ispezioni: la conservazione viaggia con la scheda', () => {
     );
 
     const [vAperta] = await s.archive.search(aperta.code);
-    expect(vAperta).toMatchObject({ orderClosedAt: null, legalHoldAt: null, legalHoldReason: null });
+    expect(vAperta).toMatchObject({
+      orderClosedAt: null,
+      legalHoldAt: null,
+      legalHoldReason: null,
+    });
 
     const [vVincolata] = await s.archive.search(vincolata.code);
     expect(vVincolata).toMatchObject({

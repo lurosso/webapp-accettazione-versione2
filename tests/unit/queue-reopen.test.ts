@@ -4,6 +4,7 @@ import { QueueService, type ActionContext } from '@/application/queue/QueueServi
 import type { Appointment } from '@/domain/entities/appointment';
 import { isAutoClosedPending } from '@/domain/entities/appointment';
 import { asOperatorId, asWorkstationId } from '@/domain/ids';
+import { mp4Bytes } from '../helpers/media-bytes';
 import { buildTestEnv, makeAppointment, TEST_DATE } from '../helpers/fixtures';
 
 function setup() {
@@ -120,7 +121,7 @@ describe('QueueService.reopenCompleted: "Completato" premuto per errore', () => 
     const video = await inspection.addMedia({
       appointmentId: chiusa.id,
       operatorId: mario.operatorId,
-      bytes: new Uint8Array(4096).fill(3),
+      bytes: mp4Bytes(4096),
       mimeType: 'video/mp4',
       category: null,
     });

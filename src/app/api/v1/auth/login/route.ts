@@ -6,7 +6,7 @@ import { z } from 'zod';
 import { LOGIN_RATE_LIMIT } from '@/config/constants';
 import { getContainer } from '@/config/container';
 import { badRequestResponse, domainErrorResponse } from '@/lib/http/api-error';
-import { clientIpFrom, hitRateLimit } from '@/lib/http/rate-limit';
+import { hitPerIp, hitRateLimit } from '@/lib/http/rate-limit';
 import { setSessionCookie } from '@/app/_server/session';
 
 function tooManyAttempts(retryAfterSeconds: number): NextResponse {
@@ -33,7 +33,7 @@ const LoginBody = z.object({
 });
 
 export async function POST(request: NextRequest): Promise<NextResponse> {
-  const perIp = hitRateLimit(`login-ip:${clientIpFrom(request.headers)}`, LOGIN_RATE_LIMIT.perIp);
+  const perIp = hitPerIp('login-ip', request.headers, LOGIN_RATE_LIMIT.perIp);
   if (!perIp.allowed) {
     return tooManyAttempts(perIp.retryAfterSeconds);
   }

@@ -6,7 +6,10 @@ import { unauthorizedResponse } from '@/lib/http/api-error';
 export const dynamic = 'force-dynamic';
 
 export async function GET(request: NextRequest): Promise<NextResponse> {
-  const session = await readApiSession(request, { allowPendingPasswordChange: true });
+  const session = await readApiSession(request, {
+    allowKiosk: true,
+    allowPendingPasswordChange: true,
+  });
   if (session === null) {
     return unauthorizedResponse();
   }

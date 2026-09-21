@@ -10,6 +10,8 @@ import type { CrmCheckInPayloadDto } from '@/services/dto/crm.dto';
 import { SUGGESTED_PHOTO_CATEGORIES, type MediaCategory } from '@/domain/entities/media-asset';
 import { asOperatorId, asWorkstationId } from '@/domain/ids';
 import { buildTestEnv, makeAppointment } from '../helpers/fixtures';
+import { jpegBytes, mp4Bytes, pdfBytes } from '../helpers/media-bytes';
+import { addMediaAsInProgress } from '../helpers/media-fixtures';
 
 function setup() {
   const env = buildTestEnv();
@@ -52,7 +54,7 @@ async function insert(env: ReturnType<typeof buildTestEnv>, a: Appointment): Pro
 }
 
 /** Finto contenuto di una foto: al mock interessano dimensione e tipo, non i pixel. */
-const fotoFinta = (bytes = 2048): Uint8Array => new Uint8Array(bytes).fill(7);
+const fotoFinta = (bytes = 2048): Uint8Array => jpegBytes(bytes);
 
 /** Registra il video del veicolo: senza, la chiusura del check-in viene rifiutata. */
 async function registraVideo(
@@ -63,7 +65,7 @@ async function registraVideo(
   const r = await inspection.addMedia({
     appointmentId,
     operatorId,
-    bytes: new Uint8Array(4096).fill(3),
+    bytes: mp4Bytes(4096),
     mimeType: 'video/mp4',
     category: null,
   });
@@ -95,7 +97,10 @@ async function giroCompleto(
 describe('InspectionService: foto del veicolo', () => {
   it('salva la foto nello storage e la registra sulla pratica', async () => {
     const { env, inspection, ctx } = setup();
-    const a = await insert(env, makeAppointment());
+    const a = await insert(
+      env,
+      makeAppointment({ status: 'IN_PROGRESS', operatorId: ctx.operatorId }),
+    );
 
     const r = await inspection.addPhoto({
       appointmentId: a.id,
@@ -123,7 +128,10 @@ describe('InspectionService: foto del veicolo', () => {
 
   it('rifiuta formati non immagine, foto vuote e foto troppo grandi', async () => {
     const { env, inspection, ctx } = setup();
-    const a = await insert(env, makeAppointment());
+    const a = await insert(
+      env,
+      makeAppointment({ status: 'IN_PROGRESS', operatorId: ctx.operatorId }),
+    );
     const base = {
       appointmentId: a.id,
       operatorId: ctx.operatorId,
@@ -132,7 +140,7 @@ describe('InspectionService: foto del veicolo', () => {
 
     const pdf = await inspection.addPhoto({
       ...base,
-      bytes: fotoFinta(),
+      bytes: pdfBytes(),
       mimeType: 'application/pdf',
     });
     expect(pdf.ok).toBe(false);
@@ -146,7 +154,7 @@ describe('InspectionService: foto del veicolo', () => {
 
     const enorme = await inspection.addPhoto({
       ...base,
-      bytes: new Uint8Array(MAX_PHOTO_BYTES + 1),
+      bytes: jpegBytes(MAX_PHOTO_BYTES + 1),
       mimeType: 'image/jpeg',
     });
     expect(enorme.ok).toBe(false);
@@ -328,11 +336,22 @@ describe('InspectionService: chiusura del check-in', () => {
   it('una pratica non in lavorazione non può essere chiusa dal tablet', async () => {
     const { env, inspection, ctx } = setup();
     const a = await insert(env, makeAppointment());
-    await giroCompleto(inspection, a.id, ctx.operatorId);
-    await registraVideo(inspection, a.id, ctx.operatorId);
+    // Il video c'è (messo come se il check-in fosse stato aperto), ma la pratica è ancora in
+    // attesa: è la state machine a dire no, non la mancanza del video.
+    const video = await addMediaAsInProgress(env.appointments, inspection, {
+      appointmentId: a.id,
+      operatorId: ctx.operatorId,
+      bytes: mp4Bytes(4096),
+      mimeType: 'video/mp4',
+      category: null,
+    });
+    if (!video.ok) {
+      throw new Error(video.error.message);
+    }
+    const corrente = await env.appointments.findById(a.id);
 
     const r = await inspection.completeCheckIn(
-      { appointmentId: a.id, expectedVersion: 1, inspectionNotes: null },
+      { appointmentId: a.id, expectedVersion: corrente?.version ?? 1, inspectionNotes: null },
       ctx,
     );
     expect(r.ok).toBe(false);

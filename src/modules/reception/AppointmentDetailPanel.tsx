@@ -11,11 +11,7 @@
 // continua ad aggiornarsi con il polling della coda, senza una richiesta dedicata.
 import Link from 'next/link';
 import { useEffect } from 'react';
-import {
-  isAutoClosedPending,
-  isInQueue,
-  type Appointment,
-} from '@/domain/entities/appointment';
+import { isAutoClosedPending, isInQueue, type Appointment } from '@/domain/entities/appointment';
 import { customerFullName } from '@/domain/entities/customer';
 import type { NotificationJobStatus } from '@/domain/entities/notification';
 import type { QueueRowView } from '@/domain/read-models';
@@ -72,8 +68,7 @@ export interface AppointmentDetailPanelProps {
    * offre pulsanti: l'accettatore deve poterlo leggere, non deciderlo.
    */
   readonly retention?:
-    | { readonly onChange: (patch: RetentionPatchInput) => Promise<void> }
-    | undefined;
+    { readonly onChange: (patch: RetentionPatchInput) => Promise<void> } | undefined;
 }
 
 /** Riga etichetta/valore della scheda. */

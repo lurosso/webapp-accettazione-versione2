@@ -12,6 +12,7 @@ import type { Appointment } from '@/domain/entities/appointment';
 import { asOperatorId, asWorkstationId } from '@/domain/ids';
 import type { IsoDateTime } from '@/domain/value-objects/iso-date';
 import { buildTestEnv, makeAppointment } from '../helpers/fixtures';
+import { jpegBytes, mp4Bytes } from '../helpers/media-bytes';
 
 function setup() {
   const env = buildTestEnv();
@@ -69,7 +70,7 @@ async function scatta(
   const r = await s.inspection.addMedia({
     appointmentId,
     operatorId: s.ctx.operatorId,
-    bytes: new Uint8Array(1024).fill(5),
+    bytes: mimeType.startsWith('video/') ? mp4Bytes(1024) : jpegBytes(1024),
     mimeType,
     category: mimeType.startsWith('video/') ? null : 'FRONT',
   });

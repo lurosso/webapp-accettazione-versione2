@@ -10,12 +10,19 @@ import { PUBLIC_STATUS_RATE_LIMIT } from '@/config/constants';
 import { getContainer } from '@/config/container';
 import type { WaitingBoardView } from '@/domain/read-models';
 import { badRequestResponse, type ApiErrorBody } from '@/lib/http/api-error';
-import { clientIpFrom, hitRateLimit, type RateLimitRule } from '@/lib/http/rate-limit';
+import {
+  combineRateLimits,
+  hitPerIp,
+  hitRateLimit,
+  type RateLimitRule,
+} from '@/lib/http/rate-limit';
 
 export const dynamic = 'force-dynamic';
 
 /** Come per i monitor di campata: tetto alto, serve solo a fermare un abuso grossolano. */
 const PER_IP: RateLimitRule = { limit: 900, windowMs: PUBLIC_STATUS_RATE_LIMIT.windowMs };
+/** Rete di sicurezza a chiave costante per tutti gli schermi insieme. */
+const GLOBALE: RateLimitRule = { limit: 6000, windowMs: PUBLIC_STATUS_RATE_LIMIT.windowMs };
 
 /** Quanti prossimi turni mostrare per impostazione predefinita e al massimo. */
 const DEFAULT_NEXT = 4;
@@ -44,7 +51,10 @@ export async function GET(request: NextRequest): Promise<NextResponse<BoardBody>
     nextCount = parsed;
   }
 
-  const limit = hitRateLimit(`board-ip:${clientIpFrom(request.headers)}`, PER_IP);
+  const limit = combineRateLimits(
+    hitRateLimit('schermi:globale', GLOBALE),
+    hitPerIp('board-ip', request.headers, PER_IP),
+  );
   if (!limit.allowed) {
     return NextResponse.json(
       { error: { code: 'BAD_REQUEST' as const, message: 'Troppe richieste.' } },

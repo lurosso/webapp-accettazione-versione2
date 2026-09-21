@@ -9,30 +9,21 @@
 // cron di sistema non ha un cookie di sessione. Senza `CRON_SECRET` configurato resta solo la via
 // autenticata.
 import { NextResponse, type NextRequest } from 'next/server';
-import { correlationIdFrom, readApiSession } from '@/app/_server/session';
+import { authorizeCronRequest } from '@/app/_server/cron-auth';
+import { correlationIdFrom } from '@/app/_server/session';
 import { getContainer } from '@/config/container';
-import { forbiddenResponse } from '@/lib/http/api-error';
-import { secretsMatch } from '@/lib/http/secrets';
-import { canAccess } from '@/lib/navigation';
 
 export const dynamic = 'force-dynamic';
 
 export async function POST(request: NextRequest): Promise<NextResponse> {
   const container = getContainer();
   const correlationId = correlationIdFrom(request);
-  const segreto = container.env.cronSecret;
-  const fornito = request.headers.get('x-cron-secret');
-  // Confronto a tempo costante: un `===` risponderebbe più in fretta ai prefissi giusti.
-  const daCron = secretsMatch(fornito, segreto);
-
-  if (!daCron) {
-    const session = await readApiSession(request);
-    if (session === null || !canAccess('admin', session.role)) {
-      return forbiddenResponse(
-        'Richiesta non autorizzata: serve una sessione amministratore oppure `x-cron-secret`.',
-      );
-    }
+  // Segreto a tempo costante oppure sessione ADMIN, con tetto sui tentativi falliti.
+  const autorizzazione = await authorizeCronRequest(request, container.env.cronSecret);
+  if (!autorizzazione.ok) {
+    return autorizzazione.response;
   }
+  const { daCron } = autorizzazione;
 
   const riepilogo = await container.crmNotifier.drainDue();
   container.logger.info("[CRM][Cron] passata richiesta dall'esterno", { ...riepilogo, daCron });

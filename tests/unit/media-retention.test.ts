@@ -6,6 +6,8 @@ import type { Appointment } from '@/domain/entities/appointment';
 import type { IsoDateTime } from '@/domain/value-objects/iso-date';
 import type { PlateNumber } from '@/domain/value-objects/plate';
 import { asOperatorId, asWorkstationId } from '@/domain/ids';
+import { addMediaAsInProgress } from '../helpers/media-fixtures';
+import { jpegBytes } from '../helpers/media-bytes';
 import { buildTestEnv, makeAppointment, TestClock } from '../helpers/fixtures';
 
 const RETENTION_DAYS = 30;
@@ -68,14 +70,14 @@ async function insert(env: ReturnType<typeof buildTestEnv>, a: Appointment): Pro
   return r.value;
 }
 
-const foto = () => new Uint8Array(512).fill(1);
+const foto = () => jpegBytes(512);
 
 describe('Foto: metadati e scadenza', () => {
   it('ogni foto nasce con pratica, categoria, percorso, istante e scadenza di retention', async () => {
     const { env, clock, inspection, ctx } = setup();
     const a = await insert(env, makeAppointment());
 
-    const r = await inspection.addPhoto({
+    const r = await addMediaAsInProgress(env.appointments, inspection, {
       appointmentId: a.id,
       operatorId: ctx.operatorId,
       bytes: foto(),
@@ -103,7 +105,7 @@ describe('InspectionArchiveService: retention', () => {
   it('prima della scadenza non tocca nulla', async () => {
     const { env, clock, inspection, archive, ctx } = setup();
     const a = await insert(env, makeAppointment({ orderClosedAt: COMMESSA_CHIUSA }));
-    await inspection.addPhoto({
+    await addMediaAsInProgress(env.appointments, inspection, {
       appointmentId: a.id,
       operatorId: ctx.operatorId,
       bytes: foto(),
@@ -125,7 +127,7 @@ describe('InspectionArchiveService: retention', () => {
   it('dopo la scadenza elimina il file e marca il record come archiviato, senza cancellarlo', async () => {
     const { env, clock, inspection, archive, ctx } = setup();
     const a = await insert(env, makeAppointment({ orderClosedAt: COMMESSA_CHIUSA }));
-    const salvata = await inspection.addPhoto({
+    const salvata = await addMediaAsInProgress(env.appointments, inspection, {
       appointmentId: a.id,
       operatorId: ctx.operatorId,
       bytes: foto(),
@@ -136,7 +138,13 @@ describe('InspectionArchiveService: retention', () => {
 
     clock.advance((RETENTION_DAYS + 1) * GIORNO_MS);
     const esito = await archive.purgeExpired();
-    expect(esito).toEqual({ examined: 1, archived: 1, failed: 0, deleted: 0, protected: NIENTE_PROTETTO });
+    expect(esito).toEqual({
+      examined: 1,
+      archived: 1,
+      failed: 0,
+      deleted: 0,
+      protected: NIENTE_PROTETTO,
+    });
 
     // Il file non c'è più, il record sì: dice ancora che il giro era stato fatto.
     expect(env.mediaStorage.get(key)).toBeNull();
@@ -157,7 +165,7 @@ describe('InspectionArchiveService: retention', () => {
   it("trascorsi i giorni di hard delete dall'archiviazione elimina anche il record", async () => {
     const { env, clock, inspection, archive, ctx } = setup();
     const a = await insert(env, makeAppointment({ orderClosedAt: COMMESSA_CHIUSA }));
-    await inspection.addPhoto({
+    await addMediaAsInProgress(env.appointments, inspection, {
       appointmentId: a.id,
       operatorId: ctx.operatorId,
       bytes: foto(),
@@ -203,7 +211,7 @@ describe('InspectionArchiveService: retention', () => {
   it('una foto non ancora archiviata non viene mai eliminata dal secondo passaggio', async () => {
     const { env, clock, inspection, archive, ctx } = setup();
     const a = await insert(env, makeAppointment({ orderClosedAt: COMMESSA_CHIUSA }));
-    await inspection.addPhoto({
+    await addMediaAsInProgress(env.appointments, inspection, {
       appointmentId: a.id,
       operatorId: ctx.operatorId,
       bytes: foto(),
@@ -225,7 +233,7 @@ describe('InspectionArchiveService: retention', () => {
   it('un file già sparito dal disco conta come archiviato, non come errore', async () => {
     const { env, clock, inspection, archive, ctx } = setup();
     const a = await insert(env, makeAppointment({ orderClosedAt: COMMESSA_CHIUSA }));
-    const salvata = await inspection.addPhoto({
+    const salvata = await addMediaAsInProgress(env.appointments, inspection, {
       appointmentId: a.id,
       operatorId: ctx.operatorId,
       bytes: foto(),
@@ -252,7 +260,7 @@ describe('InspectionArchiveService: ricerca', () => {
     const a = await insert(env, makeAppointment({ notes: 'Graffio sul paraurti' }));
     const altra = await insert(env, makeAppointment());
     for (const pratica of [a, altra]) {
-      await inspection.addPhoto({
+      await addMediaAsInProgress(env.appointments, inspection, {
         appointmentId: pratica.id,
         operatorId: ctx.operatorId,
         bytes: foto(),
@@ -278,9 +286,11 @@ describe('InspectionArchiveService: ricerca', () => {
 
   it('le foto archiviate compaiono senza indirizzo e la scheda risulta archiviata', async () => {
     const { env, clock, inspection, archive, ctx } = setup();
-    const a = await insert(env, // Il test misura l'archiviazione: la commessa deve poter scadere, quindi e chiusa.
-    makeAppointment({ orderClosedAt: COMMESSA_CHIUSA }));
-    await inspection.addPhoto({
+    const a = await insert(
+      env, // Il test misura l'archiviazione: la commessa deve poter scadere, quindi e chiusa.
+      makeAppointment({ orderClosedAt: COMMESSA_CHIUSA }),
+    );
+    await addMediaAsInProgress(env.appointments, inspection, {
       appointmentId: a.id,
       operatorId: ctx.operatorId,
       bytes: foto(),

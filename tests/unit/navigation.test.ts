@@ -46,6 +46,11 @@ describe('safeInternalPath', () => {
   it('rifiuta URL esterni e valori assenti', () => {
     expect(safeInternalPath('//evil.example.com', '/')).toBe('/');
     expect(safeInternalPath('https://evil.example.com', '/')).toBe('/');
+    // Per il parser degli URL `/\evil.example.com` è `//evil.example.com`: open redirect dopo il login.
+    expect(safeInternalPath('/\\evil.example.com', '/')).toBe('/');
+    expect(safeInternalPath('/\\/evil.example.com', '/')).toBe('/');
+    // La forma ancora codificata resta un percorso interno (il browser la chiede al nostro server).
+    expect(safeInternalPath('/%5Cevil.example.com', '/')).toBe('/%5Cevil.example.com');
     expect(safeInternalPath(undefined, '/accettazione')).toBe('/accettazione');
   });
 });

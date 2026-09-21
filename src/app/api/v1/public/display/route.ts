@@ -16,12 +16,17 @@ import { getContainer } from '@/config/container';
 import type { BayDisplayView } from '@/domain/read-models';
 import {
   badRequestResponse,
-  domainErrorResponse,
   forbiddenResponse,
+  publicErrorResponse,
   type ApiErrorBody,
 } from '@/lib/http/api-error';
 import { secretsMatch } from '@/lib/http/secrets';
-import { clientIpFrom, hitRateLimit, type RateLimitRule } from '@/lib/http/rate-limit';
+import {
+  combineRateLimits,
+  hitPerIp,
+  hitRateLimit,
+  type RateLimitRule,
+} from '@/lib/http/rate-limit';
 
 export const dynamic = 'force-dynamic';
 
@@ -30,6 +35,8 @@ export const dynamic = 'force-dynamic';
  * possono uscire dallo stesso indirizzo. Serve solo a fermare un abuso grossolano, non i kiosk.
  */
 const PER_IP: RateLimitRule = { limit: 900, windowMs: 60_000 };
+/** Rete di sicurezza a chiave costante per tutti gli schermi insieme. */
+const GLOBALE: RateLimitRule = { limit: 6000, windowMs: 60_000 };
 
 /** Risposta del monitor di sportello. */
 export interface DisplayStatusResponse {
@@ -56,7 +63,10 @@ export async function GET(request: NextRequest): Promise<NextResponse<DisplayBod
     );
   }
 
-  const limit = hitRateLimit(`display-ip:${clientIpFrom(request.headers)}`, PER_IP);
+  const limit = combineRateLimits(
+    hitRateLimit('schermi:globale', GLOBALE),
+    hitPerIp('display-ip', request.headers, PER_IP),
+  );
   if (!limit.allowed) {
     return NextResponse.json(
       { error: { code: 'BAD_REQUEST' as const, message: 'Troppe richieste.' } },
@@ -68,7 +78,7 @@ export async function GET(request: NextRequest): Promise<NextResponse<DisplayBod
     const container = getContainer();
     const result = await container.queueService.getBayDisplay(bayRef, container.clock.today());
     if (!result.ok) {
-      return domainErrorResponse(result.error, { ...NO_STORE });
+      return publicErrorResponse(result.error, { ...NO_STORE });
     }
 
     // Token del monitor: verificato se fornito; obbligatorio con DISPLAY_TOKEN_REQUIRED=true

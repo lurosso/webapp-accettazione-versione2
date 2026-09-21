@@ -6,16 +6,21 @@ import type { NextConfig } from 'next';
 import { devOrigins } from './src/config/dev-origins';
 
 /**
- * Intestazioni di sicurezza su ogni risposta. Niente Content-Security-Policy per ora: richiede i
- * nonce sugli script inline di Next e va introdotta con una fase di sola segnalazione (report-only),
- * altrimenti spegne le pagine il primo giorno. La fotocamera resta consentita alla stessa origine:
- * è quella che il tablet usa per le foto del veicolo.
+ * Intestazioni di sicurezza fisse su ogni risposta. La Content-Security-Policy NON sta qui: ha
+ * bisogno di un nonce diverso per richiesta e la costruisce il proxy (`src/proxy.ts`, con
+ * `lib/http/security-headers.ts`). La fotocamera resta consentita alla stessa origine: è quella
+ * che il tablet usa per le foto del veicolo. HSTS solo in produzione, dove l'app sta dietro TLS:
+ * in officina la LAN è in HTTP e i browser lo ignorano comunque finché la pagina non arriva in HTTPS.
  */
 const SECURITY_HEADERS = [
   { key: 'X-Content-Type-Options', value: 'nosniff' },
   { key: 'X-Frame-Options', value: 'SAMEORIGIN' },
   { key: 'Referrer-Policy', value: 'strict-origin-when-cross-origin' },
   { key: 'Permissions-Policy', value: 'camera=(self), microphone=(), geolocation=()' },
+  { key: 'Cross-Origin-Opener-Policy', value: 'same-origin' },
+  ...(process.env.NODE_ENV === 'production'
+    ? [{ key: 'Strict-Transport-Security', value: 'max-age=31536000; includeSubDomains' }]
+    : []),
 ];
 
 const nextConfig: NextConfig = {

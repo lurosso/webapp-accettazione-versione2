@@ -23,7 +23,10 @@ const ChangePasswordBody = z.object({
 });
 
 export async function POST(request: NextRequest): Promise<NextResponse> {
-  const session = await readApiSession(request, { allowPendingPasswordChange: true });
+  const session = await readApiSession(request, {
+    allowKiosk: true,
+    allowPendingPasswordChange: true,
+  });
   if (session === null) {
     return unauthorizedResponse();
   }

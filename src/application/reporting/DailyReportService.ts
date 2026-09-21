@@ -107,18 +107,33 @@ function percent(part: number, total: number): number {
   return total === 0 ? 0 : Math.round((part / total) * 1000) / 10;
 }
 
+/**
+ * Una cella del CSV, resa innocua per Excel. Un testo che inizia con `=`, `@`, tabulazione o
+ * ritorno a capo è una FORMULA per Excel — `=HYPERLINK(...)`, `=cmd|...` — e il nome di un
+ * cliente arriva dal DMS o da chi lo digita: si antepone un apostrofo, che Excel mostra come testo.
+ * Anche `+` e `-` aprono una formula, ma sono anche l'inizio di un telefono (`+39 …`) o di un
+ * numero: si neutralizzano solo se il resto non è fatto di sole cifre e separatori.
+ */
+export function csvCell(v: string | number | null): string {
+  if (v === null) {
+    return '';
+  }
+  if (typeof v === 'number') {
+    return String(v);
+  }
+  let testo = v;
+  const formula =
+    /^[=@\t\r]/.test(testo) || (/^[+-]/.test(testo) && !/^[+-][\d\s().\-/]*$/.test(testo));
+  if (formula) {
+    testo = `'${testo}`;
+  }
+  // Punto e virgola, virgolette e a capo dentro un campo: si racchiude fra virgolette.
+  return /[";\n\r]/.test(testo) ? `"${testo.replace(/"/g, '""')}"` : testo;
+}
+
 /** Una riga del CSV: già formattata, così il Route Handler non fa altro che servirla. */
 function csvRow(values: readonly (string | number | null)[]): string {
-  return values
-    .map((v) => {
-      if (v === null) {
-        return '';
-      }
-      const testo = String(v);
-      // Punto e virgola, virgolette e a capo dentro un campo: si racchiude fra virgolette.
-      return /[";\n\r]/.test(testo) ? `"${testo.replace(/"/g, '""')}"` : testo;
-    })
-    .join(';');
+  return values.map(csvCell).join(';');
 }
 
 const CSV_HEADERS = [

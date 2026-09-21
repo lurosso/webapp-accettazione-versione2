@@ -57,7 +57,7 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
     );
   }
 
-  const limite = hitRateLimit(`spoki-in:${clientIpFrom(request.headers)}`, PER_IP);
+  const limite = hitRateLimit(`spoki-in:${clientIpFrom(request.headers) ?? 'globale'}`, PER_IP);
   if (!limite.allowed) {
     return NextResponse.json(
       { error: { code: 'BAD_REQUEST' as const, message: 'Troppe richieste.' } },

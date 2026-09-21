@@ -31,8 +31,7 @@ export type PraticaConservazione = Pick<
 
 /** I comandi dell'amministratore; assente per gli altri ruoli, che leggono e non decidono. */
 export type ComandiConservazione =
-  | { readonly onChange: (patch: RetentionPatchInput) => Promise<void> }
-  | undefined;
+  { readonly onChange: (patch: RetentionPatchInput) => Promise<void> } | undefined;
 
 export interface ConservazioneProps {
   readonly a: PraticaConservazione;
@@ -85,8 +84,8 @@ export function Conservazione({ a, timeZone, retention }: ConservazioneProps) {
           </>
         ) : a.orderClosedAt !== null ? (
           <>
-            Commessa chiusa il {formatDateTimeIt(a.orderClosedAt, timeZone)}: scadono trascorsa
-            la retention.
+            Commessa chiusa il {formatDateTimeIt(a.orderClosedAt, timeZone)}: scadono trascorsa la
+            retention.
           </>
         ) : null}
       </p>
@@ -191,7 +190,13 @@ export function RiquadroConservazione({ a, timeZone, retention }: ConservazioneP
       <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
         <h3 className="text-ink testo-dato font-bold">Conservazione dei media</h3>
         <Badge
-          tone={protezione === 'LEGAL_HOLD' ? 'danger' : protezione === 'ORDER_OPEN' ? 'warning' : 'neutral'}
+          tone={
+            protezione === 'LEGAL_HOLD'
+              ? 'danger'
+              : protezione === 'ORDER_OPEN'
+                ? 'warning'
+                : 'neutral'
+          }
         >
           {protezione === 'LEGAL_HOLD'
             ? 'Vincolo legale'

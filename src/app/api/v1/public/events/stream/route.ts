@@ -24,9 +24,12 @@ const TIPI_PUBBLICI = [
 export async function GET(request: NextRequest): Promise<Response> {
   // Tetto alle connessioni aperte: è l'unico vero vettore di abuso di un canale che non legge né
   // scrive nulla. Oltre il limite si risponde 503 e il monitor resta sul polling.
+  const ip = clientIpFrom(request.headers);
   const ticket = acquireConnection(
-    `sse-public:${clientIpFrom(request.headers)}`,
-    SSE_CONNECTION_LIMITS.public,
+    `sse-public:${ip ?? 'condiviso'}`,
+    ip === null
+      ? { ...SSE_CONNECTION_LIMITS.public, perClient: SSE_CONNECTION_LIMITS.public.total }
+      : SSE_CONNECTION_LIMITS.public,
   );
   if (!ticket.allowed) {
     return NextResponse.json(

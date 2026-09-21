@@ -9,6 +9,7 @@ import {
   type AppointmentStatus,
 } from '@/domain/entities/appointment';
 import type { AppointmentFlow } from '@/domain/entities/appointment';
+import type { OperatorRole } from '@/domain/entities/operator';
 import type { Bay } from '@/domain/entities/bay';
 import type { Desk } from '@/domain/entities/desk';
 import { RELEASING_DISPLAY_MS } from '@/config/constants';
@@ -90,6 +91,8 @@ export interface ActionContext {
    * domani qualcuno cercherà il collega che ha segnato quaranta assenti alle 19:00.
    */
   readonly actorKind?: 'OPERATOR' | 'SYSTEM';
+  /** Ruolo di chi agisce: serve alle regole che distinguono il banco dal responsabile. */
+  readonly role?: OperatorRole;
 }
 
 /** Operatore fittizio usato dalle automazioni quando nessuna persona ha premuto un pulsante. */
@@ -245,7 +248,6 @@ export class QueueService {
       return err(
         domainError('NOT_FOUND', `Sportello sconosciuto: "${bayRef}".`, {
           bayRef,
-          sportelliAttivi: bays.filter((b) => b.isActive).map((b) => b.code),
         }),
       );
     }
@@ -398,6 +400,26 @@ export class QueueService {
     input: TransitionInput,
     ctx: ActionContext,
   ): Promise<Result<Appointment, DomainError>> {
+    // Una pratica in carico la chiude chi l'ha in carico, oppure un responsabile o l'amministratore:
+    // dal banco A non si completa il cliente del banco B, che il collega sta ancora servendo. Le
+    // automazioni (chiusura di giornata) restano libere: non hanno un operatore.
+    const current = await this.load(input.appointmentId);
+    if (!current.ok) {
+      return current;
+    }
+    const a = current.value;
+    const altrui = a.operatorId !== null && a.operatorId !== ctx.operatorId;
+    const privilegiato =
+      ctx.actorKind === 'SYSTEM' || ctx.role === 'ADMIN' || ctx.role === 'SUPERVISOR';
+    if (altrui && !privilegiato) {
+      return err(
+        domainError(
+          'INVALID_TRANSITION',
+          'La pratica è in carico a un altro accettatore: la completa lui, un responsabile o un amministratore.',
+          { operatorId: a.operatorId },
+        ),
+      );
+    }
     return this.transition(input, ctx, 'COMPLETED', () => ({
       completedAt: this.deps.clock.nowIso(),
     }));

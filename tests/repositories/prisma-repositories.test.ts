@@ -84,7 +84,9 @@ describe('PrismaAppointmentRepository', () => {
 
     const stessoId = await repo.insert(a);
     expect(!stessoId.ok && stessoId.error.code).toBe('VALIDATION');
-    const stessoCodice = await repo.insert(makeAppointment({ businessDate: a.businessDate, code: a.code }));
+    const stessoCodice = await repo.insert(
+      makeAppointment({ businessDate: a.businessDate, code: a.code }),
+    );
     expect(!stessoCodice.ok && stessoCodice.error.message).toContain('già assegnato');
     const stessoRef = await repo.insert(
       makeAppointment({ businessDate: a.businessDate, externalRef: a.externalRef }),
@@ -126,7 +128,9 @@ describe('PrismaAppointmentRepository', () => {
   it('il contatore dei codici è atomico e non ridà mai un numero', async () => {
     const repo = new PrismaAppointmentRepository(db, clock);
     const giorno = '2026-09-25' as IsoDate;
-    const numeri = await Promise.all([1, 2, 3, 4, 5].map(() => repo.reserveNextSequence(giorno, 'F')));
+    const numeri = await Promise.all(
+      [1, 2, 3, 4, 5].map(() => repo.reserveNextSequence(giorno, 'F')),
+    );
     expect([...numeri].sort((x, y) => x - y)).toEqual([1, 2, 3, 4, 5]);
     expect(await repo.reserveNextSequence(giorno, 'R')).toBe(1);
     expect(await repo.reserveNextSequence(giorno, 'F')).toBe(6);
@@ -192,7 +196,9 @@ describe('PrismaMediaRepository', () => {
     }
     await media.update({ ...scaduta, archivedAt: adesso });
     expect(await media.listExpired(adesso)).toHaveLength(0);
-    expect((await media.listArchivedBefore('2026-12-31T00:00:00.000Z' as IsoDateTime)).map((m) => m.id)).toEqual(['m-scaduta']);
+    expect(
+      (await media.listArchivedBefore('2026-12-31T00:00:00.000Z' as IsoDateTime)).map((m) => m.id),
+    ).toEqual(['m-scaduta']);
 
     await media.delete(scaduta.id);
     await media.delete(scaduta.id); // già eliminato: non è un errore

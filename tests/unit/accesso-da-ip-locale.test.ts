@@ -6,14 +6,16 @@
 // deve accettare le proprie risorse dagli indirizzi della macchina, quali che siano oggi.
 import { describe, expect, it } from 'vitest';
 import { devOriginsFrom } from '@/config/dev-origins';
-import {
-  clearedSessionCookieOptions,
-  sessionCookieOptions,
-} from '@/lib/http/session-cookie';
+import { clearedSessionCookieOptions, sessionCookieOptions } from '@/lib/http/session-cookie';
 
 describe('cookie di sessione: uguale da localhost e da un IP di rete', () => {
   it('non ha mai un dominio: il browser lo lega all’host da cui è arrivato', () => {
-    const opts = sessionCookieOptions('accettazione_session', 'tok', '2026-09-21T17:00:00.000Z', 'development');
+    const opts = sessionCookieOptions(
+      'accettazione_session',
+      'tok',
+      '2026-09-21T17:00:00.000Z',
+      'development',
+    );
     expect('domain' in opts).toBe(false);
     expect(opts.path).toBe('/');
     expect(opts.httpOnly).toBe(true);
@@ -22,9 +24,13 @@ describe('cookie di sessione: uguale da localhost e da un IP di rete', () => {
   });
 
   it('è Secure solo in produzione: in HTTP semplice un cookie Secure viene scartato', () => {
-    expect(sessionCookieOptions('c', 't', '2026-09-21T17:00:00.000Z', 'development').secure).toBe(false);
+    expect(sessionCookieOptions('c', 't', '2026-09-21T17:00:00.000Z', 'development').secure).toBe(
+      false,
+    );
     expect(sessionCookieOptions('c', 't', '2026-09-21T17:00:00.000Z', 'test').secure).toBe(false);
-    expect(sessionCookieOptions('c', 't', '2026-09-21T17:00:00.000Z', 'production').secure).toBe(true);
+    expect(sessionCookieOptions('c', 't', '2026-09-21T17:00:00.000Z', 'production').secure).toBe(
+      true,
+    );
   });
 
   it('la cancellazione usa lo stesso nome e percorso, scaduto subito e senza dominio', () => {
@@ -46,7 +52,7 @@ describe('origini di sviluppo: gli indirizzi della macchina, quali che siano', (
       { family: 'IPv6', internal: false, address: 'fe80::1%12' },
     ],
     'Ethernet 2': [{ family: 'IPv4', internal: false, address: '10.40.193.124' }],
-    'Bluetooth': undefined,
+    Bluetooth: undefined,
   };
 
   it('prende solo gli IPv4 non di loopback, uno per scheda', () => {
@@ -54,9 +60,9 @@ describe('origini di sviluppo: gli indirizzi della macchina, quali che siano', (
   });
 
   it('accetta la forma numerica della famiglia, come nelle versioni vecchie di Node', () => {
-    expect(devOriginsFrom({ eth: [{ family: 4, internal: false, address: '192.168.1.20' }] }, '')).toEqual([
-      '192.168.1.20',
-    ]);
+    expect(
+      devOriginsFrom({ eth: [{ family: 4, internal: false, address: '192.168.1.20' }] }, ''),
+    ).toEqual(['192.168.1.20']);
   });
 
   it('aggiunge gli indirizzi scritti a mano, ripuliti e senza duplicati', () => {

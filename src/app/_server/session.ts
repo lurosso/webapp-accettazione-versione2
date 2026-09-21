@@ -7,6 +7,7 @@ import type { Session } from '@/application/auth/IAuthService';
 import { SESSION_COOKIE_NAME } from '@/config/auth';
 import { clearedSessionCookieOptions, sessionCookieOptions } from '@/lib/http/session-cookie';
 import { getContainer } from '@/config/container';
+import { acceptedCorrelationId } from '@/lib/http/correlation-id';
 import { redirectForForbiddenArea, type ProtectedArea } from '@/lib/navigation';
 
 /** Sessione corrente dai cookie della richiesta (Server Component), null se assente o non valida. */
@@ -56,6 +57,11 @@ export async function requireArea(area: ProtectedArea, nextPath: string): Promis
 export interface ReadApiSessionOptions {
   /** Solo per le rotte di autenticazione: una password provvisoria non blocca la chiamata. */
   readonly allowPendingPasswordChange?: boolean;
+  /**
+   * Solo per le rotte di autenticazione: un account KIOSK è un dispositivo, non una persona, e
+   * sulle API vale null (401) ovunque tranne dove serve a entrare, uscire e cambiare password.
+   */
+  readonly allowKiosk?: boolean;
 }
 
 /**
@@ -78,6 +84,9 @@ export async function readApiSession(
   if (verified.value.mustChangePassword && options.allowPendingPasswordChange !== true) {
     return null;
   }
+  if (verified.value.role === 'KIOSK' && options.allowKiosk !== true) {
+    return null;
+  }
   return verified.value;
 }
 
@@ -95,7 +104,9 @@ export function clearSessionCookie(response: NextResponse): void {
   response.cookies.set(clearedSessionCookieOptions(SESSION_COOKIE_NAME));
 }
 
-/** Correlation id della richiesta: riusa l'header in ingresso oppure ne genera uno. */
+/** Correlation id della richiesta: riusa l'header in ingresso se è in forma, altrimenti ne genera uno. */
 export function correlationIdFrom(request: NextRequest): string {
-  return request.headers.get('x-correlation-id') ?? getContainer().ids.next();
+  return (
+    acceptedCorrelationId(request.headers.get('x-correlation-id')) ?? getContainer().ids.next()
+  );
 }

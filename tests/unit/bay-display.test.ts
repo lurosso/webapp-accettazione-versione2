@@ -92,13 +92,14 @@ describe('QueueService.getBayDisplay', () => {
     expect(later.ok && later.value.state).toBe('FREE');
   });
 
-  it("sportello sconosciuto → NOT_FOUND con l'elenco di quelli attivi", async () => {
+  it("sportello sconosciuto → NOT_FOUND senza rivelare l'elenco di quelli attivi", async () => {
     const { service } = setup();
     const r = await service.getBayDisplay('99', TEST_DATE);
     expect(r.ok).toBe(false);
     if (!r.ok) {
       expect(r.error.code).toBe('NOT_FOUND');
-      expect(r.error.details?.['sportelliAttivi']).toEqual(['A', 'B', 'C', 'D']);
+      // La rotta è pubblica: l'elenco degli sportelli validi non si regala a chi tira a indovinare.
+      expect(r.error.details?.['sportelliAttivi']).toBeUndefined();
     }
   });
 

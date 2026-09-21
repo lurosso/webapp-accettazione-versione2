@@ -93,7 +93,21 @@ export function destinationAfterPasswordChange(
 /** Percorso interno sicuro per i redirect (mai verso un altro sito). */
 export function safeInternalPath(raw: string | string[] | undefined, fallback: string): string {
   const value = Array.isArray(raw) ? raw[0] : raw;
-  if (value === undefined || !value.startsWith('/') || value.startsWith('//')) {
+  if (
+    value === undefined ||
+    !value.startsWith('/') ||
+    value.startsWith('//') ||
+    value.includes('\\')
+  ) {
+    return fallback;
+  }
+  // Ultima parola al parser degli URL: per il browser `/\evil.example` è `//evil.example`, e un
+  // percorso che risolto contro la nostra origine finisce altrove non è un percorso interno.
+  try {
+    if (new URL(value, 'http://interno.local').origin !== 'http://interno.local') {
+      return fallback;
+    }
+  } catch {
     return fallback;
   }
   return value;

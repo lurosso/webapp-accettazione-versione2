@@ -5,6 +5,7 @@ import { NextResponse, type NextRequest } from 'next/server';
 import { readApiSession } from '@/app/_server/session';
 import { getContainer } from '@/config/container';
 import { forbiddenResponse, unauthorizedResponse } from '@/lib/http/api-error';
+import { canAccess } from '@/lib/navigation';
 
 export const dynamic = 'force-dynamic';
 
@@ -12,6 +13,11 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
   const session = await readApiSession(request);
   if (session === null) {
     return unauthorizedResponse();
+  }
+  // Chi può chiederla: responsabili e amministratore sempre, accettatori come «Riprova». Nessun
+  // altro ruolo (un account kiosk non ha motivo di interrogare Infinity).
+  if (!canAccess('manager', session.role) && !canAccess('accettazione', session.role)) {
+    return forbiddenResponse('La sincronizzazione non è disponibile per questo ruolo.');
   }
   const container = getContainer();
   const today = container.clock.today();

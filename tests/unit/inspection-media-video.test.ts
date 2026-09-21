@@ -6,6 +6,7 @@ import {
 } from '@/application/media/InspectionService';
 import { QueueService, type ActionContext } from '@/application/queue/QueueService';
 import { asOperatorId, asWorkstationId } from '@/domain/ids';
+import { jpegBytes, movBytes, mp4Bytes, pdfBytes, webmBytes } from '../helpers/media-bytes';
 import { buildTestEnv, makeAppointment } from '../helpers/fixtures';
 
 function setup() {
@@ -40,19 +41,19 @@ function setup() {
   return { env, queueService, inspection, ctx };
 }
 
-const bytes = (n: number): Uint8Array => new Uint8Array(n).fill(3);
-
 describe('Check-in: video obbligatorio e foto facoltative', () => {
   it('accetta un video mp4 come media VIDEO senza categoria, con il limite dedicato', async () => {
     const { env, inspection, ctx } = setup();
-    const a = await env.appointments.insert(makeAppointment());
+    const a = await env.appointments.insert(
+      makeAppointment({ status: 'IN_PROGRESS', operatorId: ctx.operatorId }),
+    );
     if (!a.ok) {
       throw new Error('insert');
     }
     const video = await inspection.addMedia({
       appointmentId: a.value.id,
       operatorId: ctx.operatorId,
-      bytes: bytes(5 * 1024 * 1024),
+      bytes: mp4Bytes(5 * 1024 * 1024),
       mimeType: 'video/mp4',
       category: null,
     });
@@ -67,7 +68,7 @@ describe('Check-in: video obbligatorio e foto facoltative', () => {
     const grande = await inspection.addMedia({
       appointmentId: a.value.id,
       operatorId: ctx.operatorId,
-      bytes: bytes(MAX_PHOTO_BYTES + 1024),
+      bytes: movBytes(MAX_PHOTO_BYTES + 1024),
       mimeType: 'video/quicktime',
       category: null,
     });
@@ -75,7 +76,7 @@ describe('Check-in: video obbligatorio e foto facoltative', () => {
     const enorme = await inspection.addMedia({
       appointmentId: a.value.id,
       operatorId: ctx.operatorId,
-      bytes: bytes(MAX_VIDEO_BYTES + 1),
+      bytes: mp4Bytes(MAX_VIDEO_BYTES + 1),
       mimeType: 'video/mp4',
       category: null,
     });
@@ -84,7 +85,7 @@ describe('Check-in: video obbligatorio e foto facoltative', () => {
     const pdf = await inspection.addMedia({
       appointmentId: a.value.id,
       operatorId: ctx.operatorId,
-      bytes: bytes(100),
+      bytes: pdfBytes(100),
       mimeType: 'application/pdf',
       category: null,
     });
@@ -93,7 +94,7 @@ describe('Check-in: video obbligatorio e foto facoltative', () => {
     const extra = await inspection.addMedia({
       appointmentId: a.value.id,
       operatorId: ctx.operatorId,
-      bytes: bytes(2048),
+      bytes: jpegBytes(2048),
       mimeType: 'image/jpeg',
       category: null,
     });
@@ -122,7 +123,7 @@ describe('Check-in: video obbligatorio e foto facoltative', () => {
     await inspection.addMedia({
       appointmentId: a.id,
       operatorId: ctx.operatorId,
-      bytes: bytes(2048),
+      bytes: jpegBytes(2048),
       mimeType: 'image/jpeg',
       category: 'EXTRA',
     });
@@ -137,7 +138,7 @@ describe('Check-in: video obbligatorio e foto facoltative', () => {
     await inspection.addMedia({
       appointmentId: a.id,
       operatorId: ctx.operatorId,
-      bytes: bytes(4096),
+      bytes: webmBytes(4096),
       mimeType: 'video/webm',
       category: null,
     });

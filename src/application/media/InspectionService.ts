@@ -26,6 +26,8 @@ import type { IClock } from '@/services/interfaces/IClock';
 import type { IIdGenerator } from '@/services/interfaces/IIdGenerator';
 import type { ILogger } from '@/services/interfaces/ILogger';
 import type { IMediaStorage } from '@/services/interfaces/IMediaStorage';
+import { mediaKindOf, sniffMediaMime } from '@/lib/media/mime-sniff';
+import { ALLOWED_IMAGE_MIME, ALLOWED_VIDEO_MIME, EXTENSION_BY_MIME } from '@/lib/media/mime-types';
 import type { CrmNotifier } from '../crm/CrmNotifier';
 import type { ActionContext, QueueService } from '../queue/QueueService';
 
@@ -51,33 +53,21 @@ export const MAX_PHOTO_BYTES = 8 * 1024 * 1024;
  */
 export const MAX_VIDEO_BYTES = 80 * 1024 * 1024;
 
-/** Immagini accettate dalle fotocamere dei tablet. */
-const ALLOWED_IMAGE_MIME = ['image/jpeg', 'image/png', 'image/webp', 'image/heic'];
-
 /**
- * Video accettati: mp4 e QuickTime (iPad/iPhone), webm e 3gpp (Android). Il file viene conservato
- * così com'è: nessuna transcodifica, perché il browser che lo rilegge è lo stesso che l'ha girato.
+ * Tetti per pratica. Un check-in ha una decina di foto e uno o due video: oltre non è più
+ * documentazione, è un disco che si riempie — e i media stanno sulla stessa unità del database.
  */
-const ALLOWED_VIDEO_MIME = [
-  'video/mp4',
-  'video/quicktime',
-  'video/webm',
-  'video/x-m4v',
-  'video/3gpp',
-];
+export const MAX_MEDIA_PER_APPOINTMENT = 40;
+export const MAX_VIDEOS_PER_APPOINTMENT = 5;
+export const MAX_BYTES_PER_APPOINTMENT = 400 * 1024 * 1024;
 
-/** Estensione del file nello storage, dal tipo dichiarato dal tablet. */
-const ESTENSIONE: Readonly<Record<string, string>> = {
-  'image/jpeg': 'jpg',
-  'image/png': 'png',
-  'image/webp': 'webp',
-  'image/heic': 'heic',
-  'video/mp4': 'mp4',
-  'video/quicktime': 'mov',
-  'video/webm': 'webm',
-  'video/x-m4v': 'm4v',
-  'video/3gpp': '3gp',
-};
+/** Messaggio di rifiuto quando si carica su una pratica che non è in carico. */
+export const MEDIA_SOLO_IN_CARICO =
+  'Foto e video si acquisiscono solo con la pratica in carico: il check-in non è aperto.';
+
+/** Messaggio di rifiuto quando la pratica ha già raggiunto i tetti. */
+export const FASCICOLO_PIENO =
+  'Fascicolo pieno: questa pratica ha già raggiunto il massimo di foto, video o spazio.';
 
 export interface AddMediaInput {
   readonly appointmentId: AppointmentId;
@@ -127,8 +117,7 @@ export interface CheckInResult {
 
 /** Messaggio di rifiuto quando si prova a concludere senza la ripresa del veicolo. */
 /** Il check-in è concluso: da qui non si elimina più niente, il fascicolo è sigillato. */
-export const MEDIA_SIGILLATI =
-  'Il check-in è concluso: foto e video non si eliminano più da qui.';
+export const MEDIA_SIGILLATI = 'Il check-in è concluso: foto e video non si eliminano più da qui.';
 
 export const VIDEO_MANCANTE =
   'Manca il video del veicolo: registralo prima di concludere il check-in.';
@@ -142,28 +131,39 @@ export class InspectionService {
 
   /**
    * Media acquisito al veicolo (foto di uno slot, scatto libero o video del giro): finisce nello
-   * storage e nel fascicolo della pratica. Il tipo lo decide il MIME dichiarato dal tablet, non il
-   * chiamante: un video caricato nel campo "foto" resta un video.
+   * storage e nel fascicolo della pratica. Il tipo lo decidono i BYTE del file, non il campo usato
+   * né il MIME dichiarato dal tablet: un video caricato nel campo "foto" resta un video, e un
+   * eseguibile rinominato .jpg non entra. Si acquisisce solo con il check-in aperto (pratica in
+   * carico), simmetrico a `removeMedia`: un fascicolo chiuso è la prova con cui si risponde a una
+   * contestazione, e non si ritocca a posteriori.
    */
   async addMedia(input: AddMediaInput): Promise<Result<StoredPhoto, DomainError>> {
-    const kind: MediaKind | null = ALLOWED_IMAGE_MIME.includes(input.mimeType)
-      ? 'PHOTO'
-      : ALLOWED_VIDEO_MIME.includes(input.mimeType)
-        ? 'VIDEO'
-        : null;
-    if (kind === null) {
-      return err(
-        domainError('VALIDATION', `Formato non supportato: ${input.mimeType}.`, {
-          immagini: ALLOWED_IMAGE_MIME,
-          video: ALLOWED_VIDEO_MIME,
-        }),
-      );
-    }
+    const dichiarato = input.mimeType.trim().toLowerCase();
     if (input.bytes.byteLength === 0) {
       return err(
-        domainError('VALIDATION', kind === 'VIDEO' ? 'Il video è vuoto.' : 'La foto è vuota.'),
+        domainError(
+          'VALIDATION',
+          dichiarato.startsWith('video/') ? 'Il video è vuoto.' : 'La foto è vuota.',
+        ),
       );
     }
+    const mimeType = sniffMediaMime(input.bytes);
+    if (mimeType === null) {
+      return err(
+        domainError(
+          'VALIDATION',
+          `Formato non supportato: il contenuto non è una foto o un video ammessi (dichiarato ${dichiarato === '' ? 'nessun tipo' : dichiarato}).`,
+          { dichiarato, immagini: ALLOWED_IMAGE_MIME, video: ALLOWED_VIDEO_MIME },
+        ),
+      );
+    }
+    if (dichiarato !== '' && dichiarato !== mimeType) {
+      this.logger.warn('tipo dichiarato diverso dal contenuto: vale il contenuto', {
+        dichiarato,
+        reale: mimeType,
+      });
+    }
+    const kind: MediaKind = mediaKindOf(mimeType);
     const maxBytes = kind === 'VIDEO' ? MAX_VIDEO_BYTES : MAX_PHOTO_BYTES;
     if (input.bytes.byteLength > maxBytes) {
       return err(
@@ -181,18 +181,44 @@ export class InspectionService {
     if (appointment === null) {
       return err(domainError('NOT_FOUND', `Pratica non trovata: ${input.appointmentId}.`));
     }
+    if (appointment.status !== 'IN_PROGRESS') {
+      return err(
+        domainError('INVALID_TRANSITION', MEDIA_SOLO_IN_CARICO, { status: appointment.status }),
+      );
+    }
+    const esistenti = await this.deps.media.listByAppointment(appointment.id);
+    const videoPresenti = esistenti.filter((m) => m.kind === 'VIDEO').length;
+    const bytePresenti = esistenti.reduce((somma, m) => somma + m.sizeBytes, 0);
+    if (
+      esistenti.length >= MAX_MEDIA_PER_APPOINTMENT ||
+      (kind === 'VIDEO' && videoPresenti >= MAX_VIDEOS_PER_APPOINTMENT) ||
+      bytePresenti + input.bytes.byteLength > MAX_BYTES_PER_APPOINTMENT
+    ) {
+      return err(
+        domainError('VALIDATION', FASCICOLO_PIENO, {
+          media: esistenti.length,
+          video: videoPresenti,
+          bytePresenti,
+          massimi: {
+            media: MAX_MEDIA_PER_APPOINTMENT,
+            video: MAX_VIDEOS_PER_APPOINTMENT,
+            byte: MAX_BYTES_PER_APPOINTMENT,
+          },
+        }),
+      );
+    }
 
     // Un video riprende tutto il giro, quindi non ha una parte del veicolo; una foto senza slot è
     // uno scatto libero e finisce fra le aggiuntive, così nel fascicolo non resta "senza categoria".
     const category: MediaCategory | null = kind === 'VIDEO' ? null : (input.category ?? 'EXTRA');
     const id = this.deps.ids.nextAs(asMediaAssetId);
-    const estensione = ESTENSIONE[input.mimeType] ?? input.mimeType.split('/')[1] ?? 'bin';
+    const estensione = EXTENSION_BY_MIME[mimeType];
     const prefisso = category === null ? kind.toLowerCase() : category.toLowerCase();
     const key = `${appointment.businessDate}/${appointment.code}/${prefisso}-${id}.${estensione}`;
     const salvata = await this.deps.mediaStorage.put({
       key,
       bytes: input.bytes,
-      mimeType: input.mimeType,
+      mimeType,
     });
     if (!salvata.ok) {
       this.logger.error(`media non salvato per ${appointment.code}`, {
@@ -207,7 +233,7 @@ export class InspectionService {
       appointmentId: appointment.id,
       kind,
       category,
-      mimeType: input.mimeType,
+      mimeType,
       sizeBytes: input.bytes.byteLength,
       storageKey: salvata.value.key,
       thumbnailKey: null,
@@ -251,7 +277,10 @@ export class InspectionService {
     }
     if (appointment.legalHoldAt !== null) {
       return err(
-        domainError('INVALID_TRANSITION', 'Vincolo legale: i media di questa pratica non si eliminano.'),
+        domainError(
+          'INVALID_TRANSITION',
+          'Vincolo legale: i media di questa pratica non si eliminano.',
+        ),
       );
     }
     const asset = (await this.deps.media.listByAppointment(appointment.id)).find(

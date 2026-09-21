@@ -150,7 +150,7 @@ describe('Portale: accesso per targa o token, targhe non valide e pratiche concl
     const { env, service, tokens } = setup();
     const mia = await insert(env, makeAppointment({ scheduledAt: AT('07:30') }));
     const token = tokens.forAppointment(mia.id);
-    expect(token).toMatch(/^[0-9a-f]{12}$/);
+    expect(token).toMatch(/^[0-9a-f]{16}$/);
     expect(tokens.matches(mia.id, token.toUpperCase())).toBe(true);
     expect(tokens.matches(mia.id, 'ffffffffffff')).toBe(false);
 

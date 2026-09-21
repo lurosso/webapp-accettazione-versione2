@@ -13,8 +13,13 @@ import { isStartupError, type SystemHealthUnavailable } from '@/application/heal
 import { PUBLIC_STATUS_RATE_LIMIT } from '@/config/constants';
 import { getContainer } from '@/config/container';
 import type { PortalStatusView } from '@/domain/read-models';
-import { badRequestResponse, domainErrorResponse, type ApiErrorBody } from '@/lib/http/api-error';
-import { clientIpFrom, hitRateLimit, type RateLimitRule } from '@/lib/http/rate-limit';
+import { badRequestResponse, publicErrorResponse, type ApiErrorBody } from '@/lib/http/api-error';
+import {
+  combineRateLimits,
+  hitPerIp,
+  hitRateLimit,
+  type RateLimitRule,
+} from '@/lib/http/rate-limit';
 
 export const dynamic = 'force-dynamic';
 
@@ -28,6 +33,14 @@ const PER_PLATE: RateLimitRule = {
   limit: PUBLIC_STATUS_RATE_LIMIT.perPlate,
   windowMs: PUBLIC_STATUS_RATE_LIMIT.windowMs,
 };
+const GLOBALE: RateLimitRule = {
+  limit: PUBLIC_STATUS_RATE_LIMIT.global,
+  windowMs: PUBLIC_STATUS_RATE_LIMIT.windowMs,
+};
+
+/** Lunghezze massime dei parametri: oltre non è una targa né un token, e non deve diventare una chiave del limitatore. */
+const MAX_PLATE_PARAM = 16;
+const MAX_TOKEN_PARAM = 64;
 
 /** Risposta del portale: lo stato della pratica, senza alcun dato personale del cliente. */
 export interface PublicStatusResponse {
@@ -54,8 +67,16 @@ export async function GET(request: NextRequest): Promise<NextResponse<PublicStat
   if (plate === '' && token === '') {
     return badRequestResponse('Indicare la targa del veicolo (parametro `targa`).');
   }
+  if (plate.length > MAX_PLATE_PARAM || token.length > MAX_TOKEN_PARAM) {
+    return badRequestResponse('Parametri non validi.');
+  }
 
-  const ipCheck = hitRateLimit(`ip:${clientIpFrom(request.headers)}`, PER_IP);
+  // Tre contatori: globale (rete di sicurezza contro chi ruota indirizzi), per indirizzo (solo
+  // dietro un proxy fidato) e per soggetto cercato.
+  const ipCheck = combineRateLimits(
+    hitRateLimit('public-status:globale', GLOBALE),
+    hitPerIp('ip', request.headers, PER_IP),
+  );
   const subjectCheck = ipCheck.allowed
     ? hitRateLimit(publicLookupKey(plate, token), PER_PLATE)
     : ipCheck;
@@ -76,7 +97,7 @@ export async function GET(request: NextRequest): Promise<NextResponse<PublicStat
     const container = getContainer();
     const result = await container.customerPortalService.getStatus({ plate, token });
     if (!result.ok) {
-      return domainErrorResponse(result.error, { ...NO_STORE });
+      return publicErrorResponse(result.error, { ...NO_STORE });
     }
     return NextResponse.json(
       {

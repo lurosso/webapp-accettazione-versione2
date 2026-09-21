@@ -51,11 +51,20 @@ describe('rate-limit', () => {
     );
   });
 
-  it("ricava l'indirizzo del cliente dagli header del proxy", () => {
-    expect(clientIpFrom(new Headers({ 'x-forwarded-for': '10.0.0.9, 172.16.0.1' }))).toBe(
-      '10.0.0.9',
+  it("senza proxy fidato l'indirizzo non è affidabile; dietro proxy vale quello messo dal proxy", () => {
+    // Il client scrive lui X-Forwarded-For: senza un proxy fidato non vale nulla.
+    expect(
+      clientIpFrom(new Headers({ 'x-forwarded-for': '10.0.0.9, 172.16.0.1' }), false),
+    ).toBeNull();
+    expect(clientIpFrom(new Headers({ 'x-real-ip': '10.0.0.7' }), false)).toBeNull();
+    // Dietro proxy fidato: X-Real-IP (sovrascritto dal proxy) oppure l'ULTIMO valore di
+    // X-Forwarded-For, cioè quello aggiunto dal proxy; il primo lo può scrivere il client.
+    expect(clientIpFrom(new Headers({ 'x-forwarded-for': '1.2.3.4, 172.16.0.1' }), true)).toBe(
+      '172.16.0.1',
     );
-    expect(clientIpFrom(new Headers({ 'x-real-ip': '10.0.0.7' }))).toBe('10.0.0.7');
-    expect(clientIpFrom(new Headers())).toBe('sconosciuto');
+    expect(
+      clientIpFrom(new Headers({ 'x-real-ip': '10.0.0.7', 'x-forwarded-for': '1.1.1.1' }), true),
+    ).toBe('10.0.0.7');
+    expect(clientIpFrom(new Headers(), true)).toBeNull();
   });
 });

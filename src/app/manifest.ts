@@ -15,7 +15,7 @@ export default function manifest(): MetadataRoute.Manifest {
     name: 'AutoClub Officina',
     short_name: 'AutoClub',
     description:
-      "Accettazione officina: coda, check-in fotografico dal tablet, portale cliente e monitoraggio.",
+      'Accettazione officina: coda, check-in fotografico dal tablet, portale cliente e monitoraggio.',
     lang: 'it',
     start_url: '/',
     scope: '/',

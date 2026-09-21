@@ -38,6 +38,21 @@ export interface LocalAuthServiceDeps {
 /** Messaggio unico per credenziali errate, utente inesistente o disattivato. */
 const INVALID_CREDENTIALS = 'Credenziali non valide.';
 
+/** Istante al secondo: il JWT porta `iat` in secondi, la rivendicazione l'istante in millisecondi. */
+function alSecondo(iso: string): number {
+  return Math.floor(new Date(iso).getTime() / 1000);
+}
+
+let hashFittizioCache: string | null = null;
+/**
+ * Hash su cui verificare la password quando l'utente NON esiste: così il ramo costa quanto quello
+ * dell'utente vero e il tempo di risposta del login non dice quali nomi utente esistono.
+ */
+function hashFittizio(): string {
+  hashFittizioCache ??= hashPassword('nessun-operatore-con-questo-nome');
+  return hashFittizioCache;
+}
+
 export class LocalAuthService implements IAuthService {
   private readonly logger: ILogger;
 
@@ -48,11 +63,13 @@ export class LocalAuthService implements IAuthService {
   async login(input: LoginInput): Promise<Result<IssuedSession, DomainError>> {
     const username = input.username.trim().toLowerCase();
     const operator = await this.deps.operators.findByUsername(username);
-    if (
-      operator === null ||
-      !operator.isActive ||
-      !verifyPassword(input.password, operator.passwordHash)
-    ) {
+    if (operator === null || !operator.isActive) {
+      // Stesso costo di un confronto vero: niente oracolo temporale sui nomi utente.
+      verifyPassword(input.password, hashFittizio());
+      this.logger.warn('login rifiutato', { username });
+      return err(domainError('VALIDATION', INVALID_CREDENTIALS));
+    }
+    if (!verifyPassword(input.password, operator.passwordHash)) {
       this.logger.warn('login rifiutato', { username });
       return err(domainError('VALIDATION', INVALID_CREDENTIALS));
     }
@@ -114,6 +131,15 @@ export class LocalAuthService implements IAuthService {
           'NOT_FOUND',
           'Sessione non più valida: lo sportello è stato liberato. Accedi di nuovo e scegline uno.',
         ),
+      );
+    }
+    // Una sola sessione valida per operatore: quella dell'ULTIMO login o cambio password, la cui
+    // emissione coincide con la rivendicazione del posto. Un token più vecchio — copiato in LAN,
+    // rimasto in un browser dopo un cambio password — non passa più, senza bisogno di una lista
+    // di revoca.
+    if (alSecondo(claim.claimedAt) !== alSecondo(parsed.value.issuedAt)) {
+      return err(
+        domainError('NOT_FOUND', 'Sessione sostituita da un accesso più recente: accedi di nuovo.'),
       );
     }
     return ok({

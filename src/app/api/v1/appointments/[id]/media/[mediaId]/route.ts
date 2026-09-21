@@ -10,7 +10,8 @@ import { NextResponse, type NextRequest } from 'next/server';
 import { readApiSession } from '@/app/_server/session';
 import { getContainer } from '@/config/container';
 import { asAppointmentId } from '@/domain/ids';
-import { domainErrorResponse, unauthorizedResponse } from '@/lib/http/api-error';
+import { domainErrorResponse, forbiddenResponse, unauthorizedResponse } from '@/lib/http/api-error';
+import { canAccess } from '@/lib/navigation';
 
 export const dynamic = 'force-dynamic';
 
@@ -22,6 +23,11 @@ export async function DELETE(request: NextRequest, context: RouteContext): Promi
   const session = await readApiSession(request);
   if (session === null) {
     return unauthorizedResponse();
+  }
+  if (!canAccess('check-in', session.role)) {
+    return forbiddenResponse(
+      'Le foto del check-in le elimina chi sta al veicolo: accettatori e amministratore.',
+    );
   }
   const { id, mediaId } = await context.params;
   const esito = await getContainer().inspectionService.removeMedia({

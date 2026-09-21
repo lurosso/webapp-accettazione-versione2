@@ -10,8 +10,17 @@
 import { createHmac, timingSafeEqual } from 'node:crypto';
 import type { AppointmentId } from '@/domain/ids';
 
-/** Lunghezza del token: 12 caratteri esadecimali (48 bit), leggibile in un link e non enumerabile. */
-const TOKEN_LENGTH = 12;
+/** Lunghezza del token: 16 caratteri esadecimali (64 bit), leggibile in un link e non enumerabile. */
+export const TOKEN_LENGTH = 16;
+
+/**
+ * Chiave dei token del portale, derivata dal segreto di sessione con un'etichetta fissa: stessa
+ * variabile d'ambiente, chiavi diverse per cookie e link. Cambiare il segreto invalida i link
+ * inviati: va fatto sapendolo.
+ */
+export function derivePortalTokenKey(sessionSecret: string): string {
+  return createHmac('sha256', sessionSecret).update('portal-token-v1').digest('hex');
+}
 
 export interface PortalTokenFactory {
   /** Token della pratica, sempre lo stesso finché non cambia il segreto del server. */

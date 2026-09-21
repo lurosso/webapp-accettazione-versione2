@@ -36,13 +36,31 @@ export function domainErrorResponse(
   error: DomainError,
   headers?: Record<string, string>,
 ): NextResponse<ApiErrorBody> {
+  // Un errore interno porta con sé percorsi assoluti, messaggi del file system, nomi di variabili:
+  // roba da log (dove è già finita), non da risposta. Al client restano codice e messaggio.
+  const details = error.code === 'INTERNAL' ? undefined : error.details;
   const body: ApiErrorBody = {
     error:
-      error.details === undefined
+      details === undefined
         ? { code: error.code, message: error.message }
-        : { code: error.code, message: error.message, details: error.details },
+        : { code: error.code, message: error.message, details },
   };
   return NextResponse.json(body, { status: httpStatusFor(error.code), headers: headers ?? {} });
+}
+
+/**
+ * Risposta di errore per le rotte PUBBLICHE: mai `details`. Un VERSION_CONFLICT porta con sé la
+ * pratica intera (nome e telefono del cliente), un NOT_FOUND riflette l'input: al portale bastano
+ * codice e messaggio.
+ */
+export function publicErrorResponse(
+  error: DomainError,
+  headers?: Record<string, string>,
+): NextResponse<ApiErrorBody> {
+  return NextResponse.json(
+    { error: { code: error.code, message: error.message } },
+    { status: httpStatusFor(error.code), headers: headers ?? {} },
+  );
 }
 
 /** 401: sessione assente o non valida. */

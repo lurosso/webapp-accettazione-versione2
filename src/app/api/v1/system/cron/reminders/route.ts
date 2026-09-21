@@ -7,11 +7,10 @@
 //
 // Accesso: sessione ADMIN oppure intestazione `x-cron-secret` uguale a `CRON_SECRET`.
 import { NextResponse, type NextRequest } from 'next/server';
-import { correlationIdFrom, readApiSession } from '@/app/_server/session';
+import { authorizeCronRequest } from '@/app/_server/cron-auth';
+import { correlationIdFrom } from '@/app/_server/session';
 import { getContainer } from '@/config/container';
-import { badRequestResponse, forbiddenResponse } from '@/lib/http/api-error';
-import { secretsMatch } from '@/lib/http/secrets';
-import { canAccess } from '@/lib/navigation';
+import { badRequestResponse } from '@/lib/http/api-error';
 
 export const dynamic = 'force-dynamic';
 
@@ -25,16 +24,11 @@ function isKind(v: string | null): v is CronReminderKind {
 export async function POST(request: NextRequest): Promise<NextResponse> {
   const container = getContainer();
   const correlationId = correlationIdFrom(request);
-  const daCron = secretsMatch(request.headers.get('x-cron-secret'), container.env.cronSecret);
-
-  if (!daCron) {
-    const session = await readApiSession(request);
-    if (session === null || !canAccess('admin', session.role)) {
-      return forbiddenResponse(
-        'Richiesta non autorizzata: serve una sessione amministratore oppure `x-cron-secret`.',
-      );
-    }
+  const autorizzazione = await authorizeCronRequest(request, container.env.cronSecret);
+  if (!autorizzazione.ok) {
+    return autorizzazione.response;
   }
+  const { daCron } = autorizzazione;
 
   const kind = request.nextUrl.searchParams.get('kind');
   if (!isKind(kind)) {

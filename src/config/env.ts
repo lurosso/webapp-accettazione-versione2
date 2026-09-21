@@ -103,6 +103,18 @@ export interface AppEnv {
   readonly crmRetryEnabled: boolean;
   /** Se true i monitor devono passare il token della propria accettazione (?token=). */
   readonly displayTokenRequired: boolean;
+  /**
+   * Fiducia in `X-Forwarded-For`/`X-Real-IP` (TRUST_PROXY_HEADERS): solo dietro un reverse proxy
+   * che li sovrascrive. Senza, l'indirizzo lo dichiara il client e i contatori per indirizzo non
+   * si applicano (restano quelli globali e per soggetto).
+   */
+  readonly trustProxyHeaders: boolean;
+  /**
+   * Le scritture del portale cliente («Sono qui», «In ritardo») richiedono il token personale del
+   * link (PORTAL_WRITES_REQUIRE_TOKEN): dal QR con la sola targa si può soltanto consultare.
+   * Predefinito false finché i link WhatsApp non sono in uso.
+   */
+  readonly portalWritesRequireToken: boolean;
   /** Messaggi al cliente guidati dagli eventi (conferma, turno vicino, annullamento). */
   readonly messagingTriggersEnabled: boolean;
   /**
@@ -189,15 +201,50 @@ const SPOKI_MODES: readonly SpokiMode[] = ['simulation', 'live'];
 const SEED_PROFILES: readonly SeedProfile[] = ['demo', 'real'];
 const MANUAL_INTAKE_UI: readonly ManualIntakeUi[] = ['none', 'managers', 'all'];
 
-/** DEV_QUICK_LOGIN: mai in produzione, qualunque cosa dica la variabile. */
+/** True se almeno un provider punta a dati veri (database Prisma, Infinity o servizi reali). */
+function hasRealData(source: EnvSource): boolean {
+  return ['REPOSITORY_PROVIDER', 'INFINITY_PROVIDER', 'SERVICES_PROVIDER'].some((k) =>
+    ['prisma', 'real'].includes(source[k]?.trim().toLowerCase() ?? ''),
+  );
+}
+
+/**
+ * DEV_QUICK_LOGIN: mai in produzione, qualunque cosa dica la variabile. Acceso per default solo
+ * quando tutto è mock: con dati veri (Prisma, Infinity) va chiesto esplicitamente, e viene detto
+ * a chiare lettere, perché chiunque raggiunga il server entra da amministratore senza credenziali.
+ */
 function pickDevQuickLogin(source: EnvSource, warn: EnvWarning): boolean {
   const production = source['NODE_ENV']?.trim() === 'production';
-  const richiesto = pickBool(source, 'DEV_QUICK_LOGIN', !production, warn);
+  const datiReali = hasRealData(source);
+  const richiesto = pickBool(source, 'DEV_QUICK_LOGIN', !production && !datiReali, warn);
   if (production && richiesto) {
     warn("DEV_QUICK_LOGIN=true ignorato con NODE_ENV=production: l'accesso veloce resta spento.");
     return false;
   }
+  if (richiesto && datiReali) {
+    warn(
+      'DEV_QUICK_LOGIN=true con dati reali (Prisma/Infinity): chiunque raggiunga il server entra senza credenziali. Spegnerlo appena finiti i test sul dispositivo.',
+    );
+  }
   return richiesto;
+}
+
+/**
+ * CRON_SECRET: assente → solo la sessione amministratore apre gli endpoint cron. Un segreto corto
+ * si indovina: sotto i 32 caratteri viene ignorato (con avviso), non accettato a metà.
+ */
+function pickCronSecret(source: EnvSource, warn: EnvWarning): string | null {
+  const raw = pickString(source, 'CRON_SECRET', '').trim();
+  if (raw === '') {
+    return null;
+  }
+  if (raw.length < 32) {
+    warn(
+      `CRON_SECRET troppo corto (${raw.length} caratteri): minimo 32. Ignorato, gli endpoint cron accettano solo la sessione amministratore.`,
+    );
+    return null;
+  }
+  return raw;
 }
 
 function defaultWarning(message: string): void {
@@ -396,10 +443,9 @@ export function parseEnv(
       pickInt(source, 'PHOTO_HARD_DELETE_DAYS', DEFAULT_MEDIA_HARD_DELETE_DAYS, warn),
       warn,
     ),
-    cronSecret:
-      pickString(source, 'CRON_SECRET', '').trim() === ''
-        ? null
-        : pickString(source, 'CRON_SECRET', ''),
+    cronSecret: pickCronSecret(source, warn),
+    trustProxyHeaders: pickBool(source, 'TRUST_PROXY_HEADERS', false, warn),
+    portalWritesRequireToken: pickBool(source, 'PORTAL_WRITES_REQUIRE_TOKEN', false, warn),
     timeZone: pickTimeZone(source, 'APP_TIMEZONE', TIMEZONE, warn),
     syncHourLocal: pickHourLocal(source, 'SYNC_HOUR_LOCAL', DEFAULT_SYNC_HOUR_LOCAL, warn),
     businessDayEndLocal: pickHourLocal(

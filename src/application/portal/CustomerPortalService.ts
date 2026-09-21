@@ -68,6 +68,11 @@ export interface CustomerPortalServiceDeps {
   readonly logger: ILogger;
   /** Null nei contesti senza segreto: si accede solo per targa. */
   readonly tokens: PortalTokenFactory | null;
+  /**
+   * Le scritture («Sono qui», «In ritardo») richiedono il token del link: con la sola targa si
+   * può soltanto consultare. Dal QR non si altera la coda di un altro cliente. Predefinito false.
+   */
+  readonly writesRequireToken?: boolean;
   readonly siteName?: string;
   readonly lateNoticeMinutes?: number;
   readonly lateNoticeCooldownMinutes?: number;
@@ -110,7 +115,9 @@ export class CustomerPortalService {
     lookup: PortalLookup,
     minutes: number = this.deps.lateNoticeMinutes ?? CUSTOMER_LATE_NOTICE_MINUTES,
   ): Promise<Result<PortalStatusView, DomainError>> {
-    const trovata = await this.resolve(lookup);
+    const trovata = await this.resolve(lookup, {
+      requireToken: this.deps.writesRequireToken === true,
+    });
     if (!trovata.ok) {
       return trovata;
     }
@@ -177,7 +184,10 @@ export class CustomerPortalService {
     lookup: PortalLookup,
     channel: 'PORTAL' | 'WHATSAPP' = 'PORTAL',
   ): Promise<Result<PortalArrival, DomainError>> {
-    const trovata = await this.resolve(lookup);
+    // Via WhatsApp il cliente è già identificato dal numero: il token serve solo dal portale.
+    const trovata = await this.resolve(lookup, {
+      requireToken: this.deps.writesRequireToken === true && channel === 'PORTAL',
+    });
     if (!trovata.ok) {
       return trovata;
     }
@@ -217,28 +227,44 @@ export class CustomerPortalService {
 
   // --- interni ---------------------------------------------------------------------------
 
-  private async resolve(lookup: PortalLookup): Promise<Result<Appointment, DomainError>> {
+  private async resolve(
+    lookup: PortalLookup,
+    options: { readonly requireToken?: boolean } = {},
+  ): Promise<Result<Appointment, DomainError>> {
     const today = this.deps.clock.today();
     const yesterday = addDays(today, -1);
     const token = lookup.token?.trim() ?? '';
     const rawPlate = lookup.plate?.trim() ?? '';
 
+    let candidate: Appointment | undefined;
     if (token !== '' && this.deps.tokens !== null) {
       const tokens = this.deps.tokens;
-      const candidate = [
+      candidate = [
         ...(await this.deps.appointments.listByDate(today, { includeCancelled: true })),
         ...(await this.deps.appointments.listByDate(yesterday, { includeCancelled: true })),
       ].find((a) => tokens.matches(a.id, token));
-      if (candidate !== undefined) {
-        return ok(candidate);
-      }
-      if (rawPlate === '') {
-        return err(
-          domainError('NOT_FOUND', 'Il link non è più valido: rivolgiti allo sportello.', {}),
-        );
-      }
-      // Token sconosciuto ma targa presente: si prosegue per targa, come dal QR.
     }
+    if (options.requireToken === true) {
+      // Solo il link personale può scrivere: né la targa né un token sbagliato con la targa giusta.
+      return candidate === undefined
+        ? err(
+            domainError(
+              'NOT_FOUND',
+              'Per questa azione serve il link personale ricevuto nel messaggio: dal QR si può solo consultare lo stato.',
+              {},
+            ),
+          )
+        : ok(candidate);
+    }
+    if (candidate !== undefined) {
+      return ok(candidate);
+    }
+    if (token !== '' && this.deps.tokens !== null && rawPlate === '') {
+      return err(
+        domainError('NOT_FOUND', 'Il link non è più valido: rivolgiti allo sportello.', {}),
+      );
+    }
+    // Token sconosciuto ma targa presente: si prosegue per targa, come dal QR.
 
     if (rawPlate === '') {
       return err(domainError('VALIDATION', 'Indicare la targa del veicolo.', {}));
@@ -259,7 +285,7 @@ export class CustomerPortalService {
       domainError(
         'NOT_FOUND',
         "Targa non trovata nell'agenda di oggi. Rivolgiti allo sportello dell'accettazione.",
-        { plate: plate.value },
+        {},
       ),
     );
   }

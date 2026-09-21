@@ -82,6 +82,8 @@ export const STALE_WARNING_MS = 15000;
 export const PUBLIC_STATUS_RATE_LIMIT = {
   perIp: 240,
   perPlate: 30,
+  /** Rete di sicurezza a chiave costante: non si aggira ruotando indirizzi o intestazioni. */
+  global: 3000,
   windowMs: 60_000,
 } as const;
 
@@ -190,5 +192,7 @@ export const PORTAL_CONCLUDED_AFTER_HOURS = 24;
 export const PUBLIC_LATE_NOTICE_RATE_LIMIT = {
   perIp: 30,
   perPlate: 3,
+  /** Rete di sicurezza a chiave costante sulle scritture del portale. */
+  global: 600,
   windowMs: 600_000,
 } as const;

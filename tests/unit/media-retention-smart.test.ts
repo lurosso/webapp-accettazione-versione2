@@ -8,13 +8,11 @@ import { AssistanceService } from '@/application/admin/AssistanceService';
 import { InspectionArchiveService } from '@/application/media/InspectionArchiveService';
 import { InspectionService } from '@/application/media/InspectionService';
 import { QueueService, type ActionContext } from '@/application/queue/QueueService';
-import {
-  isWorkClosed,
-  retentionProtection,
-  type Appointment,
-} from '@/domain/entities/appointment';
+import { isWorkClosed, retentionProtection, type Appointment } from '@/domain/entities/appointment';
 import { asAppointmentId, asOperatorId, asWorkstationId } from '@/domain/ids';
 import type { IsoDateTime } from '@/domain/value-objects/iso-date';
+import { addMediaAsInProgress } from '../helpers/media-fixtures';
+import { jpegBytes } from '../helpers/media-bytes';
 import { buildTestEnv, makeAppointment, TestClock } from '../helpers/fixtures';
 
 const RETENTION_DAYS = 90;
@@ -85,10 +83,10 @@ async function pratricaVecchiaConFoto(
   overrides: Partial<Appointment> = {},
 ): Promise<{ readonly a: Appointment; readonly key: string }> {
   const a = await insert(s.env, makeAppointment({ status: 'COMPLETED', ...overrides }));
-  const salvata = await s.inspection.addPhoto({
+  const salvata = await addMediaAsInProgress(s.env.appointments, s.inspection, {
     appointmentId: a.id,
     operatorId: s.ctx.operatorId,
-    bytes: new Uint8Array(512).fill(1),
+    bytes: jpegBytes(512),
     mimeType: 'image/jpeg',
     category: 'FRONT',
   });

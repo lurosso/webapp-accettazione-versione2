@@ -7,7 +7,10 @@ import { getContainer } from '@/config/container';
 export const dynamic = 'force-dynamic';
 
 export async function POST(request: NextRequest): Promise<NextResponse> {
-  const session = await readApiSession(request, { allowPendingPasswordChange: true });
+  const session = await readApiSession(request, {
+    allowPendingPasswordChange: true,
+    allowKiosk: true,
+  });
   if (session !== null) {
     await getContainer().authService.logout(session);
   }

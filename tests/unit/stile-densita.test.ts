@@ -174,7 +174,12 @@ const DEBITO_MISURE = [
   'src/modules/reception/SyncBanner.tsx',
 ] as const;
 
-function cricchetto(nome: string, regola: RegExp, debito: readonly string[], rimedio: string): void {
+function cricchetto(
+  nome: string,
+  regola: RegExp,
+  debito: readonly string[],
+  rimedio: string,
+): void {
   describe(nome, () => {
     const attuali = violano(regola);
 

@@ -18,7 +18,7 @@ import { CustomerMessagingPolicy } from '@/application/notifications/CustomerMes
 import { NotificationOrchestrator } from '@/application/notifications/NotificationOrchestrator';
 import { WhatsAppInboundService } from '@/application/notifications/WhatsAppInboundService';
 import { CustomerPortalService } from '@/application/portal/CustomerPortalService';
-import { createPortalTokenFactory } from '@/application/portal/portal-token';
+import { createPortalTokenFactory, derivePortalTokenKey } from '@/application/portal/portal-token';
 import { CodeGenerator } from '@/application/queue/CodeGenerator';
 import { ManualIntakeService } from '@/application/queue/ManualIntakeService';
 import { SpokiDiagnosticsService } from '@/application/messaging/SpokiDiagnosticsService';
@@ -39,7 +39,7 @@ import { ConsoleLogger } from '@/services/mocks/ConsoleLogger';
 import { InProcessEventBus } from '@/services/mocks/InProcessEventBus';
 import { SystemClock } from '@/services/mocks/SystemClock';
 import { UuidIdGenerator } from '@/services/mocks/UuidIdGenerator';
-import { resolveSessionSecret, SESSION_TTL_HOURS } from './auth';
+import { resolveSessionSecret, SESSION_TTL_HOURS, isAllMock } from './auth';
 import type { AppEnv } from './env';
 import { parseEnv } from './env';
 import type { SeedData } from './seed';
@@ -144,6 +144,16 @@ export function createContainer(overrides: ContainerOverrides = {}): Container {
   }
 
   const repos = createRepositories(env, { clock, store });
+  if (!env.trustProxyHeaders && env.nodeEnv === 'production') {
+    logger.warn(
+      '[Container] TRUST_PROXY_HEADERS=false: senza un reverse proxy fidato i contatori per indirizzo delle rotte pubbliche non si applicano (restano quelli globali e per soggetto). Dietro Nginx/Caddy/IIS impostare TRUST_PROXY_HEADERS=true.',
+    );
+  }
+  if (!env.displayTokenRequired && !isAllMock(env)) {
+    logger.warn(
+      '[Container] DISPLAY_TOKEN_REQUIRED=false con dati reali: /api/v1/public/display risponde a chiunque raggiunga il server con codice e targa in lavorazione. Impostare DISPLAY_TOKEN_REQUIRED=true e passare ?token= ai monitor.',
+    );
+  }
   if (env.repositoryProvider === 'memory' && env.nodeEnv === 'production') {
     logger.warn(
       '[Container] REPOSITORY_PROVIDER=memory in produzione: la persistenza in memoria è DEPRECATA, pratiche, media e account spariscono al riavvio. Impostare REPOSITORY_PROVIDER=prisma e DATABASE_URL.',
@@ -157,9 +167,10 @@ export function createContainer(overrides: ContainerOverrides = {}): Container {
     desks: [...store.state.desks],
   });
 
-  // Token del portale cliente: HMAC dell'id pratica con il segreto di sessione. Entra nel link
-  // dei messaggi e permette l'accesso senza login dal telefono.
-  const portalTokens = createPortalTokenFactory(sessionSecret);
+  // Token del portale cliente: HMAC dell'id pratica con una chiave DERIVATA dal segreto di sessione
+  // (HMAC del segreto con un'etichetta fissa). I link dei messaggi e i cookie degli operatori non
+  // condividono così la stessa chiave: una fuga da una parte non apre l'altra.
+  const portalTokens = createPortalTokenFactory(derivePortalTokenKey(sessionSecret));
 
   const notificationOrchestrator = new NotificationOrchestrator({
     spoki: external.spoki,
@@ -191,6 +202,7 @@ export function createContainer(overrides: ContainerOverrides = {}): Container {
     ids,
     logger,
     tokens: portalTokens,
+    writesRequireToken: env.portalWritesRequireToken,
   });
 
   // GUARDRAIL: un WhatsApp reale può partire solo con Spoki reale, in live e con il blocco di

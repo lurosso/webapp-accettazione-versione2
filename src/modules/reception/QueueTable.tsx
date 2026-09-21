@@ -273,7 +273,11 @@ export function QueueTable({
         }
 
         return (
-          <section key={section.key} id={`sezione-${section.key}`} aria-labelledby={`section-${section.key}`}>
+          <section
+            key={section.key}
+            id={`sezione-${section.key}`}
+            aria-labelledby={`section-${section.key}`}
+          >
             <div className="mb-3 flex items-start justify-between gap-4">
               <div>
                 <h2

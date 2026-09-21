@@ -1,5 +1,6 @@
 // Layout radice dell'App Router: lingua italiana, caratteri, stili globali, provider client.
 import type { Metadata, Viewport } from 'next';
+import { headers } from 'next/headers';
 import type { ReactNode } from 'react';
 /*
  * Caratteri serviti dal nostro dominio, non da Google Fonts.
@@ -70,7 +71,10 @@ if(d==='tocco'||d==='banco'){document.documentElement.dataset.densita=d}
 else{delete document.documentElement.dataset.densita}
 }catch(e){}})()`;
 
-export default function RootLayout({ children }: { readonly children: ReactNode }) {
+export default async function RootLayout({ children }: { readonly children: ReactNode }) {
+  // Il nonce della richiesta, generato dal proxy: senza, la Content-Security-Policy bloccherebbe
+  // lo script della lente. Next lo mette da solo sui propri script; su questo lo mettiamo noi.
+  const nonce = (await headers()).get('x-nonce') ?? undefined;
   return (
     /*
      * `suppressHydrationWarning`: lo script della lente mette `data-densita` sull'html PRIMA
@@ -81,7 +85,7 @@ export default function RootLayout({ children }: { readonly children: ReactNode 
      */
     <html lang="it" suppressHydrationWarning>
       <body className="bg-surface-app text-ink min-h-screen font-sans antialiased">
-        <script dangerouslySetInnerHTML={{ __html: LENTE_DENSITA }} />
+        <script nonce={nonce} dangerouslySetInnerHTML={{ __html: LENTE_DENSITA }} />
         <Providers>{children}</Providers>
       </body>
     </html>

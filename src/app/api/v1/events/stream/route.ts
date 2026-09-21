@@ -6,7 +6,7 @@ import { NextResponse, type NextRequest } from 'next/server';
 import { readApiSession } from '@/app/_server/session';
 import { SSE_CONNECTION_LIMITS } from '@/config/constants';
 import { getContainer } from '@/config/container';
-import { unauthorizedResponse } from '@/lib/http/api-error';
+import { forbiddenResponse, unauthorizedResponse } from '@/lib/http/api-error';
 import { acquireConnection } from '@/lib/realtime/connection-guard';
 import { createEventStream, parseLastEventId, SSE_HEADERS } from '@/lib/realtime/sse';
 
@@ -18,6 +18,11 @@ export async function GET(request: NextRequest): Promise<Response> {
   const session = await readApiSession(request);
   if (session === null) {
     return unauthorizedResponse();
+  }
+  if (session.role === 'KIOSK') {
+    return forbiddenResponse(
+      'Il flusso eventi degli operatori non è disponibile per i dispositivi kiosk.',
+    );
   }
 
   // Una postazione apre una connessione per scheda: dodici per operatore bastano a chi tiene

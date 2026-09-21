@@ -580,17 +580,39 @@ WhatsApp → SMS → contatto manuale resta quello del promemoria del mattino.
 "Riprova" e "Torna alla coda"; un monitor mostra uno schermo giallo "MONITOR IN RIPRISTINO" e si
 riavvia da solo dopo venti secondi.
 
-## Perimetro pubblico
+## Perimetro pubblico e difese
 
-Portale QR, tabellone e monitor sono pubblici e devono restarlo. Per questo il canale pubblico può
-solo **leggere**: nessuna rotta sotto `/api/v1/public/` accetta mutazioni, gli identificativi sono
-UUID non enumerabili, il portale cerca per targa e le risposte non contengono nomi né telefoni.
-Ogni rotta pubblica ha un limite di frequenza; il flusso eventi ha un tetto alle connessioni aperte
-per indirizzo (oltre, 503 e lo schermo resta sul polling). Il login ha un limite per indirizzo e
-per utente (429 con `Retry-After`). I segreti — token dei monitor, chiave del cron — si
-confrontano a tempo costante, e con `DISPLAY_TOKEN_REQUIRED=true` i monitor devono presentare il
-proprio token. Le risposte portano le intestazioni di sicurezza standard (niente sniffing del
-tipo, niente inclusione in pagine esterne, fotocamera solo per la stessa origine).
+Portale QR, tabellone e monitor sono pubblici e devono restarlo. Il canale pubblico **legge** lo
+stato e accetta due soli tocchi del cliente («Sono qui», «In ritardo»), idempotenti e senza effetto
+sull'ordine della coda; gli identificativi sono UUID non enumerabili, il portale cerca per targa o
+per il token del link (64 bit, chiave dedicata) e le risposte non contengono nomi, telefoni, note
+né id: gli errori pubblici escono senza `details`. Ogni rotta pubblica ha tre contatori di
+frequenza: **globale** a chiave costante (non si aggira ruotando indirizzi), **per soggetto**
+(targa, token, utente) e **per indirizzo** — quest'ultimo solo dietro un reverse proxy fidato
+(`TRUST_PROXY_HEADERS=true`, che legge `X-Real-IP` o l'ultimo `X-Forwarded-For`): senza, l'indirizzo
+lo dichiarerebbe il client e il contatore non varrebbe nulla. Il flusso eventi ha un tetto alle
+connessioni aperte (oltre, 503 e lo schermo resta sul polling). Il login ha un limite per utente e,
+dietro proxy, per indirizzo (429 con `Retry-After`), e costa uguale per utente inesistente e
+password errata. I segreti — token dei monitor, chiave del cron (≥ 32 caratteri, altrimenti
+ignorata) — si confrontano a tempo costante, con un tetto sui tentativi falliti; con
+`DISPLAY_TOKEN_REQUIRED=true` i monitor devono presentare il proprio token, e con
+`PORTAL_WRITES_REQUIRE_TOKEN=true` i due tocchi del cliente valgono solo dal link personale.
+
+Sull'area operatore: ogni API richiede sessione **e ruolo** (gli account KIOSK dei dispositivi non
+passano da nessuna API tranne quelle di autenticazione), una sola sessione è valida per operatore
+(login, cambio password e logout invalidano i token precedenti), una pratica in carico la completa
+solo chi l'ha in carico o un responsabile. Le richieste che cambiano stato devono partire dalla
+nostra origine (`Sec-Fetch-Site`/`Origin` verificati nel proxy oltre a `SameSite=Lax`). Foto e
+video si accettano solo con il check-in aperto, solo se i **primi byte** sono davvero un'immagine o
+un video ammessi (un `.exe` rinominato `.jpg` è rifiutato qualunque cosa dichiari), sotto un
+tetto verificato prima di leggere il corpo (`Content-Length`, 411/413) e con limiti per pratica; il
+nome del file del client non viene mai usato e i file vengono serviti in sandbox, con tipo derivato
+dalla tabella dei formati ammessi. Ogni risposta porta una **Content-Security-Policy con nonce**
+(script solo nostri e con il nonce della richiesta, niente oggetti, niente inclusione da altre
+origini), più `nosniff`, `X-Frame-Options`, `Referrer-Policy`, `Permissions-Policy` (fotocamera
+solo per la stessa origine), COOP e — in produzione — HSTS. Il report CSV neutralizza le celle che
+Excel leggerebbe come formule. Il rapporto completo dell'audit, con ciò che era aperto, come è stato
+chiuso e le decisioni ancora da prendere, è in `docs/SECURITY_AUDIT_2026-09-21.md`.
 
 ## Fine giornata e coda verso il CRM
 

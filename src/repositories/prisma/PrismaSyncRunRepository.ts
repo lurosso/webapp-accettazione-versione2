@@ -47,7 +47,9 @@ export class PrismaSyncRunRepository implements ISyncRunRepository {
   private async salva(run: SyncRun): Promise<SyncRun> {
     const riga = toRow(run);
     const { id: _id, ...dati } = riga;
-    return toEntity(await this.db.syncRun.upsert({ where: { id: run.id }, create: riga, update: dati }));
+    return toEntity(
+      await this.db.syncRun.upsert({ where: { id: run.id }, create: riga, update: dati }),
+    );
   }
 
   async insert(run: SyncRun): Promise<SyncRun> {

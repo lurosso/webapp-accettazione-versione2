@@ -67,6 +67,7 @@ export async function POST(request: NextRequest, context: RouteContext): Promise
     operatorId: session.operatorId,
     workstationId: session.workstationId,
     correlationId,
+    role: session.role,
   };
   const input: TransitionInput = {
     appointmentId: asAppointmentId(id),

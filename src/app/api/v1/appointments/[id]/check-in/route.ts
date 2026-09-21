@@ -10,8 +10,10 @@ import { asAppointmentId } from '@/domain/ids';
 import {
   badRequestResponse,
   domainErrorResponse,
+  forbiddenResponse,
   unauthorizedResponse,
 } from '@/lib/http/api-error';
+import { canAccess } from '@/lib/navigation';
 import { z } from 'zod';
 
 export const dynamic = 'force-dynamic';
@@ -31,6 +33,11 @@ export async function POST(request: NextRequest, context: RouteContext): Promise
   if (session === null) {
     return unauthorizedResponse();
   }
+  // Il recinto del BDC vale anche per l'API, non solo per la pagina: il check-in lo conclude chi
+  // sta al veicolo.
+  if (!canAccess('check-in', session.role)) {
+    return forbiddenResponse("Il check-in è riservato agli accettatori e all'amministratore.");
+  }
   const raw: unknown = await request.json().catch(() => null);
   const parsed = CheckInBody.safeParse(raw);
   if (!parsed.success) {
@@ -44,6 +51,7 @@ export async function POST(request: NextRequest, context: RouteContext): Promise
     operatorId: session.operatorId,
     workstationId: session.workstationId,
     correlationId,
+    role: session.role,
   };
 
   const esito = await container.inspectionService.completeCheckIn(

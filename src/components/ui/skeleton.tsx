@@ -9,7 +9,7 @@ export function Skeleton({ className, ...props }: HTMLAttributes<HTMLDivElement>
   return (
     <div
       aria-hidden="true"
-      className={cn('animate-pulse rounded-md bg-line/80', className)}
+      className={cn('bg-line/80 animate-pulse rounded-md', className)}
       {...props}
     />
   );
@@ -55,7 +55,7 @@ export function CardSkeleton({
     <div role="status" aria-live="polite" className="flex flex-col gap-3">
       <span className="sr-only">{label}</span>
       {Array.from({ length: count }, (_, i) => (
-        <div key={i} className="rounded-2xl border-2 border-line bg-surface p-4">
+        <div key={i} className="border-line bg-surface rounded-2xl border-2 p-4">
           <div className="flex items-center justify-between gap-3">
             <div className="flex flex-col gap-2">
               <Skeleton className="h-8 w-40" />

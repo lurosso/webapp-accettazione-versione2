@@ -11,8 +11,13 @@ import { NextResponse, type NextRequest } from 'next/server';
 import { z } from 'zod';
 import { CUSTOMER_LATE_NOTICE_MINUTES, PUBLIC_LATE_NOTICE_RATE_LIMIT } from '@/config/constants';
 import { getContainer } from '@/config/container';
-import { badRequestResponse, domainErrorResponse } from '@/lib/http/api-error';
-import { clientIpFrom, hitRateLimit, type RateLimitRule } from '@/lib/http/rate-limit';
+import { badRequestResponse, publicErrorResponse } from '@/lib/http/api-error';
+import {
+  combineRateLimits,
+  hitPerIp,
+  hitRateLimit,
+  type RateLimitRule,
+} from '@/lib/http/rate-limit';
 import { publicLookupKey } from '../status/route';
 
 export const dynamic = 'force-dynamic';
@@ -23,6 +28,10 @@ const PER_IP: RateLimitRule = {
 };
 const PER_SUBJECT: RateLimitRule = {
   limit: PUBLIC_LATE_NOTICE_RATE_LIMIT.perPlate,
+  windowMs: PUBLIC_LATE_NOTICE_RATE_LIMIT.windowMs,
+};
+const GLOBALE: RateLimitRule = {
+  limit: PUBLIC_LATE_NOTICE_RATE_LIMIT.global,
   windowMs: PUBLIC_LATE_NOTICE_RATE_LIMIT.windowMs,
 };
 
@@ -49,7 +58,10 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
     return badRequestResponse('Indicare la targa del veicolo (campo `targa`).');
   }
 
-  const ipCheck = hitRateLimit(`late-ip:${clientIpFrom(request.headers)}`, PER_IP);
+  const ipCheck = combineRateLimits(
+    hitRateLimit('portale-scritture:globale', GLOBALE),
+    hitPerIp('late-ip', request.headers, PER_IP),
+  );
   const subjectCheck = ipCheck.allowed
     ? hitRateLimit(`late-${publicLookupKey(plate, token)}`, PER_SUBJECT)
     : ipCheck;
@@ -72,7 +84,7 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
     parsed.data.minutes ?? CUSTOMER_LATE_NOTICE_MINUTES,
   );
   if (!result.ok) {
-    return domainErrorResponse(result.error, { ...NO_STORE });
+    return publicErrorResponse(result.error, { ...NO_STORE });
   }
   return NextResponse.json(
     {

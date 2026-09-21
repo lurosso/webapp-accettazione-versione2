@@ -17,25 +17,7 @@ import { err, ok } from '@/domain/result';
 import type { IIdGenerator } from '../interfaces/IIdGenerator';
 import type { ILogger } from '../interfaces/ILogger';
 import type { IMediaStorage, MediaPutInput, StoredMedia } from '../interfaces/IMediaStorage';
-
-/** Estensione da usare per ogni tipo accettato (la chiave la porta sempre con sé). */
-const EXTENSION_BY_MIME: Readonly<Record<string, string>> = {
-  'image/jpeg': 'jpg',
-  'image/png': 'png',
-  'image/webp': 'webp',
-  'image/heic': 'heic',
-  'video/mp4': 'mp4',
-};
-
-/** Tipo da restituire in lettura, ricavato dall'estensione della chiave. */
-const MIME_BY_EXTENSION: Readonly<Record<string, string>> = {
-  jpg: 'image/jpeg',
-  jpeg: 'image/jpeg',
-  png: 'image/png',
-  webp: 'image/webp',
-  heic: 'image/heic',
-  mp4: 'video/mp4',
-};
+import { EXTENSION_BY_MIME, isAllowedMediaMime, MIME_BY_EXTENSION } from '@/lib/media/mime-types';
 
 const FALLBACK_MIME = 'application/octet-stream';
 
@@ -89,7 +71,9 @@ export class MediaStorageLocalDisk implements IMediaStorage {
   ): Promise<Result<{ readonly key: string; readonly url: string }, DomainError>> {
     // La chiave deve portare l'estensione del proprio tipo: così la rilettura sa cosa servire
     // senza tenere un secondo file di metadati accanto a ogni foto.
-    const attesa = EXTENSION_BY_MIME[input.mimeType];
+    const attesa = isAllowedMediaMime(input.mimeType)
+      ? EXTENSION_BY_MIME[input.mimeType]
+      : undefined;
     const chiave =
       attesa !== undefined && MIME_BY_EXTENSION[extensionOf(input.key)] !== input.mimeType
         ? `${input.key}.${attesa}`
