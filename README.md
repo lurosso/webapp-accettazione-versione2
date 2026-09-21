@@ -143,6 +143,31 @@ schermo, senza la barra di Safari, con la barra di stato traslucida sopra la tes
 manifest è `src/app/manifest.ts`; le icone PNG (`apple-touch-icon`, 192, 512) le genera
 `node scripts/genera-icone.mjs`, senza librerie grafiche.
 
+## Persistenza
+
+Dal 2026-09-21 lo stato dell'officina vive in un **database SQLite**, `.data/accettazione.db`
+(fuori da git), letto e scritto tramite **Prisma 7** con l'adapter `better-sqlite3`: pratiche —
+inclusi commessa chiusa e vincolo legale — metadati di foto e video, occupazioni delle postazioni,
+account degli operatori, sincronizzazioni, promemoria ed eventi verso il CRM. Un riavvio del server
+non perde più niente. I file di foto e video stanno su disco in `.data/uploads/` (una cartella per
+giornata e codice pratica, nomi con l'id del media) e si servono dalla rotta autenticata
+`GET /api/v1/media/[key]`, non come file statici: solo chi è collegato li vede.
+
+- `REPOSITORY_PROVIDER=prisma` e `DATABASE_URL=file:./.data/accettazione.db` (predefiniti in
+  `.env.example`; senza `DATABASE_URL` vale lo stesso file). `memory` resta per i test e per le
+  dimostrazioni usa e getta: l'`InMemoryStore` è **deprecato** come persistenza dell'officina.
+- **Migrazioni**: `npm run db:migrate` applica quelle in `prisma/migrations/` (`prisma migrate
+  deploy`); in sviluppo `npm run db:migrate:dev` ne crea di nuove dallo schema. Il client si genera
+  con `prisma generate`, che gira da solo dopo `npm install` e prima di `next build`.
+- I dati di riferimento — marchi, sportelli, postazioni, campate — non sono nel database: sono
+  configurazione (`src/config/seed.ts`) e cambiano con un rilascio, non durante il turno. Gli
+  operatori del seed entrano nel database **solo al primo avvio**, a tabella vuota; da lì in avanti
+  comanda il database, e un reset o una disattivazione fatti da `/admin` restano.
+- **Backup**: copia di `.data/` (database e media). Per il ripristino si rimette la cartella e si
+  riavvia.
+- I test dei repository (`tests/repositories/`) girano su un SQLite in una cartella temporanea,
+  applicando la stessa migrazione dell'officina: il database di sviluppo non viene toccato.
+
 ## Account dimostrativi
 
 Password unica per tutti: `demo`. Gli account sono definiti nel seed (`src/config/seed.ts`) e il

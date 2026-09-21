@@ -92,6 +92,11 @@ function isStateHolder(v: unknown): v is StateHolder {
 }
 
 /** Store in memoria condiviso da tutti i repository in-memory. */
+/**
+ * @deprecated come persistenza dell'officina: tutto quello che contiene sparisce al riavvio del
+ * processo. Resta il double dei test e delle dimostrazioni (REPOSITORY_PROVIDER=memory); la
+ * persistenza vera è SQLite via Prisma (REPOSITORY_PROVIDER=prisma, repositories/prisma).
+ */
 export class InMemoryStore {
   private constructor(private readonly holder: StateHolder) {}
 

@@ -393,6 +393,18 @@ L'orario di riferimento è sempre quello del server: l'orologio di una postazion
 
 ### 6.1 Stato condiviso lato server
 
+> **Aggiornamento 2026-09-21.** La persistenza dell'officina è **SQLite tramite Prisma 7**
+> (`REPOSITORY_PROVIDER=prisma`, `repositories/prisma/`, adapter `better-sqlite3`, schema in
+> `prisma/schema.prisma`, migrazioni in `prisma/migrations/`). Sette repository su otto sono su
+> database — pratiche, media, occupazioni, operatori, sync, notifiche, coda CRM — dietro le stesse
+> interfacce `I*Repository`, con gli stessi errori e ordinamenti dell'implementazione in memoria;
+> i dati di riferimento restano dal seed. Gli oggetti annidati (cliente, veicolo, tentativi,
+> payload) sono colonne JSON serializzate; le date sono testo ISO come nel dominio; la concorrenza
+> ottimistica è `UPDATE … WHERE id AND version`; il contatore dei codici è un `upsert` con
+> incremento. L'`InMemoryStore` descritto sotto è **deprecato** come persistenza (`@deprecated`):
+> resta il double dei test e delle dimostrazioni. Il vincolo di processo singolo resta (SQLite in
+> file, scheduler in-process), ma non dipende più dallo stato in memoria.
+
 Lo stato autorevole vive **esclusivamente nel server**, nell'unico processo Node di Next.js (`output: 'standalone'`, Docker/VM/servizio Windows; mai serverless o multi-istanza finché non esiste il repository Prisma). Risiede in `InMemoryStore` (stato grezzo su `globalThis.__accettazioneStore`, riconosciuto con un controllo strutturale e non con `instanceof`, così sopravvive all'HMR anche quando la classe viene rivalutata) dietro le interfacce `I*Repository`; da M1 ogni commit produce uno snapshot JSON debounced con scrittura atomica tmp+rename in `.data/state.json`, con rotazione `state.prev.json` prima di ogni scrittura e archivio `.data/archive/<businessDate>.json` alla chiusura giornata; all'avvio lo snapshot è validato e ripristinato (principale invalido → si tenta `prev`; entrambi invalidi → si parte vuoti, sync immediata, banner). Contatore codici e prese in carico non vanno mai persi per un file corrotto: la procedura di ripristino manuale è nel `RUNBOOK_OPERATIVO.md` (M6). Il client non possiede mai la coda: TanStack Query tiene una cache con `dataUpdatedAt`; Zustand (localStorage) conserva solo preferenze UI (postazione, vista globale, filtri).
 
 ### 6.2 Simulazione della sync delle 06:00

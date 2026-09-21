@@ -1,0 +1,187 @@
+// Schema del database dell'accettazione: la persistenza dietro le interfacce `I*Repository`.
+//
+// Una tabella per ogni cosa che deve sopravvivere a un riavvio: pratiche, media, occupazioni delle
+// postazioni, operatori, sincronizzazioni, notifiche, eventi verso il CRM, contatori dei codici.
+// I dati di riferimento (marchi, sportelli, postazioni) non sono qui: sono configurazione e
+// arrivano dal seed a ogni avvio.
+//
+// Gli oggetti annidati del dominio (cliente e veicolo di una pratica, contatori di una sync,
+// tentativi di una notifica, payload di un evento CRM) stanno in colonne JSON serializzate come
+// testo: SQLite non ha un tipo JSON nativo, e nessuna di quelle strutture si interroga per campo —
+// si legge e si scrive intera con la pratica. I campi su cui si cerca (targa, codice, stato,
+// giornata, scadenze) hanno una colonna propria e un indice.
+//
+// Le date sono testo ISO 8601 UTC, com'è nel dominio (`IsoDateTime`), non `DateTime`: si
+// confrontano come stringhe, non si convertono, e non c'è nessun fuso da sbagliare.
+
+generator client {
+  provider = "prisma-client"
+  output   = "../src/generated/prisma"
+}
+
+datasource db {
+  provider = "sqlite"
+}
+
+model Appointment {
+  id                   String  @id
+  externalRef          String?
+  source               String
+  flow                 String
+  workOrderRef         String?
+  businessDate         String
+  scheduledAt          String
+  rescheduledAt        String?
+  code                 String
+  sequence             Int
+  brandId              String
+  deskId               String?
+  /// Cliente e veicolo com'erano al momento della prenotazione: JSON.
+  customerJson         String
+  vehicleJson          String
+  /// Targa normalizzata, duplicata dal veicolo: è la ricerca dell'archivio.
+  plate                String
+  serviceDescription   String?
+  status               String
+  bayId                String?
+  operatorId           String?
+  skipCount            Int
+  notes                String?
+  takenAt              String?
+  skippedAt            String?
+  completedAt          String?
+  noShowAt             String?
+  cancelledAt          String?
+  autoClosedAt         String?
+  autoCloseConfirmedAt String?
+  customerLateNoticeAt String?
+  customerEtaAt        String?
+  customerArrivedAt    String?
+  /// Conservazione dei media: commessa chiusa in Infinity, vincolo legale dell'amministratore.
+  orderClosedAt        String?
+  legalHoldAt          String?
+  legalHoldReason      String?
+  lastSyncRunId        String?
+  version              Int
+  createdAt            String
+  updatedAt            String
+
+  @@unique([businessDate, code])
+  @@unique([businessDate, externalRef])
+  @@index([businessDate, status])
+  @@index([plate])
+  @@index([code])
+}
+
+model MediaAsset {
+  id                   String  @id
+  appointmentId        String
+  kind                 String
+  category             String?
+  mimeType             String
+  sizeBytes            Int
+  storageKey           String
+  thumbnailKey         String?
+  capturedByOperatorId String
+  capturedAt           String
+  note                 String?
+  expiresAt            String
+  archivedAt           String?
+
+  @@index([appointmentId])
+  @@index([archivedAt, expiresAt])
+}
+
+model WorkstationClaim {
+  workstationId String @id
+  operatorId    String
+  operatorName  String
+  claimedAt     String
+  expiresAt     String
+
+  @@index([operatorId])
+}
+
+model Operator {
+  id                   String  @id
+  username             String  @unique
+  displayName          String
+  role                 String
+  /// Sportelli assegnati: JSON di id.
+  deskIdsJson          String
+  defaultWorkstationId String?
+  passwordHash         String
+  isActive             Boolean
+  mustChangePassword   Boolean
+}
+
+model SyncRun {
+  id                    String  @id
+  businessDate          String
+  trigger               String
+  status                String
+  startedAt             String
+  finishedAt            String?
+  countersJson          String
+  errorCode             String?
+  errorMessage          String?
+  correlationId         String
+  triggeredByOperatorId String?
+
+  @@index([businessDate, startedAt])
+}
+
+model NotificationJob {
+  id                    String  @id
+  appointmentId         String
+  businessDate          String
+  kind                  String
+  idempotencyKey        String  @unique
+  recipientPhone        String?
+  whatsappOptIn         Boolean
+  code                  String
+  templateVariablesJson String
+  renderedText          String
+  status                String
+  currentChannel        String?
+  /// I tentativi di invio, in ordine: JSON.
+  attemptsJson          String
+  manualConfirmedBy     String?
+  manualNote            String?
+  createdAt             String
+  updatedAt             String
+
+  @@index([appointmentId])
+  @@index([businessDate, status])
+}
+
+model CrmOutboxEvent {
+  id                  String  @id
+  type                String
+  anomalyKind         String?
+  appointmentId       String
+  idempotencyKey      String  @unique
+  payloadJson         String
+  operatorNote        String?
+  status              String
+  attemptCount        Int
+  nextAttemptAt       String?
+  lastError           String?
+  crmAckId            String?
+  createdAt           String
+  sentAt              String?
+  handledAt           String?
+  handledByOperatorId String?
+  handledNote         String?
+
+  @@index([status, nextAttemptAt])
+}
+
+/// Contatore atomico dei codici (F001, R001…) per giornata e prefisso: un numero dato non si ridà.
+model Sequence {
+  businessDate String
+  prefix       String
+  value        Int
+
+  @@id([businessDate, prefix])
+}

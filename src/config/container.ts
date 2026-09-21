@@ -144,6 +144,11 @@ export function createContainer(overrides: ContainerOverrides = {}): Container {
   }
 
   const repos = createRepositories(env, { clock, store });
+  if (env.repositoryProvider === 'memory' && env.nodeEnv === 'production') {
+    logger.warn(
+      '[Container] REPOSITORY_PROVIDER=memory in produzione: la persistenza in memoria è DEPRECATA, pratiche, media e account spariscono al riavvio. Impostare REPOSITORY_PROVIDER=prisma e DATABASE_URL.',
+    );
+  }
   const external = createExternalServices(env, {
     clock,
     ids,

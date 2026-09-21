@@ -125,5 +125,7 @@ export default defineConfig([
     'coverage/**',
     'node_modules/**',
     'next-env.d.ts',
+    // Client Prisma generato: non è codice nostro.
+    'src/generated/**',
   ]),
 ]);

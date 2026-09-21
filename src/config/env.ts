@@ -9,6 +9,7 @@ import type {
   InfinityMockMode,
   ProviderMockMode,
 } from '@/services/interfaces/mock-config';
+import { databaseUrlFromEnv } from './database-url';
 import { MOCK_PHONE_RULES } from '@/services/interfaces/mock-config';
 import type {
   MediaStorageProvider,
@@ -96,6 +97,8 @@ export interface AppEnv {
   readonly mediaStorageProvider: MediaStorageProvider;
   /** Cartella dei file quando lo storage media è `local`. */
   readonly mediaStorageDir: string;
+  /** URL SQLite del database (`file:./.data/accettazione.db` se manca): vale con REPOSITORY_PROVIDER=prisma. */
+  readonly databaseUrl: string;
   /** Rinvii automatici al CRM dal processo dell'app (false quando li fa un cron esterno). */
   readonly crmRetryEnabled: boolean;
   /** Se true i monitor devono passare il token della propria accettazione (?token=). */
@@ -374,6 +377,7 @@ export function parseEnv(
       warn,
     ),
     mediaStorageDir: pickString(source, 'MEDIA_STORAGE_DIR', DEFAULT_MEDIA_DIR),
+    databaseUrl: databaseUrlFromEnv(source),
     crmRetryEnabled: pickBool(source, 'CRM_RETRY_ENABLED', true, warn),
     displayTokenRequired: pickBool(source, 'DISPLAY_TOKEN_REQUIRED', false, warn),
     messagingTriggersEnabled: pickBool(source, 'MESSAGING_TRIGGERS_ENABLED', true, warn),

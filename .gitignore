@@ -13,7 +13,10 @@ playwright-report/
 test-results/
 
 # Stato locale dell'applicazione (snapshot JSON, media caricati)
-.data/
+.data/*
+!.data/uploads/
+.data/uploads/*
+!.data/uploads/.gitkeep
 
 # Variabili d'ambiente (l'esempio resta versionato)
 .env
@@ -37,3 +40,6 @@ Thumbs.db
 # Materiale di lavoro delle sessioni Claude (tavole rese, screenshot, patch di scambio):
 # non è codice e pesa qualche megabyte. Se una tavola diventa documentazione, va in docs/.
 Claude outputs/
+
+# Client Prisma generato da `prisma generate` (postinstall e build): non si versiona
+src/generated/

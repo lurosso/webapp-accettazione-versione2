@@ -28,7 +28,8 @@ const nextConfig: NextConfig = {
   allowedDevOrigins: [...devOrigins()],
   // Il driver ODBC è un modulo nativo (binario .node): resta fuori dal bundle e viene richiesto a
   // runtime dal processo Node solo quando INFINITY_PROVIDER=real.
-  serverExternalPackages: ['odbc'],
+  // Stessa cosa per SQLite: `better-sqlite3` è nativo e l'adapter Prisma lo richiede a runtime.
+  serverExternalPackages: ['odbc', 'better-sqlite3', '@prisma/adapter-better-sqlite3'],
   async headers() {
     return [{ source: '/:path*', headers: SECURITY_HEADERS }];
   },
