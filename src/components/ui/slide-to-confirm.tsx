@@ -8,18 +8,21 @@
 // assente genera un lead per il BDC e un evento verso il CRM, concludere il check-in manda il
 // fascicolo e chiude la pratica. Sono cose che il cliente vede, e che non si disfano da qui.
 //
-// Perché uno scorrimento e non una pressione più lunga: tenere premuto più a lungo non è un gesto
-// diverso, è lo stesso gesto più noioso — e un dito appoggiato per sbaglio ci arriva comunque, se
-// il tablet resta in mano. Uno scorrimento è un movimento che la manica non fa.
-//
-// IL GESTO È IL TRASCINAMENTO, NON IL TOCCO. Prima il dito parlava direttamente con un
-// `input[type=range]`: toccando la pista il cursore saltava al punto toccato, e un tocco in fondo
-// alla pista — cioè l'unico punto dove un dito distratto va a finire — valeva come uno scorrimento
-// completo. Sull'iPad si vedeva subito. Adesso il dito parla con la pista tramite gli eventi
+// IL GESTO È IL TRASCINAMENTO, NON IL TOCCO. Il dito parla con la pista tramite gli eventi
 // puntatore: il cursore avanza di quanto il dito SI SPOSTA da dove ha toccato, non di dove ha
 // toccato. Un tocco secco è uno spostamento zero, e vale zero. `setPointerCapture` tiene il dito
 // anche se scivola fuori dalla pista, `touch-action: none` impedisce a Safari di leggere lo
 // scorrimento come un pan della pagina.
+//
+// DURANTE IL TRASCINAMENTO REACT NON C'È. Sull'iPad, con uno swipe veloce, il pollice restava
+// indietro rispetto al dito: ogni `pointermove` passava da `setState`, cioè da un ciclo di render, e
+// muoveva `width` e `left`, cioè costringeva Safari a rifare il layout a ogni frame. Adesso il
+// movimento scrive direttamente sui nodi — `ref` al pollice e al riempimento — e scrive SOLO
+// `transform: translate3d(...)`, che il compositore applica sulla GPU senza toccare il layout;
+// `will-change: transform` gli chiede di tenere quei due nodi su un livello proprio. React torna
+// in gioco al rilascio: è lì che si decide se il gesto vale, e lì lo stato (e il `range` sotto)
+// riceve il valore finale. Il ritorno a riposo è una transizione CSS impostata sui nodi prima di
+// riportarli a zero: fluido, e senza render.
 //
 // Dentro resta un `input[type=range]` vero, trasparente e senza eventi puntatore. Non è un dettaglio
 // d'implementazione: è quello che rende il comando raggiungibile con le FRECCE della tastiera e
@@ -30,13 +33,22 @@
 // riporta il cursore all'inizio, perché un trascinamento interrotto è un ripensamento; una freccia
 // premuta una volta lo lascia dov'è, perché con la tastiera il gesto si compone un colpo alla
 // volta e azzerare a ogni tasto lo renderebbe irraggiungibile.
-import { useCallback, useRef, useState, type PointerEvent as ReactPointerEvent } from 'react';
+import {
+  useCallback,
+  useEffect,
+  useLayoutEffect,
+  useRef,
+  useState,
+  type PointerEvent as ReactPointerEvent,
+} from 'react';
 import { cn } from '@/lib/utils/cn';
 
 /** Sopra questa percentuale il gesto vale: gli ultimi pixel non si pretendono col dito. */
 export const SOGLIA = 96;
 /** Quanto avanza ogni freccia: cinque colpi per arrivare in fondo. */
 export const PASSO = 20;
+/** Quanto dura il ritorno a riposo, o la corsa finale dopo la soglia. */
+export const RITORNO_MS = 200;
 /**
  * Sotto questa larghezza non c'è un gesto da fare: il cursore diventa una fessura e chi ha premuto
  * «Assente» si trova davanti un pulsante «Annulla» e nient'altro. È successo davvero, in una
@@ -46,6 +58,8 @@ export const PASSO = 20;
 const LARGHEZZA_MINIMA = '16rem';
 /** Il pollice sta dentro `inset-1`: quattro pixel per lato che non fanno parte della corsa. */
 const MARGINE_POLLICE_PX = 8;
+/** L'etichetta è sparita a questa frazione di corsa: chi è arrivato fin lì sa cosa sta facendo. */
+const CORSA_ETICHETTA = 0.6;
 
 /** Come si è concluso il gesto. La tastiera non è il dito, e finiscono in modo diverso. */
 export type Rilascio = 'dito' | 'tastiera' | 'uscita';
@@ -79,6 +93,34 @@ export function valoreDaTrascinamento(spostamentoPx: number, corsaPx: number): n
   return Math.min(100, Math.max(0, Math.round((spostamentoPx / corsaPx) * 100)));
 }
 
+/**
+ * Le due trasformazioni, in pixel, per una posizione del pollice `px` lungo la corsa. Solo
+ * `translate3d`: niente `width`, niente `left`, niente layout.
+ *
+ * Il riempimento è largo quanto la pista e a riposo sta tutto a sinistra, fuori vista, nascosto
+ * dall'`overflow-hidden`. Avanza di quanto avanza il pollice, così la sua estremità destra — che è
+ * arrotondata come la pista — resta sempre appena dietro il pollice: a zero non si vede, in fondo
+ * arriva dove il pollice comincia. Il colore cresce senza che nessun elemento cambi misura.
+ */
+export function trasformazioni(
+  px: number,
+  corsaPx: number,
+  larghezzaPistaPx: number,
+): { readonly pollice: string; readonly riempimento: string } {
+  const p = Math.min(Math.max(px, 0), Math.max(corsaPx, 0));
+  return {
+    pollice: `translate3d(${p}px, 0, 0)`,
+    riempimento: `translate3d(${p - larghezzaPistaPx}px, 0, 0)`,
+  };
+}
+
+/** Il ritorno a riposo dura `RITORNO_MS`, oppure zero per chi ha chiesto meno movimento. */
+function durataRitorno(): string {
+  const ridotto =
+    typeof window !== 'undefined' && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+  return `${ridotto ? 0 : RITORNO_MS}ms ease-out`;
+}
+
 export type SlideTone = 'destructive' | 'success';
 
 export interface SlideToConfirmProps {
@@ -110,12 +152,22 @@ const TONO: Record<SlideTone, { riempimento: string; bordo: string; testo: strin
   },
 };
 
-/** Il dito che sta trascinando: da dove è partito e quanta pista ha davanti. */
+/** Il dito che sta trascinando: da dove è partito e fin dove è arrivato. */
 interface Trascinamento {
   readonly pointerId: number;
   readonly partenzaX: number;
-  readonly corsaPx: number;
+  ultimoPx: number;
 }
+
+/** Misure della pista, prese una volta e riprese quando cambia dimensione. */
+interface Misure {
+  readonly pista: number;
+  readonly corsa: number;
+}
+
+/** A riposo, senza sapere quanto è larga la pista: il riempimento è tutto a sinistra. */
+const RIPOSO_RIEMPIMENTO = { transform: 'translate3d(-100%, 0, 0)' } as const;
+const RIPOSO_POLLICE = { transform: 'translate3d(0, 0, 0)' } as const;
 
 export function SlideToConfirm({
   onConfirm,
@@ -128,31 +180,100 @@ export function SlideToConfirm({
   className,
   'data-testid': testId,
 }: SlideToConfirmProps) {
+  /** Il valore che React conosce: cambia con la tastiera e al rilascio del dito, mai durante. */
   const [valore, setValore] = useState(0);
-  /** Mentre il dito trascina il riempimento segue senza transizione, o resta indietro. */
+  /** Solo per il cursore del mouse: `grab` / `grabbing`. */
   const [trascinando, setTrascinando] = useState(false);
   /** Una volta partita l'azione il cursore resta in fondo: non rimbalza mentre il server risponde. */
   const partita = useRef(false);
   const pista = useRef<HTMLDivElement | null>(null);
   const pollice = useRef<HTMLSpanElement | null>(null);
+  const riempimento = useRef<HTMLSpanElement | null>(null);
+  const etichetta = useRef<HTMLSpanElement | null>(null);
+  const misure = useRef<Misure>({ pista: 0, corsa: 0 });
   const dito = useRef<Trascinamento | null>(null);
   const colori = TONO[tone];
   const spento = disabled || pending;
+
+  const misura = useCallback((): void => {
+    const larghezzaPista = pista.current?.getBoundingClientRect().width ?? 0;
+    const larghezzaPollice = pollice.current?.getBoundingClientRect().width ?? 0;
+    misure.current = {
+      pista: larghezzaPista,
+      corsa: Math.max(0, larghezzaPista - larghezzaPollice - MARGINE_POLLICE_PX),
+    };
+  }, []);
+
+  /**
+   * Scrive la posizione sui nodi, senza passare da React. `transizione` vuota = nessuna, il dito
+   * comanda; altrimenti il movimento è animato (ritorno a riposo, corsa finale).
+   */
+  const posiziona = useCallback(
+    (px: number, transizione: string): void => {
+      const { corsa, pista: larghezzaPista } = misure.current;
+      const t = trasformazioni(px, corsa, larghezzaPista);
+      const p = pollice.current;
+      const r = riempimento.current;
+      const e = etichetta.current;
+      if (p !== null) {
+        p.style.transition = transizione === '' ? 'none' : `transform ${transizione}`;
+        p.style.transform = t.pollice;
+      }
+      if (r !== null) {
+        r.style.transition = transizione === '' ? 'none' : `transform ${transizione}`;
+        r.style.transform = t.riempimento;
+      }
+      if (e !== null) {
+        // L'etichetta sbiadisce lungo la corsa: `opacity` la compone la GPU come il transform.
+        const frazione = corsa > 0 ? Math.min(1, Math.max(0, px / corsa)) : 0;
+        e.style.transition = transizione === '' ? 'none' : `opacity ${transizione}`;
+        e.style.opacity = String(pending ? 1 : Math.max(0, 1 - frazione / CORSA_ETICHETTA));
+      }
+    },
+    [pending],
+  );
+
+  // Le misure seguono la pista: al primo disegno e ogni volta che cambia larghezza (rotazione
+  // del tablet, pannello che si stringe). Senza, dopo una rotazione la corsa sarebbe quella vecchia.
+  useEffect(() => {
+    misura();
+    const nodo = pista.current;
+    if (nodo === null || typeof ResizeObserver === 'undefined') {
+      return undefined;
+    }
+    const osservatore = new ResizeObserver(() => {
+      misura();
+      if (dito.current === null) {
+        posiziona((valore / 100) * misure.current.corsa, '');
+      }
+    });
+    osservatore.observe(nodo);
+    return () => osservatore.disconnect();
+  }, [misura, posiziona, valore]);
+
+  // Quando è React a cambiare il valore — frecce della tastiera, rilascio, conferma — i nodi lo
+  // seguono con l'animazione. Mai mentre il dito è sulla pista: lì comanda lui.
+  useLayoutEffect(() => {
+    if (dito.current !== null) {
+      return;
+    }
+    posiziona((valore / 100) * misure.current.corsa, durataRitorno());
+  }, [valore, posiziona]);
 
   const conferma = useCallback((): void => {
     if (partita.current) {
       return;
     }
     partita.current = true;
+    // In fondo con l'animazione, subito: il dito potrebbe essersi fermato al 97%.
+    posiziona(misure.current.corsa, durataRitorno());
     setValore(100);
     onConfirm();
-  }, [onConfirm]);
+  }, [onConfirm, posiziona]);
 
-  const applica = (come: Rilascio, valoreFinale = valore): void => {
-    if (come === 'dito') {
-      setTrascinando(false);
-    }
-    const esito = esitoRilascio(valoreFinale, come);
+  /** Il rilascio, da tastiera o per uscita dal campo: qui il valore è quello dello stato. */
+  const applica = (come: Rilascio): void => {
+    const esito = esitoRilascio(valore, come);
     if (esito === 'conferma') {
       conferma();
     } else if (esito === 'azzera' && !partita.current) {
@@ -167,27 +288,33 @@ export function SlideToConfirm({
     }
     // Niente selezione del testo, niente eventi mouse di compatibilità, niente callout di iOS.
     event.preventDefault();
-    const larghezzaPista = pista.current?.getBoundingClientRect().width ?? 0;
-    const larghezzaPollice = pollice.current?.getBoundingClientRect().width ?? 0;
-    dito.current = {
-      pointerId: event.pointerId,
-      partenzaX: event.clientX,
-      corsaPx: larghezzaPista - larghezzaPollice - MARGINE_POLLICE_PX,
-    };
+    misura();
+    dito.current = { pointerId: event.pointerId, partenzaX: event.clientX, ultimoPx: 0 };
     // La cattura tiene il dito anche quando scivola fuori dalla pista: il cursore non si blocca a
-    // metà perché il pollice è uscito di un centimetro, e il rilascio arriva sempre a noi.
-    event.currentTarget.setPointerCapture(event.pointerId);
+    // metà perché il pollice è uscito di un centimetro, e il rilascio arriva sempre a noi. Un
+    // puntatore non attivo (eventi sintetici, nei test) farebbe lanciare la cattura: senza cattura
+    // il gesto funziona comunque, solo non segue il dito fuori dalla pista.
+    try {
+      event.currentTarget.setPointerCapture(event.pointerId);
+    } catch {
+      // nessuna cattura: vedi sopra
+    }
     setTrascinando(true);
+    posiziona(0, '');
   };
 
+  /** Il dito si muove: solo DOM, nessun render. È il frame che sull'iPad deve stare a 60/120. */
   const trascinata = (event: ReactPointerEvent<HTMLDivElement>): void => {
     const d = dito.current;
     if (d === null || event.pointerId !== d.pointerId) {
       return;
     }
-    setValore(valoreDaTrascinamento(event.clientX - d.partenzaX, d.corsaPx));
+    const px = Math.min(misure.current.corsa, Math.max(0, event.clientX - d.partenzaX));
+    d.ultimoPx = px;
+    posiziona(px, '');
   };
 
+  /** Il dito si alza: è l'unico momento in cui si decide, e in cui React torna in gioco. */
   const lasciata = (event: ReactPointerEvent<HTMLDivElement>): void => {
     const d = dito.current;
     if (d === null || event.pointerId !== d.pointerId) {
@@ -197,12 +324,19 @@ export function SlideToConfirm({
     if (event.currentTarget.hasPointerCapture(event.pointerId)) {
       event.currentTarget.releasePointerCapture(event.pointerId);
     }
-    // Il valore si calcola qui dall'ultima posizione, non si legge dallo stato: fra l'ultimo
-    // `move` e l'`up` React potrebbe non aver ancora disegnato.
-    applica('dito', valoreDaTrascinamento(event.clientX - d.partenzaX, d.corsaPx));
+    setTrascinando(false);
+    // La posizione finale si calcola dall'evento, non si legge da nessuno stato: fra l'ultimo
+    // `move` e l'`up` non c'è stato nessun render, e non doveva esserci.
+    const spostamento = event.clientX - d.partenzaX;
+    const esito = esitoRilascio(valoreDaTrascinamento(spostamento, misure.current.corsa), 'dito');
+    if (esito === 'conferma') {
+      conferma();
+      return;
+    }
+    // Ripensamento: si torna a riposo con la transizione, e il `range` riceve lo zero.
+    posiziona(0, durataRitorno());
+    setValore(0);
   };
-
-  const animazione = trascinando ? 'none' : '240ms var(--ease-smooth)';
 
   return (
     <div
@@ -222,11 +356,18 @@ export function SlideToConfirm({
       onPointerUp={lasciata}
       onPointerCancel={lasciata}
     >
-      {/* Il riempimento è il disegno; l'input vero è trasparente e sta sopra, per la tastiera. */}
+      {/*
+       * Il riempimento: largo quanto la pista, a riposo tutto a sinistra fuori vista. React gli
+       * dà solo la posizione di riposo; da lì in avanti lo muove `posiziona`, col transform.
+       */}
       <span
+        ref={riempimento}
         aria-hidden="true"
-        className={cn('absolute inset-y-0 left-0 rounded-full', colori.riempimento)}
-        style={{ width: `${valore}%`, transition: `width ${animazione}` }}
+        className={cn(
+          'absolute inset-y-0 left-0 w-full rounded-full will-change-transform',
+          colori.riempimento,
+        )}
+        style={RIPOSO_RIEMPIMENTO}
       />
       {/*
        * L'etichetta sbiadisce mentre il riempimento avanza, invece di restare ferma sotto. Tenerla
@@ -235,38 +376,32 @@ export function SlideToConfirm({
        * il comando. A due terzi di corsa non serve più — chi è arrivato fin lì sa cosa sta facendo.
        */}
       <span
+        ref={etichetta}
         aria-hidden="true"
         className={cn(
           // Spazio a sinistra solo per il pollice; a destra basta un margine. Con `px-14` su un
           // cursore stretto restavano cento pixel di testo e l'etichetta andava a capo tre volte,
           // sbordando da una pista alta una riga sola. `truncate`: una riga, sempre.
-          'testo-corpo pointer-events-none absolute inset-0 flex items-center justify-center truncate pr-5 pl-16 text-center font-semibold',
+          'testo-corpo pointer-events-none absolute inset-0 flex items-center justify-center truncate pr-5 pl-16 text-center font-semibold will-change-[opacity]',
           colori.testo,
         )}
-        style={{
-          opacity: pending ? 1 : Math.max(0, 1 - valore / 60),
-          transition: `opacity ${animazione}`,
-        }}
       >
         {pending ? pendingLabel : label}
       </span>
-      {/* Il pollice: dice dove mettere il dito, e dove sta andando. */}
+      {/* Il pollice: dice dove mettere il dito, e dove sta andando. Si muove solo col transform. */}
       <span aria-hidden="true" className="pointer-events-none absolute inset-1">
         <span
           ref={pollice}
-          className="bg-surface text-ink-soft absolute top-0 bottom-0 flex aspect-square items-center justify-center rounded-full text-xl leading-none font-bold shadow-sm"
-          style={{
-            left: `${valore}%`,
-            transform: `translateX(-${valore}%)`,
-            transition: `left ${animazione}, transform ${animazione}`,
-          }}
+          className="bg-surface text-ink-soft absolute top-0 bottom-0 left-0 flex aspect-square items-center justify-center rounded-full text-xl leading-none font-bold shadow-sm will-change-transform"
+          style={RIPOSO_POLLICE}
         >
           ›
         </span>
       </span>
       {/*
        * Solo tastiera e screen reader: `pointer-events-none` lascia passare il dito alla pista.
-       * Il valore lo cambiano le frecce (`onChange`), il rilascio del tasto decide (`onKeyUp`).
+       * Il valore lo cambiano le frecce (`onChange`), il rilascio del tasto decide (`onKeyUp`), e al
+       * rilascio del dito riceve il valore finale (0 o 100) da React.
        */}
       <input
         type="range"

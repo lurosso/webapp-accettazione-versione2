@@ -9,7 +9,9 @@ import { describe, expect, it } from 'vitest';
 import {
   esitoRilascio,
   PASSO,
+  RITORNO_MS,
   SOGLIA,
+  trasformazioni,
   valoreDaTrascinamento,
 } from '@/components/ui/slide-to-confirm';
 
@@ -78,5 +80,49 @@ describe('il gesto è il trascinamento, non il tocco', () => {
     // 80% di corsa e poi il dito si alza: sotto soglia, e col dito si torna a zero.
     expect(esitoRilascio(valoreDaTrascinamento(240, 300), 'dito')).toBe('azzera');
     expect(esitoRilascio(valoreDaTrascinamento(300, 300), 'dito')).toBe('conferma');
+  });
+});
+
+describe('solo transform: niente width, niente left, niente layout', () => {
+  // Pista da 256 px, pollice da 40: la corsa utile è 256 - 40 - 8 = 208.
+  const PISTA = 256;
+  const CORSA = 208;
+
+  it('a riposo il pollice è a zero e il riempimento è tutto fuori vista, a sinistra', () => {
+    expect(trasformazioni(0, CORSA, PISTA)).toEqual({
+      pollice: 'translate3d(0px, 0, 0)',
+      riempimento: 'translate3d(-256px, 0, 0)',
+    });
+  });
+
+  it('il riempimento avanza di quanto avanza il pollice: il suo bordo destro gli resta dietro', () => {
+    const t = trasformazioni(104, CORSA, PISTA);
+    expect(t.pollice).toBe('translate3d(104px, 0, 0)');
+    expect(t.riempimento).toBe('translate3d(-152px, 0, 0)');
+  });
+
+  it('in fondo il pollice è a fine corsa e il riempimento arriva dove il pollice comincia', () => {
+    expect(trasformazioni(CORSA, CORSA, PISTA)).toEqual({
+      pollice: 'translate3d(208px, 0, 0)',
+      riempimento: 'translate3d(-48px, 0, 0)',
+    });
+  });
+
+  it('oltre la corsa o indietro si ferma ai bordi: il pollice non esce dalla pista', () => {
+    expect(trasformazioni(999, CORSA, PISTA).pollice).toBe('translate3d(208px, 0, 0)');
+    expect(trasformazioni(-30, CORSA, PISTA).pollice).toBe('translate3d(0px, 0, 0)');
+  });
+
+  it('ogni stringa è un translate3d e nient altro: è quello che il compositore muove senza layout', () => {
+    for (const px of [0, 50, CORSA]) {
+      const t = trasformazioni(px, CORSA, PISTA);
+      expect(t.pollice).toMatch(/^translate3d\(-?\d+px, 0, 0\)$/);
+      expect(t.riempimento).toMatch(/^translate3d\(-?\d+px, 0, 0\)$/);
+    }
+  });
+
+  it('il ritorno a riposo è breve: si vede, non si aspetta', () => {
+    expect(RITORNO_MS).toBeGreaterThanOrEqual(150);
+    expect(RITORNO_MS).toBeLessThanOrEqual(300);
   });
 });
