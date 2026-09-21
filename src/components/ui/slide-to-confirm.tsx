@@ -12,16 +12,25 @@
 // diverso, è lo stesso gesto più noioso — e un dito appoggiato per sbaglio ci arriva comunque, se
 // il tablet resta in mano. Uno scorrimento è un movimento che la manica non fa.
 //
-// Dentro c'è un `input[type=range]` vero, trasparente sopra il disegno. Non è un dettaglio
+// IL GESTO È IL TRASCINAMENTO, NON IL TOCCO. Prima il dito parlava direttamente con un
+// `input[type=range]`: toccando la pista il cursore saltava al punto toccato, e un tocco in fondo
+// alla pista — cioè l'unico punto dove un dito distratto va a finire — valeva come uno scorrimento
+// completo. Sull'iPad si vedeva subito. Adesso il dito parla con la pista tramite gli eventi
+// puntatore: il cursore avanza di quanto il dito SI SPOSTA da dove ha toccato, non di dove ha
+// toccato. Un tocco secco è uno spostamento zero, e vale zero. `setPointerCapture` tiene il dito
+// anche se scivola fuori dalla pista, `touch-action: none` impedisce a Safari di leggere lo
+// scorrimento come un pan della pagina.
+//
+// Dentro resta un `input[type=range]` vero, trasparente e senza eventi puntatore. Non è un dettaglio
 // d'implementazione: è quello che rende il comando raggiungibile con le FRECCE della tastiera e
-// leggibile da uno screen reader (ruolo slider, valore corrente), senza riscrivere a mano né
-// l'uno né l'altro. Nessuna azione dell'applicazione è raggiungibile solo con un gesto.
+// leggibile da uno screen reader (ruolo slider, valore corrente), senza riscrivere a mano né l'uno
+// né l'altro. Nessuna azione dell'applicazione è raggiungibile solo con un gesto.
 //
 // Il dito e la tastiera si lasciano in modo diverso, ed è voluto: alzare il dito a metà strada
 // riporta il cursore all'inizio, perché un trascinamento interrotto è un ripensamento; una freccia
 // premuta una volta lo lascia dov'è, perché con la tastiera il gesto si compone un colpo alla
 // volta e azzerare a ogni tasto lo renderebbe irraggiungibile.
-import { useCallback, useRef, useState } from 'react';
+import { useCallback, useRef, useState, type PointerEvent as ReactPointerEvent } from 'react';
 import { cn } from '@/lib/utils/cn';
 
 /** Sopra questa percentuale il gesto vale: gli ultimi pixel non si pretendono col dito. */
@@ -35,6 +44,8 @@ export const PASSO = 20;
  * lui, fino a zero pixel. Sotto questa soglia il pulsante accanto va a capo, e il cursore resta.
  */
 const LARGHEZZA_MINIMA = '16rem';
+/** Il pollice sta dentro `inset-1`: quattro pixel per lato che non fanno parte della corsa. */
+const MARGINE_POLLICE_PX = 8;
 
 /** Come si è concluso il gesto. La tastiera non è il dito, e finiscono in modo diverso. */
 export type Rilascio = 'dito' | 'tastiera' | 'uscita';
@@ -53,6 +64,19 @@ export function esitoRilascio(valore: number, come: Rilascio): EsitoRilascio {
     return 'conferma';
   }
   return come === 'tastiera' ? 'resta' : 'azzera';
+}
+
+/**
+ * Quanto vale il cursore dopo uno spostamento del dito di `spostamentoPx` su una corsa utile di
+ * `corsaPx` (la pista meno il pollice). È la regola che rende innocuo il tocco secco: zero
+ * spostamento, zero valore, qualunque sia il punto toccato. Oltre la corsa vale cento, indietro
+ * vale zero; una corsa nulla o negativa (pista collassata) non produce mai un valore.
+ */
+export function valoreDaTrascinamento(spostamentoPx: number, corsaPx: number): number {
+  if (!(corsaPx > 0) || !Number.isFinite(spostamentoPx)) {
+    return 0;
+  }
+  return Math.min(100, Math.max(0, Math.round((spostamentoPx / corsaPx) * 100)));
 }
 
 export type SlideTone = 'destructive' | 'success';
@@ -86,6 +110,13 @@ const TONO: Record<SlideTone, { riempimento: string; bordo: string; testo: strin
   },
 };
 
+/** Il dito che sta trascinando: da dove è partito e quanta pista ha davanti. */
+interface Trascinamento {
+  readonly pointerId: number;
+  readonly partenzaX: number;
+  readonly corsaPx: number;
+}
+
 export function SlideToConfirm({
   onConfirm,
   label,
@@ -102,6 +133,9 @@ export function SlideToConfirm({
   const [trascinando, setTrascinando] = useState(false);
   /** Una volta partita l'azione il cursore resta in fondo: non rimbalza mentre il server risponde. */
   const partita = useRef(false);
+  const pista = useRef<HTMLDivElement | null>(null);
+  const pollice = useRef<HTMLSpanElement | null>(null);
+  const dito = useRef<Trascinamento | null>(null);
   const colori = TONO[tone];
   const spento = disabled || pending;
 
@@ -114,11 +148,11 @@ export function SlideToConfirm({
     onConfirm();
   }, [onConfirm]);
 
-  const applica = (come: Rilascio): void => {
+  const applica = (come: Rilascio, valoreFinale = valore): void => {
     if (come === 'dito') {
       setTrascinando(false);
     }
-    const esito = esitoRilascio(valore, come);
+    const esito = esitoRilascio(valoreFinale, come);
     if (esito === 'conferma') {
       conferma();
     } else if (esito === 'azzera' && !partita.current) {
@@ -126,20 +160,69 @@ export function SlideToConfirm({
     }
   };
 
+  /** Il dito tocca la pista: da qui in avanti conta solo di quanto si sposta. */
+  const toccata = (event: ReactPointerEvent<HTMLDivElement>): void => {
+    if (spento || partita.current || dito.current !== null) {
+      return;
+    }
+    // Niente selezione del testo, niente eventi mouse di compatibilità, niente callout di iOS.
+    event.preventDefault();
+    const larghezzaPista = pista.current?.getBoundingClientRect().width ?? 0;
+    const larghezzaPollice = pollice.current?.getBoundingClientRect().width ?? 0;
+    dito.current = {
+      pointerId: event.pointerId,
+      partenzaX: event.clientX,
+      corsaPx: larghezzaPista - larghezzaPollice - MARGINE_POLLICE_PX,
+    };
+    // La cattura tiene il dito anche quando scivola fuori dalla pista: il cursore non si blocca a
+    // metà perché il pollice è uscito di un centimetro, e il rilascio arriva sempre a noi.
+    event.currentTarget.setPointerCapture(event.pointerId);
+    setTrascinando(true);
+  };
+
+  const trascinata = (event: ReactPointerEvent<HTMLDivElement>): void => {
+    const d = dito.current;
+    if (d === null || event.pointerId !== d.pointerId) {
+      return;
+    }
+    setValore(valoreDaTrascinamento(event.clientX - d.partenzaX, d.corsaPx));
+  };
+
+  const lasciata = (event: ReactPointerEvent<HTMLDivElement>): void => {
+    const d = dito.current;
+    if (d === null || event.pointerId !== d.pointerId) {
+      return;
+    }
+    dito.current = null;
+    if (event.currentTarget.hasPointerCapture(event.pointerId)) {
+      event.currentTarget.releasePointerCapture(event.pointerId);
+    }
+    // Il valore si calcola qui dall'ultima posizione, non si legge dallo stato: fra l'ultimo
+    // `move` e l'`up` React potrebbe non aver ancora disegnato.
+    applica('dito', valoreDaTrascinamento(event.clientX - d.partenzaX, d.corsaPx));
+  };
+
   const animazione = trascinando ? 'none' : '240ms var(--ease-smooth)';
 
   return (
     <div
+      ref={pista}
+      data-testid={testId === undefined ? undefined : `${testId}-pista`}
       className={cn(
         'border-line bg-surface relative isolate overflow-hidden rounded-full border select-none',
-        'controllo-lg',
+        'controllo-lg touch-none',
+        trascinando ? 'cursor-grabbing' : 'cursor-grab',
         colori.bordo,
         spento && 'pointer-events-none opacity-60',
         className,
       )}
       style={{ minWidth: LARGHEZZA_MINIMA }}
+      onPointerDown={toccata}
+      onPointerMove={trascinata}
+      onPointerUp={lasciata}
+      onPointerCancel={lasciata}
     >
-      {/* Il riempimento è il disegno; l'input vero è trasparente e sta sopra. */}
+      {/* Il riempimento è il disegno; l'input vero è trasparente e sta sopra, per la tastiera. */}
       <span
         aria-hidden="true"
         className={cn('absolute inset-y-0 left-0 rounded-full', colori.riempimento)}
@@ -170,6 +253,7 @@ export function SlideToConfirm({
       {/* Il pollice: dice dove mettere il dito, e dove sta andando. */}
       <span aria-hidden="true" className="pointer-events-none absolute inset-1">
         <span
+          ref={pollice}
           className="bg-surface text-ink-soft absolute top-0 bottom-0 flex aspect-square items-center justify-center rounded-full text-xl leading-none font-bold shadow-sm"
           style={{
             left: `${valore}%`,
@@ -180,6 +264,10 @@ export function SlideToConfirm({
           ›
         </span>
       </span>
+      {/*
+       * Solo tastiera e screen reader: `pointer-events-none` lascia passare il dito alla pista.
+       * Il valore lo cambiano le frecce (`onChange`), il rilascio del tasto decide (`onKeyUp`).
+       */}
       <input
         type="range"
         min={0}
@@ -190,11 +278,8 @@ export function SlideToConfirm({
         data-testid={testId}
         aria-label={actionLabel}
         aria-valuetext={valore >= SOGLIA ? 'in fondo: rilascia per confermare' : `${valore}%`}
-        className="focus-anello absolute inset-0 h-full w-full cursor-grab opacity-0"
-        onPointerDown={() => setTrascinando(true)}
+        className="focus-anello pointer-events-none absolute inset-0 h-full w-full opacity-0"
         onChange={(event) => setValore(Number(event.target.value))}
-        onPointerUp={() => applica('dito')}
-        onPointerCancel={() => applica('dito')}
         onKeyUp={() => applica('tastiera')}
         onBlur={() => applica('uscita')}
       />

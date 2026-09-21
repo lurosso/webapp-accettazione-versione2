@@ -29,7 +29,18 @@ export const metadata: Metadata = {
   description: "Web app operatore, portale cliente e monitor di accettazione per l'officina.",
   // Aggiunta alla schermata iniziale del tablet, l'app si apre senza la cornice del browser.
   manifest: '/manifest.webmanifest',
-  appleWebApp: { capable: true, title: 'Check-in', statusBarStyle: 'default' },
+  // iOS non legge le icone del manifest: per la schermata Home vuole `apple-touch-icon` in PNG,
+  // altrimenti ci mette uno screenshot della pagina. `black-translucent` fa scorrere la pagina
+  // sotto la barra di stato — il blu della testata la riempie — e la testata rispetta il ritaglio
+  // con `safe-area-inset-top`.
+  appleWebApp: { capable: true, title: 'AutoClub', statusBarStyle: 'black-translucent' },
+  icons: {
+    icon: [
+      { url: '/icon-192.png', sizes: '192x192', type: 'image/png' },
+      { url: '/icon-512.png', sizes: '512x512', type: 'image/png' },
+    ],
+    apple: [{ url: '/apple-touch-icon.png', sizes: '180x180', type: 'image/png' }],
+  },
 };
 
 export const viewport: Viewport = {

@@ -6,7 +6,12 @@
 // componente si limita ad applicarla. È lo stesso taglio del resto del progetto — la regola sta
 // dove si può leggere e provare, il disegno le sta intorno.
 import { describe, expect, it } from 'vitest';
-import { esitoRilascio, PASSO, SOGLIA } from '@/components/ui/slide-to-confirm';
+import {
+  esitoRilascio,
+  PASSO,
+  SOGLIA,
+  valoreDaTrascinamento,
+} from '@/components/ui/slide-to-confirm';
 
 describe('rilascio del cursore di conferma', () => {
   it('in fondo conferma, da qualunque parte arrivi il gesto', () => {
@@ -44,5 +49,34 @@ describe('rilascio del cursore di conferma', () => {
     expect(100 / PASSO).toBe(5);
     // Il penultimo colpo deve restare sotto la soglia, altrimenti si confermerebbe in quattro.
     expect(100 - PASSO).toBeLessThan(SOGLIA);
+  });
+});
+
+describe('il gesto è il trascinamento, non il tocco', () => {
+  it('un tocco secco, in qualunque punto della pista, vale zero', () => {
+    // Spostamento nullo: il dito ha toccato e si è alzato lì. Anche in fondo alla pista.
+    expect(valoreDaTrascinamento(0, 300)).toBe(0);
+  });
+
+  it('il cursore avanza di quanto il dito si sposta, in proporzione alla corsa utile', () => {
+    expect(valoreDaTrascinamento(150, 300)).toBe(50);
+    expect(valoreDaTrascinamento(288, 300)).toBe(SOGLIA);
+  });
+
+  it('oltre la corsa vale cento, indietro vale zero', () => {
+    expect(valoreDaTrascinamento(450, 300)).toBe(100);
+    expect(valoreDaTrascinamento(-40, 300)).toBe(0);
+  });
+
+  it('una pista collassata non produce mai un valore: nessuna conferma da un cursore invisibile', () => {
+    expect(valoreDaTrascinamento(200, 0)).toBe(0);
+    expect(valoreDaTrascinamento(200, -12)).toBe(0);
+    expect(valoreDaTrascinamento(Number.NaN, 300)).toBe(0);
+  });
+
+  it('un saltello intermedio rilasciato non conferma: serve arrivare in fondo', () => {
+    // 80% di corsa e poi il dito si alza: sotto soglia, e col dito si torna a zero.
+    expect(esitoRilascio(valoreDaTrascinamento(240, 300), 'dito')).toBe('azzera');
+    expect(esitoRilascio(valoreDaTrascinamento(300, 300), 'dito')).toBe('conferma');
   });
 });

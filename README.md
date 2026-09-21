@@ -135,6 +135,14 @@ configurazione: senza file `.env.local` l'app parte interamente in modalità moc
 All'avvio il server costruisce il container e, se l'ora locale ha superato le 06:00, esegue subito la
 sincronizzazione dell'agenda: la coda della giornata è già popolata al primo accesso.
 
+**Dall'iPad, come un'app.** Sulla stessa rete Wi-Fi apri `http://<ip-del-pc>:3000` in Safari (l'IP
+Wi-Fi del PC: `Get-NetIPAddress -AddressFamily IPv4` in PowerShell; gli indirizzi della macchina
+entrano da soli in `allowedDevOrigins`, quindi basta riavviare `npm run dev` quando cambi rete).
+Poi **Condividi → Aggiungi alla schermata Home**: l'icona «AutoClub» apre l'applicazione a tutto
+schermo, senza la barra di Safari, con la barra di stato traslucida sopra la testata blu. Il
+manifest è `src/app/manifest.ts`; le icone PNG (`apple-touch-icon`, 192, 512) le genera
+`node scripts/genera-icone.mjs`, senza librerie grafiche.
+
 ## Account dimostrativi
 
 Password unica per tutti: `demo`. Gli account sono definiti nel seed (`src/config/seed.ts`) e il

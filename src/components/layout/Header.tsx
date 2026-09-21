@@ -90,7 +90,10 @@ export function Header({ displayName, role, workstationLabel, deskLabel, timeZon
     >
       <div
         className={cn(
-          'mx-auto flex max-w-screen-2xl flex-wrap items-center gap-x-6 gap-y-2 px-4 py-2 sm:px-6',
+          // In alto lo spazio della barra di stato dell'iPad a tutto schermo (zero altrove): con
+          // `black-translucent` la pagina passa sotto la barra, e senza questo margine l'ora del
+          // sistema si sovrappone al marchio.
+          'mx-auto flex max-w-screen-2xl flex-wrap items-center gap-x-6 gap-y-2 px-4 pt-[calc(env(safe-area-inset-top)+0.5rem)] pb-2 sm:px-6',
           'banco:mx-0 banco:h-full banco:max-w-none banco:flex-col banco:flex-nowrap banco:items-stretch banco:gap-3 banco:px-3 banco:py-5',
         )}
       >
