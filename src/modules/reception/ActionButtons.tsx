@@ -7,14 +7,23 @@
 // coda con un tocco. Rimetterla in attesa resta possibile, ma dall'assistenza in amministrazione.
 //
 // Le azioni di routine (prendi in carico, salta, completato) restano a un solo tocco: si fanno
-// decine di volte al giorno e una finestra di conferma le renderebbe insopportabili. "Segna
-// assente" è diverso: genera un lead per il BDC e un evento verso il CRM, e solo un responsabile
-// può riaprire la pratica. Per questo chiede un secondo tocco sullo stesso pulsante — una
-// conferma in linea, non una finestra — che dopo pochi secondi torna da sola allo stato iniziale.
-import { useEffect, useState } from 'react';
+// decine di volte al giorno e una finestra di conferma le renderebbe insopportabili. Si disfano
+// dall'avviso «Annulla» che compare in basso per cinque secondi (`UndoToast` nella dashboard).
+//
+// "Segna assente" è di un'altra natura: genera un lead per il BDC e un evento verso il CRM, cioè
+// ESCE DALL'OFFICINA, e solo un responsabile può riaprire la pratica. È il livello più alto della
+// scala delle conferme e vuole il gesto più deliberato: si scorre (`SlideToConfirm`).
+//
+// Lo scorrimento non sta sempre aperto nella riga — occuperebbe la larghezza di tre comandi su
+// ogni riga in ritardo. Il pulsante compatto resta, e quando lo si preme la riga di comandi
+// diventa il cursore: chi l'ha sfiorato per sbaglio si trova davanti un cursore fermo, che non fa
+// niente da solo.
+import { useState } from 'react';
 import { canTransition } from '@/domain/appointment-state-machine';
 import { isInQueue, type Appointment } from '@/domain/entities/appointment';
 import { Button, type ButtonVariant } from '@/components/ui/button';
+import { HoldButton } from '@/components/ui/hold-button';
+import { SlideToConfirm, type SlideTone } from '@/components/ui/slide-to-confirm';
 import type { AppointmentAction } from './types';
 
 export interface ActionButtonsProps {
@@ -31,18 +40,19 @@ export interface ActionButtonsProps {
   readonly onAction: (action: AppointmentAction) => void;
 }
 
-/** Azioni che richiedono il secondo tocco, con il testo mostrato in attesa della conferma. */
-const CONFIRM_LABELS: Partial<Record<AppointmentAction, string>> = {
-  'no-show': 'Confermi assente?',
-};
-
-/** Dopo quanto la richiesta di conferma decade da sola. */
-const CONFIRM_TIMEOUT_MS = 6_000;
-
 interface ActionSpec {
   readonly action: AppointmentAction;
   readonly label: string;
+  /** Nome per esteso, quando l'etichetta visibile è abbreviata per stare nella riga. */
+  readonly fullLabel?: string;
   readonly variant: ButtonVariant;
+  /** Esce dall'officina: al posto del tocco, un cursore da portare in fondo. */
+  readonly slide?: { readonly label: string; readonly tone: SlideTone };
+  /**
+   * Conferma di livello 1: col dito si tiene premuto, al banco si clicca una seconda volta. Serve
+   * dove l'azione tocca il lavoro di un collega ma resta disfabile.
+   */
+  readonly hold?: { readonly confirmLabel: string };
 }
 
 export function ActionButtons({
@@ -52,18 +62,8 @@ export function ActionButtons({
   late = false,
   onAction,
 }: ActionButtonsProps) {
+  const [daScorrere, setDaScorrere] = useState<ActionSpec | null>(null);
   const { status } = appointment;
-  const [confirming, setConfirming] = useState<AppointmentAction | null>(null);
-
-  // La conferma non deve restare appesa: se l'accettatore si distrae, il pulsante torna normale.
-  useEffect(() => {
-    if (confirming === null) {
-      return undefined;
-    }
-    const timer = setTimeout(() => setConfirming(null), CONFIRM_TIMEOUT_MS);
-    return () => clearTimeout(timer);
-  }, [confirming]);
-
   const buttons: ActionSpec[] = [];
 
   // Solo dalla coda: una pratica completata torna in carico dal dettaglio ("Riapri pratica"), non
@@ -74,13 +74,31 @@ export function ActionButtons({
       label: foreignDesk ? 'Prendi in carico (altro sportello)' : 'Prendi in carico',
       // Blu: è un'azione di lavoro, non un completamento.
       variant: 'default',
+      // La pratica di un altro banco si prende con una conferma. Non perché sia vietato — capita
+      // ogni giorno che un collega sia libero e un altro no — ma perché non è un gesto neutro: il
+      // cliente viene mandato a un altro sportello, e chi lo stava per chiamare non lo trova più.
+      // Sulla propria coda resta un tocco solo, con l'«Annulla» dei cinque secondi.
+      ...(foreignDesk ? { hold: { confirmLabel: 'Confermi? Passa al tuo sportello' } } : {}),
     });
   }
   if (late) {
     // Le due decisioni sul cliente in ritardo: è arrivato e lo rimettiamo in coda, oppure è
     // assente e il BDC lo ricontatterà.
-    buttons.push({ action: 'reschedule', label: 'Rimetti in coda', variant: 'outline' });
-    buttons.push({ action: 'no-show', label: 'Segna assente', variant: 'destructive' });
+    // Etichette corte: nella riga in ritardo convivono con «Prendi in carico», e tre comandi per
+    // esteso si impilavano uno sotto l'altro. Il nome completo resta nell'`aria-label`.
+    buttons.push({
+      action: 'reschedule',
+      label: 'In coda',
+      fullLabel: 'Rimetti in coda',
+      variant: 'outline',
+    });
+    buttons.push({
+      action: 'no-show',
+      label: 'Assente',
+      fullLabel: 'Segna assente',
+      variant: 'destructiveQuiet',
+      slide: { label: 'Scorri per segnare il cliente assente', tone: 'destructive' },
+    });
   } else {
     if (status === 'WAITING' && canTransition(status, 'SKIPPED')) {
       buttons.push({ action: 'skip', label: 'Salta', variant: 'outline' });
@@ -107,46 +125,62 @@ export function ActionButtons({
   }
 
   if (buttons.length === 0) {
-    return <span className="text-xs text-slate-400">—</span>;
+    return <span className="text-ink-muted text-xs">—</span>;
   }
 
-  const onClick = (spec: ActionSpec): void => {
-    const richiedeConferma = CONFIRM_LABELS[spec.action] !== undefined;
-    if (richiedeConferma && confirming !== spec.action) {
-      setConfirming(spec.action);
-      return;
-    }
-    setConfirming(null);
-    onAction(spec.action);
-  };
-
-  return (
-    <div className="flex flex-wrap items-center gap-2">
-      {buttons.map((b) => {
-        const inConferma = confirming === b.action;
-        return (
-          <Button
-            key={b.action}
-            size="touch"
-            variant={inConferma ? 'destructive' : b.variant}
-            disabled={pending}
-            onClick={() => onClick(b)}
-            aria-label={
-              inConferma
-                ? `Conferma: ${b.label.toLowerCase()} pratica ${appointment.code}`
-                : `${b.label} pratica ${appointment.code}`
-            }
-            className={inConferma ? 'ring-2 ring-red-300 ring-offset-1' : undefined}
-          >
-            {inConferma ? CONFIRM_LABELS[b.action] : b.label}
-          </Button>
-        );
-      })}
-      {confirming !== null ? (
-        <Button size="touch" variant="ghost" onClick={() => setConfirming(null)}>
+  // Chiesto il livello 2, la riga diventa il cursore: un comando solo, tutta la larghezza, e la
+  // via d'uscita accanto. Mostrare cursore e pulsanti insieme darebbe due strade per la stessa
+  // cosa, e una delle due sarebbe quella che volevamo rendere difficile.
+  if (daScorrere !== null && daScorrere.slide !== undefined) {
+    // `flex-wrap`: quando la colonna si stringe va a capo «Annulla», non il cursore — che ha una
+    // larghezza minima propria, perché sotto una certa misura non c'è più un gesto da fare.
+    return (
+      <div className="flex w-full flex-wrap items-center justify-end gap-2">
+        <SlideToConfirm
+          className="flex-1"
+          tone={daScorrere.slide.tone}
+          label={daScorrere.slide.label}
+          actionLabel={`${daScorrere.fullLabel ?? daScorrere.label} pratica ${appointment.code}`}
+          pending={pending}
+          onConfirm={() => onAction(daScorrere.action)}
+          data-testid={`scorri-${daScorrere.action}`}
+        />
+        <Button variant="ghost" size="sm" onClick={() => setDaScorrere(null)}>
           Annulla
         </Button>
-      ) : null}
+      </div>
+    );
+  }
+
+  return (
+    <div className="flex flex-wrap items-center justify-end gap-2">
+      {buttons.map((b) =>
+        b.hold === undefined ? (
+          <Button
+            key={b.action}
+            size="sm"
+            variant={b.variant}
+            disabled={pending}
+            onClick={() => (b.slide === undefined ? onAction(b.action) : setDaScorrere(b))}
+            aria-label={`${b.fullLabel ?? b.label} pratica ${appointment.code}`}
+          >
+            {b.label}
+          </Button>
+        ) : (
+          <HoldButton
+            key={b.action}
+            size="sm"
+            variant={b.variant}
+            disabled={pending}
+            confirmLabel={b.hold.confirmLabel}
+            actionLabel={`${b.fullLabel ?? b.label} pratica ${appointment.code}`}
+            data-testid={`conferma-${b.action}`}
+            onConfirm={() => onAction(b.action)}
+          >
+            {b.label}
+          </HoldButton>
+        ),
+      )}
     </div>
   );
 }

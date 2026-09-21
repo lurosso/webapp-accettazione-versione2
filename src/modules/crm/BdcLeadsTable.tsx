@@ -3,10 +3,16 @@
 // Tabella dei lead del BDC: un cliente per riga, con tutto quello che serve per telefonargli.
 // Il telefono è un link `tel:` come nel pannello di dettaglio: dal centralino o dal softphone la
 // chiamata parte con un clic, senza ricopiare il numero.
-import { useEffect, useState } from 'react';
+//
+// Chiudere un lead lo toglie dall'elenco delle chiamate da fare, e non è una cosa che si disfa da
+// sola: il comando è un `HoldButton`, la stessa difesa che sta sulla coda. Prima c'era qui una
+// conferma in due tocchi scritta a mano, con il suo timer: identica nell'intento, diversa nei
+// dettagli: un comportamento solo, in un posto solo.
+import { useState } from 'react';
 import type { BdcLeadView } from '@/domain/read-models';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
+import { HoldButton } from '@/components/ui/hold-button';
 import {
   Table,
   TableBody,
@@ -54,17 +60,6 @@ export function BdcLeadsTable({
   // Nota facoltativa dell'esito: si apre solo sulla riga che si sta chiudendo, per non riempire
   // la tabella di caselle di testo che nessuno compila.
   const [noteAperte, setNoteAperte] = useState<Record<string, string>>({});
-  // Chiudere un lead lo toglie dall'elenco delle chiamate da fare: serve il secondo tocco. Su un
-  // telefono, scorrendo la lista con la cornetta in mano, il primo parte da solo. La richiesta di
-  // conferma decade dopo qualche secondo, così non resta appesa sulla riga sbagliata.
-  const [conferma, setConferma] = useState<string | null>(null);
-  useEffect(() => {
-    if (conferma === null) {
-      return undefined;
-    }
-    const timer = setTimeout(() => setConferma(null), 6_000);
-    return () => clearTimeout(timer);
-  }, [conferma]);
 
   if (leads.length === 0) {
     return (
@@ -92,12 +87,16 @@ export function BdcLeadsTable({
       <TableBody>
         {leads.map((lead) => {
           const nota = noteAperte[lead.eventId];
+          const inCorso = pendingId === lead.eventId;
+          const chiCercare = lead.customerName ?? lead.plate ?? lead.code ?? 'questo cliente';
           return (
             <TableRow
               key={lead.eventId}
-              className={cn(lead.handled ? 'bg-slate-50 text-slate-500' : 'hover:bg-slate-50')}
+              className={cn(
+                lead.handled ? 'bg-surface-sunken text-ink-muted' : 'hover:bg-surface-sunken',
+              )}
             >
-              <TableCell className="font-mono font-bold whitespace-nowrap">
+              <TableCell className="testo-dato font-mono font-bold whitespace-nowrap">
                 {lead.code ?? '—'}
               </TableCell>
               <TableCell className="font-mono whitespace-nowrap tabular-nums">
@@ -105,20 +104,25 @@ export function BdcLeadsTable({
                   ? '—'
                   : localTimeHHmm(new Date(lead.scheduledAt), timeZone)}
                 {lead.deskCode !== null ? (
-                  <span className="ml-2 text-xs text-slate-500">{lead.deskCode}</span>
+                  <span className="text-ink-muted testo-nota ml-2">{lead.deskCode}</span>
                 ) : null}
               </TableCell>
               <TableCell>
-                <span className="font-semibold text-slate-900">{lead.customerName ?? '—'}</span>
+                <span className="font-semibold">{lead.customerName ?? '—'}</span>
                 {lead.reason !== null ? (
-                  <span className="block text-xs text-slate-500">{lead.reason}</span>
+                  <span className="text-ink-muted testo-nota block">{lead.reason}</span>
                 ) : null}
               </TableCell>
               <TableCell className="font-mono whitespace-nowrap">
                 {lead.phone === null ? (
-                  <span className="text-slate-500">Non in agenda</span>
+                  <span className="text-ink-muted">Non in agenda</span>
                 ) : (
-                  <a href={`tel:${lead.phone}`} className="font-semibold underline">
+                  // Il numero è il motivo per cui questa riga esiste: si punta col dito, quindi è
+                  // alto quanto un comando, non quanto una riga di testo.
+                  <a
+                    href={`tel:${lead.phone}`}
+                    className="focus-anello controllo -mx-2 inline-flex items-center rounded-md px-2 font-semibold underline"
+                  >
                     {lead.phone}
                   </a>
                 )}
@@ -126,16 +130,16 @@ export function BdcLeadsTable({
               <TableCell className="whitespace-nowrap">
                 <span className="font-mono font-semibold">{lead.plate ?? '—'}</span>
                 {lead.vehicle !== null ? (
-                  <span className="block text-xs text-slate-500">{lead.vehicle}</span>
+                  <span className="text-ink-muted testo-nota block">{lead.vehicle}</span>
                 ) : null}
               </TableCell>
-              <TableCell className="whitespace-nowrap text-slate-600 tabular-nums">
+              <TableCell className="text-ink-soft whitespace-nowrap tabular-nums">
                 {localTimeHHmm(new Date(lead.detectedAt), timeZone)}
               </TableCell>
               <TableCell>
                 {deliveryBadge(lead)}
                 {lead.handled ? (
-                  <span className="mt-1 block text-xs text-slate-500">
+                  <span className="text-ink-muted testo-nota mt-1 block">
                     {lead.handledByName ?? 'BDC'}
                     {lead.handledAt === null
                       ? ''
@@ -148,46 +152,37 @@ export function BdcLeadsTable({
                 {lead.handled ? (
                   <Button
                     variant="ghost"
-                    size="touch"
-                    disabled={pendingId === lead.eventId}
+                    size="sm"
+                    disabled={inCorso}
                     onClick={() => onReopen(lead)}
                   >
-                    {pendingId === lead.eventId ? 'Riapro…' : 'Riporta fra i da fare'}
+                    {inCorso ? 'Riapro…' : 'Riporta fra i da fare'}
                   </Button>
                 ) : nota === undefined ? (
                   <div className="flex flex-wrap gap-2">
-                    <Button
-                      size="touch"
-                      variant={conferma === lead.eventId ? 'destructive' : 'success'}
-                      className={conferma === lead.eventId ? 'ring-2 ring-emerald-300' : undefined}
-                      onClick={() => {
-                        if (conferma !== lead.eventId) {
-                          setConferma(lead.eventId);
-                          return;
-                        }
-                        setConferma(null);
-                        onContacted(lead, null);
-                      }}
-                      disabled={pendingId === lead.eventId}
+                    {/* Col dito si tiene premuto, al banco si clicca due volte: la riga non esce
+                        dall'elenco perché il pollice l'ha sfiorata mentre si scorreva. */}
+                    <HoldButton
+                      variant="success"
+                      size="sm"
+                      disabled={inCorso}
+                      confirmLabel="Confermi? Esce dalla lista"
+                      actionLabel={`Segna come gestito il lead di ${chiCercare}`}
+                      onConfirm={() => onContacted(lead, null)}
                     >
-                      {pendingId === lead.eventId
-                        ? 'Salvo…'
-                        : conferma === lead.eventId
-                          ? 'Confermi? Esce dalla lista'
-                          : 'Gestito / riprogrammato'}
-                    </Button>
+                      {inCorso ? 'Salvo…' : 'Gestito / riprogrammato'}
+                    </HoldButton>
                     <Button
                       variant="ghost"
-                      size="touch"
-                      onClick={() => {
-                        setConferma(null);
-                        setNoteAperte((p) => ({ ...p, [lead.eventId]: '' }));
-                      }}
+                      size="sm"
+                      onClick={() => setNoteAperte((p) => ({ ...p, [lead.eventId]: '' }))}
                     >
-                      {conferma === lead.eventId ? 'Annulla' : 'Con nota'}
+                      Con nota
                     </Button>
                   </div>
                 ) : (
+                  // Con la nota davanti la conferma non serve: scrivere l'esito è già un gesto
+                  // deliberato, e chiederne un secondo sarebbe solo un ostacolo.
                   <div className="flex flex-col gap-2">
                     <label className="sr-only" htmlFor={`esito-${lead.eventId}`}>
                       Esito della telefonata
@@ -201,20 +196,20 @@ export function BdcLeadsTable({
                       onChange={(event) =>
                         setNoteAperte((p) => ({ ...p, [lead.eventId]: event.target.value }))
                       }
-                      className="w-56 rounded-md border border-slate-300 px-2 py-1 text-sm"
+                      className="border-line focus-anello controllo testo-corpo w-56 rounded-md border px-3"
                     />
                     <div className="flex gap-2">
                       <Button
-                        size="touch"
+                        size="sm"
                         variant="success"
-                        disabled={pendingId === lead.eventId}
+                        disabled={inCorso}
                         onClick={() => onContacted(lead, nota.trim() === '' ? null : nota.trim())}
                       >
                         Salva e chiudi
                       </Button>
                       <Button
                         variant="ghost"
-                        size="touch"
+                        size="sm"
                         onClick={() =>
                           setNoteAperte((p) => {
                             const { [lead.eventId]: _rimossa, ...resto } = p;

@@ -16,6 +16,7 @@ import { customerFullName } from '@/domain/entities/customer';
 import type { NotificationJobStatus } from '@/domain/entities/notification';
 import type { QueueRowView } from '@/domain/read-models';
 import { Badge } from '@/components/ui/badge';
+import { ExpandableText } from '@/components/ui/expandable-text';
 import { Button } from '@/components/ui/button';
 import { OperatorChip } from '@/components/shared/OperatorChip';
 import { formatDateTimeIt, localTimeHHmm } from '@/lib/dates';
@@ -76,14 +77,14 @@ function Field({
   return (
     <div
       className={cn(
-        'flex flex-col border-b border-slate-100 last:border-b-0',
+        'border-line-subtle flex flex-col border-b last:border-b-0',
         roomy ? 'gap-1 py-3' : 'gap-0.5 py-2',
       )}
     >
-      <dt className="text-xs font-medium tracking-wide text-slate-500 uppercase">{label}</dt>
+      <dt className="text-ink-muted text-xs font-semibold tracking-wide uppercase">{label}</dt>
       <dd
         className={cn(
-          'text-slate-900',
+          'text-ink',
           mono ? 'font-mono' : '',
           roomy ? 'text-base leading-snug' : 'text-sm',
         )}
@@ -105,8 +106,8 @@ function Section({
   readonly children: React.ReactNode;
 }) {
   return (
-    <section className={modal ? 'rounded-xl bg-slate-50 px-4 py-3' : undefined}>
-      <h3 className={cn('font-bold text-slate-900', modal ? 'mb-1 text-base' : 'mb-1 text-sm')}>
+    <section className={modal ? 'bg-surface-sunken rounded-lg px-5 py-4' : undefined}>
+      <h3 className={cn('text-ink font-bold', modal ? 'mb-2 text-base' : 'mb-2 text-sm')}>
         {title}
       </h3>
       {children}
@@ -258,8 +259,8 @@ export function AppointmentDetailPanel({
           {showTake && onAction !== undefined && isInQueue(a.status) ? (
             <Button
               variant="default"
-              size="touch"
-              className="min-h-14 w-full text-lg"
+              size="lg"
+              className="w-full"
               disabled={actionPending}
               onClick={() => onAction('take')}
             >
@@ -269,8 +270,8 @@ export function AppointmentDetailPanel({
 
           {/* Cliente segnato assente che si presenta: torna in coda dopo chi è già in attesa. */}
           {a.status === 'NO_SHOW' && onAction !== undefined ? (
-            <section className="flex flex-col gap-3 rounded-xl border-2 border-red-200 bg-red-50 p-4">
-              <p className="text-sm text-red-900">
+            <section className="border-status-no-show/30 bg-status-no-show-soft flex flex-col gap-3 rounded-xl border-2 p-4">
+              <p className="text-status-no-show-ink text-sm">
                 Segnato assente. Se il cliente si è presentato, riattivalo: torna in coda con
                 l&apos;orario di adesso, dopo chi è già in attesa, e il BDC non lo richiamerà.
               </p>
@@ -290,7 +291,7 @@ export function AppointmentDetailPanel({
               className={cn(
                 'flex flex-col gap-3 rounded-xl border-2 p-4',
                 isAutoClosedPending(a)
-                  ? 'border-amber-300 bg-amber-50'
+                  ? 'border-status-in-progress/40 bg-status-in-progress-soft'
                   : 'border-slate-200 bg-slate-50',
               )}
             >
@@ -299,7 +300,7 @@ export function AppointmentDetailPanel({
                   <Badge tone="warning" className="self-start">
                     Chiusa d&apos;ufficio · da confermare
                   </Badge>
-                  <p className="text-sm text-amber-900">
+                  <p className="text-status-in-progress-ink text-sm">
                     Era ancora in carico alla chiusura automatica della giornata. Se il veicolo è
                     stato accettato davvero, conferma; altrimenti riaprila e concludi il check-in.
                   </p>
@@ -336,7 +337,7 @@ export function AppointmentDetailPanel({
           {allowCheckIn && a.status === 'IN_PROGRESS' ? (
             <Link
               href={checkInPath(a.id)}
-              className="bg-brand-secondary hover:bg-brand-blue-dark focus-visible:ring-brand-blue-light flex min-h-14 items-center justify-center rounded-xl px-4 text-lg font-semibold text-white transition-colors focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:outline-none"
+              className="bg-brand-secondary hover:bg-brand-blue-dark controllo-lg transizione premibile focus-anello testo-dato flex items-center justify-center rounded-xl px-4 font-semibold text-white"
             >
               Passa al check-in fotografico
             </Link>
@@ -349,7 +350,7 @@ export function AppointmentDetailPanel({
               </Field>
               <Field label="Telefono" mono roomy={modal}>
                 {phone === null ? (
-                  <span className="text-slate-500">
+                  <span className="text-ink-muted">
                     Non disponibile in agenda: contattare tramite lo sportello
                   </span>
                 ) : (
@@ -379,7 +380,7 @@ export function AppointmentDetailPanel({
                   serve proprio quando si sta decidendo se telefonare al cliente. */}
               <Field label="Promemoria di oggi" roomy={modal}>
                 {row.notificationStatus === null ? (
-                  <span className="text-slate-500">Nessun promemoria inviato</span>
+                  <span className="text-ink-muted">Nessun promemoria inviato</span>
                 ) : (
                   <span className="flex flex-col gap-1">
                     <NotificationBadge
@@ -387,7 +388,7 @@ export function AppointmentDetailPanel({
                       channel={row.notificationChannel}
                       className="self-start"
                     />
-                    <span className="text-xs text-slate-500">
+                    <span className="text-ink-muted text-xs">
                       {notificationHint(row.notificationStatus)}
                     </span>
                   </span>
@@ -417,21 +418,36 @@ export function AppointmentDetailPanel({
               <Field label="Orario di prenotazione" mono roomy={modal}>
                 {localTimeHHmm(new Date(a.scheduledAt), timeZone)}
               </Field>
+              {/* Lavorazione e note arrivano da Infinity e possono essere lunghissime: tre righe
+                  e un comando che le apre sul posto, invece di un muro di testo che spinge le
+                  azioni fuori dallo schermo del tablet. */}
               <Field label="Lavorazione richiesta" roomy={modal}>
-                {a.serviceDescription ?? <span className="text-slate-500">Non indicata</span>}
+                {a.serviceDescription === null ? (
+                  <span className="text-ink-muted">Non indicata</span>
+                ) : (
+                  <ExpandableText lines={3} label="la lavorazione richiesta">
+                    {a.serviceDescription}
+                  </ExpandableText>
+                )}
               </Field>
               <Field label="Note" roomy={modal}>
-                {a.notes ?? <span className="text-slate-500">Nessuna nota</span>}
+                {a.notes === null ? (
+                  <span className="text-ink-muted">Nessuna nota</span>
+                ) : (
+                  <ExpandableText lines={3} label="le note sulla pratica">
+                    {a.notes}
+                  </ExpandableText>
+                )}
               </Field>
               <Field label="Sportello" roomy={modal}>
-                {deskLabel ?? <span className="text-slate-500">Non assegnato</span>}
+                {deskLabel ?? <span className="text-ink-muted">Non assegnato</span>}
               </Field>
               <Field label="Accettazione" roomy={modal}>
-                {row.bayCode ?? <span className="text-slate-500">Nessuna</span>}
+                {row.bayCode ?? <span className="text-ink-muted">Nessuna</span>}
               </Field>
               <Field label="Presa in carico da" roomy={modal}>
                 {row.operatorName === null ? (
-                  <span className="text-slate-500">Nessuno</span>
+                  <span className="text-ink-muted">Nessuno</span>
                 ) : (
                   <OperatorChip
                     displayName={row.operatorName}
@@ -454,12 +470,12 @@ export function AppointmentDetailPanel({
             <details open={!modal} className="group">
               <summary
                 className={cn(
-                  'cursor-pointer list-none font-bold text-slate-900 select-none',
-                  modal ? 'min-h-11 text-base leading-11' : 'text-sm',
+                  'text-ink cursor-pointer list-none font-bold select-none',
+                  modal ? 'controllo flex items-center text-base' : 'text-sm',
                 )}
               >
                 Cronologia di oggi
-                <span className="ml-2 text-xs font-normal text-slate-500 group-open:hidden">
+                <span className="text-ink-muted ml-2 text-xs font-normal group-open:hidden">
                   (tocca per aprire)
                 </span>
               </summary>
@@ -482,26 +498,21 @@ export function AppointmentDetailPanel({
               target="_blank"
               rel="noreferrer"
               data-testid="link-tracciamento-cliente"
-              className="inline-flex min-h-11 items-center gap-2 rounded-md border border-dashed border-amber-400 bg-amber-50 px-3 text-sm font-semibold text-amber-900"
+              className="border-status-in-progress bg-status-in-progress-soft text-status-in-progress-ink controllo focus-anello inline-flex items-center gap-2 rounded-md border border-dashed px-3 text-sm font-semibold"
             >
               <span aria-hidden="true">↗</span>
               Apri il tracciamento cliente (solo sviluppo)
             </a>
           ) : null}
 
-          <p className="text-xs text-slate-400">
+          <p className="text-ink-muted text-xs">
             Ultimo aggiornamento della pratica: {formatDateTimeIt(a.updatedAt, timeZone)}
           </p>
         </div>
 
         {modal ? (
           <footer className="sticky bottom-0 border-t border-slate-200 bg-white px-6 py-4">
-            <Button
-              variant="default"
-              size="touch"
-              className="min-h-14 w-full text-lg"
-              onClick={onClose}
-            >
+            <Button variant="default" size="lg" className="w-full" onClick={onClose}>
               Chiudi
             </Button>
           </footer>

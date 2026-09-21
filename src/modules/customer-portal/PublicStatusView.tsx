@@ -25,7 +25,7 @@ export function PublicStatusView({ targa, token = null }: PublicStatusViewProps)
     return (
       <section className="flex flex-col items-center gap-3 rounded-3xl border-2 border-slate-200 bg-white p-8 text-center shadow-sm">
         <p className="text-lg text-slate-600">
-          {targa !== '' ? `Cerchiamo la targa ${targa}…` : 'Apriamo la tua pratica…'}
+          {targa !== '' ? `Cerchiamo la targa ${targa}…` : 'Apriamo la sua pratica…'}
         </p>
       </section>
     );
@@ -68,13 +68,13 @@ export function PublicStatusView({ targa, token = null }: PublicStatusViewProps)
           il resto della pagina. */}
       <Link
         href="/cliente"
-        className="mx-auto inline-flex min-h-11 items-center px-4 text-base font-medium text-slate-600 underline hover:text-slate-900"
+        className="controllo focus-anello text-ink-soft mx-auto inline-flex items-center rounded-md px-4 text-base font-medium underline hover:text-slate-900"
       >
         Cerca un&apos;altra targa
       </Link>
       {/* Promessa fatta solo dove è vera: sulle schermate di errore non c'è nulla da aggiornare. */}
       <p className="text-center text-sm text-slate-500">
-        Questa pagina si aggiorna da sola: tienila aperta mentre attendi.
+        Questa pagina si aggiorna da sola: la tenga aperta mentre attende.
       </p>
     </div>
   );

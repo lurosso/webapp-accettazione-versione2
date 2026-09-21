@@ -12,6 +12,7 @@
 import {
   effectiveScheduleTime,
   isAutoClosedPending,
+  type Appointment,
   type AppointmentStatus,
 } from '@/domain/entities/appointment';
 import { customerFullName } from '@/domain/entities/customer';
@@ -38,6 +39,19 @@ export interface AverageMinutes {
   readonly sampleSize: number;
 }
 
+/** Una riga della tabella per sportello. */
+export interface DeskDayView {
+  readonly deskId: string | null;
+  /** «A — Fiat, Lancia». `null` per le pratiche senza sportello assegnato. */
+  readonly label: string;
+  readonly expected: number;
+  readonly completed: number;
+  readonly noShow: number;
+  readonly averageWaitMinutes: number | null;
+  /** Ancora da servire adesso: in attesa, saltate, in carico. */
+  readonly stillInQueue: number;
+}
+
 export interface DailyReportView {
   readonly businessDate: string;
   readonly total: number;
@@ -56,6 +70,11 @@ export interface DailyReportView {
   readonly longestWaitMinutes: number | null;
   /** Pratiche ancora aperte (in coda o in carico): la giornata non è finita. */
   readonly stillOpen: number;
+  /**
+   * La stessa giornata divisa per sportello. Il totale dice com'è andata l'officina; questa dice
+   * DOVE è andata storta, che è la domanda successiva e finora si rispondeva aprendo il CSV.
+   */
+  readonly byDesk: readonly DeskDayView[];
 }
 
 const ZERO_COUNTS: Readonly<Record<AppointmentStatus, number>> = {
@@ -146,9 +165,11 @@ export class DailyReportService {
    * ma in un riepilogo di fine giornata sono parte dell'esito e vanno contate.
    */
   async getDailyReport(businessDate: IsoDate): Promise<DailyReportView> {
-    const pratiche = await this.deps.appointments.listByDate(businessDate, {
-      includeCancelled: true,
-    });
+    const [pratiche, desks, brands] = await Promise.all([
+      this.deps.appointments.listByDate(businessDate, { includeCancelled: true }),
+      this.deps.referenceData.listDesks(),
+      this.deps.referenceData.listBrands(),
+    ]);
 
     const counts: Record<AppointmentStatus, number> = { ...ZERO_COUNTS };
     const attese: number[] = [];
@@ -165,9 +186,49 @@ export class DailyReportService {
       }
     }
 
+    // Per sportello: stessi conti, raggruppati. Le pratiche senza sportello finiscono in una riga
+    // a parte invece di sparire — sono quelle che nessuno ha ancora preso, e vederle è il punto.
+    const perSportello = new Map<string, { attese: number[]; pratiche: Appointment[] }>();
+    for (const a of pratiche) {
+      const chiave = a.deskId ?? '';
+      const gruppo = perSportello.get(chiave) ?? { attese: [], pratiche: [] };
+      gruppo.pratiche.push(a);
+      const attesa = minutesBetween(effectiveScheduleTime(a), a.takenAt);
+      if (attesa !== null) {
+        gruppo.attese.push(attesa);
+      }
+      perSportello.set(chiave, gruppo);
+    }
+    const byDesk: DeskDayView[] = [...perSportello.entries()]
+      .map(([chiave, gruppo]) => {
+        const desk = desks.find((d) => d.id === chiave) ?? null;
+        const marchi =
+          desk === null
+            ? []
+            : desk.brandIds.map((id) => brands.find((b) => b.id === id)?.name ?? id);
+        return {
+          deskId: chiave === '' ? null : chiave,
+          label:
+            desk === null
+              ? 'Senza sportello'
+              : marchi.length === 0
+                ? desk.code
+                : `${desk.code} — ${marchi.join(', ')}`,
+          expected: gruppo.pratiche.length,
+          completed: gruppo.pratiche.filter((a) => a.status === 'COMPLETED').length,
+          noShow: gruppo.pratiche.filter((a) => a.status === 'NO_SHOW').length,
+          averageWaitMinutes: average(gruppo.attese).minutes,
+          stillInQueue: gruppo.pratiche.filter(
+            (a) => a.status === 'WAITING' || a.status === 'SKIPPED' || a.status === 'IN_PROGRESS',
+          ).length,
+        };
+      })
+      .sort((x, y) => x.label.localeCompare(y.label, 'it'));
+
     const total = pratiche.length;
     return {
       businessDate,
+      byDesk,
       total,
       counts,
       rates: {

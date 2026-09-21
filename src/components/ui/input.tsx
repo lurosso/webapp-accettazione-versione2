@@ -1,4 +1,4 @@
-// Campo di testo.
+// Campo di testo. Altezza 44 px: è un bersaglio da toccare, non solo una casella da riempire.
 import type { InputHTMLAttributes } from 'react';
 import { cn } from '@/lib/utils/cn';
 
@@ -6,9 +6,10 @@ export function Input({ className, ...props }: InputHTMLAttributes<HTMLInputElem
   return (
     <input
       className={cn(
-        // min-h-11 = 44 px: bersaglio minimo per il tocco su tablet, uguale per PC.
-        'min-h-11 w-full rounded-md border border-slate-300 bg-white px-3 text-sm text-slate-900 shadow-xs',
-        'placeholder:text-slate-400 focus-visible:ring-2 focus-visible:ring-slate-500 focus-visible:outline-none',
+        'controllo border-line bg-surface text-ink testo-corpo w-full rounded-md border px-3.5 shadow-xs',
+        // Il segnaposto è testo: `slate-400` dava 3,2:1 e a mezzo metro non si leggeva.
+        'placeholder:text-ink-muted',
+        'transizione focus-anello',
         'disabled:cursor-not-allowed disabled:opacity-50',
         className,
       )}

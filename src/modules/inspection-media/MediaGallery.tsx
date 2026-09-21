@@ -153,7 +153,7 @@ export function MediaGallery({ appointmentId, inspectionNotes, timeZone }: Media
     <section>
       <h3 className="mb-1 text-sm font-bold text-slate-900">Ispezione al veicolo</h3>
       {query.isError ? (
-        <p className="text-sm text-amber-700">
+        <p className="text-status-in-progress-ink text-sm">
           Foto e video non disponibili in questo momento: riprova fra qualche istante.
         </p>
       ) : null}
@@ -161,6 +161,19 @@ export function MediaGallery({ appointmentId, inspectionNotes, timeZone }: Media
       {inspectionNotes !== null ? (
         <p className="mb-3 rounded-md bg-slate-50 px-3 py-2 text-sm whitespace-pre-wrap text-slate-800">
           {inspectionNotes}
+        </p>
+      ) : null}
+
+      {/*
+       * Il video è l'unico passaggio obbligatorio del check-in: se non c'è, il giro fotografico
+       * non è stato concluso. Dirlo qui evita la domanda che nasceva prima — «il tablet non ha
+       * caricato o il collega non ha finito?» — e che si risolveva solo telefonando al piazzale.
+       */}
+      {video.length === 0 ? (
+        <p className="text-status-in-progress-ink mb-2 text-sm font-semibold">
+          {media.length === 0
+            ? 'Nessun video: il check-in non è ancora stato completato.'
+            : 'Nessun video: il check-in non è ancora stato completato (le foto sì).'}
         </p>
       ) : null}
 
@@ -175,7 +188,7 @@ export function MediaGallery({ appointmentId, inspectionNotes, timeZone }: Media
               <div key={gruppo.etichetta}>
                 <h4 className="mb-1 flex items-baseline gap-2 text-xs font-bold tracking-wide text-slate-500 uppercase">
                   {gruppo.etichetta}
-                  <span className="text-[10px] font-normal text-slate-400">
+                  <span className="text-ink-muted text-[10px] font-normal">
                     {gruppo.media.length === 1 ? '1 file' : `${gruppo.media.length} file`}
                   </span>
                 </h4>

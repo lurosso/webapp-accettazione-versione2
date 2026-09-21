@@ -75,13 +75,10 @@ export default async function LoginPage({ searchParams }: LoginPageProps) {
     container.devQuickLogin === null ? [] : await container.devQuickLogin.profiles();
 
   return (
-    <main className="mx-auto flex min-h-screen w-full max-w-md flex-col justify-center gap-6 px-6 py-12">
-      <header className="flex flex-col items-center gap-2 text-center">
-        <BrandMark className="text-2xl" />
-        <h1 className="text-2xl font-bold tracking-tight text-slate-900">Accettazione Officina</h1>
-        <p className="text-sm text-slate-600">
-          Accedi con le tue credenziali e scegli l&apos;accettazione.
-        </p>
+    <main className="mx-auto flex min-h-screen w-full max-w-4xl flex-col justify-center gap-6 px-6 py-12">
+      <header className="flex flex-col items-center gap-1 text-center">
+        <BrandMark className="text-3xl" />
+        <p className="text-ink-soft testo-corpo">Accettazione officina</p>
       </header>
       <LoginForm
         options={options}

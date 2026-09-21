@@ -12,7 +12,7 @@
 // Testi grandi, bordi spessi, contrasto alto, niente stati che dipendono dal passaggio del mouse.
 import { useQueryClient } from '@tanstack/react-query';
 import { useEffect, useState } from 'react';
-import { Dialog } from '@/components/ui/dialog';
+import { SlideToConfirm } from '@/components/ui/slide-to-confirm';
 import type { QueueRowView } from '@/domain/read-models';
 import {
   ApiError,
@@ -64,7 +64,6 @@ export function CheckInScreen({
   const [inChiusura, setInChiusura] = useState(false);
   const [errore, setErrore] = useState<string | null>(null);
   // Doppio controllo prima di chiudere: il tablet si tiene in mano e si tocca per sbaglio.
-  const [confermaAperta, setConfermaAperta] = useState(false);
 
   // Media già acquisiti: riaprendo il check-in si ritrova quanto fatto prima.
   useEffect(() => {
@@ -90,7 +89,6 @@ export function CheckInScreen({
 
   const completa = async (): Promise<void> => {
     setErrore(null);
-    setConfermaAperta(false);
     setInChiusura(true);
     try {
       const esito = await postCheckIn(a.id, {
@@ -133,7 +131,7 @@ export function CheckInScreen({
             onClick={esci}
             disabled={inChiusura}
             aria-label="Torna alla coda senza concludere"
-            className="flex h-14 w-14 shrink-0 items-center justify-center rounded-xl border-2 border-slate-300 bg-white text-3xl leading-none font-bold text-slate-700 active:bg-slate-100 disabled:opacity-60"
+            className="controllo-lg border-line text-ink-soft premibile focus-anello flex w-[var(--h-controllo-lg)] shrink-0 items-center justify-center rounded-xl border-2 bg-white text-3xl leading-none font-bold active:bg-slate-100 disabled:opacity-60"
           >
             ‹
           </button>
@@ -171,14 +169,14 @@ export function CheckInScreen({
             <span
               className={cn(
                 'font-mono text-xl leading-none font-black tabular-nums',
-                videoMancante ? 'text-amber-700' : 'text-status-completed',
+                videoMancante ? 'text-status-in-progress-ink' : 'text-status-completed-ink',
               )}
             >
               {video}
               <span className="text-sm font-semibold"> video</span>
             </span>
             {videoMancante ? (
-              <span className="text-xs font-bold tracking-wide text-amber-700 uppercase">
+              <span className="text-status-in-progress-ink text-xs font-bold tracking-wide uppercase">
                 obbligatorio
               </span>
             ) : null}
@@ -192,7 +190,7 @@ export function CheckInScreen({
           {errore !== null ? (
             <p
               role="alert"
-              className="bg-status-no-show-soft rounded-2xl border-2 border-red-200 px-5 py-4 text-lg font-semibold text-red-900"
+              className="bg-status-no-show-soft border-status-no-show/30 text-status-no-show-ink rounded-2xl border-2 px-5 py-4 text-lg font-semibold"
             >
               {errore}
             </p>
@@ -214,7 +212,7 @@ export function CheckInScreen({
                   key={testo}
                   type="button"
                   onClick={() => aggiungiNota(testo)}
-                  className="min-h-12 rounded-full border-2 border-slate-300 bg-slate-50 px-4 text-base font-semibold text-slate-800 active:bg-slate-200"
+                  className="controllo border-line text-ink-soft premibile focus-anello rounded-full border-2 bg-slate-50 px-4 text-base font-semibold active:bg-slate-200"
                 >
                   + {testo}
                 </button>
@@ -227,7 +225,7 @@ export function CheckInScreen({
               rows={4}
               maxLength={2000}
               placeholder="Es. graffio sul paraurti posteriore destro, cerchio anteriore sinistro rigato."
-              className="w-full rounded-xl border-2 border-slate-300 bg-white p-4 text-xl leading-snug text-slate-900 placeholder:text-slate-400 focus-visible:border-slate-900 focus-visible:ring-4 focus-visible:ring-slate-300 focus-visible:outline-none"
+              className="placeholder:text-ink-muted w-full rounded-xl border-2 border-slate-300 bg-white p-4 text-xl leading-snug text-slate-900 focus-visible:border-slate-900 focus-visible:ring-4 focus-visible:ring-slate-300 focus-visible:outline-none"
             />
             <p className="text-sm text-slate-500">
               Quanto scrivi qui resta sulla pratica e viene inviato al CRM insieme a foto e video.
@@ -244,78 +242,40 @@ export function CheckInScreen({
               type="button"
               onClick={esci}
               disabled={inChiusura}
-              className="flex h-16 flex-1 flex-col items-center justify-center rounded-2xl border-2 border-slate-300 bg-slate-100 text-lg leading-tight font-bold text-slate-800 active:bg-slate-200 disabled:opacity-60"
+              className="controllo-lg border-line text-ink-soft premibile focus-anello flex flex-1 flex-col items-center justify-center rounded-2xl border-2 bg-slate-100 text-lg leading-tight font-bold active:bg-slate-200 disabled:opacity-60"
             >
               Salta per ora
               <span className="text-xs font-medium text-slate-500">torna alla coda</span>
             </button>
-            <button
-              type="button"
-              onClick={() => setConfermaAperta(true)}
-              disabled={inChiusura || videoMancante}
-              aria-describedby="stato-check-in"
-              data-testid="completa-check-in"
-              className={cn(
-                'bg-brand-primary focus-visible:ring-brand-lime-dark active:bg-brand-lime-dark flex h-16 flex-[2] items-center justify-center rounded-2xl text-xl font-bold text-slate-950 shadow-sm focus-visible:ring-4 focus-visible:outline-none active:text-white',
-                // Spento finché manca il video: grigio, non verde sbiadito, così si vede da lontano
-                // che non è un pulsante in attesa ma un passaggio che manca.
-                videoMancante && !inChiusura && 'bg-slate-300 text-slate-600 shadow-none',
-                'disabled:cursor-not-allowed disabled:opacity-80',
-              )}
-            >
-              {inChiusura ? 'Conclusione in corso…' : 'Completa check-in'}
-            </button>
+            {/*
+             * Il cursore sta QUI, nel piede, non dentro una finestra di conferma. La finestra
+             * serviva a dire quante foto e quanti video c'erano: adesso lo dicono le pastiglie in
+             * testata e la riga della documentazione, e restava solo un passaggio in più fra
+             * l'accettatore e la fine del suo lavoro.
+             */}
+            <SlideToConfirm
+              className="flex-[2]"
+              tone="success"
+              label="Scorri per completare il check-in"
+              pendingLabel="Conclusione in corso…"
+              actionLabel={`Completa il check-in della pratica ${a.code}`}
+              pending={inChiusura}
+              disabled={videoMancante}
+              onConfirm={() => void completa()}
+              data-testid="conferma-check-in"
+            />
           </div>
           <p
             id="stato-check-in"
             className={cn(
               'text-center text-base font-semibold',
-              videoMancante ? 'text-amber-800' : 'text-status-completed',
+              videoMancante ? 'text-status-in-progress-ink' : 'text-status-completed-ink',
             )}
           >
             {riepilogoMedia}
           </p>
         </div>
       </footer>
-
-      {/* Doppio controllo: una schermata a parte, con due bersagli lontani fra loro. */}
-      <Dialog
-        open={confermaAperta}
-        title="Completare il check-in?"
-        description={`Pratica ${a.code} · ${a.vehicle.plate}. La pratica si chiude, lo sportello si libera e il fascicolo parte verso il CRM.`}
-        onClose={() => setConfermaAperta(false)}
-        className="max-w-xl"
-        footer={
-          <div className="flex w-full flex-col-reverse gap-3 sm:flex-row">
-            <button
-              type="button"
-              onClick={() => setConfermaAperta(false)}
-              className="min-h-14 flex-1 rounded-2xl border-2 border-slate-300 bg-white text-lg font-bold text-slate-800 active:bg-slate-100"
-            >
-              Annulla
-            </button>
-            <button
-              type="button"
-              onClick={() => void completa()}
-              data-testid="conferma-check-in"
-              className="bg-brand-primary active:bg-brand-lime-dark min-h-14 flex-[2] rounded-2xl text-lg font-bold text-slate-950 shadow-sm active:text-white"
-            >
-              Sì, completa
-            </button>
-          </div>
-        }
-      >
-        <p className="text-lg text-slate-800">
-          Nel fascicolo ci sono <strong>{foto} foto</strong> e <strong>{video} video</strong>.
-        </p>
-        {note.trim() !== '' ? (
-          <p className="mt-2 rounded-xl bg-slate-50 px-4 py-3 text-base whitespace-pre-wrap text-slate-700">
-            {note.trim()}
-          </p>
-        ) : (
-          <p className="mt-2 text-base text-slate-500">Nessuna nota sul veicolo.</p>
-        )}
-      </Dialog>
     </div>
   );
 }

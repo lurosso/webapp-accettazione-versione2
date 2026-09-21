@@ -879,6 +879,7 @@ tests/              Test unitari, di contratto e di integrazione (Vitest)
 - [`ARCHITECTURE.md`](ARCHITECTURE.md): stack, Regola d'Oro Mock-First, modello di dominio, decisioni.
 - [`TASKS.md`](TASKS.md): piano di lavoro per milestone (M0 bootstrap → M7 passaggio ai servizi reali).
 - [`docs/ANALISI_REQUISITI.md`](docs/ANALISI_REQUISITI.md): requisiti e flussi operativi.
+- [`docs/DESIGN_SYSTEM.md`](docs/DESIGN_SYSTEM.md): colore, densità, primitivi e regole dell'interfaccia — da leggere prima di scrivere una schermata nuova.
 - [`docs/AUDIT_PRODUZIONE.md`](docs/AUDIT_PRODUZIONE.md): cosa manca per la produzione, casi limite non coperti, passo successivo raccomandato.
 - [`docs/INFINITY_ODBC.md`](docs/INFINITY_ODBC.md): integrazione con il database Infinity via ODBC (mappatura delle tabelle, limiti riscontrati, passaggio a `infinity01`).
 - [`CLAUDE.md`](CLAUDE.md): regole di sviluppo e priorità.

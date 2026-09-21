@@ -14,7 +14,7 @@ export default function PublicError({ reset }: { readonly reset: () => void }) {
         Servizio momentaneamente non disponibile
       </h1>
       <p className="text-lg text-slate-700">
-        Non riusciamo a mostrare lo stato della coda. Riprova fra qualche istante oppure rivolgiti
+        Non riusciamo a mostrare lo stato della coda. Riprovi fra qualche istante oppure si rivolga
         allo sportello dell&apos;accettazione.
       </p>
       <button
@@ -22,7 +22,7 @@ export default function PublicError({ reset }: { readonly reset: () => void }) {
         onClick={reset}
         className="h-touch mx-auto w-full max-w-xs rounded-xl bg-slate-900 px-6 text-lg font-semibold text-white hover:bg-slate-700 focus-visible:ring-4 focus-visible:ring-slate-400 focus-visible:outline-none"
       >
-        Riprova
+        Riprovi
       </button>
       <Link
         href="/cliente"

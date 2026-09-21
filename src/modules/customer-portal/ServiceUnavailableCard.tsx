@@ -20,27 +20,27 @@ function copyFor(problem: PublicStatusProblem, plate: string): ProblemCopy {
     case 'not-found':
       return {
         title: 'Targa non trovata',
-        detail: `Non risulta un appuntamento di oggi per la targa ${plate}. Controlla di averla digitata correttamente oppure rivolgiti allo sportello dell'accettazione.`,
+        detail: `Non risulta un appuntamento di oggi per la targa ${plate}. Controlli di averla digitata correttamente oppure si rivolga allo sportello dell'accettazione.`,
         tone: 'attention',
       };
     case 'invalid-plate':
       return {
         title: 'Targa non valida',
         detail:
-          'Il formato della targa non è corretto. Digitala senza spazi, come è scritta sul veicolo.',
+          'Il formato della targa non è corretto. La digiti senza spazi, come è scritta sul veicolo.',
         tone: 'attention',
       };
     case 'rate-limited':
       return {
         title: 'Troppe richieste',
-        detail: 'Hai effettuato molte ricerche di seguito. Attendi qualche istante e riprova.',
+        detail: 'Sono state fatte molte ricerche di seguito. Attenda qualche istante e riprovi.',
         tone: 'neutral',
       };
     case 'unavailable':
       return {
         title: 'Servizio momentaneamente non disponibile',
         detail:
-          "Non riusciamo a leggere lo stato della coda. Rivolgiti allo sportello dell'accettazione.",
+          "Non riusciamo a leggere lo stato della coda. Si rivolga allo sportello dell'accettazione.",
         tone: 'neutral',
       };
   }
@@ -53,7 +53,7 @@ export function ServiceUnavailableCard({ problem, plate }: ServiceUnavailableCar
       role="alert"
       className={`flex flex-col gap-4 rounded-2xl border-2 p-6 text-center shadow-sm ${
         copy.tone === 'attention'
-          ? 'bg-status-no-show-soft border-red-300'
+          ? 'bg-status-no-show-soft border-status-no-show/40'
           : 'border-slate-300 bg-white'
       }`}
     >

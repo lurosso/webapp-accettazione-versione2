@@ -11,10 +11,10 @@ export interface AlertProps extends HTMLAttributes<HTMLDivElement> {
 }
 
 const TONE_CLASSES: Record<AlertTone, string> = {
-  info: 'border-sky-200 bg-sky-50 text-sky-900',
-  warning: 'border-amber-300 bg-status-in-progress-soft text-amber-900',
-  error: 'border-red-300 bg-status-no-show-soft text-red-900',
-  success: 'border-emerald-200 bg-status-completed-soft text-emerald-900',
+  info: 'bg-status-info-soft text-status-info-ink',
+  warning: 'bg-status-in-progress-soft text-status-in-progress-ink',
+  error: 'bg-status-no-show-soft text-status-no-show-ink',
+  success: 'bg-status-completed-soft text-status-completed-ink',
 };
 
 export function Alert({
@@ -29,17 +29,17 @@ export function Alert({
     <div
       role={tone === 'error' ? 'alert' : 'status'}
       className={cn(
-        'flex flex-col gap-3 rounded-lg border px-4 py-3 text-sm sm:flex-row sm:items-center sm:justify-between',
+        // Niente bordo: il fondo pieno basta a staccarlo, e un bordo colorato sopra un fondo
+        // colorato è la doppia sottolineatura che rendeva pesante ogni avviso.
+        'testo-corpo flex flex-col gap-3 rounded-md px-5 py-4 sm:flex-row sm:items-center sm:justify-between',
         TONE_CLASSES[tone],
         className,
       )}
       {...props}
     >
-      <div className="flex flex-col gap-0.5">
+      <div className="flex flex-col gap-1">
         <p className="font-semibold">{title}</p>
-        {children !== undefined && children !== null ? (
-          <div className="text-inherit/80">{children}</div>
-        ) : null}
+        {children !== undefined && children !== null ? <div>{children}</div> : null}
       </div>
       {actions !== undefined && actions !== null ? (
         <div className="flex shrink-0 flex-wrap items-center gap-2">{actions}</div>

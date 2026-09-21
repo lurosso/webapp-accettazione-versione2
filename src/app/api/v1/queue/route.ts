@@ -42,11 +42,12 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
     richiesta === 'global' ? 'global' : richiesta === 'returns' ? 'returns' : 'desk';
   const flow = view === 'returns' ? 'RETURN' : 'INTAKE';
 
-  const [desks, brands, workstations, bays] = await Promise.all([
+  const [desks, brands, workstations, bays, claims] = await Promise.all([
     container.repos.referenceData.listDesks(),
     container.repos.referenceData.listBrands(),
     container.repos.referenceData.listWorkstations(),
     container.queueService.getBayOccupancy(businessDate),
+    container.repos.workstationClaims.listActive(container.clock.nowIso()),
   ]);
 
   const requestedDesk = searchParams.get('deskId');
@@ -78,7 +79,7 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
     returnsCount: riconsegne.length,
     deskId,
     rows,
-    bays: toBayOccupancyOptions(bays),
+    bays: toBayOccupancyOptions(bays, workstations, claims),
     lastSync,
     desks,
     brands,

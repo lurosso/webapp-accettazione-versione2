@@ -7,8 +7,8 @@ import { PublicStatusView } from '@/modules/customer-portal/PublicStatusView';
 import { formatPlateInput } from '@/modules/customer-portal/plate-input';
 
 export const metadata: Metadata = {
-  title: 'Il tuo turno in officina',
-  description: 'Segui in tempo reale la tua pratica: codice, posizione in coda e avanzamento.',
+  title: 'Il suo turno in officina',
+  description: 'Codice, posizione in coda e avanzamento della pratica, aggiornati in tempo reale.',
 };
 
 interface PageProps {

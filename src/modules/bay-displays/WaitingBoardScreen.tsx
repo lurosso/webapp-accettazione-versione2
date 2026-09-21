@@ -61,7 +61,7 @@ export function WaitingBoardScreen({ nextCount }: WaitingBoardScreenProps) {
       </header>
 
       {offline ? (
-        <div className="flex flex-1 flex-col items-center justify-center bg-amber-500 text-center text-slate-950">
+        <div className="bg-status-in-progress-soft flex flex-1 flex-col items-center justify-center text-center text-slate-950">
           <p className="text-[7vw] leading-none font-black">TABELLONE SCOLLEGATO</p>
           <p className="mt-[2vh] text-[2.5vw] font-semibold">
             Nessuna risposta dal sistema: rivolgersi all&apos;accettazione
@@ -131,7 +131,7 @@ export function WaitingBoardScreen({ nextCount }: WaitingBoardScreenProps) {
 
           <footer className="border-t border-white/15 bg-black/40 px-[2.5vw] py-[2vh]">
             <div className="flex items-baseline justify-between">
-              <h2 className="text-[1.8vw] font-bold tracking-[0.3em] text-amber-300 uppercase">
+              <h2 className="text-status-in-progress text-[1.8vw] font-bold tracking-[0.3em] uppercase">
                 Prossimi turni
               </h2>
               {data !== undefined ? (

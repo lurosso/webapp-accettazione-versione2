@@ -35,38 +35,38 @@ const COPY: Record<NotificationJobStatus, BadgeCopy> = {
     icon: '✓',
     label: 'WhatsApp',
     title: 'Promemoria inviato via WhatsApp (consegna non ancora confermata)',
-    classes: 'bg-emerald-50 text-emerald-800 ring-emerald-300',
+    classes: 'bg-status-completed-soft text-status-completed-ink ring-status-completed/50',
   },
   DELIVERED: {
     icon: '✓✓',
     label: 'WhatsApp',
     title: 'Promemoria consegnato via WhatsApp',
-    classes: 'bg-status-completed-soft text-emerald-900 ring-emerald-400',
+    classes: 'bg-status-completed-soft text-status-completed-ink ring-status-completed',
   },
   FAILED: {
     icon: '!',
     label: 'da ritentare',
     title:
       'Invio non riuscito per un problema temporaneo: sarà ritentato, oppure contattare il cliente',
-    classes: 'bg-status-no-show-soft text-red-800 ring-red-300',
+    classes: 'bg-status-no-show-soft text-status-no-show-ink ring-status-no-show/50',
   },
   MANUAL_REQUIRED: {
     icon: '☎',
     label: 'chiamare',
     title: 'WhatsApp e SMS non riusciti: contattare il cliente al telefono',
-    classes: 'bg-status-no-show-soft text-red-800 ring-red-400',
+    classes: 'bg-status-no-show-soft text-status-no-show-ink ring-status-no-show',
   },
   MANUAL_CONFIRMED: {
     icon: '☎',
     label: 'contattato',
     title: 'Cliente contattato a mano da un operatore',
-    classes: 'bg-sky-50 text-sky-800 ring-sky-300',
+    classes: 'bg-status-info-soft text-status-info-ink ring-status-info/40',
   },
   NO_RECIPIENT: {
     icon: '−',
     label: 'senza numero',
     title: 'Nessun recapito telefonico in agenda: il cliente non può essere avvisato',
-    classes: 'bg-amber-50 text-amber-900 ring-amber-300',
+    classes: 'bg-status-in-progress-soft text-status-in-progress-ink ring-status-in-progress/50',
   },
   SUPPRESSED: {
     icon: '−',
@@ -81,7 +81,7 @@ const SMS_COPY: BadgeCopy = {
   icon: '✓',
   label: 'SMS',
   title: 'WhatsApp non riuscito: promemoria inviato via SMS',
-  classes: 'bg-sky-50 text-sky-800 ring-sky-300',
+  classes: 'bg-status-info-soft text-status-info-ink ring-status-info/40',
 };
 
 export interface NotificationBadgeFullProps extends NotificationBadgeProps {

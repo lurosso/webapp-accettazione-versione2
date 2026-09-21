@@ -14,23 +14,28 @@ export default function CheckInError({
 }) {
   return (
     <main className="mx-auto flex min-h-dvh w-full max-w-xl flex-col justify-center gap-6 px-6 py-10">
-      <div role="alert" className="rounded-2xl border-2 border-red-200 bg-red-50 px-6 py-8">
-        <h1 className="text-2xl font-bold text-red-900">Il check-in ha avuto un problema</h1>
-        <p className="mt-2 text-base text-red-800">
+      <div
+        role="alert"
+        className="border-status-no-show/30 bg-status-no-show-soft rounded-2xl border-2 px-6 py-8"
+      >
+        <h1 className="text-status-no-show-ink text-2xl font-bold">
+          Il check-in ha avuto un problema
+        </h1>
+        <p className="text-status-no-show-ink mt-2 text-base">
           La pratica e le foto già salvate non si perdono. Riprova, oppure torna alla coda: il
           check-in si riprende da &ldquo;Le mie prese in carico&rdquo;.
         </p>
         {error.digest !== undefined ? (
-          <p className="mt-3 font-mono text-xs text-red-700">Codice: {error.digest}</p>
+          <p className="text-status-no-show-ink mt-3 font-mono text-xs">Codice: {error.digest}</p>
         ) : null}
       </div>
       <div className="flex flex-col gap-3">
-        <Button size="touch" className="min-h-14 text-lg" onClick={reset}>
+        <Button size="lg" onClick={reset}>
           Riprova
         </Button>
         <Link
           href="/accettazione"
-          className="inline-flex min-h-14 items-center justify-center rounded-xl border-2 border-slate-300 bg-white px-4 text-lg font-semibold text-slate-800"
+          className="border-line text-ink-soft premibile focus-anello controllo-lg inline-flex items-center justify-center rounded-xl border-2 bg-white px-4 text-lg font-semibold"
         >
           Torna alla coda
         </Link>

@@ -12,6 +12,17 @@
 import { keepPreviousData, useQuery } from '@tanstack/react-query';
 import type { DailyReportView } from '@/application/reporting/DailyReportService';
 import { Badge } from '@/components/ui/badge';
+import { Notice } from '@/components/ui/notice';
+import { Panel, PanelHeader } from '@/components/ui/panel';
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from '@/components/ui/table';
+import { cn } from '@/lib/utils/cn';
 import { fetchDailyReport } from '@/lib/api-client/client';
 
 export interface DailyReportPanelProps {
@@ -91,37 +102,44 @@ export function DailyReportPanel({ businessDate }: DailyReportPanelProps) {
   const report = query.data;
 
   return (
-    <section className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm sm:p-6">
-      <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
-        <h2 className="text-lg font-semibold text-slate-900">Statistiche del giorno</h2>
-        <div className="flex flex-wrap items-center gap-2">
-          {report !== undefined ? (
+    <Panel>
+      <PanelHeader
+        title="La giornata finora"
+        description="Il consuntivo dalle prime pratiche a questo momento: quante ne sono state chiuse e quante sono rimaste indietro."
+        meta={
+          report !== undefined ? (
             <>
               <Badge tone="neutral">{report.total} pratiche</Badge>
               {report.stillOpen > 0 ? (
-                <Badge tone="warning">{report.stillOpen} ancora aperte</Badge>
+                <Badge tone="warning" dot>
+                  {report.stillOpen} ancora aperte
+                </Badge>
               ) : (
-                <Badge tone="success">Giornata chiusa</Badge>
+                <Badge tone="success" dot>
+                  Giornata chiusa
+                </Badge>
               )}
             </>
-          ) : null}
-          {/* Link e non fetch: il browser scarica il file come qualunque allegato, e funziona
-              anche se JavaScript inciampa. */}
+          ) : null
+        }
+        actions={
+          /* Link e non fetch: il browser scarica il file come qualunque allegato, e funziona
+             anche se JavaScript inciampa. */
           <a
             href={`/api/v1/reports/daily/csv?giornata=${encodeURIComponent(businessDate)}`}
-            className="bg-brand-blue hover:bg-brand-blue-dark focus-visible:ring-brand-blue-light inline-flex min-h-11 items-center rounded-md px-4 text-sm font-semibold text-white transition-colors focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:outline-none"
+            className="border-line bg-surface text-ink-soft hover:bg-surface-sunken premibile focus-anello controllo inline-flex items-center rounded-md border px-5 text-sm font-semibold"
             download
           >
             Esporta report CSV
           </a>
-        </div>
-      </div>
+        }
+      />
 
       {query.isError ? (
-        <p role="alert" className="rounded-md bg-amber-50 px-3 py-2 text-sm text-amber-900">
+        <Notice tone="warning">
           Statistiche non disponibili in questo momento: il resto del cruscotto continua a
           funzionare.
-        </p>
+        </Notice>
       ) : report === undefined ? (
         <p className="text-sm text-slate-500">Calcolo delle statistiche…</p>
       ) : (
@@ -158,8 +176,73 @@ export function DailyReportPanel({ businessDate }: DailyReportPanelProps) {
           <div className="mt-3">
             <Conversione report={report} />
           </div>
+
+          {/*
+           * Gli indicatori sopra dicono com'è andata l'officina; questa dice DOVE. Un'attesa media
+           * di ventuno minuti può essere tre sportelli tranquilli e uno in affanno, e finché il
+           * numero resta uno solo la differenza non si vede — si vedeva aprendo il CSV.
+           */}
+          {report.byDesk.length > 1 ? (
+            <div className="mt-6">
+              <h3 className="text-ink testo-dato mb-2 font-semibold">Sportello per sportello</h3>
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>Sportello</TableHead>
+                    <TableHead className="text-right">Previste</TableHead>
+                    <TableHead className="text-right">Completate</TableHead>
+                    <TableHead className="text-right">Assenti</TableHead>
+                    <TableHead className="text-right">Attesa media</TableHead>
+                    <TableHead className="text-right">In coda</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {report.byDesk.map((d) => (
+                    <TableRow key={d.deskId ?? 'senza'}>
+                      <TableCell className="font-semibold">{d.label}</TableCell>
+                      <TableCell className="text-right tabular-nums">{d.expected}</TableCell>
+                      <TableCell className="text-right tabular-nums">{d.completed}</TableCell>
+                      <TableCell
+                        className={cn(
+                          'text-right tabular-nums',
+                          d.noShow > 0 && 'text-status-no-show-ink font-semibold',
+                        )}
+                      >
+                        {d.noShow}
+                      </TableCell>
+                      <TableCell className="text-right tabular-nums">
+                        {minuti(d.averageWaitMinutes)}
+                      </TableCell>
+                      <TableCell
+                        className={cn(
+                          'text-right tabular-nums',
+                          d.stillInQueue > 0 && 'text-priority-now-ink font-semibold',
+                        )}
+                      >
+                        {d.stillInQueue}
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                  <TableRow className="bg-surface-sunken font-semibold">
+                    <TableCell>Totale</TableCell>
+                    <TableCell className="text-right tabular-nums">{report.total}</TableCell>
+                    <TableCell className="text-right tabular-nums">
+                      {report.counts.COMPLETED}
+                    </TableCell>
+                    <TableCell className="text-right tabular-nums">
+                      {report.counts.NO_SHOW}
+                    </TableCell>
+                    <TableCell className="text-right tabular-nums">
+                      {minuti(report.averageWait.minutes)}
+                    </TableCell>
+                    <TableCell className="text-right tabular-nums">{report.stillOpen}</TableCell>
+                  </TableRow>
+                </TableBody>
+              </Table>
+            </div>
+          ) : null}
         </>
       )}
-    </section>
+    </Panel>
   );
 }

@@ -2,7 +2,7 @@
 
 // Tabella della coda con tre sezioni: In carico (in alto), In coda (attesa + saltate per orario) e
 // Chiuse oggi (completate, no-show, annullate; collassabile).
-import { useState } from 'react';
+import { Fragment, useEffect, useState } from 'react';
 import {
   compareQueueOrder,
   effectiveScheduleTime,
@@ -16,8 +16,12 @@ import type { Desk } from '@/domain/entities/desk';
 import type { QueueRowView } from '@/domain/read-models';
 import { Button } from '@/components/ui/button';
 import { Table, TableBody, TableHead, TableHeader, TableRow } from '@/components/ui/table';
+import { AppointmentCard } from './AppointmentCard';
 import { AppointmentRow } from './AppointmentRow';
 import type { AppointmentAction } from './types';
+
+/** Per quanto una pratica resta «appena cambiata»: oltre, il movimento sarebbe un ricordo. */
+const FINESTRA_MOVIMENTO_MS = 10_000;
 
 export interface QueueTableProps {
   readonly rows: readonly QueueRowView[];
@@ -41,6 +45,11 @@ export interface QueueTableProps {
   readonly selectedId?: string | null;
   /** Monitoraggio in sola lettura: nessuna azione sulle righe. */
   readonly readOnly?: boolean;
+  /**
+   * Sezione chiesta dai contatori della testata. Il `nonce` serve perché la stessa sezione si può
+   * chiedere due volte di fila, e senza un valore che cambia il secondo clic non farebbe niente.
+   */
+  readonly vaiA?: { readonly chiave: string; readonly nonce: number } | null;
 }
 
 interface Section {
@@ -52,6 +61,17 @@ interface Section {
   readonly emptyLabel: string;
   /** Nota sotto il titolo: spiega cosa fare con le pratiche di questo blocco. */
   readonly hint?: string;
+  /**
+   * La prima riga è la prossima da servire, e si vede da lontano — col dito diventa una scheda a
+   * sé sotto «Tocca a lui adesso», al banco resta la prima riga della stessa tabella, in ambra.
+   * Sono due modi di dire la stessa cosa: dividerla in due sezioni anche al banco voleva dire due
+   * tabelle con la stessa intestazione ripetuta per una riga ciascuna.
+   */
+  readonly evidenzaPrima?: boolean;
+  /** Ridotta a una riga sola finché non la si apre: vale per i ritardi. */
+  readonly compatta?: boolean;
+  /** Riga compatta: cosa c'è scritto quando la sezione è chiusa. */
+  readonly compattaLabel?: (n: number) => string;
   /** Sezione dei clienti in ritardo: righe evidenziate e azioni dedicate. */
   readonly late?: boolean;
 }
@@ -79,8 +99,47 @@ export function QueueTable({
   onSelect,
   selectedId = null,
   readOnly = false,
+  vaiA = null,
 }: QueueTableProps) {
   const [closedOpen, setClosedOpen] = useState(false);
+  const [ritardiAperti, setRitardiAperti] = useState(false);
+
+  // Chiesta una sezione dalla testata: prima la si apre, se era ripiegata, poi ci si porta. Portare
+  // qualcuno davanti a un'intestazione chiusa sarebbe rispondere «è là dentro» a chi ha chiesto di
+  // vederla.
+  //
+  // L'apertura è un aggiustamento di stato durante il disegno, non un effetto: reagisce a una
+  // proprietà cambiata, e farlo in un effetto costringerebbe a un secondo disegno con la sezione
+  // ancora chiusa. Resta una richiesta, non un vincolo: chi la richiude dopo la trova richiusa.
+  const [nonceVisto, setNonceVisto] = useState(0);
+  if (vaiA !== null && vaiA.nonce !== nonceVisto) {
+    setNonceVisto(vaiA.nonce);
+    if (vaiA.chiave === 'closed') {
+      setClosedOpen(true);
+    }
+    if (vaiA.chiave === 'late') {
+      setRitardiAperti(true);
+    }
+  }
+
+  // Lo scorrimento invece è un effetto vero, e parte dopo il disegno: prima la sezione appena
+  // aperta non ha ancora la sua altezza, e si atterrerebbe nel posto sbagliato.
+  useEffect(() => {
+    if (vaiA === null) {
+      return;
+    }
+    const frame = requestAnimationFrame(() => {
+      // Chi ha chiesto meno movimento non lo riceve nemmeno qui: il salto è istantaneo. È la stessa
+      // regola che `globals.css` applica alle transizioni, e uno scorrimento lungo due schermi è
+      // esattamente il tipo di moto che quella preferenza vuole evitare.
+      const motoRidotto = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+      document.getElementById(`sezione-${vaiA.chiave}`)?.scrollIntoView({
+        behavior: motoRidotto ? 'auto' : 'smooth',
+        block: 'start',
+      });
+    });
+    return () => cancelAnimationFrame(frame);
+  }, [vaiA]);
 
   /** Ordina per orario effettivo: una pratica rimessa in coda si ricolloca al nuovo orario. */
   const byTime = (list: readonly QueueRowView[]): QueueRowView[] =>
@@ -111,33 +170,45 @@ export function QueueTable({
     rows.filter((r) => ['COMPLETED', 'NO_SHOW', 'CANCELLED'].includes(r.appointment.status)),
   );
 
+  /*
+   * La coda non è un elenco: è una fila. Il primo da servire sta in una scheda sua, grande, e il
+   * resto segue in forma compatta — «poi questi». Prima erano tutte righe uguali, e l'accettatore
+   * doveva scegliere da solo chi veniva prima, quaranta volte al giorno, con il cliente davanti.
+   *
+   * I ritardi stanno in una riga sola finché non li si apre. Venti righe rosse in fondo alla coda
+   * non sono venti avvisi: sono uno sfondo, e chi le guarda ogni mattina smette di vederle.
+   */
   const sections: Section[] = [
     {
       key: 'in-progress',
-      title: `In carico (${inProgress.length})`,
+      title: `In carico · ${inProgress.length}`,
       rows: inProgress,
       collapsible: false,
       emptyLabel: 'Nessuna pratica in lavorazione.',
     },
     {
       key: 'queued',
-      title: `In coda (${queued.length})`,
+      title: `In coda · ${queued.length}`,
       rows: queued,
       collapsible: false,
+      evidenzaPrima: true,
       emptyLabel: 'Nessuna pratica in coda.',
     },
     {
       key: 'late',
-      title: `In ritardo / assenti (${late.length})`,
+      title: `In ritardo · ${late.length}`,
       rows: late,
       collapsible: false,
+      compatta: true,
+      compattaLabel: (n) =>
+        n === 1 ? 'Un cliente non si è presentato' : `${n} clienti non si sono presentati`,
       late: true,
       hint: `Attesi da oltre ${LATE_GRACE_MINUTES} minuti e non ancora presi in carico: rimettili in coda quando arrivano, oppure segnalali assenti per il ricontatto.`,
       emptyLabel: 'Nessun cliente in ritardo.',
     },
     {
       key: 'closed',
-      title: `Chiuse oggi (${closed.length})`,
+      title: `Chiuse oggi · ${closed.length}`,
       rows: closed,
       collapsible: true,
       emptyLabel: 'Nessuna pratica chiusa.',
@@ -148,100 +219,199 @@ export function QueueTable({
     brands.find((b) => b.id === brandId)?.name ?? brandId;
 
   return (
-    <div className="flex flex-col gap-6">
+    <div className="flex flex-col gap-8">
       {sections.map((section) => {
         const hidden = section.collapsible && !closedOpen;
+        const compattaChiusa =
+          section.compatta === true && !ritardiAperti && section.rows.length > 0;
+        // Calcolato una volta e usato da tutt'e due le forme dell'elenco (schede e tabella).
+        const righe = section.rows.map((row) => {
+          const desk = deskOf(row, desks);
+          return {
+            row,
+            deskLabel: desk === null ? null : `${desk.code} · ${desk.name}`,
+            foreignDesk: showDesk && homeDeskId !== null && desk !== null && desk.id !== homeDeskId,
+            dueSoon:
+              section.late !== true &&
+              isDueWithinGrace(row.appointment, serverTime, LATE_GRACE_MINUTES),
+            // Cambiata da poco: sale al suo posto invece di comparire e basta. Lo decide
+            // `updatedAt` del server, non un contatore nel browser, così la riga si muove anche
+            // quando a cambiarla è stato un collega da un altro banco — ed è lì che serve.
+            appenaCambiata:
+              new Date(serverTime).getTime() - new Date(row.appointment.updatedAt).getTime() <
+              FINESTRA_MOVIMENTO_MS,
+          };
+        });
+        // I ritardi chiusi: una riga sola che dice quanti sono e apre l'elenco. Il conto è la
+        // notizia; i nomi servono solo a chi ha deciso di occuparsene adesso.
+        if (compattaChiusa) {
+          return (
+            <section key={section.key} id={`sezione-${section.key}`}>
+              <div className="border-priority-late-line bg-surface flex flex-wrap items-center gap-x-3 gap-y-2 rounded-lg border px-5 py-3">
+                <span className="bg-priority-late-soft text-priority-late-ink testo-nota flex size-7 shrink-0 items-center justify-center rounded-full font-bold tabular-nums">
+                  {section.rows.length}
+                </span>
+                <span className="text-priority-late-ink testo-corpo font-semibold">
+                  {section.compattaLabel?.(section.rows.length) ?? section.title}
+                </span>
+                <span className="text-ink-muted testo-nota min-w-0 flex-1 truncate">
+                  {section.rows
+                    .slice(0, 2)
+                    .map(
+                      (r) =>
+                        `${r.appointment.code} · ${r.appointment.customer.lastName} ${r.appointment.customer.firstName}`,
+                    )
+                    .join(' · ')}
+                  {section.rows.length > 2 ? ` · e altri ${section.rows.length - 2}` : ''}
+                </span>
+                <Button variant="outline" size="sm" onClick={() => setRitardiAperti(true)}>
+                  Decidi
+                </Button>
+              </div>
+            </section>
+          );
+        }
+
         return (
-          <section key={section.key} aria-labelledby={`section-${section.key}`}>
-            <div className="mb-2 flex items-start justify-between gap-4">
+          <section key={section.key} id={`sezione-${section.key}`} aria-labelledby={`section-${section.key}`}>
+            <div className="mb-3 flex items-start justify-between gap-4">
               <div>
                 <h2
                   id={`section-${section.key}`}
                   className={cn(
                     'text-sm font-semibold tracking-wide uppercase',
-                    section.late === true ? 'text-red-700' : 'text-slate-600',
+                    section.late === true ? 'text-priority-late-ink' : 'text-ink-soft',
                   )}
                 >
                   {section.title}
                 </h2>
                 {section.hint !== undefined && section.rows.length > 0 ? (
-                  <p className="mt-0.5 text-xs text-slate-500">{section.hint}</p>
+                  <p className="text-ink-muted mt-1 text-xs">{section.hint}</p>
                 ) : null}
               </div>
               {section.collapsible ? (
                 <Button
                   variant="ghost"
-                  size="touch"
+                  size="sm"
                   onClick={() => setClosedOpen((v) => !v)}
                   aria-expanded={!hidden}
                 >
                   {hidden ? 'Mostra' : 'Nascondi'}
                 </Button>
+              ) : section.compatta === true && section.rows.length > 0 ? (
+                <Button variant="ghost" size="sm" onClick={() => setRitardiAperti(false)}>
+                  Richiudi
+                </Button>
               ) : null}
             </div>
             {hidden ? null : section.rows.length === 0 ? (
-              <p className="rounded-md border border-dashed border-slate-300 px-4 py-3 text-sm text-slate-500">
+              <p className="border-line bg-surface text-ink-muted rounded-lg border border-dashed px-5 py-4 text-sm">
                 {section.emptyLabel}
               </p>
             ) : (
               <div
                 className={cn(
-                  'rounded-xl border bg-white shadow-sm',
-                  section.late === true ? 'border-red-300 ring-1 ring-red-200' : 'border-slate-200',
+                  'bg-surface rounded-lg border shadow-sm',
+                  section.late === true ? 'border-priority-late-line' : 'border-line-subtle',
                 )}
               >
-                <Table>
-                  <TableHeader>
-                    <TableRow>
-                      <TableHead className="pt-3">Codice</TableHead>
-                      <TableHead className="pt-3">Orario</TableHead>
-                      <TableHead className="pt-3">Targa</TableHead>
-                      <TableHead className="pt-3">Veicolo</TableHead>
-                      <TableHead className="pt-3">Cliente</TableHead>
-                      {showDesk ? <TableHead className="pt-3">Sportello</TableHead> : null}
-                      <TableHead className="pt-3">Stato</TableHead>
-                      {/* Sul tablet in verticale campata e operatore si leggono nel dettaglio: qui farebbero solo scorrere. */}
-                      <TableHead className="hidden pt-3 lg:table-cell">Accettazione</TableHead>
-                      <TableHead className="hidden pt-3 lg:table-cell">Operatore</TableHead>
-                      <TableHead className="pt-3">Azioni</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {section.rows.map((row) => {
-                      const desk = deskOf(row, desks);
-                      const foreignDesk =
-                        showDesk && homeDeskId !== null && desk !== null && desk.id !== homeDeskId;
-                      return (
-                        <AppointmentRow
-                          key={row.appointment.id}
-                          row={row}
-                          brandName={brandName(row.appointment.brandId)}
-                          dueSoon={
-                            section.late !== true &&
-                            isDueWithinGrace(row.appointment, serverTime, LATE_GRACE_MINUTES)
-                          }
-                          deskLabel={desk === null ? null : `${desk.code} · ${desk.name}`}
-                          showDesk={showDesk}
-                          foreignDesk={foreignDesk}
-                          timeZone={timeZone}
-                          pending={pendingId === row.appointment.id}
-                          currentOperatorName={currentOperatorName}
-                          late={section.late === true}
-                          lateByMinutes={section.late === true ? lateBy(row) : 0}
-                          selected={row.appointment.id === selectedId}
-                          readOnly={readOnly}
-                          onAction={(action) =>
-                            onAction(row.appointment.id, action, row.appointment.version)
-                          }
-                          onSelect={() => onSelect(row)}
-                        />
-                      );
-                    })}
-                  </TableBody>
-                </Table>
-                <p className="px-3 py-2 text-xs text-slate-400">
-                  {section.rows.length} {section.rows.length === 1 ? 'pratica' : 'pratiche'} ·
-                  clicca una riga per i dettagli del cliente
+                {/*
+                  L'elenco esiste in due forme e ne nasconde una il CSS: schede col dito, tabella
+                  al banco. Sembra uno spreco tenerle entrambe nel DOM, e invece è la scelta meno
+                  costosa: `display: none` toglie il ramo nascosto anche dall'albero di
+                  accessibilità (nessun doppione per chi usa un lettore di schermo) e soprattutto
+                  la struttura è già giusta al primo disegno, mentre leggendo un hook cambierebbe
+                  dopo l'idratazione — cioè sfarfallerebbe sotto gli occhi dell'accettatore.
+                */}
+                <ul className="divide-line-subtle banco:hidden divide-y">
+                  {righe.map(({ row, deskLabel, foreignDesk, dueSoon, appenaCambiata }, indice) => (
+                    <Fragment key={`gruppo-${row.appointment.id}`}>
+                      {section.evidenzaPrima === true && indice === 0 ? (
+                        <li className="text-priority-now-ink testo-nota px-5 pt-4 font-semibold tracking-wide uppercase">
+                          Tocca a lui adesso
+                        </li>
+                      ) : null}
+                      {section.evidenzaPrima === true && indice === 1 ? (
+                        <li className="text-ink-soft testo-nota px-5 pt-4 font-semibold tracking-wide uppercase">
+                          Poi questi · {righe.length - 1}
+                        </li>
+                      ) : null}
+                      <AppointmentCard
+                        key={row.appointment.id}
+                        row={row}
+                        brandName={brandName(row.appointment.brandId)}
+                        deskLabel={deskLabel}
+                        showDesk={showDesk}
+                        foreignDesk={foreignDesk}
+                        dueSoon={dueSoon}
+                        appenaCambiata={appenaCambiata}
+                        evidenza={section.evidenzaPrima === true && indice === 0}
+                        timeZone={timeZone}
+                        pending={pendingId === row.appointment.id}
+                        late={section.late === true}
+                        lateByMinutes={section.late === true ? lateBy(row) : 0}
+                        selected={row.appointment.id === selectedId}
+                        readOnly={readOnly}
+                        onAction={(action) =>
+                          onAction(row.appointment.id, action, row.appointment.version)
+                        }
+                        onSelect={() => onSelect(row)}
+                      />
+                    </Fragment>
+                  ))}
+                </ul>
+
+                <div className="banco:block hidden">
+                  <Table>
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead>Codice</TableHead>
+                        <TableHead>Orario</TableHead>
+                        <TableHead>Targa</TableHead>
+                        <TableHead>Veicolo</TableHead>
+                        <TableHead>Cliente</TableHead>
+                        {showDesk ? <TableHead>Sportello</TableHead> : null}
+                        <TableHead>Stato</TableHead>
+                        <TableHead className="hidden xl:table-cell">Accettazione</TableHead>
+                        <TableHead className="hidden xl:table-cell">Operatore</TableHead>
+                        {/* Larghezza propria: senza, i comandi si impilavano uno sotto l'altro e
+                            la riga cresceva fino a duecento pixel. */}
+                        <TableHead className="w-[23rem] text-right">Azioni</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {righe.map(
+                        ({ row, deskLabel, foreignDesk, dueSoon, appenaCambiata }, indice) => (
+                          <AppointmentRow
+                            key={row.appointment.id}
+                            row={row}
+                            brandName={brandName(row.appointment.brandId)}
+                            dueSoon={dueSoon}
+                            appenaCambiata={appenaCambiata}
+                            evidenza={section.evidenzaPrima === true && indice === 0}
+                            deskLabel={deskLabel}
+                            showDesk={showDesk}
+                            foreignDesk={foreignDesk}
+                            timeZone={timeZone}
+                            pending={pendingId === row.appointment.id}
+                            currentOperatorName={currentOperatorName}
+                            late={section.late === true}
+                            lateByMinutes={section.late === true ? lateBy(row) : 0}
+                            selected={row.appointment.id === selectedId}
+                            readOnly={readOnly}
+                            onAction={(action) =>
+                              onAction(row.appointment.id, action, row.appointment.version)
+                            }
+                            onSelect={() => onSelect(row)}
+                          />
+                        ),
+                      )}
+                    </TableBody>
+                  </Table>
+                </div>
+                <p className="text-ink-muted border-line-subtle border-t px-5 py-2.5 text-xs">
+                  {section.rows.length} {section.rows.length === 1 ? 'pratica' : 'pratiche'} · tocca
+                  una pratica per i dettagli del cliente
                 </p>
               </div>
             )}

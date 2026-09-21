@@ -18,8 +18,8 @@ export function formatPlateInput(raw: string): string {
 export function plateErrorMessage(raw: string): string | null {
   const formatted = formatPlateInput(raw);
   if (formatted === '') {
-    return 'Inserisci la targa del veicolo.';
+    return 'Inserisca la targa del veicolo.';
   }
   const parsed = parsePlate(formatted);
-  return parsed.ok ? null : 'Targa non valida: controlla di averla digitata correttamente.';
+  return parsed.ok ? null : 'Targa non valida: controlli di averla digitata correttamente.';
 }

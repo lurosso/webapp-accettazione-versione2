@@ -11,6 +11,8 @@
 // si è ancora annunciato resta un trattino, perché una media inventata è peggio di un buco.
 import { useQuery } from '@tanstack/react-query';
 import { TableSkeleton } from '@/components/ui/skeleton';
+import { Badge } from '@/components/ui/badge';
+import { Panel, PanelHeader } from '@/components/ui/panel';
 import { fetchAssistance } from '@/lib/api-client/client';
 import { cn } from '@/lib/utils/cn';
 
@@ -21,23 +23,31 @@ function Numero({
   etichetta,
   valore,
   dettaglio,
+  consiglio,
   tono = 'neutro',
 }: {
   readonly etichetta: string;
   readonly valore: string;
   readonly dettaglio: string;
+  /** Cosa farne, quando il numero chiede di fare qualcosa. Un dato senza soglia è solo un dato. */
+  readonly consiglio?: string | undefined;
   readonly tono?: 'neutro' | 'attenzione';
 }) {
   return (
     <div
       className={cn(
-        'rounded-lg border px-4 py-3',
-        tono === 'attenzione' ? 'border-amber-300 bg-amber-50' : 'border-slate-200 bg-white',
+        'rounded-md border px-5 py-4',
+        tono === 'attenzione'
+          ? 'border-priority-now bg-priority-now-soft'
+          : 'border-line-subtle bg-surface',
       )}
     >
-      <dt className="text-xs font-semibold tracking-wide text-slate-500 uppercase">{etichetta}</dt>
-      <dd className="mt-1 text-2xl font-bold text-slate-900 tabular-nums">{valore}</dd>
-      <p className="text-xs text-slate-500">{dettaglio}</p>
+      <dt className="text-ink-muted text-xs font-semibold tracking-wide uppercase">{etichetta}</dt>
+      <dd className="text-ink mt-1.5 font-mono text-3xl font-semibold tabular-nums">{valore}</dd>
+      <p className="text-ink-muted mt-1 text-xs">{dettaglio}</p>
+      {consiglio !== undefined ? (
+        <p className="text-priority-now-ink mt-1.5 text-xs font-semibold">{consiglio}</p>
+      ) : null}
     </div>
   );
 }
@@ -51,16 +61,21 @@ export function LiveQueuePanel() {
   const live = query.data?.live;
 
   return (
-    <section className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm sm:p-6">
-      <div className="mb-3 flex flex-wrap items-baseline justify-between gap-2">
-        <h2 className="text-lg font-semibold text-slate-900">La fila adesso</h2>
-        <p className="text-xs text-slate-500">si aggiorna da solo ogni 10 secondi</p>
-      </div>
+    <Panel>
+      <PanelHeader
+        title="La fila adesso"
+        description="Cosa sta succedendo in questo momento, non com'è andata: sono i numeri su cui si decide se aprire un altro sportello."
+        meta={
+          <Badge tone="success" dot>
+            in diretta · ogni 10 secondi
+          </Badge>
+        }
+      />
 
       {query.isPending || live === undefined ? (
         <TableSkeleton rows={1} columns={4} label="Caricamento della fila" />
       ) : (
-        <dl className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+        <dl className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
           <Numero
             etichetta="Auto in fila"
             valore={String(live.inQueue)}
@@ -78,6 +93,11 @@ export function LiveQueuePanel() {
                 ? 'nessuno si è ancora annunciato'
                 : `da quando hanno dichiarato l'arrivo · su ${live.announced} auto`
             }
+            consiglio={
+              live.averageWaitMinutes !== null && live.averageWaitMinutes >= ATTESA_DA_GUARDARE
+                ? `sopra i ${ATTESA_DA_GUARDARE}: valuta un altro sportello`
+                : undefined
+            }
             tono={
               live.averageWaitMinutes !== null && live.averageWaitMinutes >= ATTESA_DA_GUARDARE
                 ? 'attenzione'
@@ -90,7 +110,7 @@ export function LiveQueuePanel() {
             dettaglio={
               live.longestWaitMinutes === null
                 ? 'nessuna auto annunciata in fila'
-                : 'il cliente che aspetta da più tempo'
+                : [live.longestWaitCustomer, live.longestWaitCode].filter(Boolean).join(' · ')
             }
             tono={
               live.longestWaitMinutes !== null && live.longestWaitMinutes >= ATTESA_DA_GUARDARE * 2
@@ -107,6 +127,6 @@ export function LiveQueuePanel() {
           />
         </dl>
       )}
-    </section>
+    </Panel>
   );
 }

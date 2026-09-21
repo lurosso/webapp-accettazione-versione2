@@ -33,3 +33,7 @@ Thumbs.db
 
 # Configurazione locale del browser di anteprima (Claude Code)
 .claude/launch.json
+
+# Materiale di lavoro delle sessioni Claude (tavole rese, screenshot, patch di scambio):
+# non è codice e pesa qualche megabyte. Se una tavola diventa documentazione, va in docs/.
+Claude outputs/

@@ -3,6 +3,7 @@
 // Dashboard della coda (client): polling ogni 3 s, filtro sportello / vista globale (nell'URL, così
 // il link è condivisibile fra postazioni), banner sync, tabella con azioni rapide e gestione dei
 // conflitti fra postazioni (409) e delle campate occupate.
+import { isLate } from '@/domain/entities/appointment';
 import { useQueryClient } from '@tanstack/react-query';
 import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 import { useCallback, useEffect, useMemo, useState } from 'react';
@@ -11,8 +12,8 @@ import { Alert } from '@/components/ui/alert';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Dialog } from '@/components/ui/dialog';
-import { Select } from '@/components/ui/select';
 import { TableSkeleton } from '@/components/ui/skeleton';
+import { UndoToast } from '@/components/ui/undo-toast';
 import { EmptyState } from '@/components/shared/EmptyState';
 import { STALE_WARNING_MS } from '@/config/constants';
 import { useAppointmentActions } from '@/hooks/useAppointmentActions';
@@ -30,6 +31,33 @@ import { ReturnsTable } from './ReturnsTable';
 import { StatusBadge } from './StatusBadge';
 import { SyncBanner } from './SyncBanner';
 import type { AppointmentAction, QueueParams, QueueView } from './types';
+
+/**
+ * L'azione contraria di quelle che si disfano. Esistono già nella macchina a stati — una pratica
+ * presa in carico si rimette in coda, una saltata si ripristina — quindi «Annulla» non è un
+ * percorso speciale: è un comando normale mandato al posto dell'operatore.
+ */
+const AZIONE_CONTRARIA: Partial<Record<AppointmentAction, AppointmentAction>> = {
+  take: 'release',
+  skip: 'restore',
+};
+
+/** Come si chiama, in officina, quello che è appena successo. */
+const ESITO_ANNULLABILE: Partial<Record<AppointmentAction, string>> = {
+  take: 'presa in carico',
+  skip: 'saltata',
+};
+
+/** Quello che serve per tornare indietro: la pratica, la sua versione nuova, il comando inverso. */
+interface Annullabile {
+  readonly messaggio: string;
+  readonly appointmentId: string;
+  readonly version: number;
+  readonly contraria: AppointmentAction;
+}
+
+import { LATE_GRACE_MINUTES } from '@/config/constants';
+import { QueueHeader } from './QueueHeader';
 
 export interface QueueDashboardProps {
   readonly session: Session;
@@ -95,6 +123,7 @@ export function QueueDashboard({
   );
   const queue = useQueue(params);
   const actions = useAppointmentActions();
+  const [annullabile, setAnnullabile] = useState<Annullabile | null>(null);
   // Separazione PC / tablet: stessa applicazione, comportamento diverso secondo il dispositivo.
   // Al banco la presa in carico apre il pannello di dettaglio e l'operatore resta sulla coda,
   // senza alcun passaggio alle foto (da un PC non si scattano); sul piazzale, tablet in mano,
@@ -131,7 +160,7 @@ export function QueueDashboard({
   }, []);
 
   const updateUrl = useCallback(
-    (next: { view?: QueueView; deskId?: string | null }): void => {
+    (next: { view?: QueueView; deskId?: string | null; bayId?: string | null }): void => {
       const sp = new URLSearchParams(searchParams.toString());
       const nextView = next.view ?? view;
       sp.set('view', nextView);
@@ -140,6 +169,15 @@ export function QueueDashboard({
         sp.set('deskId', nextDesk);
       } else {
         sp.delete('deskId');
+      }
+      // Lo sportello scelto resta nell'indirizzo accanto alla sua area: l'area decide quali
+      // pratiche si vedono, lo sportello decide di chi è il banco che si sta guardando. Servono
+      // tutt'e due, perché due sportelli condividono la stessa area e la stessa coda.
+      const nextBay = next.bayId === undefined ? null : next.bayId;
+      if (nextView === 'desk' && nextBay !== null) {
+        sp.set('bayId', nextBay);
+      } else if (next.bayId !== undefined || nextView !== 'desk') {
+        sp.delete('bayId');
       }
       router.replace(`${pathname}?${sp.toString()}`, { scroll: false });
     },
@@ -160,17 +198,48 @@ export function QueueDashboard({
 
   const onAction = useCallback(
     (appointmentId: string, action: AppointmentAction, expectedVersion: number): void => {
+      const contraria = AZIONE_CONTRARIA[action];
       actions.run(
         appointmentId,
         { action, expectedVersion },
-        // Anche la riapertura rimette la pratica in carico: stesso seguito della presa in carico.
-        action === 'take' || action === 'reopen-completed'
-          ? { onSuccess: () => dopoPresaInCarico(appointmentId) }
-          : undefined,
+        {
+          onSuccess: (appointment) => {
+            // Anche la riapertura rimette la pratica in carico: stesso seguito della presa in carico.
+            if (action === 'take' || action === 'reopen-completed') {
+              dopoPresaInCarico(appointmentId);
+            }
+            // Sul tablet la presa in carico porta subito al check-in: un avviso su una schermata
+            // che si sta lasciando non lo leggerebbe nessuno.
+            const siCambiaSchermata =
+              touchLayout && (action === 'take' || action === 'reopen-completed');
+            if (contraria === undefined || siCambiaSchermata) {
+              setAnnullabile(null);
+              return;
+            }
+            setAnnullabile({
+              messaggio: `${appointment.code} ${ESITO_ANNULLABILE[action] ?? 'aggiornata'}`,
+              appointmentId,
+              // La versione è cambiata con l'azione appena riuscita: l'annullamento deve partire
+              // da quella nuova, altrimenti il server risponde 409 a un comando che è nostro.
+              version: appointment.version,
+              contraria,
+            });
+          },
+        },
       );
     },
-    [actions, dopoPresaInCarico],
+    [actions, dopoPresaInCarico, touchLayout],
   );
+
+  /** Manda l'azione contraria. Non trattiene niente: quella di prima è già sul server. */
+  const annulla = useCallback((): void => {
+    if (annullabile === null) {
+      return;
+    }
+    const { appointmentId, version, contraria } = annullabile;
+    setAnnullabile(null);
+    actions.run(appointmentId, { action: contraria, expectedVersion: version });
+  }, [actions, annullabile]);
 
   const onSync = async (): Promise<void> => {
     setSyncing(true);
@@ -198,16 +267,101 @@ export function QueueDashboard({
   const isStale = queue.dataUpdatedAt > 0 && now - queue.dataUpdatedAt > STALE_WARNING_MS;
   const desks = data?.desks ?? [];
   const currentDesk = desks.find((d) => d.id === deskId) ?? null;
-  const counts = useMemo(() => {
-    const rows = data?.rows ?? [];
-    return {
-      waiting: rows.filter(
-        (r) => r.appointment.status === 'WAITING' || r.appointment.status === 'SKIPPED',
-      ).length,
-      inProgress: rows.filter((r) => r.appointment.status === 'IN_PROGRESS').length,
-      completed: rows.filter((r) => r.appointment.status === 'COMPLETED').length,
-    };
-  }, [data]);
+
+  /*
+   * Il selettore degli sportelli: i quattro banchi fisici, uno per uno, con accanto chi ci sta
+   * seduto. Prima offriva le due AREE di marchio («FCA · Sportelli A e B»), che è l'unità con cui
+   * la coda è divisa ma non è quello che un accettatore chiama «il mio sportello»: lui sta al
+   * banco B, e il collega di fianco al banco A.
+   *
+   * L'area resta l'intestazione del gruppo, e non per ordine: A e B guardano la STESSA coda, ed è
+   * una verità del dominio, non un difetto. Scritta così si vede scegliendo; nascosta, chi prova A
+   * e poi B vedrebbe due volte lo stesso elenco e penserebbe che il filtro è rotto.
+   */
+  const bays = data?.bays ?? [];
+  const bayDiSessione =
+    data?.workstations.find((w) => w.id === session.workstationId)?.defaultBayId ?? null;
+  const bayScelto =
+    searchParams.get('bayId') ??
+    (bayDiSessione !== null && bays.some((b) => b.bay.id === bayDiSessione)
+      ? bayDiSessione
+      : (bays.find((b) => b.deskId === deskId)?.bay.id ?? ''));
+  const gruppiSportelli = desks
+    .map((d) => ({
+      label: `${d.code} · ${d.name}${d.id === homeDeskId ? ' (mio)' : ''}`,
+      options: bays
+        .filter((b) => b.deskId === d.id)
+        .map((b) => ({
+          id: b.bay.id,
+          // «libero» dice che il banco non ha nessuno: è l'informazione che serve a chi cerca un
+          // collega, e a chi cerca un posto dove sedersi.
+          label: `${b.bay.name} · ${b.operatorName ?? 'libero'}`,
+        })),
+    }))
+    .filter((g) => g.options.length > 0);
+  /*
+   * I quattro numeri della testata. Sono quelli su cui l'accettatore decide se è in pari o
+   * indietro: chi aspetta, chi è sotto mano, chi è in ritardo e quanto si è chiuso. «Al check-in»
+   * della tavola qui non è distinguibile — il check-in è una pratica in carico con le foto in
+   * corso — e al suo posto c'è «in ritardo», che è la colonna su cui si interviene.
+   */
+  // Sezione chiesta da un contatore. Il contatore cambia da solo mentre la giornata va avanti,
+  // quindi il nonce non è il numero: è quante volte l'hanno chiesta, altrimenti chiedere due volte
+  // la stessa sezione con lo stesso numero non farebbe niente la seconda.
+  const [vaiA, setVaiA] = useState<{ chiave: string; nonce: number } | null>(null);
+  const vaiASezione = useCallback((sezione: string): void => {
+    setVaiA((corrente) => ({ chiave: sezione, nonce: (corrente?.nonce ?? 0) + 1 }));
+  }, []);
+
+  const contatori = useMemo(() => {
+    const righe = data?.rows ?? [];
+    const inCoda = righe.filter(
+      (r) => r.appointment.status === 'WAITING' || r.appointment.status === 'SKIPPED',
+    );
+    const adesso = data?.serverTime ?? new Date().toISOString();
+    const inRitardo = inCoda.filter((r) =>
+      isLate(r.appointment, adesso, LATE_GRACE_MINUTES),
+    ).length;
+    return [
+      {
+        etichetta: 'in attesa',
+        valore: inCoda.length - inRitardo,
+        riga: 'bg-status-waiting',
+        sezione: 'queued',
+      },
+      {
+        etichetta: 'in carico',
+        valore: righe.filter((r) => r.appointment.status === 'IN_PROGRESS').length,
+        riga: 'bg-status-in-progress',
+        sezione: 'in-progress',
+      },
+      { etichetta: 'in ritardo', valore: inRitardo, riga: 'bg-priority-late', sezione: 'late' },
+      {
+        etichetta: 'chiuse',
+        valore: righe.filter((r) =>
+          ['COMPLETED', 'NO_SHOW', 'CANCELLED'].includes(r.appointment.status),
+        ).length,
+        riga: 'bg-status-completed',
+        sezione: 'closed',
+      },
+    ];
+  }, [data?.rows, data?.serverTime]);
+
+  /*
+   * Il sottotitolo nomina il banco che si sta guardando e, se ne condivide la coda con un altro,
+   * lo dice: «Sportello B · coda condivisa con A». Chi sceglie B e poi A vedrebbe altrimenti due
+   * volte lo stesso elenco senza capirne il motivo, e concluderebbe che il selettore non funziona.
+   */
+  const bayCorrente = bays.find((b) => b.bay.id === bayScelto) ?? null;
+  const compagni = bays
+    .filter((b) => b.deskId === bayCorrente?.deskId && b.bay.id !== bayCorrente?.bay.id)
+    .map((b) => b.bay.code);
+  const deskLabel =
+    view === 'global'
+      ? 'tutti gli sportelli'
+      : bayCorrente === null
+        ? (desks.find((d) => d.id === deskId)?.name ?? 'sportello')
+        : `${bayCorrente.bay.name}${compagni.length > 0 ? ` · coda condivisa con ${compagni.join(' e ')}` : ''}`;
 
   const outcome = actions.outcome;
   const selectedRow = data?.rows.find((r) => r.appointment.id === selectedId) ?? null;
@@ -215,93 +369,57 @@ export function QueueDashboard({
 
   return (
     <div className="flex flex-col gap-4">
-      {/* Intestazione e comandi: su un tablet piccolo i comandi prendono tutta la riga sotto al
-          titolo, con spazi larghi fra loro; da 1024 px in su tornano accanto al titolo. */}
-      <div className="flex flex-wrap items-end justify-between gap-4">
-        <div>
-          <h1 className="text-2xl font-bold tracking-tight">
-            {view === 'returns' ? 'Riconsegne veicoli' : 'Coda accettazione'}
-          </h1>
-          <p className="text-sm text-slate-600">
-            {data !== undefined ? formatBusinessDate(data.businessDate) : 'Caricamento…'}
-            {data !== undefined ? (
-              <>
-                {' · '}
-                {view === 'returns'
-                  ? `${counts.waiting} da riconsegnare, ${counts.completed} riconsegnate`
-                  : `${counts.waiting} in coda, ${counts.inProgress} in carico, ${counts.completed} completate`}
-              </>
-            ) : null}
-          </p>
-        </div>
-        <div className="flex w-full flex-wrap items-center gap-3 lg:w-auto">
-          {view === 'desk' ? (
-            <label className="flex min-w-0 flex-1 items-center gap-2 text-sm lg:flex-none">
-              <span className="text-slate-600">Sportello</span>
-              <Select
-                className="w-full min-w-0 lg:w-auto lg:min-w-56"
-                value={deskId ?? ''}
-                onChange={(event) => updateUrl({ deskId: event.target.value })}
-                aria-label="Sportello visualizzato"
-              >
-                {desks.map((d) => (
-                  <option key={d.id} value={d.id}>
-                    {d.code} · {d.name}
-                    {d.id === homeDeskId ? ' (mio)' : ''}
-                  </option>
-                ))}
-              </Select>
-            </label>
-          ) : view === 'global' ? (
-            <Badge tone="info">Vista globale: tutti gli sportelli</Badge>
-          ) : (
-            <Badge tone="info">Riconsegne di oggi: commesse in consegna, fuori dalla coda</Badge>
-          )}
-          {manualIntakeEnabled && !readOnly ? (
-            <Button variant="outline" size="touch" onClick={() => setNuovoCliente(true)}>
-              Nuovo cliente (senza appuntamento)
+      <QueueHeader
+        title={view === 'returns' ? 'Riconsegne veicoli' : 'Coda accettazione'}
+        subtitle={
+          data === undefined
+            ? 'Caricamento…'
+            : `${formatBusinessDate(data.businessDate)} · ${
+                view === 'returns' ? 'commesse in consegna, fuori dalla coda' : deskLabel
+              }`
+        }
+        view={view}
+        returnsCount={data?.returnsCount ?? 0}
+        counters={contatori}
+        onCounter={vaiASezione}
+        onView={(prossima) =>
+          updateUrl({ view: prossima, deskId: prossima === 'desk' ? homeDeskId : null })
+        }
+        deskPicker={{
+          value: bayScelto,
+          groups: gruppiSportelli,
+          onChange: (bayId) => {
+            const scelto = bays.find((b) => b.bay.id === bayId) ?? null;
+            updateUrl({ deskId: scelto?.deskId ?? deskId, bayId });
+          },
+        }}
+        actions={
+          manualIntakeEnabled && !readOnly ? (
+            <Button variant="outline" onClick={() => setNuovoCliente(true)}>
+              + Pratica manuale
             </Button>
-          ) : null}
-          <Button
-            variant={view === 'global' ? 'default' : 'outline'}
-            size="touch"
-            onClick={() =>
-              updateUrl({ view: view === 'global' ? 'desk' : 'global', deskId: homeDeskId })
-            }
-            aria-pressed={view === 'global'}
-          >
-            {view === 'global' ? 'Torna al mio sportello' : 'Vista globale'}
-          </Button>
-          <Button
-            variant={view === 'returns' ? 'default' : 'outline'}
-            size="touch"
-            onClick={() =>
-              updateUrl({ view: view === 'returns' ? 'desk' : 'returns', deskId: homeDeskId })
-            }
-            aria-pressed={view === 'returns'}
-            data-testid="scheda-riconsegne"
-          >
-            {view === 'returns'
-              ? 'Torna alla coda'
-              : `Riconsegne${data !== undefined ? ` (${data.returnsCount})` : ''}`}
-          </Button>
-          {isStale ? (
-            <Badge tone="warning" title="I dati non vengono aggiornati da più di 15 secondi">
-              Dati non aggiornati
+          ) : null
+        }
+        badges={
+          <>
+            {isStale ? (
+              <Badge tone="warning" title="I dati non vengono aggiornati da più di 15 secondi">
+                Dati non aggiornati
+              </Badge>
+            ) : null}
+            <Badge
+              tone={live === 'live' ? 'success' : 'neutral'}
+              title={
+                live === 'live'
+                  ? 'Collegato al flusso eventi: la coda si aggiorna appena qualcosa cambia'
+                  : 'Flusso eventi non disponibile: la coda si aggiorna comunque ogni 3 secondi'
+              }
+            >
+              {live === 'live' ? 'In diretta' : 'Aggiornamento periodico'}
             </Badge>
-          ) : null}
-          <Badge
-            tone={live === 'live' ? 'success' : 'neutral'}
-            title={
-              live === 'live'
-                ? 'Collegato al flusso eventi: la coda si aggiorna appena qualcosa cambia'
-                : 'Flusso eventi non disponibile: la coda si aggiorna comunque ogni 3 secondi'
-            }
-          >
-            {live === 'live' ? 'In diretta' : 'Aggiornamento periodico'}
-          </Badge>
-        </div>
-      </div>
+          </>
+        }
+      />
 
       {readOnly ? (
         <Alert
@@ -434,6 +552,7 @@ export function QueueDashboard({
             onAction={onAction}
             selectedId={selectedId}
             readOnly={readOnly}
+            vaiA={vaiA}
             // Stessa riga toccata due volte: il pannello si chiude. Sul tablet è il gesto naturale.
             onSelect={(row) =>
               setSelectedId((corrente) =>
@@ -447,11 +566,17 @@ export function QueueDashboard({
       ) : null}
 
       {data !== undefined ? (
-        <p className="text-xs text-slate-400">
+        <p className="text-ink-muted text-xs">
           Aggiornamento automatico ogni 3 secondi · ultimo dato dal server:{' '}
           {formatDateTimeIt(data.serverTime, data.timeZone)}
         </p>
       ) : null}
+
+      <UndoToast
+        message={annullabile?.messaggio ?? null}
+        onUndo={annulla}
+        onDismiss={() => setAnnullabile(null)}
+      />
 
       <AppointmentDetailPanel
         row={selectedRow}

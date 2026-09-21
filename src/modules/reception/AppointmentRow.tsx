@@ -1,7 +1,8 @@
 'use client';
 
 // Riga della coda: codice in evidenza, orario, targa, veicolo, cliente, sportello (vista globale),
-// stato, campata, operatore e azioni. Evidenze: In carico giallo, Completata verde, Saltata arancio.
+// stato, campata, operatore e azioni. Lo stato si legge dalla pastiglia; lo sfondo della riga è
+// riservato alla priorità (vedi `ROW_CLASSES`).
 // L'intera riga apre il dettaglio della pratica; il codice è anche un pulsante, così il pannello
 // si raggiunge da tastiera e con gli screen reader, non solo col mouse.
 import {
@@ -36,6 +37,10 @@ export interface AppointmentRowProps {
   readonly lateByMinutes?: number;
   /** Orario atteso superato ma entro la tolleranza: riga gialla, "da servire ora". */
   readonly dueSoon?: boolean;
+  /** Cambiata negli ultimi secondi: sale al suo posto invece di comparire e basta. */
+  readonly appenaCambiata?: boolean;
+  /** La prossima da servire: al banco resta una riga, ma in ambra e con la pastiglia che lo dice. */
+  readonly evidenza?: boolean;
   readonly onAction: (action: AppointmentAction) => void;
   readonly onSelect: () => void;
   /** Riga aperta nel pannello di dettaglio. */
@@ -48,12 +53,17 @@ export interface AppointmentRowProps {
   readonly readOnly?: boolean;
 }
 
+/*
+ * Lo sfondo della riga NON dice più lo stato: lo dice la pastiglia, che è dove si guarda.
+ *
+ * Prima ogni stato tingeva la riga e la coda diventava una fila di strisce gialle, arancioni,
+ * verdi e rosse: con cinque colori accesi contemporaneamente non ne emergeva nessuno, ed è
+ * l'opposto di quello che serve a chi deve capire in un secondo chi chiamare adesso. Adesso il
+ * fondo è bianco per tutte e il colore resta alla PRIORITÀ (vedi sotto), che è una cosa sola per
+ * volta. Le pratiche in carico stanno già nel loro blocco in cima: non serve ripeterlo col colore.
+ */
 const ROW_CLASSES: Partial<Record<AppointmentStatus, string>> = {
-  IN_PROGRESS: 'bg-status-in-progress-soft',
-  SKIPPED: 'bg-status-skipped-soft',
-  COMPLETED: 'bg-status-completed-soft',
-  NO_SHOW: 'bg-status-no-show-soft',
-  CANCELLED: 'bg-status-cancelled-soft text-slate-500',
+  CANCELLED: 'text-ink-muted',
 };
 
 export function AppointmentRow({
@@ -68,6 +78,8 @@ export function AppointmentRow({
   late = false,
   lateByMinutes = 0,
   dueSoon = false,
+  appenaCambiata = false,
+  evidenza = false,
   onAction,
   onSelect,
   selected = false,
@@ -85,12 +97,19 @@ export function AppointmentRow({
         // Riga interamente toccabile: sul tablet si apre il dettaglio con il dito, senza mirare
         // il codice. `select-none` evita che il tocco prolungato selezioni il testo invece di
         // aprire il pannello.
-        'cursor-pointer select-none hover:brightness-[0.97]',
+        'cursor-pointer transition-[filter] duration-200 select-none hover:brightness-[0.97]',
         ROW_CLASSES[a.status],
-        dueSoon && 'bg-amber-100/80',
-        avvisoRitardo && !dueSoon && 'bg-amber-50',
+        appenaCambiata && 'appena-cambiata',
+        evidenza && 'bg-priority-now-soft',
+        // Il colore va solo dove aggiunge qualcosa. Le pratiche in ritardo stanno già dentro un
+        // blocco con il bordo e il titolo rossi: ritingere anche ogni riga faceva un muro rosa in
+        // cui, di nuovo, non emergeva niente. Resta l'ambra su chi ha superato l'orario ma è
+        // ancora dentro la tolleranza: quella è l'unica riga della coda che chiede qualcosa adesso.
+        // La tinta sta su UNA riga sola, la prossima da servire. Prima ce l'aveva ogni riga
+        // che avesse superato l'orario: con venti pratiche arretrate tornava a essere uno sfondo.
+        // «Orario superato» resta scritto su tutte, che è l'informazione; il colore è la priorità.
         pending && 'opacity-60',
-        selected && 'ring-brand-secondary/70 ring-2 ring-inset',
+        selected && 'ring-brand-secondary ring-2 ring-inset',
       )}
       aria-selected={selected}
       data-status={a.status}
@@ -103,7 +122,7 @@ export function AppointmentRow({
             event.stopPropagation();
             onSelect();
           }}
-          className="-mx-2 inline-flex min-h-11 items-center rounded px-2 underline decoration-slate-400 decoration-dotted underline-offset-4 hover:decoration-slate-900 focus-visible:ring-2 focus-visible:ring-slate-500 focus-visible:outline-none"
+          className="focus-anello controllo -mx-2 inline-flex items-center rounded-sm px-2 underline decoration-slate-300 decoration-dotted underline-offset-4 hover:decoration-slate-900"
           aria-label={`Apri i dettagli della pratica ${a.code}, ${a.vehicle.plate}`}
         >
           {a.code}
@@ -114,18 +133,18 @@ export function AppointmentRow({
           </Badge>
         ) : null}
       </TableCell>
-      <TableCell className="font-mono tabular-nums">
+      <TableCell className="font-mono whitespace-nowrap tabular-nums">
         {localTimeHHmm(new Date(effectiveScheduleTime(a)), timeZone)}
         {a.rescheduledAt !== null ? (
           <span
-            className="block text-xs font-normal text-slate-500"
+            className="text-ink-muted block text-xs font-normal"
             title={`Orario in agenda: ${localTimeHHmm(new Date(a.scheduledAt), timeZone)}`}
           >
             rimessa in coda
           </span>
         ) : null}
         {dueSoon ? (
-          <span className="block text-xs font-semibold text-amber-800">orario superato</span>
+          <span className="text-priority-now-ink block text-xs font-semibold">orario superato</span>
         ) : null}
         {inFila ? (
           <span
@@ -138,7 +157,7 @@ export function AppointmentRow({
         ) : null}
         {avvisoRitardo ? (
           <span
-            className="block text-xs font-semibold text-amber-800"
+            className="text-priority-now-ink block text-xs font-semibold"
             title={`Avviso dal portale alle ${localTimeHHmm(new Date(a.customerLateNoticeAt ?? a.updatedAt), timeZone)}`}
           >
             cliente in ritardo · arrivo ~
@@ -146,7 +165,7 @@ export function AppointmentRow({
           </span>
         ) : null}
         {late && lateByMinutes > 0 ? (
-          <span className="block text-xs font-semibold text-red-700">
+          <span className="text-priority-late-ink block text-xs font-semibold whitespace-nowrap">
             {lateByMinutes < 60
               ? `+${lateByMinutes} min`
               : `+${Math.floor(lateByMinutes / 60)} h ${lateByMinutes % 60} min`}
@@ -155,8 +174,8 @@ export function AppointmentRow({
       </TableCell>
       <TableCell className="font-mono font-semibold">{a.vehicle.plate}</TableCell>
       <TableCell>
-        <span className="font-medium">{brandName}</span>
-        <span className="text-slate-500"> {a.vehicle.model}</span>
+        <span className="font-medium">{brandName}</span>{' '}
+        <span className="text-ink-muted">{a.vehicle.model}</span>
       </TableCell>
       {/* Colonna volutamente essenziale: l'esito del contatto sta nel pannello di dettaglio,
           dove l'accettatore lo cerca quando deve chiamare il cliente. */}
@@ -167,36 +186,36 @@ export function AppointmentRow({
             tablet e spingeva fuori vista tutte le altre pratiche. Niente `block` accanto a
             `line-clamp-2`: sovrascriverebbe il display -webkit-box che fa il troncamento. */}
         {a.serviceDescription !== null ? (
-          <span className="line-clamp-2 text-xs text-slate-500" title={a.serviceDescription}>
+          <span className="text-ink-muted line-clamp-2 text-xs" title={a.serviceDescription}>
             {a.serviceDescription}
           </span>
         ) : null}
       </TableCell>
       {showDesk ? (
         <TableCell>
-          <span className={cn(foreignDesk && 'text-slate-500')}>{deskLabel ?? 'n/d'}</span>
+          <span className={cn(foreignDesk && 'text-ink-muted')}>{deskLabel ?? 'n/d'}</span>
         </TableCell>
       ) : null}
       <TableCell>
         <StatusBadge status={a.status} />
         {isAutoClosedPending(a) ? (
-          <span className="mt-0.5 block text-xs font-semibold text-amber-800">
+          <span className="text-priority-now-ink mt-0.5 block text-xs font-semibold">
             chiusa d&apos;ufficio · da confermare
           </span>
         ) : null}
         {a.skipCount > 0 ? (
           // "In attesa ×1" si leggeva come un conteggio dello stato: meglio dire cosa è successo.
-          <span className="mt-0.5 block text-xs text-slate-500">
+          <span className="text-ink-muted mt-0.5 block text-xs">
             {a.skipCount === 1 ? 'saltata 1 volta' : `saltata ${a.skipCount} volte`}
           </span>
         ) : null}
       </TableCell>
-      <TableCell className="hidden font-mono lg:table-cell">
+      <TableCell className="hidden font-mono xl:table-cell">
         {row.bayCode ?? (a.status === 'IN_PROGRESS' ? 'senza' : '—')}
       </TableCell>
-      <TableCell className="hidden lg:table-cell">
+      <TableCell className="hidden xl:table-cell">
         {row.operatorName === null ? (
-          <span className="text-slate-400">—</span>
+          <span className="text-ink-muted">—</span>
         ) : (
           <OperatorChip
             displayName={row.operatorName}
@@ -206,7 +225,7 @@ export function AppointmentRow({
       </TableCell>
       <TableCell>
         {readOnly ? (
-          <span className="text-xs text-slate-400">sola lettura</span>
+          <span className="text-ink-muted text-xs">sola lettura</span>
         ) : (
           // I pulsanti non devono aprire il pannello: l'azione è già esplicita.
           <div onClick={(event) => event.stopPropagation()}>

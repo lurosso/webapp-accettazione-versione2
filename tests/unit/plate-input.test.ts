@@ -20,7 +20,7 @@ describe('formatPlateInput', () => {
 
 describe('plateErrorMessage', () => {
   it('campo vuoto e targa troppo corta hanno messaggi in italiano', () => {
-    expect(plateErrorMessage('')).toContain('Inserisci');
+    expect(plateErrorMessage('')).toContain('Inserisca');
     expect(plateErrorMessage('AB1')).toContain('non valida');
   });
 
@@ -34,9 +34,9 @@ describe('messaggi di stato del portale', () => {
     expect(statusMessage('WAITING', null).showAheadCount).toBe(true);
     expect(statusMessage('SKIPPED', null).showAheadCount).toBe(true);
     // Il cliente aspetta in auto, in fila: i testi lo dicono.
-    expect(statusMessage('WAITING', null).headline).toBe('Sei in fila');
+    expect(statusMessage('WAITING', null).headline).toBe('È in fila');
     expect(statusMessage('WAITING', null).detail).toContain('in auto');
-    expect(statusMessage('IN_PROGRESS', 'A').detail).toContain('Avanza verso lo sportello A');
+    expect(statusMessage('IN_PROGRESS', 'A').detail).toContain('Si presenti allo sportello A');
     expect(statusMessage('IN_PROGRESS', null).detail).toContain('accettazione');
     expect(statusMessage('COMPLETED', null).tone).toBe('done');
     expect(statusMessage('NO_SHOW', null).tone).toBe('attention');
@@ -44,8 +44,8 @@ describe('messaggi di stato del portale', () => {
   });
 
   it('il conteggio parla di auto in fila, al singolare e al plurale', () => {
-    expect(aheadCountMessage(0)).toBe('Sei il prossimo');
-    expect(aheadCountMessage(1)).toContain('1 auto prima di te');
-    expect(aheadCountMessage(4)).toContain('4 auto prima di te');
+    expect(aheadCountMessage(0)).toBe('Il prossimo turno è il suo');
+    expect(aheadCountMessage(1)).toContain('1 auto prima di lei');
+    expect(aheadCountMessage(4)).toContain('4 auto prima di lei');
   });
 });

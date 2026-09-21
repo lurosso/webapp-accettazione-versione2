@@ -2,9 +2,16 @@
 @import 'tailwindcss';
 
 /*
- * Token di tema del progetto (M0-T07). Le variabili `--color-*` generano le utility Tailwind
- * (es. `bg-status-in-progress`, `text-status-completed`, `border-status-skipped`).
- * Stati della pratica: In attesa, In carico (giallo), Saltata, Completata (verde), No-show, Annullata.
+ * DESIGN SYSTEM AUTOCLUB — le fondamenta stanno tutte qui.
+ *
+ * Tre idee reggono il resto:
+ * 1. i colori del marchio non si toccano, ma sopra ci mettiamo dei RUOLI (superficie, linea,
+ *    inchiostro) così una schermata nuova non deve scegliere una tinta della scala `slate`;
+ * 2. raggi e ombre non sono otto gradini a testa ma QUATTRO valori ciascuno: la scala di
+ *    Tailwind viene ripiegata su quei quattro, quindi un `rounded-md` scritto per distrazione
+ *    non può più produrre un quinto raggio;
+ * 3. il bersaglio del dito è 44 px, sempre, anche sul PC del banco: la stessa schermata si usa
+ *    seduti con il mouse e in piedi sul piazzale con il tablet in mano.
  */
 @theme {
   /*
@@ -24,6 +31,12 @@
   --color-brand-blue-light: #0180ca;
   --color-brand-lime: #87bd22;
   --color-brand-lime-dark: #6d9a17;
+  /*
+   * Il verde del marchio come TESTO su fondo chiaro: #87BD22 su bianco dà 2,3:1 e non si legge.
+   * Questo è lo stesso verde spinto in profondità fino a 6,3:1. Il marchio resta #87BD22, che
+   * è un colore da riempimento; questo è la sua voce scritta.
+   */
+  --color-brand-lime-ink: #3f6b0b;
   --color-brand-ink: #2e2e2e;
 
   /*
@@ -44,6 +57,37 @@
   --color-slate-900: #142c3d;
   --color-slate-950: #0b1c28;
 
+  /*
+   * Ruoli, sopra la scala. Scrivere `bg-surface border-line text-ink` dice cosa è quell'elemento;
+   * scrivere `bg-white border-slate-200 text-slate-900` dice solo di che colore è. I valori sono
+   * ripetuti in chiaro (non `var()`) perché Tailwind possa scartare i token non usati.
+   */
+  --color-surface-app: #f5f8fa;
+  --color-surface: #ffffff;
+  /* Fondo dei blocchi "quieti": intestazioni di tabella, gruppi di schede, note lunghe. */
+  --color-surface-sunken: #edf3f7;
+  --color-surface-inverse: #00466f;
+  /* Divisori interni di una tabella o di un elenco: si vedono appena. */
+  --color-line-subtle: #e7eff4;
+  /* Bordo di card e campi. `slate-200` come bordo pesa più del contenuto che racchiude. */
+  --color-line: #d8e5ee;
+  --color-ink: #142c3d;
+  /*
+   * Testo scuro sui RIEMPIMENTI PIENI del marchio, dove il bianco non si legge: il verde
+   * #87BD22 col bianco sopra fa 2,6:1, l'ambra piena anche meno. Qui stava `slate-950`, che
+   * funzionava ma era la tavolozza grezza: questo e' lo stesso nero portato nella famiglia
+   * dell'inchiostro del progetto. Misurato: 8,1:1 sul verde, 9,6:1 sull'ambra, 18,1:1 su bianco.
+   * Non e' un ink piu' scuro da usare ovunque: serve a due varianti di pulsante e basta.
+   */
+  --color-ink-forte: #0a1721;
+  --color-ink-soft: #24475f;
+  /*
+   * L'ultimo grigio ammesso per il testo: 5,1:1 su bianco. Sotto questo (`slate-400`, 3,2:1) si
+   * scende fuori norma, e in officina "fuori norma" vuol dire che l'accettatore non legge la
+   * lavorazione senza avvicinare il tablet.
+   */
+  --color-ink-muted: #4a728e;
+
   --color-status-waiting: oklch(0.62 0.02 250);
   --color-status-waiting-soft: oklch(0.96 0.005 250);
   --color-status-in-progress: oklch(0.8 0.17 85);
@@ -56,6 +100,52 @@
   --color-status-no-show-soft: oklch(0.96 0.04 25);
   --color-status-cancelled: oklch(0.55 0.02 260);
   --color-status-cancelled-soft: oklch(0.95 0.005 260);
+  /*
+   * «Informazione» non è uno stato della pratica: è il tono di un avviso che non chiede niente.
+   * Prende il blu del marchio e non un azzurro qualunque — era `sky-50`/`sky-900`, cioè l'unica
+   * famiglia di colore dell'interfaccia che non veniva né dal marchio né dagli stati.
+   */
+  /*
+   * Il rosso PIENO della conferma distruttiva, che è un'altra cosa dal rosso della pastiglia: lì
+   * il testo è scuro su fondo tenue, qui è bianco su fondo pieno. Il `-no-show` (L 0.60) col
+   * bianco sopra fa 4,4:1 e non basta per un testo in grassetto da 14 px; sceso a L 0.54 fa
+   * 5,6:1, meglio del `red-600` di Tailwind che stava qui prima (4,8:1) e senza portarsi dentro
+   * una terza famiglia di rossi.
+   */
+  --color-status-no-show-solid: oklch(0.54 0.2 25);
+  --color-status-no-show-solid-hover: oklch(0.48 0.2 25);
+
+  --color-status-info: #0180ca;
+  --color-status-info-soft: #e9f3fa;
+  --color-status-info-ink: #00466f;
+
+  /*
+   * Terza tinta di ogni stato: il testo scritto SOPRA la pastiglia `-soft`. Tenuta a lightness
+   * 0,44-0,45 passa 7:1 su quei fondi. Serve perché prima ogni pastiglia si arrangiava con un
+   * colore Tailwind vicino (`text-amber-900`, `text-emerald-800`) e il risultato era sei famiglie
+   * di colore diverse per sei stati della stessa cosa.
+   */
+  --color-status-waiting-ink: oklch(0.42 0.03 250);
+  --color-status-in-progress-ink: oklch(0.45 0.11 75);
+  --color-status-skipped-ink: oklch(0.45 0.13 50);
+  --color-status-completed-ink: oklch(0.44 0.12 150);
+  --color-status-no-show-ink: oklch(0.45 0.18 25);
+  --color-status-cancelled-ink: oklch(0.45 0.02 260);
+
+  /*
+   * PRIORITÀ — diversa dallo STATO, e questa è la regola che cambia di più l'aspetto della coda.
+   * Lo stato dice cos'è una pratica (lo legge la pastiglia); la priorità dice se chiede qualcosa
+   * ADESSO, e solo lei tinge la riga. Prima lo sfondo era colorato per ogni stato e la tabella
+   * diventava una fila di strisce gialle, arancioni, verdi e rosse in cui non emergeva niente.
+   * Due soli livelli, e mai insieme sulla stessa riga.
+   */
+  --color-priority-now: oklch(0.8 0.17 85);
+  --color-priority-now-soft: oklch(0.97 0.045 95);
+  --color-priority-now-ink: oklch(0.45 0.11 75);
+  --color-priority-late: oklch(0.6 0.2 25);
+  --color-priority-late-soft: oklch(0.97 0.03 25);
+  --color-priority-late-line: oklch(0.85 0.09 25);
+  --color-priority-late-ink: oklch(0.45 0.18 25);
 
   /* Marchi della concessionaria (chip nei filtri) */
   --color-brand-fiat: oklch(0.5 0.2 25);
@@ -66,12 +156,342 @@
   --color-brand-citroen: oklch(0.55 0.2 20);
   --color-brand-opel: oklch(0.6 0.15 55);
 
-  /* Target touch minimo per tablet e postazioni (ARCHITECTURE.md §2 UI) */
-  --spacing-touch: 3rem;
+  /*
+   * Caratteri. Prima era il font di sistema: la stessa schermata cambiava faccia fra il PC del
+   * banco, l'iPad e il monitor appeso in officina. IBM Plex è tecnico senza essere freddo e ha un
+   * monospaziato della stessa famiglia: targhe, codici pratica e orari restano incolonnati (cifre
+   * a larghezza fissa), che in una coda ordinata per orario conta più dell'eleganza.
+   * I file sono importati in `src/app/layout.tsx` da un pacchetto npm e serviti dal nostro
+   * dominio: nessuna chiamata a Google Fonts né in build né a runtime, quindi l'officina non
+   * dipende da una rete esterna per vedere il testo giusto. Le famiglie di sistema restano come
+   * ripiego, con metriche vicine, per l'istante prima che il file sia pronto.
+   */
+  --font-sans: 'IBM Plex Sans Variable', ui-sans-serif, system-ui, sans-serif;
+  --font-mono: 'IBM Plex Mono', ui-monospace, 'SFMono-Regular', monospace;
+
+  /*
+   * Il gradino più piccolo della scala sale da 12 a 13 px. `text-xs` è ovunque nelle informazioni
+   * di contorno (l'orario originale, «saltata 2 volte», il nome della campata) e 12 px letti in
+   * piedi a mezzo metro, su un tablet inclinato, sono al limite: chi legge si avvicina, e mentre
+   * si avvicina non guarda più la fila.
+   */
+  --text-xs: 0.8125rem;
+  --text-xs--line-height: 1.125rem;
+
+  /*
+   * RAGGI — quattro valori, non otto. Il codice usava sei raggi diversi (`md` 50 volte, `xl` 43,
+   * `2xl` 22, `lg` 18, `3xl` 4): è la prima causa della sensazione di "pezzi montati insieme".
+   * La scala di Tailwind viene ripiegata su quattro misure, e le classi già scritte atterrano da
+   * sole sul valore giusto perché il repo usava già `xl` per le card e `2xl` per le schermate
+   * touch grandi.
+   *   8 px  chip, pastiglie, badge
+   *  12 px  pulsanti, campi, schede
+   *  16 px  card e pannelli
+   *  24 px  modali e schermate di check-in
+   */
+  --radius-xs: 0.5rem;
+  --radius-sm: 0.5rem;
+  --radius-md: 0.75rem;
+  --radius-lg: 1rem;
+  --radius-xl: 1rem;
+  --radius-2xl: 1.5rem;
+  --radius-3xl: 1.5rem;
+  --radius-4xl: 1.5rem;
+
+  /*
+   * ELEVAZIONE — quattro livelli, tinti d'inchiostro blu `rgb(20 44 61)` invece che neri: su un
+   * fondo blu-grigio un'ombra nera sporca, una tinta dello stesso inchiostro del testo poggia.
+   * Mai due livelli annidati: una card dentro un pannello non porta ombra propria.
+   *   xs   filo, per i campi
+   *   sm   card e pannelli a riposo
+   *   md   hover, riga selezionata, tendine
+   *   lg   pannello di dettaglio della pratica
+   *   2xl  modali
+   */
+  --shadow-2xs: 0 1px 2px 0 rgb(20 44 61 / 0.05);
+  --shadow-xs: 0 1px 2px 0 rgb(20 44 61 / 0.05);
+  --shadow-sm: 0 1px 2px -1px rgb(20 44 61 / 0.06), 0 1px 3px 0 rgb(20 44 61 / 0.05);
+  --shadow-md: 0 2px 6px -2px rgb(20 44 61 / 0.08), 0 6px 16px -4px rgb(20 44 61 / 0.08);
+  --shadow-lg: 0 8px 20px -8px rgb(20 44 61 / 0.12), 0 18px 36px -12px rgb(20 44 61 / 0.14);
+  --shadow-xl: 0 8px 20px -8px rgb(20 44 61 / 0.12), 0 18px 36px -12px rgb(20 44 61 / 0.14);
+  --shadow-2xl: 0 28px 56px -16px rgb(20 44 61 / 0.22);
+
+  /*
+   * Misure del tocco. `touch` è il pavimento assoluto: 44 px di lato, la soglia sotto la quale un
+   * dito sbaglia bersaglio, e vale anche al banco perché costa niente. `touch-lg` è l'azione
+   * primaria di una schermata usata in piedi. Le misure che CAMBIANO con il dispositivo stanno
+   * più sotto, nel blocco della densità.
+   */
+  --spacing-touch: 2.75rem;
+  --spacing-touch-lg: 3.5rem;
+
+  /*
+   * Una sola curva per tutto il movimento: parte decisa e si posa piano, che è come si muove un
+   * oggetto vero. Le durate stanno sotto, fuori da `@theme`, perché non generano utility.
+   */
+  --ease-smooth: cubic-bezier(0.32, 0.72, 0, 1);
+
+  /* Ingresso di una modale: il velo sfuma, la finestra sale di otto pixel. */
+  --animate-velo: velo 200ms cubic-bezier(0.32, 0.72, 0, 1);
+  --animate-finestra: finestra 320ms cubic-bezier(0.32, 0.72, 0, 1);
+  /*
+   * Una pratica che cambia stato non sparisce da un blocco e ricompare in un altro: sale al suo
+   * posto. Risponde a «dov'è finita?», che è la domanda che l'accettatore farebbe a voce — e vale
+   * anche quando a cambiarla è stato un collega da un altro banco: si nota con la coda dell'occhio
+   * senza dover rileggere la coda.
+   */
+  --animate-arriva: arriva 320ms cubic-bezier(0.32, 0.72, 0, 1);
+
+  @keyframes arriva {
+    from {
+      opacity: 0.35;
+      transform: translateY(0.625rem);
+    }
+    to {
+      opacity: 1;
+      transform: none;
+    }
+  }
+
+  @keyframes velo {
+    from {
+      opacity: 0;
+    }
+  }
+
+  @keyframes finestra {
+    from {
+      opacity: 0;
+      transform: translateY(8px) scale(0.985);
+    }
+  }
 }
 
 :root {
   color-scheme: light;
+
+  /* 120 ms: la conferma di un tocco. 200 ms: un cambio di stato. 320 ms: qualcosa che entra. */
+  --durata-rapida: 120ms;
+  --durata-base: 200ms;
+  --durata-lenta: 320ms;
+  /* Colore dell'anello di focus, sovrascrivibile sulle barre blu (vedi variante `onDark`). */
+  --anello-colore: var(--color-brand-blue-light);
+}
+
+/*
+ * Le due condizioni d'uso, come varianti scrivibili accanto a qualunque classe.
+ *
+ * `banco:` è il PC con il mouse, `tocco:` il tablet in mano. Servono dove non cambia una misura
+ * ma la FORMA: la navigazione che da barra in alto diventa colonna a sinistra, l'elenco che da
+ * tabella diventa schede. Senza, ogni schermata dovrebbe leggere un hook, diventare client e
+ * cambiare struttura dopo l'idratazione — cioè sfarfallare.
+ */
+/*
+ * `banco:` e `tocco:` — la forma della struttura, non solo la misura.
+ *
+ * Ciascuna ha due strade: il puntatore (che è la verità) e l'attributo `data-densita` sull'html
+ * (che è la LENTE per guardare l'altra variante da un browser qualsiasi). La lente esiste perché
+ * chi apre il branch su un portatile vede il disegno da banco — giustamente, ha il mouse — e
+ * conclude che il lavoro non c'è; è successo davvero. Non è una seconda fonte di verità: senza
+ * l'attributo comanda il puntatore, esattamente come prima.
+ */
+@custom-variant banco {
+  @media (pointer: fine) {
+    &:where(:root:not([data-densita]) *, :root:not([data-densita])) {
+      @slot;
+    }
+  }
+  &:where(:root[data-densita='banco'] *, :root[data-densita='banco']) {
+    @slot;
+  }
+}
+@custom-variant tocco {
+  @media (pointer: coarse) {
+    &:where(:root:not([data-densita]) *, :root:not([data-densita])) {
+      @slot;
+    }
+  }
+  &:where(:root[data-densita='tocco'] *, :root[data-densita='tocco']) {
+    @slot;
+  }
+}
+
+/*
+ * DENSITÀ — una sola applicazione, due tarature.
+ *
+ * La stessa schermata si usa seduti al banco con il mouse e in piedi sul piazzale con l'iPad in
+ * mano. Sono due condizioni diverse di lettura e di mira, non due prodotti: colori, caratteri,
+ * forme e moto restano identici, cambiano sei misure.
+ *
+ * A decidere è il PUNTATORE, non la larghezza della finestra: un iPad in orizzontale è più largo
+ * di parecchi monitor, ma si usa con le dita. `(pointer: coarse)` è la stessa condizione che usa
+ * `useIsTouchLayout()` per le differenze di struttura (colonna a sinistra o barra in alto,
+ * pannello affiancato o foglio che sale): così CSS e TypeScript non possono dissentire.
+ *
+ * Il vantaggio di tenerlo qui e non nei componenti è che una schermata scritta domani prende la
+ * taratura giusta senza saperne niente: usa `controllo`, `riga`, `testo-corpo` e basta.
+ */
+:root {
+  /* Al banco: il puntatore è preciso al pixel e il testo si legge a sessanta centimetri. */
+  --h-controllo: 2.75rem; /* 44 px */
+  --h-controllo-lg: 3rem; /* 48 px */
+  --h-riga: 3.5rem; /* 56 px */
+  --testo-nota: 0.8125rem; /* 13 px */
+  --testo-corpo: 0.875rem; /* 14 px */
+  --testo-dato: 0.9375rem; /* 15 px */
+  --testo-codice: 1.0625rem; /* 17 px */
+  --casella: 1.25rem; /* 20 px */
+}
+
+@media (pointer: coarse) {
+  :root {
+    /* Sul piazzale: mezzo metro di distanza, tablet inclinato, spesso col sole di traverso. */
+    --h-controllo: 3.25rem; /* 52 px */
+    --h-controllo-lg: 3.75rem; /* 60 px */
+    --h-riga: 4.25rem; /* 68 px */
+    --testo-nota: 0.9375rem; /* 15 px */
+    --testo-corpo: 1.0625rem; /* 17 px */
+    --testo-dato: 1.1875rem; /* 19 px */
+    --testo-codice: 1.625rem; /* 26 px */
+    --casella: 1.5rem; /* 24 px */
+  }
+}
+
+/*
+ * La lente, sulle misure. `:root[data-densita]` ha specificità maggiore di `:root`, quindi vince
+ * sulla media query senza dipendere dall'ordine. `?densita=auto` toglie l'attributo e si torna al
+ * puntatore.
+ */
+:root[data-densita='tocco'] {
+  --h-controllo: 3.25rem;
+  --h-controllo-lg: 3.75rem;
+  --h-riga: 4.25rem;
+  --testo-nota: 0.9375rem;
+  --testo-corpo: 1.0625rem;
+  --testo-dato: 1.1875rem;
+  --testo-codice: 1.625rem;
+  --casella: 1.5rem;
+}
+
+:root[data-densita='banco'] {
+  --h-controllo: 2.75rem;
+  --h-controllo-lg: 3rem;
+  --h-riga: 3.5rem;
+  --testo-nota: 0.8125rem;
+  --testo-corpo: 0.875rem;
+  --testo-dato: 0.9375rem;
+  --testo-codice: 1.0625rem;
+  --casella: 1.25rem;
+}
+
+/** Altezza di un comando: 44 px al banco, 52 col dito. */
+@utility controllo {
+  min-height: var(--h-controllo);
+}
+
+/** L'azione primaria di una schermata: 48 px al banco, 60 col dito. */
+@utility controllo-lg {
+  min-height: var(--h-controllo-lg);
+}
+
+/**
+ * La riga appena cambiata sale al suo posto. Si applica solo a quelle toccate negli ultimi
+ * secondi (lo dice `updatedAt`, non un contatore nel browser), altrimenti a ogni ricarica
+ * l'intera coda entrerebbe in scena: quaranta righe che si muovono insieme non raccontano niente.
+ */
+@utility appena-cambiata {
+  animation: var(--animate-arriva);
+}
+
+/** Altezza minima di una riga d'elenco: sotto, si tocca la pratica sbagliata. */
+@utility riga {
+  height: var(--h-riga);
+}
+
+/*
+ * Il quadrato di una casella di spunta. Il bersaglio vero è l'etichetta che la contiene — alta
+ * `controllo`, larga quanto il testo — ma il quadrato è quello che si guarda mentre si mira, e
+ * accanto a un testo da 17 px un quadrato da 20 sembra la casella di un'altra interfaccia.
+ */
+@utility casella {
+  width: var(--casella);
+  height: var(--casella);
+  accent-color: var(--color-brand-secondary);
+}
+
+/** Informazione di contorno (l'orario originale, «saltata 2 volte»). Mai sotto i 13 px. */
+@utility testo-nota {
+  font-size: var(--testo-nota);
+  line-height: 1.35;
+}
+
+/** Il testo corrente di un elenco o di una scheda. */
+@utility testo-corpo {
+  font-size: var(--testo-corpo);
+  line-height: 1.45;
+}
+
+/** Un dato che si cerca con l'occhio: la targa, il nome del cliente, un conteggio. */
+@utility testo-dato {
+  font-size: var(--testo-dato);
+  line-height: 1.3;
+}
+
+/** Il codice della pratica: è l'ancora visiva della riga, e quello che il cliente sente chiamare. */
+@utility testo-codice {
+  font-size: var(--testo-codice);
+  line-height: 1.1;
+}
+
+/*
+ * Un solo anello di focus in tutta l'applicazione. Prima ce n'erano tre (`ring-slate-500`,
+ * `ring-slate-400`, `ring-brand-blue-light`) a seconda di chi aveva scritto il componente.
+ * È un `outline` e non un `ring`: l'outline non vive nel box-shadow, quindi non cancella
+ * l'elevazione dell'elemento su cui si posa.
+ */
+@utility focus-anello {
+  &:focus-visible {
+    outline: 2px solid var(--anello-colore);
+    outline-offset: 2px;
+  }
+}
+
+/* Transizione standard degli stati: colore, bordo, elevazione. */
+@utility transizione {
+  transition-property: color, background-color, border-color, box-shadow, opacity;
+  transition-timing-function: var(--ease-smooth);
+  transition-duration: var(--durata-base);
+}
+
+/*
+ * Feedback al tocco. Col dito l'hover non esiste: senza questo, su tablet un pulsante premuto
+ * non dà alcun segno finché la richiesta non torna, e l'accettatore preme due volte.
+ */
+@utility premibile {
+  transition-property: color, background-color, border-color, box-shadow, transform;
+  transition-timing-function: var(--ease-smooth);
+  transition-duration: var(--durata-rapida);
+  touch-action: manipulation;
+
+  &:active {
+    transform: scale(0.98);
+  }
+}
+
+/* Chi ha chiesto meno movimento al sistema operativo non lo subisce da nessuna parte. */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+
+  .premibile:active {
+    transform: none;
+  }
 }
 
 /*
