@@ -74,6 +74,10 @@ export interface InspectionArchiveEntry {
   /** Ordine di lavoro / commessa in Infinity, se aperto. */
   readonly workOrderRef: string | null;
   readonly notes: string | null;
+  /** Conservazione dei media: la commessa è chiusa? c'è un vincolo legale? Dal dominio, per l'archivio. */
+  readonly orderClosedAt: IsoDateTime | null;
+  readonly legalHoldAt: IsoDateTime | null;
+  readonly legalHoldReason: string | null;
   readonly photos: readonly ArchivedPhotoView[];
   /** True quando c'erano foto e tutti i file sono stati eliminati: restano i metadati. */
   readonly archived: boolean;
@@ -163,6 +167,9 @@ export class InspectionArchiveService {
         serviceDescription: a.serviceDescription,
         workOrderRef: a.workOrderRef,
         notes: a.notes,
+        orderClosedAt: a.orderClosedAt,
+        legalHoldAt: a.legalHoldAt,
+        legalHoldReason: a.legalHoldReason,
         photos: foto.map((asset) => ({
           id: asset.id,
           kind: asset.kind,

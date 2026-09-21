@@ -5,19 +5,25 @@
 // stato fotografato all'arrivo. Le foto oltre la retention non hanno più il file, ma la scheda
 // resta e dice che il giro era stato fatto e quando.
 import { useState } from 'react';
-import { keepPreviousData, useQuery } from '@tanstack/react-query';
+import { keepPreviousData, useQuery, useQueryClient } from '@tanstack/react-query';
 import type { InspectionArchiveEntry } from '@/application/media/InspectionArchiveService';
 import { Badge } from '@/components/ui/badge';
 import { Notice } from '@/components/ui/notice';
 import { Input } from '@/components/ui/input';
 import { TableSkeleton } from '@/components/ui/skeleton';
 import { EmptyState } from '@/components/shared/EmptyState';
-import { fetchInspectionArchive } from '@/lib/api-client/client';
+import { fetchInspectionArchive, patchAppointmentRetention } from '@/lib/api-client/client';
 import { formatDateTimeIt, localTimeHHmm } from '@/lib/dates';
+import {
+  RiquadroConservazione,
+  type ComandiConservazione,
+} from '@/modules/reception/RetentionControls';
 
 export interface InspectionArchiveProps {
   readonly timeZone: string;
   readonly retentionDays: number;
+  /** Amministratore: sulle schede compaiono i comandi di conservazione (vincolo, commessa). */
+  readonly canEditRetention?: boolean;
 }
 
 const STATO_IT: Record<string, string> = {
@@ -32,9 +38,11 @@ const STATO_IT: Record<string, string> = {
 function Scheda({
   entry,
   timeZone,
+  retention,
 }: {
   readonly entry: InspectionArchiveEntry;
   readonly timeZone: string;
+  readonly retention: ComandiConservazione;
 }) {
   return (
     <li className="rounded-xl border border-slate-200 bg-white p-4">
@@ -115,13 +123,39 @@ function Scheda({
           </li>
         ))}
       </ul>
+
+      {/*
+       * Perché queste foto ci sono ancora — e, per l'amministratore, i comandi per deciderlo. È in
+       * archivio che si cerca la targa di tre mesi fa quando arriva una contestazione: il vincolo
+       * legale si mette qui, non nella coda di oggi. Il PATCH lavora per id di pratica e il
+       * repository cerca su tutte le giornate: una pratica passata si tratta come una di oggi.
+       */}
+      <div className="mt-3">
+        <RiquadroConservazione a={entry} timeZone={timeZone} retention={retention} />
+      </div>
     </li>
   );
 }
 
-export function InspectionArchive({ timeZone, retentionDays }: InspectionArchiveProps) {
+export function InspectionArchive({
+  timeZone,
+  retentionDays,
+  canEditRetention = false,
+}: InspectionArchiveProps) {
+  const queryClient = useQueryClient();
   const [testo, setTesto] = useState('');
   const [query, setQuery] = useState('');
+
+  /** I comandi di conservazione per una scheda: dopo il cambio si ricarica l'archivio. */
+  const comandiPer = (entry: InspectionArchiveEntry): ComandiConservazione =>
+    canEditRetention
+      ? {
+          onChange: async (patch) => {
+            await patchAppointmentRetention(entry.appointmentId, patch);
+            await queryClient.invalidateQueries({ queryKey: ['inspection-archive'] });
+          },
+        }
+      : undefined;
   const risultati = useQuery({
     queryKey: ['inspection-archive', query] as const,
     queryFn: () => fetchInspectionArchive(query),
@@ -182,7 +216,12 @@ export function InspectionArchive({ timeZone, retentionDays }: InspectionArchive
       ) : (
         <ul className="flex flex-col gap-3">
           {risultati.data?.entries.map((entry) => (
-            <Scheda key={entry.appointmentId} entry={entry} timeZone={timeZone} />
+            <Scheda
+              key={entry.appointmentId}
+              entry={entry}
+              timeZone={timeZone}
+              retention={comandiPer(entry)}
+            />
           ))}
         </ul>
       )}

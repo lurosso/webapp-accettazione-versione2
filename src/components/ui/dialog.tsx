@@ -31,19 +31,33 @@ export function Dialog({
 }: DialogProps) {
   const finestra = useRef<HTMLDivElement>(null);
 
+  // `onClose` vive in un ref: chi usa la finestra passa quasi sempre una freccia inline, che cambia
+  // identità a ogni render. Se fosse una dipendenza dell'effetto qui sotto, ogni tasto premuto in un
+  // campo del modulo (setState → render → nuova onClose) rieseguirebbe l'effetto e rimetterebbe il
+  // fuoco sul contenitore: l'input lo perdeva a ogni carattere. È successo nella gestione utenti.
+  const chiudi = useRef(onClose);
+  useEffect(() => {
+    chiudi.current = onClose;
+  }, [onClose]);
+
   useEffect(() => {
     if (!open) {
       return undefined;
     }
     const onKeyDown = (event: KeyboardEvent): void => {
       if (event.key === 'Escape') {
-        onClose();
+        chiudi.current();
       }
     };
     document.addEventListener('keydown', onKeyDown);
 
+    // Il fuoco entra nella finestra UNA volta, all'apertura — e solo se non è già dentro: un
+    // campo già attivo non si tocca.
     const precedente = document.activeElement;
-    finestra.current?.focus();
+    const nodo = finestra.current;
+    if (nodo !== null && !nodo.contains(document.activeElement)) {
+      nodo.focus();
+    }
     const scorrimento = document.body.style.overflow;
     document.body.style.overflow = 'hidden';
 
@@ -54,7 +68,7 @@ export function Dialog({
         precedente.focus();
       }
     };
-  }, [open, onClose]);
+  }, [open]);
 
   if (!open) {
     return null;
