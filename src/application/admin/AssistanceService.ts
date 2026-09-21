@@ -7,7 +7,9 @@
 // insieme i due lati con i dati che servono a decidere: chi l'aveva presa in carico e da quanto.
 import type { Appointment } from '@/domain/entities/appointment';
 import { customerFullName } from '@/domain/entities/customer';
-import type { WorkstationId } from '@/domain/ids';
+import type { AppointmentId, WorkstationId } from '@/domain/ids';
+import { domainError, type DomainError } from '@/domain/errors';
+import { err, ok, type Result } from '@/domain/result';
 import type { IsoDate, IsoDateTime } from '@/domain/value-objects/iso-date';
 import type {
   IAppointmentRepository,
@@ -117,6 +119,17 @@ export interface EjectResult {
   readonly stillInProgressCode: string | null;
 }
 
+/**
+ * Cosa l'amministratore può cambiare sulla conservazione dei media di una pratica. Sono due
+ * interruttori indipendenti: si può mandare anche uno solo.
+ */
+export interface RetentionPatch {
+  /** Vincolo legale: `active: true` lo mette (con il motivo), `false` lo toglie. */
+  readonly legalHold?: { readonly active: boolean; readonly reason: string | null };
+  /** Commessa: `true` la segna chiusa adesso (i media potranno scadere), `false` la riapre. */
+  readonly orderClosed?: boolean;
+}
+
 export class AssistanceService {
   constructor(private readonly deps: AssistanceServiceDeps) {}
 
@@ -151,6 +164,41 @@ export class AssistanceService {
       operatorName: claim?.operatorName ?? null,
       stillInProgressCode: pratica?.code ?? null,
     };
+  }
+
+  /**
+   * Conservazione dei media di una pratica: vincolo legale e chiusura della commessa.
+   *
+   * Idempotente sui tempi: rimettere un vincolo già presente non ne sposta la data, richiudere
+   * una commessa già chiusa nemmeno. Quello che conta è da quando la protezione esiste, non
+   * l'ultima volta che qualcuno ha premuto il pulsante.
+   *
+   * Oggi la chiusura della commessa la dichiara l'amministratore; quando la lettura da Infinity
+   * (`tdo_cli`) sarà collegata, la imposterà la sincronizzazione e qui resterà solo la
+   * correzione manuale.
+   */
+  async setRetention(
+    appointmentId: AppointmentId,
+    patch: RetentionPatch,
+  ): Promise<Result<Appointment, DomainError>> {
+    const a = await this.deps.appointments.findById(appointmentId);
+    if (a === null) {
+      return err(domainError('NOT_FOUND', 'Pratica non trovata.', { appointmentId }));
+    }
+    const now = this.deps.clock.nowIso();
+    let next: Appointment = a;
+    if (patch.legalHold !== undefined) {
+      next = patch.legalHold.active
+        ? { ...next, legalHoldAt: next.legalHoldAt ?? now, legalHoldReason: patch.legalHold.reason }
+        : { ...next, legalHoldAt: null, legalHoldReason: null };
+    }
+    if (patch.orderClosed !== undefined) {
+      next = { ...next, orderClosedAt: patch.orderClosed ? (next.orderClosedAt ?? now) : null };
+    }
+    if (next === a) {
+      return ok(a);
+    }
+    return this.deps.appointments.update(next, a.version);
   }
 
   async overview(businessDate: IsoDate): Promise<AssistanceView> {

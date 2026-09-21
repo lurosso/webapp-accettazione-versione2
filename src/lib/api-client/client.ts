@@ -361,6 +361,31 @@ export function postWorkstationEject(workstationId: string): Promise<{
   });
 }
 
+/** Conservazione dei media di una pratica (solo amministratore): almeno un campo va indicato. */
+export interface RetentionPatchInput {
+  readonly legalHold?: boolean;
+  readonly legalHoldReason?: string | null;
+  readonly orderClosed?: boolean;
+}
+
+export interface RetentionStateView {
+  readonly id: string;
+  readonly code: string;
+  readonly orderClosedAt: string | null;
+  readonly legalHoldAt: string | null;
+  readonly legalHoldReason: string | null;
+}
+
+export function patchAppointmentRetention(
+  appointmentId: string,
+  body: RetentionPatchInput,
+): Promise<{ readonly appointment: RetentionStateView }> {
+  return apiFetch(`/api/v1/admin/appointments/${encodeURIComponent(appointmentId)}/retention`, {
+    method: 'PATCH',
+    json: body,
+  });
+}
+
 /** POST /api/v1/crm/leads/{id}/reopen: riporta un lead chiuso fra quelli da ricontattare. */
 export function postLeadReopen(eventId: string): Promise<{ readonly lead: BdcLeadView }> {
   return apiFetch(`/api/v1/crm/leads/${encodeURIComponent(eventId)}/reopen`, { method: 'POST' });

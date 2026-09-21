@@ -97,12 +97,59 @@ export interface Appointment {
    * e che in dashboard distingue chi è già in fila fuori da chi deve ancora presentarsi.
    */
   readonly customerArrivedAt: IsoDateTime | null;
+  /**
+   * Conservazione dei media (foto e video del check-in).
+   *
+   * `orderClosedAt`: quando la commessa in Infinity risulta definitivamente chiusa — veicolo
+   * consegnato, lavori finiti. Finché è null la commessa si considera APERTA e i media non
+   * scadono, qualunque sia la loro età: un'auto ferma quattro mesi per un ricambio ha ancora
+   * bisogno del suo video di check-in. Oggi lo imposta l'amministratore; quando la lettura da
+   * Infinity (`tdo_cli`) sarà collegata, lo imposterà la sincronizzazione.
+   *
+   * NON coincide con «Chiusa in ODL» (`completedInDms`): quella è l'apertura dell'ordine di
+   * lavoro, cioè l'inizio della commessa, non la sua fine. Confonderle cancellerebbe i media
+   * appena l'auto entra in officina.
+   *
+   * `legalHoldAt` / `legalHoldReason`: vincolo legale messo dall'amministratore (contenzioso,
+   * contestazione). Finché c'è, i media non si toccano per nessuna regola di scadenza.
+   */
+  readonly orderClosedAt: IsoDateTime | null;
+  readonly legalHoldAt: IsoDateTime | null;
+  readonly legalHoldReason: string | null;
   /** Ultima sincronizzazione che ha toccato la pratica. */
   readonly lastSyncRunId: SyncRunId | null;
   /** Versione per la concorrenza ottimistica fra postazioni (409 → ConflictDialog). */
   readonly version: number;
   readonly createdAt: IsoDateTime;
   readonly updatedAt: IsoDateTime;
+}
+
+/**
+ * La commessa non ha più lavoro aperto. È la condizione — insieme alla scadenza — perché i media
+ * della pratica si possano eliminare. Una pratica mai entrata in officina (assente, annullata) non
+ * ha una commessa: non c'è nulla da proteggere e vale solo il tempo.
+ */
+export function isWorkClosed(a: Pick<Appointment, 'status' | 'orderClosedAt'>): boolean {
+  if (a.orderClosedAt !== null) {
+    return true;
+  }
+  return a.status === 'NO_SHOW' || a.status === 'CANCELLED';
+}
+
+/** Perché i media di una pratica non si possono eliminare adesso. */
+export type RetentionProtection = 'LEGAL_HOLD' | 'ORDER_OPEN';
+
+/**
+ * Cosa protegge i media dalla scadenza, o null se possono scadere. Il vincolo legale viene prima
+ * della commessa: se c'è, non conta più nient'altro.
+ */
+export function retentionProtection(
+  a: Pick<Appointment, 'status' | 'orderClosedAt' | 'legalHoldAt'>,
+): RetentionProtection | null {
+  if (a.legalHoldAt !== null) {
+    return 'LEGAL_HOLD';
+  }
+  return isWorkClosed(a) ? null : 'ORDER_OPEN';
 }
 
 /** Stati che contano come "in coda" (WAITING e SKIPPED). */

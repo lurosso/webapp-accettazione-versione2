@@ -10,14 +10,21 @@
 // I dati arrivano dalla riga già scaricata (`/api/v1/queue`), quindi la scheda si apre subito e
 // continua ad aggiornarsi con il polling della coda, senza una richiesta dedicata.
 import Link from 'next/link';
-import { useEffect } from 'react';
-import { isAutoClosedPending, isInQueue, type Appointment } from '@/domain/entities/appointment';
+import { useEffect, useState } from 'react';
+import {
+  isAutoClosedPending,
+  isInQueue,
+  retentionProtection,
+  type Appointment,
+} from '@/domain/entities/appointment';
 import { customerFullName } from '@/domain/entities/customer';
 import type { NotificationJobStatus } from '@/domain/entities/notification';
 import type { QueueRowView } from '@/domain/read-models';
 import { Badge } from '@/components/ui/badge';
 import { ExpandableText } from '@/components/ui/expandable-text';
 import { Button } from '@/components/ui/button';
+import { HoldButton } from '@/components/ui/hold-button';
+import type { RetentionPatchInput } from '@/lib/api-client/client';
 import { OperatorChip } from '@/components/shared/OperatorChip';
 import { formatDateTimeIt, localTimeHHmm } from '@/lib/dates';
 import { checkInPath } from '@/lib/navigation';
@@ -60,6 +67,163 @@ export interface AppointmentDetailPanelProps {
    * del cliente bisognerebbe simulare un messaggio WhatsApp o copiare la targa a mano ogni volta.
    */
   readonly debugCustomerLink?: boolean;
+  /**
+   * Comandi sulla conservazione dei media — vincolo legale e chiusura della commessa — riservati
+   * all'amministratore. Assente, il pannello dice lo stato (perché le foto ci sono ancora) ma non
+   * offre pulsanti: l'accettatore deve poterlo leggere, non deciderlo.
+   */
+  readonly retention?:
+    | { readonly onChange: (patch: RetentionPatchInput) => Promise<void> }
+    | undefined;
+}
+
+/**
+ * Perché i media di questa pratica ci sono ancora, e chi può cambiarlo.
+ *
+ * Il tempo da solo non cancella: serve la commessa chiusa e nessun vincolo legale. Qui si legge
+ * quale delle tre condizioni manca. Togliere una protezione è il gesto da confermare — è quello
+ * che permette la cancellazione — mentre metterla è un tocco solo: si sbaglia in una direzione
+ * sola, e non è quella che perde i dati.
+ */
+function Conservazione({
+  a,
+  timeZone,
+  retention,
+}: {
+  readonly a: Appointment;
+  readonly timeZone: string;
+  readonly retention:
+    | { readonly onChange: (patch: RetentionPatchInput) => Promise<void> }
+    | undefined;
+}) {
+  const [motivo, setMotivo] = useState('');
+  const [inCorso, setInCorso] = useState(false);
+  const [errore, setErrore] = useState<string | null>(null);
+  const protezione = retentionProtection(a);
+  const senzaCommessa = a.status === 'NO_SHOW' || a.status === 'CANCELLED';
+
+  const applica = async (patch: RetentionPatchInput): Promise<void> => {
+    if (retention === undefined) {
+      return;
+    }
+    setInCorso(true);
+    setErrore(null);
+    try {
+      await retention.onChange(patch);
+      setMotivo('');
+    } catch (cause) {
+      setErrore(cause instanceof Error ? cause.message : 'Operazione non riuscita.');
+    } finally {
+      setInCorso(false);
+    }
+  };
+
+  return (
+    <div className="flex flex-col gap-3" data-testid="conservazione-media">
+      <p className="testo-corpo text-ink-soft">
+        {a.legalHoldAt !== null ? (
+          <>
+            Protetti da un <strong className="text-ink">vincolo legale</strong> dal{' '}
+            {formatDateTimeIt(a.legalHoldAt, timeZone)}
+            {a.legalHoldReason !== null ? ` · ${a.legalHoldReason}` : ''}: non scadono finché il
+            vincolo non viene tolto.
+          </>
+        ) : protezione === 'ORDER_OPEN' ? (
+          <>
+            Protetti: la <strong className="text-ink">commessa è aperta</strong>. Scadranno solo
+            dopo la chiusura, trascorsa la retention.
+          </>
+        ) : senzaCommessa ? (
+          <>
+            Nessuna commessa (pratica {a.status === 'NO_SHOW' ? 'assente' : 'annullata'}): scadono
+            con la sola retention.
+          </>
+        ) : a.orderClosedAt !== null ? (
+          <>
+            Commessa chiusa il {formatDateTimeIt(a.orderClosedAt, timeZone)}: scadono trascorsa
+            la retention.
+          </>
+        ) : null}
+      </p>
+
+      {retention !== undefined ? (
+        <div className="flex flex-col gap-2">
+          {a.legalHoldAt === null ? (
+            <div className="flex flex-wrap items-end gap-2">
+              <label className="flex min-w-0 flex-1 flex-col gap-1">
+                <span className="testo-nota text-ink-soft font-semibold">
+                  Motivo del vincolo (facoltativo)
+                </span>
+                <input
+                  value={motivo}
+                  onChange={(event) => setMotivo(event.target.value)}
+                  maxLength={200}
+                  placeholder="es. contestazione graffio paraurti"
+                  className="controllo border-line bg-surface testo-corpo focus-anello w-full rounded-md border px-3"
+                />
+              </label>
+              <Button
+                variant="outline"
+                size="sm"
+                disabled={inCorso}
+                data-testid="metti-vincolo"
+                onClick={() =>
+                  void applica({
+                    legalHold: true,
+                    legalHoldReason: motivo.trim() === '' ? null : motivo.trim(),
+                  })
+                }
+              >
+                Metti vincolo legale
+              </Button>
+            </div>
+          ) : (
+            <HoldButton
+              variant="outline"
+              size="sm"
+              disabled={inCorso}
+              data-testid="togli-vincolo"
+              confirmLabel="Confermi? I media torneranno a scadere"
+              actionLabel={`Togli il vincolo legale dalla pratica ${a.code}`}
+              onConfirm={() => void applica({ legalHold: false })}
+            >
+              Togli vincolo legale
+            </HoldButton>
+          )}
+
+          {senzaCommessa ? null : a.orderClosedAt === null ? (
+            <HoldButton
+              variant="outline"
+              size="sm"
+              disabled={inCorso}
+              data-testid="chiudi-commessa"
+              confirmLabel="Confermi? I media potranno scadere"
+              actionLabel={`Segna chiusa la commessa della pratica ${a.code}`}
+              onConfirm={() => void applica({ orderClosed: true })}
+            >
+              Segna commessa chiusa
+            </HoldButton>
+          ) : (
+            <Button
+              variant="ghost"
+              size="sm"
+              disabled={inCorso}
+              data-testid="riapri-commessa"
+              onClick={() => void applica({ orderClosed: false })}
+            >
+              Riapri commessa
+            </Button>
+          )}
+        </div>
+      ) : null}
+
+      {errore !== null ? (
+        <p role="alert" className="testo-nota text-status-no-show-ink">
+          {errore}
+        </p>
+      ) : null}
+    </div>
+  );
 }
 
 /** Riga etichetta/valore della scheda. */
@@ -163,6 +327,7 @@ export function AppointmentDetailPanel({
   actionPending = false,
   showTake = false,
   debugCustomerLink = false,
+  retention,
 }: AppointmentDetailPanelProps) {
   // Chiusura con Esc: al banco l'accettatore lavora molto da tastiera.
   useEffect(() => {
@@ -465,6 +630,11 @@ export function AppointmentDetailPanel({
 
           {/* Ispezione al veicolo: note e foto scattate al tablet, dove servono a chi sta al banco. */}
           <MediaGallery appointmentId={a.id} inspectionNotes={a.notes} timeZone={timeZone} />
+
+          {/* Perché quelle foto ci sono ancora — e, per l'amministratore, come decidere che restino. */}
+          <Section title="Conservazione dei media" modal={modal}>
+            <Conservazione a={a} timeZone={timeZone} retention={retention} />
+          </Section>
 
           {events.length > 0 ? (
             <details open={!modal} className="group">

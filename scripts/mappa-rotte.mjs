@@ -377,6 +377,13 @@ export const ROTTE = [
     accesso: ACCESSO.admin,
   },
   {
+    path: '/api/v1/admin/appointments/:id/retention',
+    area: AREE[12],
+    descrizione:
+      'Conservazione dei media di una pratica (PATCH): vincolo legale e chiusura della commessa. Finché la commessa è aperta o c’è un vincolo, foto e video non scadono.',
+    accesso: ACCESSO.admin,
+  },
+  {
     path: '/api/v1/admin/operators',
     area: AREE[12],
     descrizione:

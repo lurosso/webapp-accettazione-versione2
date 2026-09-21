@@ -12,10 +12,11 @@
 import { PHOTO_CATEGORY_LABELS } from '@/domain/entities/media-asset';
 import type { MediaAsset } from '@/domain/entities/media-asset';
 import { customerFullName } from '@/domain/entities/customer';
-import type {
-  Appointment,
-  AppointmentFlow,
-  AppointmentStatus,
+import {
+  retentionProtection,
+  type Appointment,
+  type AppointmentFlow,
+  type AppointmentStatus,
 } from '@/domain/entities/appointment';
 import type { IsoDateTime } from '@/domain/value-objects/iso-date';
 import { normalizePlate } from '@/domain/value-objects/plate';
@@ -87,7 +88,17 @@ export interface RetentionSummary {
   readonly failed: number;
   /** Record archiviati da oltre `hardDeleteDays` eliminati definitivamente. */
   readonly deleted: number;
+  /**
+   * Media scaduti per età ma NON eliminati, perché la pratica li protegge: la commessa è ancora
+   * aperta oppure c'è un vincolo legale. Restano sul disco e si riesaminano al giro successivo.
+   * Il conteggio sta qui, e non solo nei log, perché fra sei mesi qualcuno chiederà perché il
+   * disco non si svuota: la risposta deve essere un numero, non un'ipotesi.
+   */
+  readonly protected: { readonly orderOpen: number; readonly legalHold: number };
 }
+
+/** La pratica come la restituisce il repository (null se eliminata). */
+type Pratica = Awaited<ReturnType<InspectionArchiveServiceDeps['appointments']['findById']>>;
 
 export class InspectionArchiveService {
   private readonly logger: ILogger;
@@ -197,7 +208,27 @@ export class InspectionArchiveService {
     const scadute = await this.deps.media.listExpired(now);
     let archived = 0;
     let failed = 0;
+    const protectedBy = { orderOpen: 0, legalHold: 0 };
+    // Il tempo da solo non basta: decide la pratica. Un'auto ferma quattro mesi per un ricambio
+    // ha la commessa aperta e il suo video di check-in serve ancora; un contenzioso mette un
+    // vincolo che ignora ogni scadenza. Senza pratica (eliminata) non c'è nulla da proteggere.
+    // Una pratica si legge una volta sola anche se ha venti foto.
+    const pratiche = new Map<string, Pratica>();
     for (const asset of scadute) {
+      let pratica = pratiche.get(asset.appointmentId);
+      if (pratica === undefined) {
+        pratica = await this.deps.appointments.findById(asset.appointmentId);
+        pratiche.set(asset.appointmentId, pratica);
+      }
+      const protezione = pratica === null ? null : retentionProtection(pratica);
+      if (protezione === 'LEGAL_HOLD') {
+        protectedBy.legalHold += 1;
+        continue;
+      }
+      if (protezione === 'ORDER_OPEN') {
+        protectedBy.orderOpen += 1;
+        continue;
+      }
       const eliminato = await this.deps.mediaStorage.delete(asset.storageKey);
       if (!eliminato.ok && eliminato.error.code !== 'NOT_FOUND') {
         failed += 1;
@@ -218,9 +249,10 @@ export class InspectionArchiveService {
         archived,
         failed,
         deleted,
+        protette: protectedBy,
       });
     }
-    return { examined: scadute.length, archived, failed, deleted };
+    return { examined: scadute.length, archived, failed, deleted, protected: protectedBy };
   }
 
   /** Secondo passaggio: elimina i record archiviati da più di `hardDeleteDays`. */

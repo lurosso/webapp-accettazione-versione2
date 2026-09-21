@@ -678,7 +678,22 @@ contati dall'archiviazione) anche la scheda viene eliminata dal database. I vecc
 `PHOTO_RETENTION_DAYS` e `PHOTO_HARD_DELETE_DAYS` continuano a funzionare, ma i nuovi hanno la
 precedenza. Lo stesso lavoro
 si può affidare a un cron esterno con `POST /api/v1/system/cron/media-retention` (sessione
-amministratore o header `x-cron-secret`); la risposta riporta file archiviati e record eliminati.
+amministratore o header `x-cron-secret`); la risposta riporta file archiviati, record eliminati
+e file **protetti**.
+
+**Il tempo da solo non basta.** Un file scaduto viene eliminato solo se la pratica lo permette,
+con tre condizioni in **and**: la retention è trascorsa, la commessa risulta **chiusa**
+(`orderClosedAt`, oppure pratica assente o annullata — mai entrata in officina, nessuna commessa),
+e non c'è un **vincolo legale** (`legalHoldAt`). Un'auto ferma quattro mesi per un ricambio ha la
+commessa aperta e il suo video di check-in resta; un contenzioso mette il vincolo e i media non si
+toccano finché l'amministratore non lo toglie. Entrambi gli interruttori stanno nel pannello di
+dettaglio della pratica, visibili solo all'amministratore, e passano da
+`PATCH /api/v1/admin/appointments/:id/retention`. Attenzione: «Chiusa in ODL» in Infinity è
+l'**apertura** dell'ordine di lavoro, non la chiusura della commessa — per questo oggi la chiusura
+la dichiara l'amministratore; quando la lettura da Infinity (`tdo_cli`, data di consegna
+effettiva) sarà collegata, lo farà la sincronizzazione. I file protetti restano sul disco e si
+riesaminano al giro successivo: il riepilogo del cron li conta per motivo, così se il disco non
+si svuota si sa perché.
 
 ## Statistiche ed esportazione
 
@@ -818,17 +833,18 @@ per i cron esterni.
 
 ### API: amministrazione
 
-| Rotta                                        | Metodo    | Descrizione                                                                                                             | Accesso             |
-| -------------------------------------------- | --------- | ----------------------------------------------------------------------------------------------------------------------- | ------------------- |
-| `/api/v1/admin/workstations/:id/eject`       | POST      | Scollega uno sportello rimasto occupato da chi ha finito il turno: libera il posto, non tocca la pratica in carico.     | Solo Amministratore |
-| `/api/v1/admin/operators`                    | GET, POST | Elenco (GET) e creazione (POST) degli operatori, con sportelli e postazioni per i menu.                                 | Solo Amministratore |
-| `/api/v1/admin/operators/:id`                | PATCH     | Modifica di un operatore: nome, ruolo, sportelli, postazione predefinita, attivazione.                                  | Solo Amministratore |
-| `/api/v1/admin/operators/:id/reset-password` | POST      | Nuova password provvisoria, restituita una sola volta.                                                                  | Solo Amministratore |
-| `/api/v1/admin/assistance`                   | GET       | Accettazioni occupate e pratiche in carico da troppo tempo.                                                             | Solo Amministratore |
-| `/api/v1/admin/spoki`                        | GET       | Stato dell'integrazione WhatsApp (provider, modalità, safety lock, override consenso, template) e registro dei payload. | Solo Amministratore |
-| `/api/v1/admin/spoki/test`                   | POST      | Invio di prova di un promemoria a un numero digitato a mano (in simulazione finisce nel registro).                      | Solo Amministratore |
-| `/api/v1/crm/outbox`                         | GET       | Coda di uscita verso il CRM, vista tecnica (`?stato=&limite=`).                                                         | Solo Amministratore |
-| `/api/v1/crm/outbox/:id/retry`               | POST      | "Forza riprova" di un evento verso il CRM.                                                                              | Solo Amministratore |
+| Rotta                                        | Metodo    | Descrizione                                                                                                                                                       | Accesso             |
+| -------------------------------------------- | --------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------- |
+| `/api/v1/admin/workstations/:id/eject`       | POST      | Scollega uno sportello rimasto occupato da chi ha finito il turno: libera il posto, non tocca la pratica in carico.                                               | Solo Amministratore |
+| `/api/v1/admin/appointments/:id/retention`   | PATCH     | Conservazione dei media di una pratica (PATCH): vincolo legale e chiusura della commessa. Finché la commessa è aperta o c’è un vincolo, foto e video non scadono. | Solo Amministratore |
+| `/api/v1/admin/operators`                    | GET, POST | Elenco (GET) e creazione (POST) degli operatori, con sportelli e postazioni per i menu.                                                                           | Solo Amministratore |
+| `/api/v1/admin/operators/:id`                | PATCH     | Modifica di un operatore: nome, ruolo, sportelli, postazione predefinita, attivazione.                                                                            | Solo Amministratore |
+| `/api/v1/admin/operators/:id/reset-password` | POST      | Nuova password provvisoria, restituita una sola volta.                                                                                                            | Solo Amministratore |
+| `/api/v1/admin/assistance`                   | GET       | Accettazioni occupate e pratiche in carico da troppo tempo.                                                                                                       | Solo Amministratore |
+| `/api/v1/admin/spoki`                        | GET       | Stato dell'integrazione WhatsApp (provider, modalità, safety lock, override consenso, template) e registro dei payload.                                           | Solo Amministratore |
+| `/api/v1/admin/spoki/test`                   | POST      | Invio di prova di un promemoria a un numero digitato a mano (in simulazione finisce nel registro).                                                                | Solo Amministratore |
+| `/api/v1/crm/outbox`                         | GET       | Coda di uscita verso il CRM, vista tecnica (`?stato=&limite=`).                                                                                                   | Solo Amministratore |
+| `/api/v1/crm/outbox/:id/retry`               | POST      | "Forza riprova" di un evento verso il CRM.                                                                                                                        | Solo Amministratore |
 
 ### API: sistema e cron
 

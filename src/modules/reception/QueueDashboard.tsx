@@ -21,7 +21,7 @@ import { useLiveUpdates } from '@/hooks/useLiveUpdates';
 import { useIsTouchLayout } from '@/hooks/useMediaQuery';
 import { useQueue } from '@/hooks/useQueue';
 import { canAccess, checkInPath } from '@/lib/navigation';
-import { ApiError, postSync } from '@/lib/api-client/client';
+import { ApiError, patchAppointmentRetention, postSync } from '@/lib/api-client/client';
 import { queueKeys } from '@/lib/api-client/query-keys';
 import { formatDateTimeIt } from '@/lib/dates';
 import { AppointmentDetailPanel } from './AppointmentDetailPanel';
@@ -591,6 +591,19 @@ export function QueueDashboard({
         timeZone={data?.timeZone ?? 'Europe/Rome'}
         currentOperatorName={session.displayName}
         debugCustomerLink={debugCustomerLink}
+        // Vincolo legale e chiusura commessa: solo l'amministratore, che qui monitora in sola
+        // lettura. Dopo il cambio si ricarica la coda, così il pannello — che legge dalla riga —
+        // mostra subito il nuovo stato.
+        retention={
+          selectedRow !== null && canAccess('admin', session.role)
+            ? {
+                onChange: async (patch) => {
+                  await patchAppointmentRetention(selectedRow.appointment.id, patch);
+                  await queryClient.invalidateQueries({ queryKey: queueKeys.all });
+                },
+              }
+            : undefined
+        }
         onClose={() => setSelectedId(null)}
         actionPending={selectedRow !== null && actions.pendingId === selectedRow.appointment.id}
         canConfirmAutoClose={canAccess('manager', session.role)}

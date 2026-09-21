@@ -136,7 +136,8 @@ export function InspectionArchive({ timeZone, retentionDays }: InspectionArchive
           <p className="text-sm text-slate-600">
             Senza ricerca: i check-in fotografici degli ultimi giorni. Cercando una targa: tutti gli
             ingressi storici di quel veicolo, dal più recente, con data, stato, commessa e foto se
-            ci sono. I file restano {retentionDays} giorni, poi vengono eliminati: la scheda rimane.
+            ci sono. I file restano almeno {retentionDays} giorni, e vengono eliminati solo quando la
+            commessa è chiusa e non c&apos;è un vincolo legale: la scheda rimane.
           </p>
         </div>
         <form
