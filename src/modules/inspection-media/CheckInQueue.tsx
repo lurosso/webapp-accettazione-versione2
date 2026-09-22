@@ -31,7 +31,6 @@ import { useLiveUpdates } from '@/hooks/useLiveUpdates';
 import { useTouchLayoutKind } from '@/hooks/useMediaQuery';
 import { useQueue } from '@/hooks/useQueue';
 import { queueKeys } from '@/lib/api-client/query-keys';
-import { postLogout } from '@/lib/api-client/client';
 import { localTimeHHmm } from '@/lib/dates';
 import { cn } from '@/lib/utils/cn';
 import { AppointmentDetailPanel } from '@/modules/reception/AppointmentDetailPanel';
@@ -74,7 +73,6 @@ export function CheckInQueue({
   const [dettaglio, setDettaglio] = useState<string | null>(null);
   // Pratica con la lavorazione richiesta aperta per intero (una alla volta: l'elenco resta corto).
   const [descrizioneAperta, setDescrizioneAperta] = useState<string | null>(null);
-  const [uscita, setUscita] = useState(false);
   // Ricorda se il check-in è stato aperto dalla dashboard: uscendo si torna da dove si è arrivati.
   // Vale solo per quella prima apertura: i check-in aperti poi dall'elenco si chiudono e basta.
   const [daDashboard, setDaDashboard] = useState(openCheckInFor !== null);
@@ -160,15 +158,6 @@ export function CheckInQueue({
     setScheda('mie');
   };
 
-  const esci = async (): Promise<void> => {
-    setUscita(true);
-    try {
-      await postLogout();
-    } finally {
-      window.location.href = new URL('/login', window.location.origin).toString();
-    }
-  };
-
   if (dispositivo === 'unknown') {
     return null;
   }
@@ -194,7 +183,11 @@ export function CheckInQueue({
 
   return (
     <div className="flex min-h-dvh flex-col">
-      {/* Barra minima: chi sei e dove sei, più le due uscite. Nessun'altra navigazione. */}
+      {/*
+       * Barra minima: chi sei e dove sei, più il ritorno alla coda. Nessun'altra navigazione e
+       * nessun «Esci»: dal piazzale, con il tablet in mano, un tocco sbagliato non deve chiudere la
+       * sessione a metà di un check-in. Il logout si fa dalla coda, dove si torna con «Coda».
+       */}
       <header className="border-brand-lime bg-brand-blue-dark border-b-4 text-white">
         <div className="mx-auto flex w-full max-w-4xl flex-wrap items-center justify-between gap-3 px-4 py-3">
           <div className="flex items-center gap-4">
@@ -213,14 +206,6 @@ export function CheckInQueue({
             >
               Coda
             </Link>
-            <button
-              type="button"
-              onClick={() => void esci()}
-              disabled={uscita}
-              className="premibile controllo focus-anello inline-flex items-center rounded-xl bg-white/15 px-4 text-base font-semibold text-white [--anello-colore:#fff] hover:bg-white/25 disabled:opacity-60"
-            >
-              {uscita ? 'Uscita…' : 'Esci'}
-            </button>
           </div>
         </div>
       </header>

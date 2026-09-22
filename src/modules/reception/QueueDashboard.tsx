@@ -231,6 +231,11 @@ export function QueueDashboard({
     [actions, dopoPresaInCarico, touchLayout],
   );
 
+  /** Il tempo per cambiare idea è finito, o l'operatore ha fatto altro: l'avviso sparisce. */
+  const chiudiAnnullamento = useCallback((): void => {
+    setAnnullabile(null);
+  }, []);
+
   /** Manda l'azione contraria. Non trattiene niente: quella di prima è già sul server. */
   const annulla = useCallback((): void => {
     if (annullabile === null) {
@@ -574,8 +579,11 @@ export function QueueDashboard({
 
       <UndoToast
         message={annullabile?.messaggio ?? null}
+        resetKey={
+          annullabile === null ? null : `${annullabile.appointmentId}:${annullabile.version}`
+        }
         onUndo={annulla}
-        onDismiss={() => setAnnullabile(null)}
+        onDismiss={chiudiAnnullamento}
       />
 
       <AppointmentDetailPanel

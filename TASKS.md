@@ -1883,6 +1883,14 @@ Audit in quattro aree (portale pubblico, upload, autorizzazioni/sessioni, integr
 - [x] M8-T41-S06 Test (`tests/security/`, 13 file, 58 casi): magic byte e travestimenti (.exe/.svg/.html come .jpg), tetti e check-in aperto, proxy (401, redirect, CSRF, CSP con nonce, webhook), revoca sessioni, portale col token, limiti e fiducia nel proxy, CSV, header, same-origin; test esistenti aggiornati con byte veri (`tests/helpers/media-bytes.ts`, `media-fixtures.ts`).
 - [ ] M8-T41-S07 Decisioni aperte per il committente: `DISPLAY_TOKEN_REQUIRED=true` con i quattro monitor configurati col token; `PORTAL_WRITES_REQUIRE_TOKEN=true` quando i link WhatsApp saranno in uso; `DEV_QUICK_LOGIN=false` appena finiti i test sul dispositivo; reverse proxy TLS in produzione con `TRUST_PROXY_HEADERS=true`; firma HMAC con timestamp sul webhook Spoki se il provider la offre.
 
+### M8-T42 — Rifiniture dal collaudo su iPad _(2026-09-22, richiesta del committente)_
+
+- [x] M8-T42-S01 Check-in senza «Esci»: dal piazzale si torna solo alla coda (`CheckInQueue`); il logout si fa dalla shell dell'area operatore. Tolti stato, handler e import del logout.
+- [x] M8-T42-S02 Archivio: barra degli strumenti su una riga propria sotto il titolo (`role=search`, `data-testid=archivio-strumenti`), calendario a larghezza fissa (`w-48`, `min-w-44`), ricerca `flex-1` con `min-w-[18rem]` che va a capo intera quando lo spazio manca, pulsante `shrink-0`. Verificato a 768×1024 (ricerca a capo, nessuna sovrapposizione) e 810×1080 (una riga, nessuno scroll orizzontale).
+- [x] M8-T42-S03 Transizione di pagina: `template.tsx` in `(operator)` e `(checkin)` con `animate-entra-pagina` (`--animate-entra-pagina`: dissolvenza + 6 px, 180 ms, `both`), rispetta `prefers-reduced-motion`. Il template si rimonta a ogni navigazione: coda → archivio, coda ↔ check-in.
+- [x] M8-T42-S04 Pulsante «Annulla» che non spariva: il timer di `UndoToast` dipendeva anche da `onDismiss`, passato come funzione nuova a ogni render della dashboard (polling ogni 3 s) e quindi riavviato all'infinito. Ora `onDismiss` sta in un ref e il timer dipende solo da `message` e da `resetKey` (pratica:versione, così due azioni consecutive con lo stesso testo ripartono); la dashboard passa `chiudiAnnullamento` memoizzato. Verificato dal vivo: avviso presente a 1 s, sparito entro 5 s.
+- [x] M8-T42-S05 Media: input video con tipi ESPLICITI (`video/mp4,video/quicktime,video/webm,video/3gpp,video/x-m4v`) invece di `video/*`, che su iOS fa ricomprimere la ripresa a qualità media; nessun ridimensionamento lato client (il file parte com'è, entro gli 80 MB). Nuovo pulsante «Galleria» (`data-testid=dal-rullino`) che apre un input senza `capture` con `image/*` più i video: foto e video già nel rullino si caricano come EXTRA/video. Test statico in `photo-capture-video-lock.test.ts`.
+
 ---
 
 ## Backlog / Idee future

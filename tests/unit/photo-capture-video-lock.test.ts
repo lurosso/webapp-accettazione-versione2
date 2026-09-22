@@ -45,6 +45,24 @@ describe('Check-in: slot del video obbligatorio', () => {
     expect(html).toContain('aria-label="Elimina il video 1"');
   });
 
+  it('la fotocamera resta la via principale, il rullino quella secondaria: input senza capture e tipi video espliciti', () => {
+    const html = render([]);
+    // Il pulsante «Galleria» apre un input SENZA capture: iOS propone rullino, fotocamera o file.
+    expect(html).toContain('data-testid="dal-rullino"');
+    expect(html).toMatch(/<input[^>]*data-testid="input-galleria"[^>]*>/);
+    const galleria = /<input[^>]*data-testid="input-galleria"[^>]*>/.exec(html)?.[0] ?? '';
+    expect(galleria).not.toContain('capture=');
+    expect(galleria).toContain(
+      'accept="image/*,video/mp4,video/quicktime,video/webm,video/3gpp,video/x-m4v"',
+    );
+    // Il video del giro: fotocamera diretta e tipi elencati uno per uno, niente jolly video/*,
+    // che su iOS fa ricomprimere la ripresa.
+    const video = /<input[^>]*data-testid="input-video"[^>]*>/.exec(html)?.[0] ?? '';
+    expect(video).toContain('capture="environment"');
+    expect(video).toContain('accept="video/mp4,video/quicktime,video/webm,video/3gpp,video/x-m4v"');
+    expect(video).not.toContain('video/*');
+  });
+
   it('con il check-in chiuso (senza onRemove) il video resta visibile ma senza ×', () => {
     const html = renderToStaticMarkup(
       createElement(PhotoCapture, {

@@ -11,7 +11,7 @@
 // rimette in coda, una saltata si ripristina). Così non esiste uno stato intermedio in cui la coda
 // mostra una cosa e il server ne sa un'altra — che con quattro postazioni sulla stessa fila
 // sarebbe il modo più rapido per far litigare due colleghi.
-import { useEffect } from 'react';
+import { useEffect, useRef } from 'react';
 import { Button } from '@/components/ui/button';
 
 /** Quanto resta a disposizione per cambiare idea. */
@@ -24,16 +24,36 @@ export interface UndoToastProps {
   readonly onDismiss: () => void;
   /** Vero mentre l'annullamento è in corso: il pulsante resta premuto. */
   readonly undoing?: boolean;
+  /**
+   * Cambia a ogni nuova azione annullabile: fa ripartire i cinque secondi anche quando due azioni
+   * consecutive producono lo stesso messaggio (saltata, ripristinata, saltata di nuovo).
+   */
+  readonly resetKey?: string | null;
 }
 
-export function UndoToast({ message, onUndo, onDismiss, undoing = false }: UndoToastProps) {
+export function UndoToast({
+  message,
+  onUndo,
+  onDismiss,
+  undoing = false,
+  resetKey = null,
+}: UndoToastProps) {
+  // Chi ascolta la chiusura sta in un ref: il timer dipende SOLO dal messaggio. Prima dipendeva
+  // anche da `onDismiss`, che la dashboard passava come funzione nuova a ogni render — e la
+  // dashboard si ridisegna ogni tre secondi con il polling: il timer ripartiva sempre da zero e sul
+  // tablet il pulsante «Annulla» non spariva più.
+  const onDismissRef = useRef(onDismiss);
+  useEffect(() => {
+    onDismissRef.current = onDismiss;
+  }, [onDismiss]);
+
   useEffect(() => {
     if (message === null) {
       return undefined;
     }
-    const timer = setTimeout(onDismiss, DURATA_ANNULLAMENTO_MS);
+    const timer = setTimeout(() => onDismissRef.current(), DURATA_ANNULLAMENTO_MS);
     return () => clearTimeout(timer);
-  }, [message, onDismiss]);
+  }, [message, resetKey]);
 
   if (message === null) {
     return null;

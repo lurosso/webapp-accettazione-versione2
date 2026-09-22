@@ -35,6 +35,9 @@ interface Caricamento {
   readonly previewUrl: string;
 }
 
+/** I contenitori video accettati dal server, elencati uno per uno (vedi il commento all'input). */
+const VIDEO_ACCEPT = 'video/mp4,video/quicktime,video/webm,video/3gpp,video/x-m4v';
+
 export function PhotoCapture({ appointmentId, media, onUploaded, onRemove }: PhotoCaptureProps) {
   const inputRefs = useRef(new Map<string, HTMLInputElement | null>());
   const [inCorso, setInCorso] = useState<readonly Caricamento[]>([]);
@@ -111,11 +114,16 @@ export function PhotoCapture({ appointmentId, media, onUploaded, onRemove }: Pho
     }
   };
 
-  /** Input nascosto per uno slot o per i pulsanti liberi; la chiave lo distingue. */
+  /**
+   * Input nascosto per uno slot o per i pulsanti liberi; la chiave lo distingue. Con `capture` il
+   * tablet apre direttamente la fotocamera posteriore; senza, iOS propone rullino, fotocamera o
+   * file: è la via per caricare una ripresa fatta prima, o con un altro dispositivo.
+   */
   const inputNascosto = (
     key: string,
     accept: string,
     onPick: (file: File) => void,
+    capture = true,
   ): React.ReactNode => (
     <input
       ref={(el) => {
@@ -123,7 +131,7 @@ export function PhotoCapture({ appointmentId, media, onUploaded, onRemove }: Pho
       }}
       type="file"
       accept={accept}
-      capture="environment"
+      {...(capture ? { capture: 'environment' as const } : {})}
       className="sr-only"
       data-testid={`input-${key.toLowerCase()}`}
       onChange={(event) => {
@@ -140,6 +148,12 @@ export function PhotoCapture({ appointmentId, media, onUploaded, onRemove }: Pho
   const foto = media.filter((m) => m.kind !== 'VIDEO');
   const video = media.filter((m) => m.kind === 'VIDEO');
   const inCaricamento = inCorso;
+
+  /** Dal rullino può arrivare una foto o un video: lo dice il file, la casella non c'è. */
+  const dalRullino = (file: File): void => {
+    const kind = file.type.startsWith('video/') ? 'VIDEO' : 'PHOTO';
+    void onFile(file, kind === 'VIDEO' ? null : 'EXTRA', kind);
+  };
 
   /** Un riquadro della riga: stessa misura per il video, per le foto e per il «più». */
   const RIQUADRO =
@@ -159,15 +173,43 @@ export function PhotoCapture({ appointmentId, media, onUploaded, onRemove }: Pho
       <div className="flex flex-col gap-3">
         <div className="flex flex-wrap items-center justify-between gap-3">
           <h2 className="text-2xl font-bold">Documentazione del veicolo</h2>
-          {video.length === 0 ? (
-            <span className="bg-status-in-progress-soft text-status-in-progress-ink testo-corpo rounded-full px-4 py-1.5 font-bold">
-              Manca il video — non si può chiudere
-            </span>
-          ) : (
-            <span className="bg-status-completed-soft text-status-completed-ink testo-corpo rounded-full px-4 py-1.5 font-bold">
-              ✓ Video registrato — si può chiudere
-            </span>
-          )}
+          <div className="flex flex-wrap items-center gap-3">
+            {/*
+             * La via secondaria: la fotocamera resta l'azione principale (i riquadri), ma un video
+             * girato prima, o arrivato da un collega, si carica da qui senza `capture`.
+             */}
+            <button
+              type="button"
+              onClick={() => inputRefs.current.get('GALLERIA')?.click()}
+              data-testid="dal-rullino"
+              className="premibile focus-anello controllo border-line bg-surface text-ink-soft hover:bg-surface-sunken inline-flex items-center gap-2 rounded-xl border px-4 font-semibold"
+            >
+              <svg
+                aria-hidden="true"
+                viewBox="0 0 24 24"
+                className="size-5"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="2"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+              >
+                <rect x="3" y="5" width="18" height="14" rx="2" />
+                <circle cx="8.5" cy="10" r="1.5" />
+                <path d="m21 16-5-5-9 8" />
+              </svg>
+              Galleria
+            </button>
+            {video.length === 0 ? (
+              <span className="bg-status-in-progress-soft text-status-in-progress-ink testo-corpo rounded-full px-4 py-1.5 font-bold">
+                Manca il video — non si può chiudere
+              </span>
+            ) : (
+              <span className="bg-status-completed-soft text-status-completed-ink testo-corpo rounded-full px-4 py-1.5 font-bold">
+                ✓ Video registrato — si può chiudere
+              </span>
+            )}
+          </div>
         </div>
 
         {/*
@@ -327,7 +369,14 @@ export function PhotoCapture({ appointmentId, media, onUploaded, onRemove }: Pho
           ) : null}
         </ul>
         {inputNascosto('EXTRA', 'image/*', (file) => void onFile(file, 'EXTRA', 'PHOTO'))}
-        {inputNascosto('VIDEO', 'video/*', (file) => void onFile(file, null, 'VIDEO'))}
+        {/*
+         * Tipi ESPLICITI e non `video/*`: con il jolly iOS ricomprime la ripresa a qualità
+         * «media» prima di consegnarla e il video del veicolo perde i dettagli — il graffio che
+         * serviva a vedere. Con i tipi elencati passa il file originale (.mov HEVC dell'iPad). Il
+         * client non ridimensiona né ricodifica nulla: il file parte com'è, entro gli 80 MB.
+         */}
+        {inputNascosto('VIDEO', VIDEO_ACCEPT, (file) => void onFile(file, null, 'VIDEO'))}
+        {inputNascosto('GALLERIA', `image/*,${VIDEO_ACCEPT}`, dalRullino, false)}
       </div>
     </section>
   );

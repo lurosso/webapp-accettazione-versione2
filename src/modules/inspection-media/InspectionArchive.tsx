@@ -174,58 +174,69 @@ export function InspectionArchive({
 
   return (
     <div className="flex flex-col gap-4">
-      <header className="flex flex-wrap items-end justify-between gap-3">
-        <div>
-          <h1 className="text-2xl font-bold tracking-tight">Archivio ispezioni</h1>
-          <p className="text-sm text-slate-600">
-            Si apre sulle pratiche di oggi; il calendario porta a un giorno passato. Cercando una
-            targa o un codice: tutti gli ingressi storici di quel veicolo, su tutte le giornate, dal
-            più recente. I file restano almeno {retentionDays} giorni, e vengono eliminati solo
-            quando la commessa è chiusa e non c&apos;è un vincolo legale: la scheda rimane.
-          </p>
-        </div>
-        <div className="flex flex-wrap items-end gap-3">
-          <label className="flex flex-col gap-1">
-            <span className="testo-nota text-ink-soft font-semibold">Giornata</span>
-            <Input
-              type="date"
-              value={giorno}
-              max={today}
-              aria-label="Giornata da consultare"
-              data-testid="archivio-giorno"
-              onChange={(event) => {
-                if (event.target.value !== '') {
-                  setGiorno(event.target.value);
-                  setQuery('');
-                  setTesto('');
-                }
-              }}
-              className="controllo w-44"
-            />
-          </label>
-          <form
-            className="flex items-center gap-2"
-            onSubmit={(event) => {
-              event.preventDefault();
-              setQuery(testo.trim());
+      <header className="flex flex-col gap-1">
+        <h1 className="text-2xl font-bold tracking-tight">Archivio ispezioni</h1>
+        <p className="text-sm text-slate-600">
+          Si apre sulle pratiche di oggi; il calendario porta a un giorno passato. Cercando una
+          targa o un codice: tutti gli ingressi storici di quel veicolo, su tutte le giornate, dal
+          più recente. I file restano almeno {retentionDays} giorni, e vengono eliminati solo quando
+          la commessa è chiusa e non c&apos;è un vincolo legale: la scheda rimane.
+        </p>
+      </header>
+
+      {/*
+       * Barra degli strumenti su una riga propria, non accanto al titolo: sull'iPad in verticale
+       * il calendario finiva schiacciato sotto la ricerca. Ogni controllo ha una larghezza minima
+       * e, quando lo spazio manca, la ricerca va a capo intera invece di collassare sul calendario.
+       */}
+      <div
+        className="flex flex-wrap items-end gap-x-4 gap-y-3"
+        role="search"
+        data-testid="archivio-strumenti"
+      >
+        <label className="flex w-48 shrink-0 flex-col gap-1">
+          <span className="testo-nota text-ink-soft font-semibold">Giornata</span>
+          <Input
+            type="date"
+            value={giorno}
+            max={today}
+            aria-label="Giornata da consultare"
+            data-testid="archivio-giorno"
+            onChange={(event) => {
+              if (event.target.value !== '') {
+                setGiorno(event.target.value);
+                setQuery('');
+                setTesto('');
+              }
             }}
-          >
+            className="controllo min-w-44"
+          />
+        </label>
+        <form
+          className="flex min-w-[18rem] flex-1 flex-wrap items-end gap-2"
+          onSubmit={(event) => {
+            event.preventDefault();
+            setQuery(testo.trim());
+          }}
+        >
+          <label className="flex min-w-[12rem] flex-1 flex-col gap-1">
+            <span className="testo-nota text-ink-soft font-semibold">Targa o codice</span>
             <Input
               aria-label="Cerca per targa o codice pratica"
-              placeholder="Targa o codice (es. AB123CD, F012)"
+              placeholder="es. AB123CD, F012"
               value={testo}
               onChange={(event) => setTesto(event.target.value)}
-              className="controllo w-64 font-mono uppercase"
+              className="controllo font-mono uppercase"
             />
-            <button
-              type="submit"
-              className="bg-brand-secondary hover:bg-brand-blue-dark premibile focus-anello controllo min-w-touch inline-flex items-center justify-center rounded-md px-4 text-sm font-semibold text-white"
-            >
-              Cerca
-            </button>
-          </form>
-        </div>
-      </header>
+          </label>
+          <button
+            type="submit"
+            className="bg-brand-secondary hover:bg-brand-blue-dark premibile focus-anello controllo min-w-touch inline-flex shrink-0 items-center justify-center rounded-md px-4 text-sm font-semibold text-white"
+          >
+            Cerca
+          </button>
+        </form>
+      </div>
 
       <p className="testo-corpo text-ink-soft" data-testid="archivio-intestazione">
         {query === ''
