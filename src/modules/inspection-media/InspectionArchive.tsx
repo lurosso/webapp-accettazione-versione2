@@ -206,21 +206,33 @@ export function InspectionArchive({
         <div className="flex flex-wrap items-end gap-4">
           <label className="flex w-52 shrink-0 flex-col gap-1.5">
             <span className="testo-nota text-ink-soft font-semibold">Giornata</span>
-            <Input
-              type="date"
-              value={giorno}
-              max={today}
-              aria-label="Giornata da consultare"
-              data-testid="archivio-giorno"
-              onChange={(event) => {
-                if (event.target.value !== '') {
-                  setGiorno(event.target.value);
-                  setQuery('');
-                  setTesto('');
-                }
-              }}
-              className="controllo min-w-44"
-            />
+            {/*
+             * Il campo data sta in una CORNICE alta quanto ogni altro controllo. Su iOS Safari
+             * l'<input type="date"> ignora l'altezza che gli si dà e si disegna basso quanto il suo
+             * valore: accanto alla ricerca sembrava schiacciato. Qui l'altezza la fa la cornice
+             * (stessi bordo, sfondo e padding di `Input`) e il campo, trasparente, ci sta dentro
+             * centrato; l'anello di focus lo prende la cornice.
+             */}
+            <span
+              className="controllo border-line bg-surface focus-anello-dentro transizione flex w-full min-w-44 items-center rounded-md border px-3.5 shadow-xs"
+              data-testid="archivio-giorno-cornice"
+            >
+              <input
+                type="date"
+                value={giorno}
+                max={today}
+                aria-label="Giornata da consultare"
+                data-testid="archivio-giorno"
+                onChange={(event) => {
+                  if (event.target.value !== '') {
+                    setGiorno(event.target.value);
+                    setQuery('');
+                    setTesto('');
+                  }
+                }}
+                className="testo-corpo text-ink h-full w-full min-w-0 bg-transparent outline-none"
+              />
+            </span>
           </label>
           <form
             className="flex min-w-[20rem] flex-1 flex-wrap items-end gap-3"

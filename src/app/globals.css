@@ -265,24 +265,6 @@
       transform: translateY(8px) scale(0.985);
     }
   }
-
-  /*
-   * Il contenuto di una pagina che entra dopo una navigazione (coda → check-in e ritorno). 180 ms:
-   * ammorbidisce il cambio di contesto senza farsi aspettare. La applica il `template` di ogni
-   * area, che si rimonta a ogni navigazione.
-   */
-  --animate-entra-pagina: entra-pagina 180ms cubic-bezier(0.32, 0.72, 0, 1) both;
-
-  @keyframes entra-pagina {
-    from {
-      opacity: 0;
-      transform: translateY(4px);
-    }
-    to {
-      opacity: 1;
-      transform: none;
-    }
-  }
 }
 
 :root {
@@ -474,6 +456,14 @@
   }
 }
 
+/* Lo stesso anello, ma sulla cornice che contiene il campo (il campo data su iOS sta dentro una cornice). */
+@utility focus-anello-dentro {
+  &:focus-within {
+    outline: 2px solid var(--anello-colore);
+    outline-offset: 2px;
+  }
+}
+
 /* Transizione standard degli stati: colore, bordo, elevazione. */
 @utility transizione {
   transition-property: color, background-color, border-color, box-shadow, opacity;
@@ -541,20 +531,76 @@
 }
 
 /*
- * Il campo data su iOS Safari. Con l'aspetto nativo il campo ignora l'altezza dei controlli e
- * centra il valore a modo suo: accanto alla ricerca sembrava schiacciato. Senza aspetto nativo
- * segue `controllo` come ogni altro campo, e il valore sta a sinistra come in un campo di testo.
- * Il calendario di sistema si apre comunque al tocco.
+ * Il campo data su iOS Safari. WebKit lo disegna con i propri stili interni
+ * (`::-webkit-date-and-time-value`): ignora altezza e padding del campo, centra il valore e lo fa
+ * più piccolo del testo accanto — accanto alla ricerca sembrava schiacciato e disallineato. Qui:
+ * niente aspetto nativo, altezza ESPLICITA (non solo minima: su iOS la minima non basta), valore
+ * a sinistra e centrato in verticale, larghezza piena. In più il campo sta dentro una cornice
+ * alta quanto ogni altro controllo (vedi l'archivio): l'altezza visiva la fa la cornice, e il
+ * campo trasparente ci sta dentro. Il calendario di sistema si apre comunque al tocco.
  */
 input[type='date'] {
   -webkit-appearance: none;
   appearance: none;
   display: flex;
   align-items: center;
+  width: 100%;
+  min-width: 0;
+  height: 100%;
+  min-height: 1.5rem;
+  line-height: normal;
+  background-clip: padding-box;
 }
 
 input[type='date']::-webkit-date-and-time-value {
   text-align: left;
-  min-height: 1.5rem;
-  line-height: 1.5rem;
+  min-height: 1.5em;
+  margin: auto 0;
+  width: 100%;
+}
+
+input[type='date']::-webkit-datetime-edit {
+  padding: 0;
+}
+
+/*
+ * Transizione di pagina: @keyframes espliciti e una classe piena, non una variabile del tema.
+ * WebKit vuole la regola scritta per intero; 200 ms ease-out, e il contenitore resta al suo
+ * stato finale (`both`). La applica `PageTransition` al div legato al percorso: si rimonta a
+ * ogni navigazione e l'animazione riparte.
+ */
+@keyframes entra-pagina {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes entra-pagina-dissolvenza {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+.animate-entra-pagina {
+  animation: entra-pagina 200ms ease-out both;
+}
+
+/*
+ * Con «Riduci movimento» attivo (impostazione frequente sugli iPad) la regola generale sopra
+ * azzera ogni animazione; qui il cambio di pagina resta una dissolvenza senza spostamento, che
+ * non è un movimento e non dà fastidio, ma evita il salto secco fra una schermata e l'altra.
+ */
+@media (prefers-reduced-motion: reduce) {
+  .animate-entra-pagina {
+    animation: entra-pagina-dissolvenza 200ms ease-out both !important;
+    animation-duration: 200ms !important;
+  }
 }

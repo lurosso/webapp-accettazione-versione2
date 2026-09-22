@@ -1899,6 +1899,12 @@ Audit in quattro aree (portale pubblico, upload, autorizzazioni/sessioni, integr
 - [x] M8-T43-S04 Filtro «Solo con foto/video»: nuovo `Switch` (`role=switch`, etichetta cliccabile, bersaglio `controllo`), stato locale della pagina, filtro puro in `archive-filter.ts` (`filterArchiveEntries`, `hasMedia`, `archiveCountLabel`) con test; conteggio «N con foto/video su M» nell'intestazione e stato vuoto dedicato quando il filtro nasconde tutto.
 - [x] M8-T43-S05 Video: `accept="video/mp4,video/quicktime,video/*"` (galleria: `image/*` più gli stessi), nessun ridimensionamento o ricodifica lato client (verificato: il file parte com'è), promemoria in pagina «Per la massima qualità (4K, 60 fps) registra con l'app Fotocamera e carica da Galleria». Test statico aggiornato.
 
+### M8-T44 — iOS Safari: campo data e transizioni di pagina _(2026-09-22, dal collaudo su iPad)_
+
+- [x] M8-T44-S01 Campo data dell'archivio dentro una cornice (`archivio-giorno-cornice`) alta `controllo`, con bordo, sfondo e padding di `Input` e anello di focus su `:focus-within` (`focus-anello-dentro`); il campo è trasparente, `h-full w-full`. Reset WebKit completo: `-webkit-appearance: none`, `height: 100%`, `width: 100%`, `::-webkit-date-and-time-value { text-align: left; min-height: 1.5em; margin: auto 0 }`, `::-webkit-datetime-edit { padding: 0 }`. Su iOS la sola `min-height` non bastava: il campo si disegnava basso quanto il valore.
+- [x] M8-T44-S02 Transizione di pagina come CSS esplicito fuori dal tema: `@keyframes entra-pagina` (6 px, 200 ms, ease-out, `both`) e classe piena `.animate-entra-pagina`; tolta la variabile `--animate-entra-pagina`. Con `prefers-reduced-motion: reduce` (impostazione frequente sugli iPad, che prima azzerava l'animazione) resta una dissolvenza di 200 ms senza spostamento.
+- [x] M8-T44-S03 Test `page-transition-css.test.ts`: keyframes e classe presenti, nessuna variabile del tema, dissolvenza sotto reduce-motion, reset del campo data.
+
 ---
 
 ## Backlog / Idee future
