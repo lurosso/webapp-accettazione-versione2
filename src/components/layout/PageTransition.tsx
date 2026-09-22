@@ -21,7 +21,7 @@
 // La prima pagina della sessione non fa l'entrata: il server la manda già visibile e resta tale
 // anche prima che il JavaScript arrivi. L'animazione vale per le navigazioni fatte a mano.
 import { usePathname } from 'next/navigation';
-import { useLayoutEffect, useState, useSyncExternalStore, type ReactNode } from 'react';
+import { useEffect, useLayoutEffect, useState, useSyncExternalStore, type ReactNode } from 'react';
 import {
   azzeraUscita,
   iscrivitiAllaTransizione,
@@ -64,10 +64,15 @@ function Pagina({
   // Layout effect, non effetto passivo: parte al commit del DOM, prima del primo paint, così i due
   // frame (o il timer) si contano da quando il contenitore esiste davvero, non da quando React
   // trova il tempo di eseguire gli effetti dopo l'idratazione.
+  // La pagina nuova è montata: qualunque uscita segnalata dalla precedente è conclusa. In un
+  // effetto PASSIVO, non nel layout effect: a quel punto la pagina vecchia si è già scollegata
+  // dallo store, e l'avviso non raggiunge un componente che sta uscendo di scena.
+  useEffect(() => {
+    azzeraUscita();
+  }, []);
+
   useLayoutEffect(() => {
     segnaPrimaPaginaMontata();
-    // La pagina nuova è qui: qualunque uscita segnalata dalla precedente è conclusa.
-    azzeraUscita();
     if (fase === 'visibile') {
       return undefined;
     }
