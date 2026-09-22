@@ -5,7 +5,15 @@ import type { AppointmentStatus, AppointmentSource } from './entities/appointmen
 import type { CrmOutboxStatus } from './entities/crm-outbox-event';
 import type { NotificationJobStatus } from './entities/notification';
 import type { SyncRunStatus } from './entities/sync-run';
-import type { AppointmentId, BayId, CrmOutboxEventId, NotificationJobId, SyncRunId } from './ids';
+import type { SystemAlertComponent, SystemAlertStatus } from './entities/system-alert';
+import type {
+  AppointmentId,
+  BayId,
+  CrmOutboxEventId,
+  NotificationJobId,
+  SyncRunId,
+  SystemAlertId,
+} from './ids';
 import type { IsoDateTime } from './value-objects/iso-date';
 import type { QueueCode } from './value-objects/queue-code';
 
@@ -19,7 +27,8 @@ export type DomainEventType =
   | 'SYNC_RUN_FINISHED'
   | 'NOTIFICATION_JOB_CHANGED'
   | 'CRM_EVENT_CHANGED'
-  | 'BUSINESS_DAY_CLOSED';
+  | 'BUSINESS_DAY_CLOSED'
+  | 'SYSTEM_ALERT_CHANGED';
 
 /** Chi ha causato l'evento. */
 export interface DomainEventActor {
@@ -104,6 +113,16 @@ export type DomainEventPayload =
       readonly noShowCount: number;
       /** Pratiche ancora in carico chiuse d'ufficio (completate, da confermare). */
       readonly autoClosedCount: number;
+    }
+  | {
+      /**
+       * Una segnalazione di disfunzione è nata o ha cambiato stato: il cruscotto
+       * dell'amministratore la rilegge. Nessun testo qui: solo l'id e lo stato.
+       */
+      readonly type: 'SYSTEM_ALERT_CHANGED';
+      readonly alertId: SystemAlertId;
+      readonly status: SystemAlertStatus;
+      readonly component: SystemAlertComponent;
     };
 
 /** Evento di dominio completo, come restituito dal bus. */

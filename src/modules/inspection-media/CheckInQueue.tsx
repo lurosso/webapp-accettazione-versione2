@@ -35,7 +35,7 @@ import { queueKeys } from '@/lib/api-client/query-keys';
 import { localTimeHHmm } from '@/lib/dates';
 import { cn } from '@/lib/utils/cn';
 import { AppointmentDetailPanel } from '@/modules/reception/AppointmentDetailPanel';
-import { deskOf } from '@/modules/reception/QueueTable';
+import { sportelloLabel } from '@/modules/reception/desk-labels';
 import { CheckInScreen } from './CheckInScreen';
 
 /**
@@ -445,8 +445,7 @@ export function CheckInQueue({
           })()}
           deskLabel={(() => {
             const r = rows.find((x) => x.appointment.id === dettaglio);
-            const desk = r === undefined ? null : deskOf(r, data.desks);
-            return desk === null ? null : `${desk.code} · ${desk.name}`;
+            return r === undefined ? null : sportelloLabel(r, data.desks, data.bays);
           })()}
           timeZone={data.timeZone}
           currentOperatorName={session.displayName}

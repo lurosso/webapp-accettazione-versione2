@@ -1,71 +1,27 @@
-// Pagina Sistema (area autenticata): stato delle porte esterne e, per chi amministra, la coda di
-// uscita verso il CRM. È la pagina di chi tiene in piedi il sistema: la coda mostra messaggi
-// d'errore e chiavi tecniche, quindi resta agli ADMIN, mentre lo stato delle porte serve anche a
-// un accettatore che vuole sapere perché i promemoria non partono.
+// Pagina Sistema (area autenticata): la diagnostica di tutto quello che può fermare l'officina —
+// porte esterne, storage dei media, sincronizzazione, rete — con «Segnala ad Admin» accanto a
+// ogni riga e una segnalazione libera per stampanti e hardware; per chi amministra, anche la
+// coda di uscita verso il CRM. La diagnostica è un pannello client che si rilegge da solo: qui
+// il server risolve sessione e configurazione, e dice se il container non si costruisce.
 import type { Metadata } from 'next';
-import Link from 'next/link';
-import {
-  checkExternalHealth,
-  isStartupError,
-  providerKindsFromEnv,
-  type SystemHealth,
-  type SystemHealthStatus,
-} from '@/application/health/check-health';
-import { Badge, type BadgeTone } from '@/components/ui/badge';
+import { isStartupError } from '@/application/health/check-health';
 import { getContainer } from '@/config/container';
 import { requireArea } from '@/app/_server/session';
-import { formatDateTimeIt } from '@/lib/dates';
 import { canAccess } from '@/lib/navigation';
 import { CrmOutboxTable } from '@/modules/crm/CrmOutboxTable';
-import type { HealthStatus } from '@/services/interfaces/common';
+import { SystemDiagnosticsPanel } from '@/modules/system/SystemDiagnosticsPanel';
 
 export const dynamic = 'force-dynamic';
 
 export const metadata: Metadata = { title: 'Sistema' };
 
-const NOT_AVAILABLE = 'n/d';
-
-const PROVIDER_LABELS: Record<HealthStatus['provider'], string> = {
-  INFINITY: 'Infinity (agenda DMS)',
-  SPOKI: 'Spoki (WhatsApp)',
-  SMS_HOSTING: 'SMS Hosting (SMS di fallback)',
-  CRM: 'CRM / BDC (webhook)',
-};
-
-const STATUS_LABELS: Record<HealthStatus['status'] | SystemHealthStatus, string> = {
-  UP: 'Operativo',
-  DEGRADED: 'Degradato',
-  DOWN: 'Non disponibile',
-  UNKNOWN: 'Sconosciuto',
-};
-
-const STATUS_TONES: Record<HealthStatus['status'] | SystemHealthStatus, BadgeTone> = {
-  UP: 'success',
-  DEGRADED: 'warning',
-  DOWN: 'danger',
-  UNKNOWN: 'neutral',
-};
-
-function HealthBadge({ status }: { readonly status: HealthStatus['status'] | SystemHealthStatus }) {
-  return (
-    <Badge tone={STATUS_TONES[status]} title={status}>
-      {STATUS_LABELS[status]}
-    </Badge>
-  );
-}
-
 type PageData =
-  | { readonly kind: 'ok'; readonly health: SystemHealth; readonly timeZone: string }
+  | { readonly kind: 'ok'; readonly timeZone: string }
   | { readonly kind: 'startup-error'; readonly name: string; readonly message: string };
 
-async function loadPageData(): Promise<PageData> {
+function loadPageData(): PageData {
   try {
-    const container = getContainer();
-    const health = await checkExternalHealth(container.external, {
-      clock: container.clock,
-      kinds: providerKindsFromEnv(container.env),
-    });
-    return { kind: 'ok', health, timeZone: container.env.timeZone };
+    return { kind: 'ok', timeZone: getContainer().env.timeZone };
   } catch (error) {
     if (!isStartupError(error)) {
       throw error;
@@ -75,7 +31,8 @@ async function loadPageData(): Promise<PageData> {
 }
 
 export default async function SistemaPage() {
-  const [session, data] = await Promise.all([requireArea('sistema', '/sistema'), loadPageData()]);
+  const session = await requireArea('sistema', '/sistema');
+  const data = loadPageData();
   const timeZone = data.kind === 'ok' ? data.timeZone : 'Europe/Rome';
 
   return (
@@ -83,8 +40,9 @@ export default async function SistemaPage() {
       <header>
         <h1 className="text-2xl font-bold tracking-tight">Sistema</h1>
         <p className="text-sm text-slate-600">
-          Stato delle porte esterne selezionate dal container (architettura Mock-First): oggi
-          rispondono i Mock, domani gli adapter reali senza modifiche alla dashboard.
+          Lo stato dei componenti da cui dipende l&apos;accettazione. Quando qualcosa non va, la
+          segnalazione arriva all&apos;amministratore con il codice del controllo, chi l&apos;ha
+          fatta e da quale postazione.
         </p>
       </header>
 
@@ -101,52 +59,7 @@ export default async function SistemaPage() {
           </p>
         </section>
       ) : (
-        <section className="rounded-xl border border-slate-200 bg-white p-6 shadow-sm">
-          <div className="mb-4 flex items-center justify-between">
-            <h2 className="text-lg font-semibold">Porte esterne</h2>
-            <HealthBadge status={data.health.status} />
-          </div>
-          <table className="w-full text-left text-sm">
-            <thead className="text-xs text-slate-500 uppercase">
-              <tr>
-                <th scope="col" className="pb-2">
-                  Porta
-                </th>
-                <th scope="col" className="pb-2">
-                  Stato
-                </th>
-                <th scope="col" className="pb-2">
-                  Implementazione
-                </th>
-                <th scope="col" className="pb-2">
-                  Dettaglio
-                </th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-slate-100">
-              {data.health.providers.map((p) => (
-                <tr key={p.provider}>
-                  <td className="py-2 font-medium">{PROVIDER_LABELS[p.provider]}</td>
-                  <td className="py-2">
-                    <HealthBadge status={p.status} />
-                  </td>
-                  <td className="py-2 font-mono text-xs">{p.implementation}</td>
-                  <td className="py-2 text-slate-600">{p.detail ?? NOT_AVAILABLE}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-          <p className="mt-4 text-xs text-slate-500">
-            Ultimo controllo:{' '}
-            {data.health.checkedAt === null
-              ? NOT_AVAILABLE
-              : formatDateTimeIt(data.health.checkedAt, data.timeZone)}{' '}
-            ({data.timeZone}). Endpoint JSON:{' '}
-            <Link href="/api/v1/health" className="underline hover:text-slate-800">
-              /api/v1/health
-            </Link>
-          </p>
-        </section>
+        <SystemDiagnosticsPanel timeZone={timeZone} />
       )}
 
       {canAccess('admin', session.role) ? (

@@ -7,6 +7,7 @@ import type { INotificationRepository } from './INotificationRepository';
 import type { IOperatorRepository } from './IOperatorRepository';
 import type { IReferenceDataRepository } from './IReferenceDataRepository';
 import type { ISyncRunRepository } from './ISyncRunRepository';
+import type { ISystemAlertRepository } from './ISystemAlertRepository';
 import type { IWorkstationClaimRepository } from './IWorkstationClaimRepository';
 
 export type {
@@ -18,6 +19,7 @@ export type { IOperatorRepository } from './IOperatorRepository';
 export type { IReferenceDataRepository } from './IReferenceDataRepository';
 export type { INotificationRepository } from './INotificationRepository';
 export type { ISyncRunRepository } from './ISyncRunRepository';
+export type { ISystemAlertRepository, SystemAlertFilter } from './ISystemAlertRepository';
 export type { ICrmOutboxRepository } from './ICrmOutboxRepository';
 export type { IMediaRepository } from './IMediaRepository';
 export type { IWorkstationClaimRepository } from './IWorkstationClaimRepository';
@@ -32,4 +34,5 @@ export interface Repositories {
   readonly crmOutbox: ICrmOutboxRepository;
   readonly media: IMediaRepository;
   readonly workstationClaims: IWorkstationClaimRepository;
+  readonly systemAlerts: ISystemAlertRepository;
 }

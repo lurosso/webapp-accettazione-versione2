@@ -16,9 +16,12 @@ import {
   PrismaAppointmentRepository,
   PrismaMediaRepository,
   PrismaOperatorRepository,
+  PrismaSystemAlertRepository,
   PrismaWorkstationClaimRepository,
   type Db,
 } from '@/repositories/prisma';
+import type { SystemAlert } from '@/domain/entities/system-alert';
+import { asSystemAlertId } from '@/domain/ids';
 import { makeAppointment, TestClock } from '../helpers/fixtures';
 
 /** Applica la migrazione iniziale a un database appena creato. */
@@ -299,5 +302,49 @@ describe('sopravvivenza al riavvio', () => {
     } finally {
       await altro.$disconnect();
     }
+  });
+});
+
+describe('PrismaSystemAlertRepository', () => {
+  const alert = (id: string, status: SystemAlert['status'], createdAt: string): SystemAlert => ({
+    id: asSystemAlertId(id),
+    code: 'INFINITY-DOWN',
+    component: 'INFINITY',
+    message: 'Infinity non risponde',
+    status,
+    reportedByOperatorId: asOperatorId('op-advisor-1'),
+    reportedByName: 'Mario Rossi',
+    workstationId: asWorkstationId('ws-p2'),
+    workstationName: 'Sportello B · FCA',
+    createdAt: createdAt as IsoDateTime,
+    updatedAt: createdAt as IsoDateTime,
+    handledByOperatorId: null,
+    handledByName: null,
+    resolvedAt: null,
+    adminNote: null,
+  });
+
+  it('inserisce, aggiorna, elenca dalla più recente con filtro sullo stato e conta per stato', async () => {
+    const repo = new PrismaSystemAlertRepository(db);
+    await repo.insert(alert('al-1', 'NEW', '2026-09-22T07:00:00.000Z'));
+    await repo.insert(alert('al-2', 'NEW', '2026-09-22T08:00:00.000Z'));
+    const terza = await repo.insert(alert('al-3', 'RESOLVED', '2026-09-22T09:00:00.000Z'));
+    expect(terza.workstationName).toBe('Sportello B · FCA');
+
+    const aggiornata = await repo.update({
+      ...terza,
+      adminNote: 'Riavviato il servizio',
+      handledByName: 'Amministratore',
+    });
+    expect(aggiornata.adminNote).toBe('Riavviato il servizio');
+    expect((await repo.findById(asSystemAlertId('al-3')))?.handledByName).toBe('Amministratore');
+    expect(await repo.findById(asSystemAlertId('non-esiste'))).toBeNull();
+
+    expect((await repo.list({ limit: 10 })).map((a) => a.id)).toEqual(['al-3', 'al-2', 'al-1']);
+    expect(
+      (await repo.list({ statuses: ['NEW', 'IN_PROGRESS'], limit: 10 })).map((a) => a.id),
+    ).toEqual(['al-2', 'al-1']);
+    expect((await repo.list({ limit: 1 })).map((a) => a.id)).toEqual(['al-3']);
+    expect(await repo.countByStatus()).toEqual({ NEW: 2, IN_PROGRESS: 0, RESOLVED: 1 });
   });
 });

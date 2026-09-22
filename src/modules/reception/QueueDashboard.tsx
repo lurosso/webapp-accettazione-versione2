@@ -27,7 +27,8 @@ import { queueKeys } from '@/lib/api-client/query-keys';
 import { formatDateTimeIt } from '@/lib/dates';
 import { AppointmentDetailPanel } from './AppointmentDetailPanel';
 import { NewWalkInDialog } from './NewWalkInDialog';
-import { deskOf, QueueTable } from './QueueTable';
+import { QueueTable } from './QueueTable';
+import { sportelloLabel } from './desk-labels';
 import { ReturnsTable } from './ReturnsTable';
 import { StatusBadge } from './StatusBadge';
 import { SyncBanner } from './SyncBanner';
@@ -372,7 +373,6 @@ export function QueueDashboard({
 
   const outcome = actions.outcome;
   const selectedRow = data?.rows.find((r) => r.appointment.id === selectedId) ?? null;
-  const selectedDesk = selectedRow === null ? null : deskOf(selectedRow, desks);
 
   return (
     <div className="flex flex-col gap-4">
@@ -550,6 +550,7 @@ export function QueueDashboard({
             rows={data.rows}
             brands={data.brands}
             desks={data.desks}
+            bays={data.bays}
             homeDeskId={homeDeskId}
             showDesk={view === 'global' || currentDesk?.id !== homeDeskId}
             timeZone={data.timeZone}
@@ -597,7 +598,7 @@ export function QueueDashboard({
             ? ''
             : (data?.brands.find((b) => b.id === selectedRow.appointment.brandId)?.name ?? '')
         }
-        deskLabel={selectedDesk === null ? null : `${selectedDesk.code} · ${selectedDesk.name}`}
+        deskLabel={selectedRow === null ? null : sportelloLabel(selectedRow, desks, bays)}
         timeZone={data?.timeZone ?? 'Europe/Rome'}
         currentOperatorName={session.displayName}
         debugCustomerLink={debugCustomerLink}

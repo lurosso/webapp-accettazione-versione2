@@ -14,6 +14,7 @@ import { LATE_GRACE_MINUTES } from '@/config/constants';
 import { cn } from '@/lib/utils/cn';
 import type { Desk } from '@/domain/entities/desk';
 import type { QueueRowView } from '@/domain/read-models';
+import { deskOf, sportelloLabel, type BayForLabel } from './desk-labels';
 import { Button } from '@/components/ui/button';
 import { Table, TableBody, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { AppointmentCard } from './AppointmentCard';
@@ -27,6 +28,8 @@ export interface QueueTableProps {
   readonly rows: readonly QueueRowView[];
   readonly brands: readonly Brand[];
   readonly desks: readonly Desk[];
+  /** Gli sportelli con la loro area: servono a dire «Sportello B» o «Coda A/B» invece dell'area. */
+  readonly bays?: readonly BayForLabel[];
   /** Sportello dell'operatore: le pratiche di altri sportelli sono evidenziate in vista globale. */
   readonly homeDeskId: string | null;
   readonly showDesk: boolean;
@@ -77,18 +80,13 @@ interface Section {
 }
 
 /** Sportello di appartenenza: esplicito oppure dedotto dal marchio. */
-export function deskOf(row: QueueRowView, desks: readonly Desk[]): Desk | null {
-  const a = row.appointment;
-  if (a.deskId !== null) {
-    return desks.find((d) => d.id === a.deskId) ?? null;
-  }
-  return desks.find((d) => d.brandIds.includes(a.brandId)) ?? null;
-}
+export { deskOf } from './desk-labels';
 
 export function QueueTable({
   rows,
   brands,
   desks,
+  bays = [],
   homeDeskId,
   showDesk,
   timeZone,
@@ -229,7 +227,9 @@ export function QueueTable({
           const desk = deskOf(row, desks);
           return {
             row,
-            deskLabel: desk === null ? null : `${desk.code} · ${desk.name}`,
+            // Lo sportello esatto, mai l'area accorpata: «Sportello B» se è a un banco, «Coda A/B»
+            // se aspetta ancora in un'area a due banchi.
+            deskLabel: sportelloLabel(row, desks, bays),
             foreignDesk: showDesk && homeDeskId !== null && desk !== null && desk.id !== homeDeskId,
             dueSoon:
               section.late !== true &&

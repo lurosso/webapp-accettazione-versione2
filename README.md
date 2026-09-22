@@ -157,7 +157,7 @@ giornata e codice pratica, nomi con l'id del media) e si servono dalla rotta aut
   `.env.example`; senza `DATABASE_URL` vale lo stesso file). `memory` resta per i test e per le
   dimostrazioni usa e getta: l'`InMemoryStore` è **deprecato** come persistenza dell'officina.
 - **Migrazioni**: `npm run db:migrate` applica quelle in `prisma/migrations/` (`prisma migrate
-  deploy`); in sviluppo `npm run db:migrate:dev` ne crea di nuove dallo schema. Il client si genera
+deploy`); in sviluppo `npm run db:migrate:dev` ne crea di nuove dallo schema. Il client si genera
   con `prisma generate`, che gira da solo dopo `npm install` e prima di `next build`.
 - I dati di riferimento — marchi, sportelli, postazioni, campate — non sono nel database: sono
   configurazione (`src/config/seed.ts`) e cambiano con un rilascio, non durante il turno. Gli
@@ -811,16 +811,16 @@ per i cron esterni.
 
 ### Amministrazione e configurazione
 
-| Rotta               | Metodo | Descrizione                                                                                                                                                                                                 | Accesso             |
-| ------------------- | ------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------- |
-| `/admin`            | pagina | Statistiche della giornata con esporta CSV, chiusura della giornata operativa, operatori (crea, modifica, disattiva, reset password), assistenza (sportelli occupati, pratiche ferme) e integrazione Spoki. | Solo Amministratore |
-| `/admin/spoki-test` | pagina | Prova controllata dei due promemoria WhatsApp verso un numero digitato a mano; registro dei payload.                                                                                                        | Solo Amministratore |
+| Rotta               | Metodo | Descrizione                                                                                                                                                                                                                                                                               | Accesso             |
+| ------------------- | ------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------- |
+| `/admin`            | pagina | Statistiche della giornata con esporta CSV, chiusura della giornata operativa, operatori (crea, modifica, disattiva, reset password), assistenza (sportelli occupati, pratiche ferme), segnalazioni e alert di sistema in tempo reale (nuova, in gestione, risolta) e integrazione Spoki. | Solo Amministratore |
+| `/admin/spoki-test` | pagina | Prova controllata dei due promemoria WhatsApp verso un numero digitato a mano; registro dei payload.                                                                                                                                                                                      | Solo Amministratore |
 
 ### Sistema e diagnostica
 
-| Rotta      | Metodo | Descrizione                                                                                                       | Accesso                                                           |
-| ---------- | ------ | ----------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------- |
-| `/sistema` | pagina | Stato delle porte esterne (Infinity, Spoki, SMS, CRM); per l'amministratore anche la coda di uscita verso il CRM. | Accettatore e Amministratore (il BDC resta sul proprio cruscotto) |
+| Rotta      | Metodo | Descrizione                                                                                                                                                                                                                                           | Accesso                                                           |
+| ---------- | ------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------- |
+| `/sistema` | pagina | Diagnostica: porte esterne (Infinity, Spoki, SMS, CRM), storage dei media, rete, sincronizzazione, con «Segnala ad Admin» su ogni riga e segnalazione libera (anche stampanti e hardware); per l'amministratore anche la coda di uscita verso il CRM. | Accettatore e Amministratore (il BDC resta sul proprio cruscotto) |
 
 ### Display di sala e monitor delle campate
 
@@ -904,29 +904,32 @@ per i cron esterni.
 
 ### API: sistema e cron
 
-| Rotta                                 | Metodo | Descrizione                                                                                                                | Accesso                                            |
-| ------------------------------------- | ------ | -------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------- |
-| `/api/v1/system/cron/reminders`       | POST   | Promemoria ai clienti (`?kind=previous-day oppure same-day`) per un cron esterno; stesso servizio dello scheduler interno. | Amministratore oppure intestazione `x-cron-secret` |
-| `/api/v1/system/cron/crm-retry`       | POST   | Svuotamento della coda di uscita verso il CRM (rinvii) per un cron esterno.                                                | Amministratore oppure intestazione `x-cron-secret` |
-| `/api/v1/system/cron/media-retention` | POST   | Eliminazione dei file di foto e video oltre la retention per un cron esterno.                                              | Amministratore oppure intestazione `x-cron-secret` |
+| Rotta                                 | Metodo    | Descrizione                                                                                                                                                                                                            | Accesso                                                           |
+| ------------------------------------- | --------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------- |
+| `/api/v1/system/diagnostics`          | GET       | Diagnostica della pagina Sistema: porte esterne, storage dei media (sonda e spazio libero) e ultima sincronizzazione, ogni riga con stato e codice da segnalare.                                                       | Accettatore e Amministratore (il BDC resta sul proprio cruscotto) |
+| `/api/v1/system/alerts`               | GET, POST | Segnalazioni di disfunzione: POST da qualunque operatore (codice, componente, messaggio; chi e da quale postazione dalla sessione); GET per l'amministratore con riepilogo per stato (`?risolte=1` include le chiuse). | Sessione operatore (Accettatore, Manager, Amministratore)         |
+| `/api/v1/system/alerts/:id`           | PATCH     | Cambio di stato di una segnalazione (nuova → in gestione → risolta, con riapertura) e nota.                                                                                                                            | Solo Amministratore                                               |
+| `/api/v1/system/cron/reminders`       | POST      | Promemoria ai clienti (`?kind=previous-day oppure same-day`) per un cron esterno; stesso servizio dello scheduler interno.                                                                                             | Amministratore oppure intestazione `x-cron-secret`                |
+| `/api/v1/system/cron/crm-retry`       | POST      | Svuotamento della coda di uscita verso il CRM (rinvii) per un cron esterno.                                                                                                                                            | Amministratore oppure intestazione `x-cron-secret`                |
+| `/api/v1/system/cron/media-retention` | POST      | Eliminazione dei file di foto e video oltre la retention per un cron esterno.                                                                                                                                          | Amministratore oppure intestazione `x-cron-secret`                |
 
 <!-- mappa-rotte:fine -->
 
 ## Script disponibili
 
-| Comando                    | Descrizione                                                                                     |
-| -------------------------- | ----------------------------------------------------------------------------------------------- |
-| `npm run dev`              | Server di sviluppo su <http://localhost:3000> e sugli indirizzi di rete del PC: l'iPad in Wi-Fi apre `http://<ip-del-pc>:3000` (gli IP della macchina entrano da soli in `allowedDevOrigins`; nomi extra in `ALLOWED_DEV_ORIGINS`)                                                   |
-| `npm run build`            | Build di produzione (output `standalone`)                                                       |
-| `npm start`                | Avvio della build                                                                               |
-| `npm run typecheck`        | TypeScript strict senza emissione                                                               |
-| `npm run lint`             | ESLint (con guardia architetturale) e controllo encoding UTF-8/LF                               |
-| `npm run format`           | Prettier su sorgenti, test e configurazioni                                                     |
-| `npm test`                 | Test unitari con Vitest                                                                         |
-| `npm run test:coverage`    | Test con copertura                                                                              |
-| `npm run infinity:check`   | Lettura di prova del planning dal database Infinity reale (serve `INFINITY_ODBC_DSN`)           |
-| `npm run seed:credenziali` | Genera i segreti del profilo di seed `real` da incollare in `.env.local`                        |
-| `npm run rotte`            | Mappa di tutte le rotte con accesso; `npm run rotte -- --readme` aggiorna la sezione del README |
+| Comando                    | Descrizione                                                                                                                                                                                                                        |
+| -------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `npm run dev`              | Server di sviluppo su <http://localhost:3000> e sugli indirizzi di rete del PC: l'iPad in Wi-Fi apre `http://<ip-del-pc>:3000` (gli IP della macchina entrano da soli in `allowedDevOrigins`; nomi extra in `ALLOWED_DEV_ORIGINS`) |
+| `npm run build`            | Build di produzione (output `standalone`)                                                                                                                                                                                          |
+| `npm start`                | Avvio della build                                                                                                                                                                                                                  |
+| `npm run typecheck`        | TypeScript strict senza emissione                                                                                                                                                                                                  |
+| `npm run lint`             | ESLint (con guardia architetturale) e controllo encoding UTF-8/LF                                                                                                                                                                  |
+| `npm run format`           | Prettier su sorgenti, test e configurazioni                                                                                                                                                                                        |
+| `npm test`                 | Test unitari con Vitest                                                                                                                                                                                                            |
+| `npm run test:coverage`    | Test con copertura                                                                                                                                                                                                                 |
+| `npm run infinity:check`   | Lettura di prova del planning dal database Infinity reale (serve `INFINITY_ODBC_DSN`)                                                                                                                                              |
+| `npm run seed:credenziali` | Genera i segreti del profilo di seed `real` da incollare in `.env.local`                                                                                                                                                           |
+| `npm run rotte`            | Mappa di tutte le rotte con accesso; `npm run rotte -- --readme` aggiorna la sezione del README                                                                                                                                    |
 
 ## Struttura del repository
 

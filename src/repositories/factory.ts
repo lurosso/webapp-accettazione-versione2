@@ -20,6 +20,7 @@ import {
   InMemoryReferenceDataRepository,
   InMemoryStore,
   InMemorySyncRunRepository,
+  InMemorySystemAlertRepository,
   InMemoryWorkstationClaimRepository,
 } from './in-memory';
 import type { Repositories } from './interfaces';
@@ -31,6 +32,7 @@ import {
   PrismaNotificationRepository,
   PrismaOperatorRepository,
   PrismaSyncRunRepository,
+  PrismaSystemAlertRepository,
   PrismaWorkstationClaimRepository,
 } from './prisma';
 
@@ -57,6 +59,7 @@ export function createRepositories(env: AppEnv, deps: RepositoryDeps): Repositor
         crmOutbox: new InMemoryCrmOutboxRepository(store),
         media: new InMemoryMediaRepository(store),
         workstationClaims: new InMemoryWorkstationClaimRepository(store),
+        systemAlerts: new InMemorySystemAlertRepository(store),
       };
     case 'prisma': {
       const db = getSharedPrismaClient(env.databaseUrl);
@@ -71,6 +74,7 @@ export function createRepositories(env: AppEnv, deps: RepositoryDeps): Repositor
         crmOutbox: new PrismaCrmOutboxRepository(db),
         media: new PrismaMediaRepository(db),
         workstationClaims: new PrismaWorkstationClaimRepository(db),
+        systemAlerts: new PrismaSystemAlertRepository(db),
       };
     }
   }

@@ -8,7 +8,7 @@
 //   cartella si ritrova a mano la pratica di un cliente senza aprire il database;
 // - nessuna chiave può uscire dalla cartella base: i tentativi con `..` o percorsi assoluti sono
 //   rifiutati come errore di validazione, non ripuliti in silenzio.
-import { mkdir, readFile, rename, unlink, writeFile } from 'node:fs/promises';
+import { mkdir, readFile, rename, statfs, unlink, writeFile } from 'node:fs/promises';
 import { dirname, isAbsolute, resolve, sep } from 'node:path';
 import type { DomainError } from '@/domain/errors';
 import { domainError } from '@/domain/errors';
@@ -16,7 +16,12 @@ import type { Result } from '@/domain/result';
 import { err, ok } from '@/domain/result';
 import type { IIdGenerator } from '../interfaces/IIdGenerator';
 import type { ILogger } from '../interfaces/ILogger';
-import type { IMediaStorage, MediaPutInput, StoredMedia } from '../interfaces/IMediaStorage';
+import type {
+  IMediaStorage,
+  MediaPutInput,
+  MediaStorageStats,
+  StoredMedia,
+} from '../interfaces/IMediaStorage';
 import { EXTENSION_BY_MIME, isAllowedMediaMime, MIME_BY_EXTENSION } from '@/lib/media/mime-types';
 
 const FALLBACK_MIME = 'application/octet-stream';
@@ -64,6 +69,18 @@ export class MediaStorageLocalDisk implements IMediaStorage {
   /** Cartella base risolta (utile a log e diagnostica). */
   get directory(): string {
     return this.baseDir;
+  }
+
+  /** Spazio libero e totale del disco che ospita la cartella; null se il sistema non risponde. */
+  async stats(): Promise<MediaStorageStats | null> {
+    try {
+      await mkdir(this.baseDir, { recursive: true });
+      const s = await statfs(this.baseDir);
+      return { freeBytes: s.bavail * s.bsize, totalBytes: s.blocks * s.bsize };
+    } catch (cause) {
+      this.logger.warn('spazio disco non leggibile', { errore: fileSystemMessage(cause) });
+      return null;
+    }
   }
 
   async put(

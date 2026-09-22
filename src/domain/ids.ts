@@ -20,6 +20,7 @@ export type NotificationAttemptId = Branded<string, 'NotificationAttemptId'>;
 export type MediaAssetId = Branded<string, 'MediaAssetId'>;
 export type SyncRunId = Branded<string, 'SyncRunId'>;
 export type CrmOutboxEventId = Branded<string, 'CrmOutboxEventId'>;
+export type SystemAlertId = Branded<string, 'SystemAlertId'>;
 
 /** Converte una stringa grezza in `AppointmentId` (nessuna validazione: è un cast esplicito). */
 export const asAppointmentId = (v: string): AppointmentId => v as AppointmentId;
@@ -48,3 +49,5 @@ export const asMediaAssetId = (v: string): MediaAssetId => v as MediaAssetId;
 export const asSyncRunId = (v: string): SyncRunId => v as SyncRunId;
 /** Converte una stringa grezza in `CrmOutboxEventId`. */
 export const asCrmOutboxEventId = (v: string): CrmOutboxEventId => v as CrmOutboxEventId;
+/** Converte una stringa grezza in `SystemAlertId`. */
+export const asSystemAlertId = (v: string): SystemAlertId => v as SystemAlertId;

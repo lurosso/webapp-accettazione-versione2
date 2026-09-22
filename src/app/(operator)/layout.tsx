@@ -6,6 +6,7 @@ import { requireSession } from '@/app/_server/session';
 import { homePathForRole } from '@/lib/navigation';
 import { AppShell } from '@/components/layout/AppShell';
 import { getContainer } from '@/config/container';
+import { baysForLabel, codaLabel } from '@/modules/reception/desk-labels';
 
 export const dynamic = 'force-dynamic';
 
@@ -25,12 +26,22 @@ export default async function OperatorLayout({ children }: { readonly children: 
     workstation === null
       ? null
       : await container.repos.referenceData.findDeskById(workstation.deskId);
+  // Accanto alla postazione va la coda che serve («Coda A/B»), non il nome accorpato dell'area.
+  const [bays, workstations] =
+    desk === null
+      ? [[], []]
+      : await Promise.all([
+          container.repos.referenceData.listBays(),
+          container.repos.referenceData.listWorkstations(),
+        ]);
 
   return (
     <AppShell
       session={session}
       workstationLabel={workstation === null ? 'Accettazione n/d' : workstation.name}
-      deskLabel={desk === null ? 'Sportello n/d' : desk.name}
+      deskLabel={
+        desk === null ? 'Sportello n/d' : codaLabel(desk, baysForLabel(bays, workstations))
+      }
       timeZone={container.env.timeZone}
     >
       {children}

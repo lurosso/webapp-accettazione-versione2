@@ -178,6 +178,27 @@ model CrmOutboxEvent {
 }
 
 /// Contatore atomico dei codici (F001, R001…) per giornata e prefisso: un numero dato non si ridà.
+/// Segnalazioni di disfunzione fatte dal personale all'amministratore (pagina Sistema).
+model SystemAlert {
+  id                   String  @id
+  code                 String
+  component            String
+  message              String
+  status               String
+  reportedByOperatorId String
+  reportedByName       String
+  workstationId        String?
+  workstationName      String?
+  createdAt            String
+  updatedAt            String
+  handledByOperatorId  String?
+  handledByName        String?
+  resolvedAt           String?
+  adminNote            String?
+
+  @@index([status, createdAt])
+}
+
 model Sequence {
   businessDate String
   prefix       String

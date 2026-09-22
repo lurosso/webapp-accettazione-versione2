@@ -16,8 +16,16 @@ export interface StoredMedia {
   readonly mimeType: string;
 }
 
+/** Spazio del supporto che ospita i media; `null` dove non si può sapere (memoria, blob). */
+export interface MediaStorageStats {
+  readonly freeBytes: number | null;
+  readonly totalBytes: number | null;
+}
+
 /** Storage dei binari; i metadati vivono in IMediaRepository. */
 export interface IMediaStorage {
+  /** Spazio libero e totale, se il supporto lo sa dire (facoltativo: la memoria non lo sa). */
+  stats?(): Promise<MediaStorageStats | null>;
   /** Salva i byte e restituisce chiave e URL di lettura. */
   put(
     input: MediaPutInput,

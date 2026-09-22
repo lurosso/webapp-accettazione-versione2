@@ -19,6 +19,7 @@
 // ombra leggera, stessa spaziatura.
 import { useRouter, useSearchParams } from 'next/navigation';
 import { useState } from 'react';
+import { useQuery } from '@tanstack/react-query';
 import type { Session } from '@/application/auth/IAuthService';
 import { cn } from '@/lib/utils/cn';
 import { CloseDayPanel } from './CloseDayPanel';
@@ -27,6 +28,9 @@ import { LiveQueuePanel } from './LiveQueuePanel';
 import { MonitoringPanel } from './MonitoringPanel';
 import { OperatorsPanel } from './OperatorsPanel';
 import { SpokiPanel } from './SpokiPanel';
+import { SystemAlertsPanel, systemAlertsKey } from './SystemAlertsPanel';
+import { useLiveUpdates } from '@/hooks/useLiveUpdates';
+import { fetchSystemAlerts } from '@/lib/api-client/client';
 
 export interface AdminDashboardProps {
   readonly session: Session;
@@ -42,7 +46,11 @@ const SEZIONI = [
     label: 'Monitoraggio operativo',
     descrizione: 'Sportelli, code e pratiche da sbloccare',
   },
-  { id: 'sistema', label: 'Sistema', descrizione: 'Chiusura giornata e messaggi al cliente' },
+  {
+    id: 'sistema',
+    label: 'Sistema',
+    descrizione: 'Segnalazioni dal personale, chiusura giornata e messaggi al cliente',
+  },
   {
     id: 'utenti',
     label: 'Persone e postazioni',
@@ -69,6 +77,19 @@ export function AdminDashboard({ session, businessDate, timeZone }: AdminDashboa
   };
 
   const corrente = SEZIONI.find((s) => s.id === sezione) ?? SEZIONI[0];
+  // Le segnalazioni nuove si vedono dalla scheda, qualunque scheda sia aperta: è per questo che
+  // esistono. Stessa query del pannello, aggiornata dal flusso eventi e dal polling.
+  const segnalazioni = useQuery({
+    queryKey: systemAlertsKey(false),
+    queryFn: () => fetchSystemAlerts(false),
+    refetchInterval: 30_000,
+  });
+  useLiveUpdates({
+    url: '/api/v1/events/stream',
+    types: ['SYSTEM_ALERT_CHANGED'],
+    invalidate: [['system-alerts']],
+  });
+  const nuove = segnalazioni.data?.summary.new ?? 0;
 
   return (
     <div className="flex flex-col gap-8">
@@ -101,6 +122,15 @@ export function AdminDashboard({ session, businessDate, timeZone }: AdminDashboa
             )}
           >
             {s.label}
+            {s.id === 'sistema' && nuove > 0 ? (
+              <span
+                className="bg-status-no-show ml-2 inline-flex min-w-6 items-center justify-center rounded-full px-1.5 text-xs font-bold text-white"
+                data-testid="scheda-sistema-nuove"
+                aria-label={`${nuove} segnalazioni nuove`}
+              >
+                {nuove}
+              </span>
+            ) : null}
           </button>
         ))}
       </div>
@@ -122,6 +152,7 @@ export function AdminDashboard({ session, businessDate, timeZone }: AdminDashboa
 
         {sezione === 'sistema' ? (
           <>
+            <SystemAlertsPanel timeZone={timeZone} />
             <CloseDayPanel businessDate={businessDate} />
             <SpokiPanel timeZone={timeZone} />
           </>

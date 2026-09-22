@@ -116,7 +116,7 @@ export const ROTTE = [
     path: '/admin',
     area: AREE[4],
     descrizione:
-      'Statistiche della giornata con esporta CSV, chiusura della giornata operativa, operatori (crea, modifica, disattiva, reset password), assistenza (sportelli occupati, pratiche ferme) e integrazione Spoki.',
+      'Statistiche della giornata con esporta CSV, chiusura della giornata operativa, operatori (crea, modifica, disattiva, reset password), assistenza (sportelli occupati, pratiche ferme), segnalazioni e alert di sistema in tempo reale (nuova, in gestione, risolta) e integrazione Spoki.',
     accesso: ACCESSO.admin,
   },
   {
@@ -131,7 +131,7 @@ export const ROTTE = [
     path: '/sistema',
     area: AREE[5],
     descrizione:
-      "Stato delle porte esterne (Infinity, Spoki, SMS, CRM); per l'amministratore anche la coda di uscita verso il CRM.",
+      "Diagnostica: porte esterne (Infinity, Spoki, SMS, CRM), storage dei media, rete, sincronizzazione, con «Segnala ad Admin» su ogni riga e segnalazione libera (anche stampanti e hardware); per l'amministratore anche la coda di uscita verso il CRM.",
     accesso: ACCESSO.banco,
   },
   // Display
@@ -443,6 +443,27 @@ export const ROTTE = [
     accesso: ACCESSO.admin,
   },
   // API sistema e cron
+  {
+    path: '/api/v1/system/diagnostics',
+    area: AREE[13],
+    descrizione:
+      'Diagnostica della pagina Sistema: porte esterne, storage dei media (sonda e spazio libero) e ultima sincronizzazione, ogni riga con stato e codice da segnalare.',
+    accesso: ACCESSO.banco,
+  },
+  {
+    path: '/api/v1/system/alerts',
+    area: AREE[13],
+    descrizione:
+      "Segnalazioni di disfunzione: POST da qualunque operatore (codice, componente, messaggio; chi e da quale postazione dalla sessione); GET per l'amministratore con riepilogo per stato (`?risolte=1` include le chiuse).",
+    accesso: ACCESSO.sessione,
+  },
+  {
+    path: '/api/v1/system/alerts/:id',
+    area: AREE[13],
+    descrizione:
+      'Cambio di stato di una segnalazione (nuova → in gestione → risolta, con riapertura) e nota.',
+    accesso: ACCESSO.admin,
+  },
   {
     path: '/api/v1/system/cron/reminders',
     area: AREE[13],

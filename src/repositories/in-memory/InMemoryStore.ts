@@ -14,6 +14,7 @@ import type { MediaAsset } from '@/domain/entities/media-asset';
 import type { NotificationJob } from '@/domain/entities/notification';
 import type { Operator } from '@/domain/entities/operator';
 import type { SyncRun } from '@/domain/entities/sync-run';
+import type { SystemAlert } from '@/domain/entities/system-alert';
 import type { Workstation } from '@/domain/entities/workstation';
 import type { WorkstationClaim } from '@/domain/entities/workstation-claim';
 import type { SeedData } from '@/config/seed';
@@ -36,6 +37,8 @@ export interface InMemoryStoreState {
   readonly media: Map<string, MediaAsset>;
   /** Accettazioni occupate dagli operatori collegati: vive quanto le sessioni, non va in snapshot. */
   readonly workstationClaims: Map<string, WorkstationClaim>;
+  /** Segnalazioni di disfunzione al personale amministrativo. */
+  readonly systemAlerts: Map<string, SystemAlert>;
 }
 
 /** Forma serializzata dello snapshot. */
@@ -52,6 +55,8 @@ interface StoreSnapshot {
   readonly syncRuns: readonly SyncRun[];
   readonly crmOutbox: readonly CrmOutboxEvent[];
   readonly media: readonly MediaAsset[];
+  /** Nato dopo la versione 1 dello snapshot: può mancare nei file vecchi. */
+  readonly systemAlerts?: readonly SystemAlert[];
 }
 
 /** Contenitore mutabile dello stato, condiviso fra le istanze che puntano allo stesso globale. */
@@ -75,6 +80,7 @@ function emptyState(): InMemoryStoreState {
     crmOutbox: new Map(),
     media: new Map(),
     workstationClaims: new Map(),
+    systemAlerts: new Map(),
   };
 }
 
@@ -113,6 +119,9 @@ export class InMemoryStore {
       // Stato creato da una versione precedente del modulo (HMR): si aggiungono le mappe nate dopo.
       if (!(existing.state.workstationClaims instanceof Map)) {
         existing.state = { ...existing.state, workstationClaims: new Map() };
+      }
+      if (!(existing.state.systemAlerts instanceof Map)) {
+        existing.state = { ...existing.state, systemAlerts: new Map() };
       }
       return new InMemoryStore(existing);
     }
@@ -164,6 +173,7 @@ export class InMemoryStore {
       syncRuns: [...s.syncRuns.values()],
       crmOutbox: [...s.crmOutbox.values()],
       media: [...s.media.values()],
+      systemAlerts: [...s.systemAlerts.values()],
     };
     return snapshot;
   }
@@ -224,6 +234,7 @@ export class InMemoryStore {
       crmOutbox: byId(snap.crmOutbox),
       media: byId(snap.media),
       workstationClaims: new Map(),
+      systemAlerts: isArrayOfRecords(v['systemAlerts']) ? byId(snap.systemAlerts ?? []) : new Map(),
     };
     return true;
   }

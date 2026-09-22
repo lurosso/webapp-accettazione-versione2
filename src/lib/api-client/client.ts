@@ -27,6 +27,13 @@ import type {
   QueueParams,
   QueueResponse,
 } from '@/modules/reception/types';
+import type { AlertSummary } from '@/application/system/SystemAlertService';
+import type { SystemDiagnosticsView } from '@/application/system/SystemDiagnosticsService';
+import type {
+  SystemAlert,
+  SystemAlertComponent,
+  SystemAlertStatus,
+} from '@/domain/entities/system-alert';
 
 const REQUEST_TIMEOUT_MS = 8_000;
 
@@ -396,6 +403,41 @@ export function patchAppointmentRetention(
   body: RetentionPatchInput,
 ): Promise<{ readonly appointment: RetentionStateView }> {
   return apiFetch(`/api/v1/admin/appointments/${encodeURIComponent(appointmentId)}/retention`, {
+    method: 'PATCH',
+    json: body,
+  });
+}
+
+/** GET /api/v1/system/diagnostics: porte, storage e sincronizzazione con stato e codice. */
+export function fetchSystemDiagnostics(): Promise<SystemDiagnosticsView> {
+  return apiFetch('/api/v1/system/diagnostics');
+}
+
+export interface SystemAlertsResponse {
+  readonly alerts: readonly SystemAlert[];
+  readonly summary: AlertSummary;
+}
+
+/** GET /api/v1/system/alerts: le segnalazioni (solo aperte, o tutte). */
+export function fetchSystemAlerts(includeResolved: boolean): Promise<SystemAlertsResponse> {
+  return apiFetch(`/api/v1/system/alerts${includeResolved ? '?risolte=1' : ''}`);
+}
+
+/** POST /api/v1/system/alerts: una nuova segnalazione all'amministratore. */
+export function postSystemAlert(body: {
+  readonly code: string;
+  readonly component: SystemAlertComponent;
+  readonly message: string;
+}): Promise<{ readonly alert: SystemAlert }> {
+  return apiFetch('/api/v1/system/alerts', { method: 'POST', json: body });
+}
+
+/** PATCH /api/v1/system/alerts/{id}: cambio di stato (e nota) da parte dell'amministratore. */
+export function patchSystemAlert(
+  id: string,
+  body: { readonly status: SystemAlertStatus; readonly note?: string | null },
+): Promise<{ readonly alert: SystemAlert }> {
+  return apiFetch(`/api/v1/system/alerts/${encodeURIComponent(id)}`, {
     method: 'PATCH',
     json: body,
   });

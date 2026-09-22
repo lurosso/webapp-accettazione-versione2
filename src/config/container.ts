@@ -41,6 +41,9 @@ import { SystemClock } from '@/services/mocks/SystemClock';
 import { UuidIdGenerator } from '@/services/mocks/UuidIdGenerator';
 import { resolveSessionSecret, SESSION_TTL_HOURS, isAllMock } from './auth';
 import type { AppEnv } from './env';
+import { SystemAlertService } from '@/application/system/SystemAlertService';
+import { SystemDiagnosticsService } from '@/application/system/SystemDiagnosticsService';
+import { providerKindsFromEnv } from '@/application/health/check-health';
 import { parseEnv } from './env';
 import type { SeedData } from './seed';
 import { buildSeedData, hasDemoCredentials } from './seed';
@@ -78,6 +81,10 @@ export interface Container {
   readonly appointmentReminderService: AppointmentReminderService;
   readonly syncService: SyncService;
   readonly syncScheduler: SyncScheduler;
+  /** Segnalazioni di disfunzione dal personale all'amministratore. */
+  readonly systemAlertService: SystemAlertService;
+  /** Diagnostica della pagina Sistema (porte, storage, sincronizzazione). */
+  readonly systemDiagnosticsService: SystemDiagnosticsService;
 }
 
 /** Sovrascritture per test e demo (clock fisso, id sequenziali, store isolato, env parziale). */
@@ -461,6 +468,25 @@ export function createContainer(overrides: ContainerOverrides = {}): Container {
     nodeEnv: env.nodeEnv,
   });
 
+  const systemAlertService = new SystemAlertService({
+    alerts: repos.systemAlerts,
+    referenceData: repos.referenceData,
+    eventBus,
+    clock,
+    ids,
+    logger,
+  });
+  const systemDiagnosticsService = new SystemDiagnosticsService({
+    external,
+    kinds: providerKindsFromEnv(env),
+    mediaStorage: external.mediaStorage,
+    syncRuns: repos.syncRuns,
+    clock,
+    ids,
+    logger,
+    timeZone: env.timeZone,
+  });
+
   return {
     env,
     clock,
@@ -469,6 +495,8 @@ export function createContainer(overrides: ContainerOverrides = {}): Container {
     eventBus,
     external,
     repos,
+    systemAlertService,
+    systemDiagnosticsService,
     notificationOrchestrator,
     authService,
     devQuickLogin,
