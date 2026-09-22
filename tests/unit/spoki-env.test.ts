@@ -78,8 +78,8 @@ describe('Template via API e webhook degli esiti', () => {
     ).toBe(null);
     expect(avvisi.some((m) => m.includes('SPOKI_WEBHOOK_SECRET'))).toBe(true);
     expect(
-      parseEnv({ SPOKI_WEBHOOK_SECRET: 'whsec_a1b2c3d4e5f6a7b8c9d0' }, muto).spokiWebhookSecret,
-    ).toBe('whsec_a1b2c3d4e5f6a7b8c9d0');
+      parseEnv({ SPOKI_WEBHOOK_SECRET: 'segreto-webhook-di-prova-0003' }, muto).spokiWebhookSecret,
+    ).toBe('segreto-webhook-di-prova-0003');
   });
 
   it('le chiavi di prima (provider, URL e segreti delle automazioni, inbound) valgono ancora', () => {

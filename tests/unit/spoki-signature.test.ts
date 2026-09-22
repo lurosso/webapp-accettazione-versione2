@@ -8,7 +8,7 @@ import {
   verifySpokiSignature,
 } from '@/lib/http/spoki-signature';
 
-const SEGRETO = 'whsec_a1b2c3d4e5f6a7b8c9d0e1f2a3b4c5d6';
+const SEGRETO = 'segreto-webhook-di-prova-non-reale-0001';
 const CORPO = '{"version":2,"event":"message.outbound","data":{"uuid":"m-1","send_status":"Read"}}';
 const T = 1_758_550_000; // 2025-09-22 circa, in secondi
 const ORA_MS = T * 1000 + 30_000;
@@ -40,9 +40,9 @@ describe('Firma dei webhook Spoki (X-Spoki-Signature)', () => {
       ok: false,
       reason: 'MISMATCH',
     });
-    expect(verifySpokiSignature(CORPO, header, 'whsec_altro-segreto-0123456789', ORA_MS).ok).toBe(
-      false,
-    );
+    expect(
+      verifySpokiSignature(CORPO, header, 'altro-segreto-di-prova-0123456789', ORA_MS).ok,
+    ).toBe(false);
     const manomesso = header.replace(`t=${T}`, `t=${T + 1}`);
     expect(verifySpokiSignature(CORPO, manomesso, SEGRETO, ORA_MS)).toEqual({
       ok: false,

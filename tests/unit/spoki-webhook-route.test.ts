@@ -18,7 +18,7 @@ import { InMemoryStore } from '@/repositories/in-memory/InMemoryStore';
 import { NoopLogger } from '@/services/mocks/ConsoleLogger';
 import { makeAppointment, TestClock } from '../helpers/fixtures';
 
-const SEGRETO_WEBHOOK = 'whsec_0123456789abcdef0123456789abcdef';
+const SEGRETO_WEBHOOK = 'segreto-webhook-di-prova-non-reale-0002';
 const SEGRETO_INBOUND = 'inbound-0123456789abcdef0123456789abcdef';
 const ORIGINE = 'http://officina.local';
 
@@ -177,7 +177,11 @@ describe('Webhook Spoki: esiti di consegna firmati', () => {
     expect(senzaFirma.status).toBe(403);
     const firmaErrata = await POST(
       richiesta(corpo, {
-        'x-spoki-signature': buildSpokiSignatureHeader(corpo, 'whsec_altro-0123456789abcdef', 1),
+        'x-spoki-signature': buildSpokiSignatureHeader(
+          corpo,
+          'altro-segreto-di-prova-0123456789abcdef',
+          1,
+        ),
       }),
     );
     expect(firmaErrata.status).toBe(403);
