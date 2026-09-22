@@ -23,6 +23,7 @@ import { localTimeHHmm } from '@/lib/dates';
 import { cn } from '@/lib/utils/cn';
 import { ActionButtons } from './ActionButtons';
 import { StatusBadge } from './StatusBadge';
+import { WhatsAppBadge } from './WhatsAppBadge';
 import type { AppointmentAction } from './types';
 
 export interface AppointmentCardProps {
@@ -152,6 +153,11 @@ export function AppointmentCard({
             <span className="text-priority-now-ink testo-nota font-semibold">
               cliente in ritardo · arrivo ~
               {a.customerEtaAt === null ? '?' : localTimeHHmm(new Date(a.customerEtaAt), timeZone)}
+            </span>
+          ) : null}
+          {a.whatsapp !== null ? (
+            <span className="flex">
+              <WhatsAppBadge delivery={a.whatsapp} timeZone={timeZone} />
             </span>
           ) : null}
         </span>

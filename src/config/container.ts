@@ -16,6 +16,10 @@ import { DailyReportService } from '@/application/reporting/DailyReportService';
 import { AppointmentReminderService } from '@/application/notifications/AppointmentReminderService';
 import { CustomerMessagingPolicy } from '@/application/notifications/CustomerMessagingPolicy';
 import { NotificationOrchestrator } from '@/application/notifications/NotificationOrchestrator';
+import {
+  AppointmentWhatsAppMirror,
+  WhatsAppDeliveryService,
+} from '@/application/notifications/WhatsAppDeliveryService';
 import { WhatsAppInboundService } from '@/application/notifications/WhatsAppInboundService';
 import { CustomerPortalService } from '@/application/portal/CustomerPortalService';
 import { createPortalTokenFactory, derivePortalTokenKey } from '@/application/portal/portal-token';
@@ -68,6 +72,8 @@ export interface Container {
   readonly customerPortalService: CustomerPortalService;
   /** Risposte del cliente su WhatsApp («Arrivato», «In ritardo», «Assente»). */
   readonly whatsAppInboundService: WhatsAppInboundService;
+  /** Esiti di consegna dei WhatsApp (webhook di Spoki) applicati a job e pratica. */
+  readonly whatsAppDeliveryService: WhatsAppDeliveryService;
   readonly crmNotifier: CrmNotifier;
   readonly bdcLeadService: BdcLeadService;
   readonly crmOutboxService: CrmOutboxService;
@@ -191,6 +197,15 @@ export function createContainer(overrides: ContainerOverrides = {}): Container {
     publicBaseUrl: env.publicBaseUrl,
     portalToken: (appointmentId) => portalTokens.forAppointment(appointmentId),
     whatsappConsentOverride: env.spokiOverrideConsent,
+    // Ogni job WhatsApp salvato aggiorna lo stato sulla pratica: coda e archivio lo leggono da lì.
+    whatsappDelivery: new AppointmentWhatsAppMirror(repos.appointments, logger),
+  });
+  const whatsAppDeliveryService = new WhatsAppDeliveryService({
+    appointments: repos.appointments,
+    notifications: repos.notifications,
+    orchestrator: notificationOrchestrator,
+    clock,
+    logger,
   });
   // Con lo standby attivo la riga sull'override di consenso direbbe una cosa che non succede:
   // i promemoria non partono affatto. Si stampa solo quando l'integrazione è accesa.
@@ -224,8 +239,14 @@ export function createContainer(overrides: ContainerOverrides = {}): Container {
     appointments: repos.appointments,
     config: {
       provider: env.spokiProvider,
+      enabled: env.spokiEnabled,
       mode: env.spokiMode,
       safetyLock: env.spokiSafetyLock,
+      webhookSecretConfigured: env.spokiWebhookSecret !== null,
+      templateIds: {
+        checkInStarted: env.spokiTemplateWelcomeId,
+        checkInCompleted: env.spokiTemplateCompleteId,
+      },
       consentOverride: env.spokiOverrideConsent,
       apiKey: env.spokiApiKey,
       reminders: {
@@ -458,8 +479,10 @@ export function createContainer(overrides: ContainerOverrides = {}): Container {
     servicesProvider: env.servicesProvider,
     infinity: env.infinityProvider,
     spoki: env.spokiProvider,
+    spokiEnabled: env.spokiEnabled,
     spokiMode: env.spokiMode,
     spokiSafetyLock: env.spokiSafetyLock,
+    spokiWebhook: env.spokiWebhookSecret !== null,
     whatsappReali: spokiLiveDeliveryAllowed,
     sms: env.smsProvider,
     crm: env.crmProvider,
@@ -505,6 +528,7 @@ export function createContainer(overrides: ContainerOverrides = {}): Container {
     manualIntakeService,
     customerPortalService,
     whatsAppInboundService,
+    whatsAppDeliveryService,
     spokiDiagnosticsService,
     crmNotifier,
     bdcLeadService,
@@ -558,6 +582,15 @@ export function getContainer(): Container {
   const created = createContainer();
   g[GLOBAL_KEY] = created;
   return created;
+}
+
+/**
+ * Solo per i test: installa un container costruito con `createContainer(overrides)` come quello
+ * che `getContainer()` restituisce, così un Route Handler si prova con env e store isolati.
+ */
+export function setContainerForTests(container: Container): void {
+  const g = globalThis as unknown as Record<string, unknown>;
+  g[GLOBAL_KEY] = container;
 }
 
 /** Solo per i test: elimina container e stato condiviso. */

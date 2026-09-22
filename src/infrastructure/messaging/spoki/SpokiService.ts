@@ -1,8 +1,11 @@
-// Implementazione della porta `ISpokiService` sopra le automazioni Spoki. È quella che il
-// factory sceglie con `SPOKI_PROVIDER=real`; modalità (`SPOKI_MODE`) e blocco di sicurezza
-// (`SPOKI_SAFETY_LOCK`) decidono se l'adapter chiama davvero Spoki o formatta soltanto.
+// Implementazione della porta `ISpokiService` sopra Spoki (automazioni e API dei template). È
+// quella che il factory sceglie con `SPOKI_PROVIDER=real`; modalità (`SPOKI_MODE`) e blocco di
+// sicurezza (`SPOKI_SAFETY_LOCK`) decidono se l'adapter chiama davvero Spoki o formatta soltanto.
 // L'orchestratore delle notifiche non vede differenza rispetto al mock: stesse ricevute, stessi
 // errori con `retryable`, stesso ripiego su SMS quando serve.
+//
+// Per ogni template si sceglie il trasporto: se c'è l'id del template (SPOKI_TEMPLATE_*_ID) si
+// passa dalle API (`/api/1/messages/send/`), altrimenti dall'URL dell'automazione (SPOKI_URL_*).
 //
 // Idempotenza: la stessa `idempotencyKey` restituisce la stessa ricevuta senza richiamare Spoki.
 // Consegna: quando la chiamata è bloccata il messaggio risulta subito consegnato (così il flusso
@@ -18,6 +21,7 @@ import type {
 } from '@/services/interfaces/common';
 import { providerError } from '@/services/interfaces/common';
 import type { SpokiSendRequestDto } from '@/services/dto/spoki.dto';
+import { parseSpokiWebhookBody, type SpokiWebhookEvent } from '@/services/dto/spoki-webhook.dto';
 import type { IClock } from '@/services/interfaces/IClock';
 import type { IIdGenerator } from '@/services/interfaces/IIdGenerator';
 import type { ILogger } from '@/services/interfaces/ILogger';
@@ -27,10 +31,13 @@ import { SpokiClientAdapter, type FetchLike } from './SpokiClientAdapter';
 import {
   canDeliverLive,
   SPOKI_ACTIVE_TEMPLATE_KINDS,
+  SPOKI_TEMPLATE_ID_ENV_KEYS,
   SPOKI_TEMPLATE_KINDS,
   TEMPLATE_KIND_BY_KEY,
   type SpokiServiceConfig,
   type SpokiTemplateKind,
+  type SpokiTemplateSendPayload,
+  type SpokiTransport,
   type SpokiWebhookPayload,
 } from './spoki-config';
 
@@ -42,14 +49,19 @@ export interface SpokiServiceDeps {
   readonly fetchImpl?: FetchLike | undefined;
 }
 
-const WEBHOOK_STATES: readonly DeliveryStatus['state'][] = [
-  'QUEUED',
-  'SENT',
-  'DELIVERED',
-  'READ',
-  'FAILED',
-  'UNDELIVERABLE',
-];
+/** Com'è configurato un template: quale trasporto usa e se ha tutto quello che serve. */
+export interface SpokiTemplateSetup {
+  readonly kind: SpokiTemplateKind;
+  readonly active: boolean;
+  readonly transport: 'TEMPLATE' | 'AUTOMATION';
+  readonly url: string | null;
+  readonly secretConfigured: boolean;
+  readonly templateId: string | null;
+  /** Variabile d'ambiente dell'id del template, quando il trasporto è via API. */
+  readonly templateEnvKey: string | null;
+  /** Pronto per il live: URL e segreto (automazione) oppure id del template (API). */
+  readonly configured: boolean;
+}
 
 export class SpokiService implements ISpokiService {
   readonly name = 'SPOKI' as const;
@@ -67,6 +79,7 @@ export class SpokiService implements ISpokiService {
         mode: config.mode,
         safetyLock: config.safetyLock,
         apiKey: config.apiKey,
+        apiBaseUrl: config.apiBaseUrl,
         timeoutMs: config.timeoutMs,
       },
       {
@@ -94,13 +107,13 @@ export class SpokiService implements ISpokiService {
     }
     const kind = TEMPLATE_KIND_BY_KEY[request.templateKey];
     if (kind === undefined) {
-      // Template senza automazione Spoki: l'orchestratore ripiega sull'SMS, che il testo
+      // Template senza configurazione Spoki: l'orchestratore ripiega sull'SMS, che il testo
       // renderizzato lo porta comunque.
       return err(
         providerError(
           'SPOKI',
           'INVALID_REQUEST',
-          `Nessuna automazione Spoki per il template "${request.templateKey}".`,
+          `Nessuna automazione o template Spoki per "${request.templateKey}".`,
           false,
         ),
       );
@@ -108,8 +121,7 @@ export class SpokiService implements ISpokiService {
     const esito = await this.adapter.trigger({
       kind,
       templateKey: request.templateKey,
-      url: this.config.urls[kind],
-      payload: buildWebhookPayload(request, this.config.secrets[kind]),
+      transport: this.transportFor(kind, request),
       correlationId: request.correlationId,
       options,
     });
@@ -126,6 +138,27 @@ export class SpokiService implements ISpokiService {
       esito.value.blockedBy === null ? 'SENT' : 'DELIVERED',
     );
     return ok(receipt);
+  }
+
+  /**
+   * Il trasporto di un template: le API se il template ha un id configurato, l'automazione negli
+   * altri casi (anche quando l'URL manca: in simulazione si registra comunque, in live l'adapter
+   * spiega cosa manca).
+   */
+  private transportFor(kind: SpokiTemplateKind, request: SpokiSendRequestDto): SpokiTransport {
+    const templateId = this.config.templates[kind];
+    if (templateId !== null || SPOKI_TEMPLATE_ID_ENV_KEYS[kind] !== null) {
+      return {
+        kind: 'TEMPLATE',
+        templateId,
+        payload: buildTemplateSendPayload(request, kind, templateId),
+      };
+    }
+    return {
+      kind: 'AUTOMATION',
+      url: this.config.urls[kind],
+      payload: buildWebhookPayload(request, this.config.secrets[kind]),
+    };
   }
 
   async getDeliveryStatus(
@@ -146,58 +179,37 @@ export class SpokiService implements ISpokiService {
     });
   }
 
-  /** Webhook di esito: aggiorna lo stato noto e lo restituisce (formato `{ messageId, status }`). */
+  /** Webhook di Spoki (V2 o forma piatta): normalizza e, per gli esiti, aggiorna lo stato noto. */
   parseWebhook(
     rawBody: unknown,
     _headers: Readonly<Record<string, string>>,
-  ): Result<DeliveryStatus, ProviderError> {
-    if (typeof rawBody !== 'object' || rawBody === null) {
-      return err(
-        providerError('SPOKI', 'INVALID_REQUEST', 'Webhook Spoki: corpo non valido.', false),
-      );
+  ): Result<SpokiWebhookEvent, ProviderError> {
+    const parsed = parseSpokiWebhookBody(rawBody);
+    if (parsed.ok && parsed.value.kind === 'DELIVERY') {
+      this.deliveries.set(parsed.value.providerMessageId, parsed.value.state);
     }
-    const body = rawBody as Record<string, unknown>;
-    const messageId = body['messageId'] ?? body['message_id'] ?? body['id'];
-    const status = body['status'];
-    if (typeof messageId !== 'string' || typeof status !== 'string') {
-      return err(
-        providerError(
-          'SPOKI',
-          'INVALID_REQUEST',
-          'Webhook Spoki: messageId o status mancanti.',
-          false,
-        ),
-      );
-    }
-    const state = WEBHOOK_STATES.find((s) => s === status.toUpperCase());
-    if (state === undefined) {
-      return err(
-        providerError(
-          'SPOKI',
-          'INVALID_REQUEST',
-          `Webhook Spoki: stato sconosciuto "${status}".`,
-          false,
-        ),
-      );
-    }
-    this.deliveries.set(messageId, state);
-    const reason = body['reason'];
-    return ok({
-      providerMessageId: messageId,
-      state,
-      updatedAt: this.deps.clock.nowIso(),
-      reason: typeof reason === 'string' ? reason : null,
-    });
+    return parsed;
   }
 
   async healthCheck(): Promise<HealthStatus> {
-    // Contano solo i template integrati in questa fase: gli altri non hanno automazione.
-    const senzaUrl = SPOKI_ACTIVE_TEMPLATE_KINDS.filter((k) => this.config.urls[k] === null);
-    const senzaSegreto = SPOKI_ACTIVE_TEMPLATE_KINDS.filter((k) => this.config.secrets[k] === null);
-    const configurazione = [
-      senzaUrl.length > 0 ? `URL non configurati: ${senzaUrl.join(', ')}` : null,
-      senzaSegreto.length > 0 ? `segreti non configurati: ${senzaSegreto.join(', ')}` : null,
-    ].filter((s): s is string => s !== null);
+    // Contano solo i template integrati: gli altri non hanno configurazione Spoki.
+    const mancanti = this.templates()
+      .filter((t) => t.active && !t.configured)
+      .map((t) =>
+        t.transport === 'TEMPLATE'
+          ? `${t.kind} (${t.templateEnvKey ?? 'id template'})`
+          : `${t.kind} (${t.url === null ? 'URL' : ''}${t.url === null && !t.secretConfigured ? ' e ' : ''}${t.secretConfigured ? '' : 'segreto'})`,
+      );
+    const configurazione =
+      mancanti.length > 0 ? [`template non configurati: ${mancanti.join(', ')}`] : [];
+    if (
+      this.config.apiKey === null &&
+      this.templates().some((t) => t.active && t.transport === 'TEMPLATE')
+    ) {
+      configurazione.push(
+        'chiave API assente (SPOKI_API_KEY): i template via API non possono partire',
+      );
+    }
 
     if (!this.liveDeliveryAllowed) {
       const motivo =
@@ -226,26 +238,35 @@ export class SpokiService implements ISpokiService {
     };
   }
 
-  /** Template gestiti, con URL e presenza del segreto (per la pagina di amministrazione). */
-  templates(): readonly {
-    kind: SpokiTemplateKind;
-    active: boolean;
-    url: string | null;
-    secretConfigured: boolean;
-  }[] {
-    return SPOKI_TEMPLATE_KINDS.map((kind) => ({
-      kind,
-      active: SPOKI_ACTIVE_TEMPLATE_KINDS.includes(kind),
-      url: this.config.urls[kind],
-      secretConfigured: this.config.secrets[kind] !== null,
-    }));
+  /** Template gestiti, con trasporto e completezza della configurazione (per la pagina di amministrazione). */
+  templates(): readonly SpokiTemplateSetup[] {
+    return SPOKI_TEMPLATE_KINDS.map((kind) => {
+      const templateEnvKey = SPOKI_TEMPLATE_ID_ENV_KEYS[kind];
+      const templateId = this.config.templates[kind];
+      const url = this.config.urls[kind];
+      const secretConfigured = this.config.secrets[kind] !== null;
+      const transport = templateId !== null || templateEnvKey !== null ? 'TEMPLATE' : 'AUTOMATION';
+      return {
+        kind,
+        active: SPOKI_ACTIVE_TEMPLATE_KINDS.includes(kind),
+        transport,
+        url,
+        secretConfigured,
+        templateId,
+        templateEnvKey,
+        configured:
+          transport === 'TEMPLATE'
+            ? templateId !== null && this.config.apiKey !== null
+            : url !== null && secretConfigured,
+      };
+    });
   }
 }
 
 /**
  * Dalle variabili dell'orchestratore al payload dell'automazione Spoki (formato del fornitore):
  * `phone` in E.164, nome e cognome, e-mail se nota, e i campi dinamici in `custom_fields`
- * (`code` F041, `plate`, `time` HH:mm, `date` GG/MM/AAAA, `portal_url`).
+ * (`code` F041, `plate`, `time` HH:mm, `date` GG/MM/AAAA, `portal_url` con il token personale).
  */
 export function buildWebhookPayload(
   request: SpokiSendRequestDto,
@@ -258,12 +279,46 @@ export function buildWebhookPayload(
     first_name: v['firstName'] ?? '',
     last_name: v['lastName'] ?? '',
     email: v['email'] ?? '',
-    custom_fields: {
-      code: v['code'] ?? '',
-      plate: v['plate'] ?? '',
-      time: v['scheduledTime'] ?? '',
-      date: v['scheduledDate'] ?? '',
-      portal_url: v['portalUrl'] ?? '',
+    custom_fields: customFieldsOf(request),
+  };
+}
+
+/**
+ * Payload di `POST /api/1/messages/send/` per un template approvato: stesso numero e stessi campi
+ * dinamici dell'automazione, più l'id del template, la lingua e i metadati tecnici che Spoki
+ * rimanda nel webhook di esito (per ritrovare il messaggio anche senza il suo id).
+ */
+export function buildTemplateSendPayload(
+  request: SpokiSendRequestDto,
+  kind: SpokiTemplateKind,
+  templateId: string | null,
+): SpokiTemplateSendPayload {
+  const v = request.variables;
+  const numerico = templateId !== null && /^\d+$/.test(templateId) ? Number(templateId) : null;
+  return {
+    type: 'Template',
+    phone: request.to,
+    template: numerico ?? templateId ?? '',
+    language: 'IT',
+    first_name: v['firstName'] ?? '',
+    last_name: v['lastName'] ?? '',
+    email: v['email'] ?? '',
+    custom_fields: customFieldsOf(request),
+    metadata: {
+      idempotency_key: request.idempotencyKey,
+      template_kind: kind,
+      correlation_id: request.correlationId,
     },
+  };
+}
+
+function customFieldsOf(request: SpokiSendRequestDto): SpokiWebhookPayload['custom_fields'] {
+  const v = request.variables;
+  return {
+    code: v['code'] ?? '',
+    plate: v['plate'] ?? '',
+    time: v['scheduledTime'] ?? '',
+    date: v['scheduledDate'] ?? '',
+    portal_url: v['portalUrl'] ?? '',
   };
 }

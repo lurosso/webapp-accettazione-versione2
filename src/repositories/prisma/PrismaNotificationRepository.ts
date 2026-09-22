@@ -86,6 +86,23 @@ export class PrismaNotificationRepository implements INotificationRepository {
     return r === null ? null : toEntity(r);
   }
 
+  async findJobByProviderMessageId(providerMessageId: string): Promise<NotificationJob | null> {
+    // I tentativi stanno in una colonna JSON: si restringe con `contains` sul testo serializzato
+    // (`"providerMessageId":"<id>"`, senza spazi perché `toJson` non li mette) e si conferma in
+    // memoria, così un id che compare in un altro campo non viene preso per buono.
+    const candidati = await this.db.notificationJob.findMany({
+      where: {
+        attemptsJson: { contains: `"providerMessageId":${JSON.stringify(providerMessageId)}` },
+      },
+      orderBy: { createdAt: 'desc' },
+      take: 5,
+    });
+    const trovato = candidati
+      .map(toEntity)
+      .find((j) => j.attempts.some((a) => a.providerMessageId === providerMessageId));
+    return trovato ?? null;
+  }
+
   async listByAppointment(appointmentId: AppointmentId): Promise<readonly NotificationJob[]> {
     const rows = await this.db.notificationJob.findMany({
       where: { appointmentId },

@@ -27,6 +27,7 @@ import { cn } from '@/lib/utils/cn';
 import { MediaGallery } from '@/modules/inspection-media/MediaGallery';
 import { NotificationBadge } from './NotificationBadge';
 import { StatusBadge } from './StatusBadge';
+import { WhatsAppBadge } from './WhatsAppBadge';
 import type { AppointmentAction } from './types';
 
 export type DetailPresentation = 'side' | 'modal';
@@ -124,12 +125,14 @@ function Section({
   );
 }
 
-/** Cosa deve fare l'accettatore in base all'esito del promemoria. */
+/** Cosa deve fare l'accettatore in base all'esito dell'ultimo messaggio. */
 function notificationHint(status: NotificationJobStatus): string {
   switch (status) {
     case 'SENT':
     case 'DELIVERED':
       return 'Il cliente è stato avvisato: nessuna azione necessaria.';
+    case 'READ':
+      return 'Il cliente ha letto il messaggio.';
     case 'PENDING':
     case 'IN_FLIGHT':
       return 'Invio in corso.';
@@ -395,11 +398,11 @@ export function AppointmentDetailPanel({
                   <Badge tone="neutral">No, solo SMS o telefono</Badge>
                 )}
               </Field>
-              {/* Esito del promemoria: qui e non nella tabella, perché è l'informazione che
-                  serve proprio quando si sta decidendo se telefonare al cliente. */}
-              <Field label="Promemoria di oggi" roomy={modal}>
+              {/* Esito dell'ultimo messaggio: qui e non nella tabella, perché è l'informazione
+                  che serve proprio quando si sta decidendo se telefonare al cliente. */}
+              <Field label="Ultimo messaggio al cliente" roomy={modal}>
                 {row.notificationStatus === null ? (
-                  <span className="text-ink-muted">Nessun promemoria inviato</span>
+                  <span className="text-ink-muted">Nessun messaggio inviato oggi</span>
                 ) : (
                   <span className="flex flex-col gap-1">
                     <NotificationBadge
@@ -413,6 +416,11 @@ export function AppointmentDetailPanel({
                   </span>
                 )}
               </Field>
+              {a.whatsapp !== null ? (
+                <Field label="WhatsApp" roomy={modal}>
+                  <WhatsAppBadge delivery={a.whatsapp} timeZone={timeZone} className="self-start" />
+                </Field>
+              ) : null}
             </dl>
           </Section>
 

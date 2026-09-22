@@ -1,9 +1,9 @@
 'use client';
 
-// Integrazione Spoki & messaggistica, per l'amministratore: com'è configurata (provider, modalità,
-// blocco di sicurezza, URL e segreti dei due promemoria), un invio di prova a un numero digitato a
-// mano, il registro dei payload generati (con il blocco attivo è l'unica traccia) e la guida per
-// passare al live. Tutto in una sezione: chi entra qui vuole capire in un colpo d'occhio se i
+// Integrazione Spoki & messaggistica, per l'amministratore: com'è configurata (interruttore,
+// provider, modalità, blocco di sicurezza, automazioni dei promemoria, template dei messaggi del
+// check-in, segreto dei webhook), un invio di prova a un numero digitato a mano, il registro dei
+// payload generati (con il blocco attivo è l'unica traccia) e la guida per passare al live. Tutto in una sezione: chi entra qui vuole capire in un colpo d'occhio se i
 // messaggi partono davvero e cosa contengono.
 import { useState, type FormEvent } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
@@ -29,6 +29,7 @@ export interface SpokiPanelProps {
 
 const BLOCK_LABELS: Record<Exclude<SpokiBlockReason, null>, string> = {
   MOCK_PROVIDER: 'provider mock: nessun invio reale',
+  DISABLED: 'SPOKI_ENABLED=false: integrazione spenta, i payload finiscono solo nel registro',
   SIMULATION: 'simulazione: nessuna chiamata a Spoki',
   SAFETY_LOCK: 'SAFETY LOCK attivo: chiamate bloccate',
 };
@@ -82,10 +83,13 @@ export function SpokiPanel({ timeZone }: SpokiPanelProps) {
             Integrazione Spoki &amp; messaggistica
           </h2>
           <p className="text-sm text-slate-600">
-            Due promemoria WhatsApp ai clienti: il <strong>giorno prima</strong> (data, orario,
-            targa, codice, link al portale) e il <strong>giorno stesso</strong> (orario, targa,
-            codice). Finché il blocco di sicurezza è attivo o la modalità non è live, nessun
-            messaggio parte davvero: i payload finiscono nel registro qui sotto.
+            Quattro WhatsApp ai clienti: i promemoria del <strong>giorno prima</strong> e del{' '}
+            <strong>giorno stesso</strong> (automazioni), il{' '}
+            <strong>benvenuto alla presa in carico</strong> con il link personale al portale e la
+            conferma di <strong>accettazione completata</strong> (template via API). Finché
+            l&apos;integrazione è spenta, il blocco di sicurezza è attivo o la modalità non è live,
+            nessun messaggio parte davvero: i payload finiscono nel registro qui sotto. Gli esiti
+            (inviato, consegnato, letto) tornano dal webhook e si vedono in coda e in archivio.
           </p>
         </div>
         {data !== undefined ? (
@@ -93,6 +97,9 @@ export function SpokiPanel({ timeZone }: SpokiPanelProps) {
             {/* Lo standby viene prima di tutto: se è acceso, il resto della riga è cronaca di una
                 configurazione che in questo momento non manda niente. */}
             {data.standby ? <Badge tone="warning">INTEGRAZIONE IN STANDBY</Badge> : null}
+            <Badge tone={data.enabled ? 'success' : 'neutral'} data-testid="spoki-enabled">
+              {data.enabled ? 'SPOKI_ENABLED' : 'SPOKI_ENABLED=false'}
+            </Badge>
             <Badge tone={data.provider === 'mock' ? 'neutral' : 'info'}>
               provider {data.provider}
             </Badge>
@@ -107,6 +114,12 @@ export function SpokiPanel({ timeZone }: SpokiPanelProps) {
             </Badge>
             <Badge tone={data.liveDeliveryAllowed ? 'success' : 'neutral'}>
               {data.liveDeliveryAllowed ? 'INVII REALI ABILITATI' : 'nessun invio reale'}
+            </Badge>
+            <Badge
+              tone={data.webhookSecretConfigured ? 'success' : 'warning'}
+              data-testid="spoki-webhook"
+            >
+              {data.webhookSecretConfigured ? 'webhook esiti: firma ok' : 'webhook esiti: spento'}
             </Badge>
           </div>
         ) : null}
@@ -161,31 +174,55 @@ export function SpokiPanel({ timeZone }: SpokiPanelProps) {
               <p className="mt-1 text-xs text-slate-500">
                 Link al portale nei messaggi:{' '}
                 <span className="font-mono">{data.publicBaseUrl}</span>
-                /portal?targa=…
+                /portal?targa=…&amp;t=…
+              </p>
+              <p className="mt-1 text-xs text-slate-500">
+                Webhook degli esiti (Spoki → Integrazioni → Webhook, eventi{' '}
+                <span className="font-mono">message.outbound</span> e{' '}
+                <span className="font-mono">message.inbound</span>, versione 2):{' '}
+                <span className="font-mono">{data.webhookUrl}</span>
+                {data.webhookSecretConfigured
+                  ? ' · firma verificata con SPOKI_WEBHOOK_SECRET'
+                  : ' · SPOKI_WEBHOOK_SECRET assente: gli esiti non vengono accettati'}
               </p>
             </div>
             <div className="rounded-lg border border-slate-200 bg-slate-50 p-3">
               <p className="text-xs font-semibold tracking-wide text-slate-500 uppercase">
-                Automazioni (URL e segreto)
+                Automazioni e template
               </p>
               <ul className="mt-1 flex flex-col gap-1 text-sm">
                 {data.templates.map((t) => (
                   <li key={t.kind} className="flex flex-wrap items-center justify-between gap-2">
                     <span>
                       {t.label}{' '}
-                      <span className="font-mono text-xs text-slate-500">{t.urlEnvKey}</span>
+                      <span className="font-mono text-xs text-slate-500">
+                        {t.transport === 'AUTOMATION' ? t.urlEnvKey : t.templateEnvKey}
+                      </span>
                     </span>
-                    <span className="flex gap-1">
-                      <Badge
-                        tone={t.urlConfigured ? 'success' : 'warning'}
-                        title={t.urlPreview ?? undefined}
-                      >
-                        {t.urlConfigured ? 'URL ok' : 'URL mancante'}
-                      </Badge>
-                      <Badge tone={t.secretConfigured ? 'success' : 'warning'}>
-                        {t.secretConfigured ? 'segreto ok' : 'segreto mancante'}
-                      </Badge>
-                    </span>
+                    {t.transport === 'AUTOMATION' ? (
+                      <span className="flex gap-1">
+                        <Badge
+                          tone={t.urlConfigured ? 'success' : 'warning'}
+                          title={t.urlPreview ?? undefined}
+                        >
+                          {t.urlConfigured ? 'URL ok' : 'URL mancante'}
+                        </Badge>
+                        <Badge tone={t.secretConfigured ? 'success' : 'warning'}>
+                          {t.secretConfigured ? 'segreto ok' : 'segreto mancante'}
+                        </Badge>
+                      </span>
+                    ) : (
+                      <span className="flex gap-1">
+                        <Badge tone={t.templateConfigured ? 'success' : 'warning'}>
+                          {t.templateConfigured
+                            ? `template ${t.templateId ?? ''}`
+                            : 'id template mancante'}
+                        </Badge>
+                        <Badge tone={data.apiKeyConfigured ? 'success' : 'warning'}>
+                          {data.apiKeyConfigured ? 'via API' : 'serve SPOKI_API_KEY'}
+                        </Badge>
+                      </span>
+                    )}
                   </li>
                 ))}
               </ul>
@@ -221,7 +258,7 @@ export function SpokiPanel({ timeZone }: SpokiPanelProps) {
                 />
               </div>
               <div className="flex flex-col gap-1">
-                <Label htmlFor="spoki-kind">Promemoria</Label>
+                <Label htmlFor="spoki-kind">Messaggio</Label>
                 <Select
                   id="spoki-kind"
                   value={kind}
@@ -331,6 +368,26 @@ export function SpokiPanel({ timeZone }: SpokiPanelProps) {
           <div className="rounded-lg border border-dashed border-slate-300 p-4 text-sm text-slate-700">
             <h3 className="text-sm font-bold text-slate-900">Come funziona e come si sblocca</h3>
             <ol className="mt-2 list-decimal space-y-1 pl-5">
+              <li>
+                <span className="font-mono">SPOKI_ENABLED=true</span> con{' '}
+                <span className="font-mono">SPOKI_API_KEY</span> accende l&apos;integrazione; senza,
+                la modalità effettiva resta la simulazione qualunque cosa dica{' '}
+                <span className="font-mono">SPOKI_MODE</span>.
+              </li>
+              <li>
+                I messaggi del check-in partono via API (
+                <span className="font-mono">POST /api/1/messages/send/</span>, intestazione{' '}
+                <span className="font-mono">X-Spoki-Api-Key</span>) con l&apos;id del template
+                approvato: <span className="font-mono">SPOKI_TEMPLATE_WELCOME_ID</span> alla presa
+                in carico (con <span className="font-mono">portal_url</span> personale) e{' '}
+                <span className="font-mono">SPOKI_TEMPLATE_COMPLETE_ID</span> a check-in concluso.
+              </li>
+              <li>
+                Gli esiti tornano su <span className="font-mono">{data.webhookUrl}</span> firmati
+                con <span className="font-mono">X-Spoki-Signature</span> (HMAC-SHA256 del corpo,
+                segreto <span className="font-mono">SPOKI_WEBHOOK_SECRET</span>): inviato,
+                consegnato, letto o fallito compaiono sulla pratica in coda e in archivio.
+              </li>
               <li>
                 Ogni automazione Spoki riceve un POST JSON nel formato del fornitore:{' '}
                 <span className="font-mono">

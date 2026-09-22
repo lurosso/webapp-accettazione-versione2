@@ -329,6 +329,7 @@ export class SyncService {
       orderClosedAt: null,
       legalHoldAt: null,
       legalHoldReason: null,
+      whatsapp: null,
       lastSyncRunId: run.id,
       version: 1,
       createdAt: now,

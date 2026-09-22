@@ -1,10 +1,11 @@
-// Adapter HTTP verso le automazioni Spoki, con il GUARDRAIL anti-invio:
+// Adapter HTTP verso Spoki, con il GUARDRAIL anti-invio:
 // - se `mode` non è `live` OPPURE il blocco di sicurezza (`safetyLock`) è attivo, NESSUNA chiamata
 //   di rete parte. Il payload viene formattato, scritto nel log strutturato e nel registro del
 //   pannello admin (con il motivo del blocco), e la risposta è un 200 finto;
-// - solo con `mode = live` e blocco tolto si fa il POST JSON all'URL dell'automazione, con il
-//   segreto dell'automazione nel payload (come richiede Spoki) e la chiave API nell'intestazione se
-//   configurata.
+// - solo con `mode = live` e blocco tolto si chiama davvero Spoki, in uno dei due modi che il
+//   fornitore documenta: il POST all'URL dell'automazione (segreto nel payload) oppure
+//   `POST /api/1/messages/send/` con il template per id e la chiave API nell'intestazione
+//   `X-Spoki-Api-Key`.
 // Non lancia mai: ogni guasto diventa un ProviderError con il flag `retryable` giusto, così
 // l'orchestratore decide se ritentare o passare all'SMS.
 import { err, ok } from '@/domain/result';
@@ -20,8 +21,9 @@ import {
   deliveryBlockReason,
   maskForLog,
   payloadForLog,
+  spokiSendUrl,
   type SpokiTemplateKind,
-  type SpokiWebhookPayload,
+  type SpokiTransport,
 } from './spoki-config';
 
 /** Sottoinsieme di `fetch` usato dall'adapter: iniettabile nei test. */
@@ -32,6 +34,8 @@ export interface SpokiClientAdapterConfig {
   /** Blocco di sicurezza: con true nessuna chiamata parte, nemmeno in live. */
   readonly safetyLock: boolean;
   readonly apiKey: string | null;
+  /** Base delle API Spoki (per l'invio dei template via API). */
+  readonly apiBaseUrl: string;
   readonly timeoutMs: number;
 }
 
@@ -47,20 +51,28 @@ export interface SpokiClientAdapterDeps {
 export interface TriggerInput {
   readonly kind: SpokiTemplateKind | 'TEST';
   readonly templateKey: string;
-  /** URL dell'automazione; null se non configurato (in simulazione si registra comunque). */
-  readonly url: string | null;
-  readonly payload: SpokiWebhookPayload;
+  readonly transport: SpokiTransport;
   readonly correlationId: string;
   readonly options?: CallOptions | undefined;
 }
 
 export interface TriggerResult {
   readonly httpStatus: number;
-  /** Identificativo restituito da Spoki, o generato quando la chiamata è bloccata. */
+  /** Identificativo restituito da Spoki, o generato quando la chiamata è bloccata o senza corpo. */
   readonly messageId: string;
   readonly acceptedAt: IsoDateTime;
   /** Motivo per cui la chiamata NON è partita; null se è stata fatta davvero. */
   readonly blockedBy: 'SIMULATION' | 'SAFETY_LOCK' | null;
+}
+
+/** Descrizione dell'indirizzo chiamato, per il registro (anche quando non configurato). */
+function describeTarget(transport: SpokiTransport, apiBaseUrl: string): string | null {
+  if (transport.kind === 'AUTOMATION') {
+    return transport.url;
+  }
+  return transport.templateId === null
+    ? null
+    : `${spokiSendUrl(apiBaseUrl)} · template ${transport.templateId}`;
 }
 
 export class SpokiClientAdapter {
@@ -101,10 +113,12 @@ export class SpokiClientAdapter {
     const acceptedAt = this.deps.clock.nowIso();
     const messageId = `sim-${this.deps.ids.next()}`;
     const etichetta = blockedBy === 'SAFETY_LOCK' ? 'BLOCCATO (safety lock)' : 'SIMULAZIONE';
-    this.logger.info(`${etichetta} ${input.kind} → ${maskForLog(input.payload.phone)}`, {
-      url: input.url ?? '(non configurato)',
+    const target = describeTarget(input.transport, this.config.apiBaseUrl);
+    this.logger.info(`${etichetta} ${input.kind} → ${maskForLog(input.transport.payload.phone)}`, {
+      trasporto: input.transport.kind,
+      url: target ?? '(non configurato)',
       template: input.templateKey,
-      payload: payloadForLog(input.payload),
+      payload: payloadForLog(input.transport.payload),
       correlationId: input.correlationId,
       bloccatoDa: blockedBy,
       risposta: { status: 200, messageId },
@@ -114,9 +128,9 @@ export class SpokiClientAdapter {
       mode: this.config.mode,
       templateKind: input.kind,
       templateKey: input.templateKey,
-      url: input.url,
-      phoneMasked: maskForLog(input.payload.phone),
-      payload: payloadForLog(input.payload),
+      url: target,
+      phoneMasked: maskForLog(input.transport.payload.phone),
+      payload: payloadForLog(input.transport.payload),
       blockedBy,
       outcome: { ok: true, httpStatus: 200, messageId, error: null },
       correlationId: input.correlationId,
@@ -125,29 +139,9 @@ export class SpokiClientAdapter {
   }
 
   private async callLive(input: TriggerInput): Promise<ProviderResult<TriggerResult>> {
-    if (input.url === null) {
-      return this.fail(
-        input,
-        providerError(
-          'SPOKI',
-          'INVALID_REQUEST',
-          `URL dell'automazione Spoki non configurato per ${input.kind}.`,
-          false,
-        ),
-        null,
-      );
-    }
-    if (input.payload.secret === '') {
-      return this.fail(
-        input,
-        providerError(
-          'SPOKI',
-          'AUTH',
-          `Segreto dell'automazione Spoki mancante per ${input.kind}: impossibile chiamare Spoki.`,
-          false,
-        ),
-        null,
-      );
+    const preparata = this.prepareLiveRequest(input);
+    if (!preparata.ok) {
+      return this.fail(input, preparata.error, null);
     }
     const fetchImpl = this.deps.fetchImpl;
     if (fetchImpl === undefined) {
@@ -157,6 +151,7 @@ export class SpokiClientAdapter {
         null,
       );
     }
+    const { url, headers, body } = preparata.value;
 
     const controller = new AbortController();
     const timer = setTimeout(
@@ -165,18 +160,10 @@ export class SpokiClientAdapter {
     );
     input.options?.signal?.addEventListener('abort', () => controller.abort(), { once: true });
     try {
-      const headers: Record<string, string> = {
-        'content-type': 'application/json',
-        accept: 'application/json',
-        'x-correlation-id': input.correlationId,
-      };
-      if (this.config.apiKey !== null) {
-        headers['authorization'] = `Bearer ${this.config.apiKey}`;
-      }
-      const response = await fetchImpl(input.url, {
+      const response = await fetchImpl(url, {
         method: 'POST',
         headers,
-        body: JSON.stringify(input.payload),
+        body,
         signal: controller.signal,
       });
       const testo = await response.text().catch(() => '');
@@ -185,7 +172,8 @@ export class SpokiClientAdapter {
       }
       const messageId = this.extractMessageId(testo) ?? `spoki-${this.deps.ids.next()}`;
       const acceptedAt = this.deps.clock.nowIso();
-      this.logger.info(`${input.kind} → ${maskForLog(input.payload.phone)} accettato`, {
+      this.logger.info(`${input.kind} → ${maskForLog(input.transport.payload.phone)} accettato`, {
+        trasporto: input.transport.kind,
         status: response.status,
         messageId,
         correlationId: input.correlationId,
@@ -195,9 +183,9 @@ export class SpokiClientAdapter {
         mode: 'live',
         templateKind: input.kind,
         templateKey: input.templateKey,
-        url: input.url,
-        phoneMasked: maskForLog(input.payload.phone),
-        payload: payloadForLog(input.payload),
+        url: describeTarget(input.transport, this.config.apiBaseUrl),
+        phoneMasked: maskForLog(input.transport.payload.phone),
+        payload: payloadForLog(input.transport.payload),
         blockedBy: null,
         outcome: { ok: true, httpStatus: response.status, messageId, error: null },
         correlationId: input.correlationId,
@@ -223,6 +211,74 @@ export class SpokiClientAdapter {
     }
   }
 
+  /**
+   * Indirizzo, intestazioni e corpo della chiamata reale, oppure l'errore di configurazione che
+   * la rende impossibile (mai ritentabile: un URL, un id o una chiave non compaiono da soli).
+   */
+  private prepareLiveRequest(
+    input: TriggerInput,
+  ): ProviderResult<{ url: string; headers: Record<string, string>; body: string }> {
+    const headers: Record<string, string> = {
+      'content-type': 'application/json',
+      accept: 'application/json',
+      'x-correlation-id': input.correlationId,
+    };
+    const t = input.transport;
+    if (t.kind === 'AUTOMATION') {
+      if (t.url === null) {
+        return err(
+          providerError(
+            'SPOKI',
+            'INVALID_REQUEST',
+            `URL dell'automazione Spoki non configurato per ${input.kind}.`,
+            false,
+          ),
+        );
+      }
+      if (t.payload.secret === '') {
+        return err(
+          providerError(
+            'SPOKI',
+            'AUTH',
+            `Segreto dell'automazione Spoki mancante per ${input.kind}: impossibile chiamare Spoki.`,
+            false,
+          ),
+        );
+      }
+      // Le automazioni autenticano con il segreto nel payload; la chiave API, se c'è, non guasta.
+      if (this.config.apiKey !== null) {
+        headers['authorization'] = `Bearer ${this.config.apiKey}`;
+      }
+      return ok({ url: t.url, headers, body: JSON.stringify(t.payload) });
+    }
+    if (t.templateId === null) {
+      return err(
+        providerError(
+          'SPOKI',
+          'INVALID_REQUEST',
+          `Id del template Spoki non configurato per ${input.kind} (SPOKI_TEMPLATE_*_ID).`,
+          false,
+        ),
+      );
+    }
+    if (this.config.apiKey === null) {
+      return err(
+        providerError(
+          'SPOKI',
+          'AUTH',
+          `Chiave API Spoki mancante (SPOKI_API_KEY): impossibile inviare il template ${input.kind}.`,
+          false,
+        ),
+      );
+    }
+    headers['x-spoki-api-key'] = this.config.apiKey;
+    return ok({
+      url: spokiSendUrl(this.config.apiBaseUrl),
+      headers,
+      body: JSON.stringify(t.payload),
+    });
+  }
+
   private errorForStatus(status: number, body: string): ProviderError {
     const dettaglio = body.trim() === '' ? '' : ` (${body.trim().slice(0, 200)})`;
     if (status === 401 || status === 403) {
@@ -237,7 +293,7 @@ export class SpokiClientAdapter {
       return providerError(
         'SPOKI',
         'NOT_FOUND',
-        `Automazione Spoki non trovata: controlla l'URL${dettaglio}.`,
+        `Automazione o template Spoki non trovati: controlla URL e id${dettaglio}.`,
         false,
       );
     }
@@ -260,27 +316,40 @@ export class SpokiClientAdapter {
     );
   }
 
-  /** Spoki può rispondere con `id`, `message_id` o `messageId`: si accetta il primo presente. */
+  /**
+   * Spoki può rispondere con `uuid`, `id`, `message_id` o `messageId` (anche dentro `message` o
+   * `data`): si accetta il primo presente. Senza corpo l'id lo genera l'adapter.
+   */
   private extractMessageId(body: string): string | null {
     try {
       const parsed: unknown = JSON.parse(body);
-      if (typeof parsed !== 'object' || parsed === null) {
-        return null;
-      }
-      const record = parsed as Record<string, unknown>;
-      for (const key of ['id', 'message_id', 'messageId']) {
-        const value = record[key];
-        if (typeof value === 'string' && value !== '') {
-          return value;
-        }
-        if (typeof value === 'number') {
-          return String(value);
-        }
-      }
-      return null;
+      return this.idIn(parsed, 0);
     } catch {
       return null;
     }
+  }
+
+  private idIn(value: unknown, depth: number): string | null {
+    if (typeof value !== 'object' || value === null || depth > 2) {
+      return null;
+    }
+    const record = value as Record<string, unknown>;
+    for (const key of ['uuid', 'id', 'message_id', 'messageId']) {
+      const v = record[key];
+      if (typeof v === 'string' && v !== '') {
+        return v;
+      }
+      if (typeof v === 'number') {
+        return String(v);
+      }
+    }
+    for (const key of ['message', 'data', 'result']) {
+      const trovato = this.idIn(record[key], depth + 1);
+      if (trovato !== null) {
+        return trovato;
+      }
+    }
+    return null;
   }
 
   private fail(
@@ -288,7 +357,8 @@ export class SpokiClientAdapter {
     error: ProviderError,
     httpStatus: number | null,
   ): ProviderResult<TriggerResult> {
-    this.logger.warn(`${input.kind} → ${maskForLog(input.payload.phone)} FALLITO`, {
+    this.logger.warn(`${input.kind} → ${maskForLog(input.transport.payload.phone)} FALLITO`, {
+      trasporto: input.transport.kind,
       code: error.code,
       retryable: error.retryable,
       message: error.message,
@@ -299,9 +369,9 @@ export class SpokiClientAdapter {
       mode: this.config.mode,
       templateKind: input.kind,
       templateKey: input.templateKey,
-      url: input.url,
-      phoneMasked: maskForLog(input.payload.phone),
-      payload: payloadForLog(input.payload),
+      url: describeTarget(input.transport, this.config.apiBaseUrl),
+      phoneMasked: maskForLog(input.transport.payload.phone),
+      payload: payloadForLog(input.transport.payload),
       blockedBy: null,
       outcome: { ok: false, httpStatus, messageId: null, error: `${error.code}: ${error.message}` },
       correlationId: input.correlationId,

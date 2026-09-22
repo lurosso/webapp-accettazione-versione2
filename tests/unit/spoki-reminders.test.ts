@@ -86,9 +86,12 @@ describe('Promemoria: dal record della pratica al payload Spoki, passando dal se
         mode: 'live',
         safetyLock: true, // blocco attivo: la chiamata non deve partire
         apiKey: null,
+        apiBaseUrl: 'https://api.spoki.example',
         urls: {
           REMINDER_PREVIOUS_DAY: 'https://api.spoki.example/wh/ap/prev/',
           REMINDER_SAME_DAY: 'https://api.spoki.example/wh/ap/same/',
+          CHECK_IN_STARTED: null,
+          CHECK_IN_COMPLETED: null,
           CONFIRMATION: null,
           TURN_APPROACHING: null,
           CANCELLATION: null,
@@ -96,6 +99,17 @@ describe('Promemoria: dal record della pratica al payload Spoki, passando dal se
         secrets: {
           REMINDER_PREVIOUS_DAY: 'segreto-prev-0123456789abcdef',
           REMINDER_SAME_DAY: 'segreto-same-0123456789abcdef',
+          CHECK_IN_STARTED: null,
+          CHECK_IN_COMPLETED: null,
+          CONFIRMATION: null,
+          TURN_APPROACHING: null,
+          CANCELLATION: null,
+        },
+        templates: {
+          REMINDER_PREVIOUS_DAY: null,
+          REMINDER_SAME_DAY: null,
+          CHECK_IN_STARTED: null,
+          CHECK_IN_COMPLETED: null,
           CONFIRMATION: null,
           TURN_APPROACHING: null,
           CANCELLATION: null,

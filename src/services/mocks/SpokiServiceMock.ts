@@ -6,6 +6,7 @@ import type { Result } from '@/domain/result';
 import type { IsoDateTime } from '@/domain/value-objects/iso-date';
 import { lastDigit, maskPhone } from '@/domain/value-objects/phone';
 import type { SpokiSendRequestDto } from '../dto/spoki.dto';
+import { parseSpokiWebhookBody, type SpokiWebhookEvent } from '../dto/spoki-webhook.dto';
 import type {
   CallOptions,
   DeliveryStatus,
@@ -52,15 +53,6 @@ interface DeliveryRecord {
   readonly acceptedAtMs: number;
   readonly finalState: 'DELIVERED' | 'UNDELIVERABLE';
 }
-
-const WEBHOOK_STATES: readonly DeliveryStatus['state'][] = [
-  'QUEUED',
-  'SENT',
-  'DELIVERED',
-  'READ',
-  'FAILED',
-  'UNDELIVERABLE',
-];
 
 /** WhatsApp finto. */
 export class SpokiServiceMock implements ISpokiService {
@@ -167,46 +159,12 @@ export class SpokiServiceMock implements ISpokiService {
     });
   }
 
+  /** Stesso parser del servizio reale (formato V2 di Spoki o forma piatta); nessun I/O. */
   parseWebhook(
     rawBody: unknown,
     _headers: Readonly<Record<string, string>>,
-  ): Result<DeliveryStatus, ProviderError> {
-    if (typeof rawBody !== 'object' || rawBody === null) {
-      return err(
-        providerError('SPOKI', 'INVALID_REQUEST', 'Webhook Spoki: corpo non valido.', false),
-      );
-    }
-    const body = rawBody as Record<string, unknown>;
-    const messageId = body['messageId'];
-    const status = body['status'];
-    if (typeof messageId !== 'string' || typeof status !== 'string') {
-      return err(
-        providerError(
-          'SPOKI',
-          'INVALID_REQUEST',
-          'Webhook Spoki: messageId o status mancanti.',
-          false,
-        ),
-      );
-    }
-    const state = WEBHOOK_STATES.find((s) => s === status.toUpperCase());
-    if (state === undefined) {
-      return err(
-        providerError(
-          'SPOKI',
-          'INVALID_REQUEST',
-          `Webhook Spoki: stato sconosciuto "${status}".`,
-          false,
-        ),
-      );
-    }
-    const reason = body['reason'];
-    return ok({
-      providerMessageId: messageId,
-      state,
-      updatedAt: this.deps.clock.nowIso(),
-      reason: typeof reason === 'string' ? reason : null,
-    });
+  ): Result<SpokiWebhookEvent, ProviderError> {
+    return parseSpokiWebhookBody(rawBody);
   }
 
   async healthCheck(): Promise<HealthStatus> {

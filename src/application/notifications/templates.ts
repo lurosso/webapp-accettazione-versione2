@@ -6,8 +6,12 @@
 //   rapide «Arrivato», «In ritardo», «Assente» (i pulsanti stanno nel template Spoki; qui c'è il
 //   testo che li accompagna, che vale anche per l'SMS di ripiego, dove si risponde scrivendo);
 // - ARRIVAL_CONFIRMED, la risposta a chi tocca «Arrivato»: codice in coda e link alla pagina di
-//   tracciamento, che sostituisce il QR da inquadrare in officina.
-// Gli altri tipi hanno il testo per SMS e log ma nessuna automazione Spoki.
+//   tracciamento, che sostituisce il QR da inquadrare in officina;
+// - CHECK_IN_STARTED, alla presa in carico allo sportello: benvenuto con il link PERSONALE al
+//   portale (token della pratica), dove il cliente segue l'accettazione in tempo reale;
+// - CHECK_IN_COMPLETED, a fine check-in (foto e video caricati): «Procedura di accettazione
+//   completata. Grazie per la visita, puoi proseguire!».
+// Gli altri tipi hanno il testo per SMS e log ma nessuna configurazione Spoki.
 
 import type { Appointment } from '@/domain/entities/appointment';
 import type { Brand } from '@/domain/entities/brand';
@@ -61,6 +65,16 @@ export const NOTIFICATION_TEMPLATES: Readonly<Record<NotificationKind, Notificat
     spokiTemplateKey: 'reminder_same_day_v1',
     render: (v) =>
       `Buongiorno ${v.firstName}, le ricordiamo l'appuntamento di oggi alle ${v.scheduledTime} presso Autoclub Group per la vettura ${v.plate}. Il suo codice di accettazione è ${v.code}. Quando è qui ci risponda ARRIVATO; se è in ritardo IN RITARDO, se non può venire ASSENTE.`,
+  },
+  CHECK_IN_STARTED: {
+    spokiTemplateKey: 'check_in_started_v1',
+    render: (v) =>
+      `Buongiorno ${v.firstName}, la sua vettura ${v.plate} è in accettazione presso Autoclub Group (pratica ${v.code}). Segua lo stato in tempo reale dal suo link personale: ${v.portalUrl}`,
+  },
+  CHECK_IN_COMPLETED: {
+    spokiTemplateKey: 'check_in_completed_v1',
+    render: (v) =>
+      `Procedura di accettazione completata. Grazie per la visita, puoi proseguire! (Autoclub Group, pratica ${v.code})`,
   },
   ARRIVAL_CONFIRMED: {
     spokiTemplateKey: 'arrival_confirmed_v1',

@@ -10,18 +10,24 @@ import type { QueueCode } from '../value-objects/queue-code';
  * Tipo di messaggio.
  * - REMINDER_PREVIOUS_DAY: promemoria del giorno prima (data, ora, targa, codice, link al portale);
  * - REMINDER_SAME_DAY: promemoria della mattina per l'appuntamento di oggi (ora, targa, codice);
+ * - CHECK_IN_STARTED: la pratica è stata presa in carico allo sportello: benvenuto con il link
+ *   personale al portale, dove il cliente segue l'accettazione in tempo reale;
+ * - CHECK_IN_COMPLETED: il check-in (foto e video) è concluso: «Procedura di accettazione
+ *   completata. Grazie per la visita, puoi proseguire!»;
  * - BOOKING_CONFIRMED: pratica inserita a mano al banco (le pratiche dell'agenda hanno il promemoria);
  * - TURN_APPROACHING: davanti al cliente restano poche pratiche del suo sportello;
  * - YOUR_TURN: è il suo turno;
  * - APPOINTMENT_CANCELLED: pratica annullata da una persona (non dalla chiusura automatica);
  * - VEHICLE_READY: vettura pronta al ritiro;
  * - CUSTOM: testo libero dell'operatore.
- * Oggi l'integrazione Spoki copre SOLO i due promemoria; gli altri tipi restano definiti per
- * l'orchestratore (SMS, log) e per il futuro.
+ * L'integrazione Spoki copre i due promemoria e i due messaggi del check-in; gli altri tipi
+ * restano definiti per l'orchestratore (SMS, log) e per il futuro.
  */
 export type NotificationKind =
   | 'REMINDER_PREVIOUS_DAY'
   | 'REMINDER_SAME_DAY'
+  | 'CHECK_IN_STARTED'
+  | 'CHECK_IN_COMPLETED'
   /** Risposta automatica a chi ha toccato «Arrivato»: codice in coda e link al tracciamento. */
   | 'ARRIVAL_CONFIRMED'
   | 'BOOKING_CONFIRMED'
@@ -41,7 +47,8 @@ export type NotificationProvider = 'SPOKI' | 'SMS_HOSTING' | 'NONE';
  * Stato del job.
  * - PENDING: creato, non ancora processato.
  * - IN_FLIGHT: in corso; se resta tale oltre una soglia (crash) viene riprocessato.
- * - SENT / DELIVERED: accettato / consegnato dal provider.
+ * - SENT / DELIVERED / READ: accettato / consegnato / letto dal cliente (READ solo da WhatsApp,
+ *   quando Spoki lo comunica con il webhook di esito).
  * - FAILED: tutti i canali hanno fallito con errori `retryable` (es. timeout): retry
  *   automatico con backoff da M3, intanto confermabile a mano.
  * - MANUAL_REQUIRED: fallimento non retryable su tutti i canali → "Conferma contatto manuale".
@@ -54,6 +61,7 @@ export type NotificationJobStatus =
   | 'IN_FLIGHT'
   | 'SENT'
   | 'DELIVERED'
+  | 'READ'
   | 'FAILED'
   | 'MANUAL_REQUIRED'
   | 'MANUAL_CONFIRMED'

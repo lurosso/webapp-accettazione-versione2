@@ -16,6 +16,7 @@ import type { PlateNumber } from '@/domain/value-objects/plate';
 import { formatQueueCode } from '@/domain/value-objects/queue-code';
 import { CrmNotifier } from '@/application/crm/CrmNotifier';
 import { NotificationOrchestrator } from '@/application/notifications/NotificationOrchestrator';
+import { AppointmentWhatsAppMirror } from '@/application/notifications/WhatsAppDeliveryService';
 import { InMemoryAppointmentRepository } from '@/repositories/in-memory/InMemoryAppointmentRepository';
 import { InMemoryCrmOutboxRepository } from '@/repositories/in-memory/InMemoryCrmOutboxRepository';
 import { InMemoryMediaRepository } from '@/repositories/in-memory/InMemoryMediaRepository';
@@ -78,6 +79,7 @@ export function buildTestEnv<C extends IClock = TestClock>(
   const logger = new NoopLogger();
   const eventBus = new InProcessEventBus();
   const notifications = new InMemoryNotificationRepository(store);
+  const appointments = new InMemoryAppointmentRepository(store, clock);
 
   // Mock dei provider con la regola dell'ultima cifra del telefono: 9 → WhatsApp rifiutato,
   // 99 → falliscono entrambi i canali. Nessuna latenza e nessun ritardo di consegna, così
@@ -112,6 +114,8 @@ export function buildTestEnv<C extends IClock = TestClock>(
     logger,
     eventBus,
     timeZone: 'Europe/Rome',
+    // Come nel container: ogni job WhatsApp salvato aggiorna `Appointment.whatsapp`.
+    whatsappDelivery: new AppointmentWhatsAppMirror(appointments, logger),
   });
 
   // CRM e storage media: nessuna latenza nei test, esiti verificabili da `crm.received`.
@@ -132,7 +136,7 @@ export function buildTestEnv<C extends IClock = TestClock>(
     clock,
     store,
     seed,
-    appointments: new InMemoryAppointmentRepository(store, clock),
+    appointments,
     referenceData,
     operators: new InMemoryOperatorRepository(store),
     media: new InMemoryMediaRepository(store),
@@ -208,6 +212,7 @@ export function makeAppointment(overrides: Partial<Appointment> = {}): Appointme
     orderClosedAt: null,
     legalHoldAt: null,
     legalHoldReason: null,
+    whatsapp: null,
     lastSyncRunId: null,
     version: 1,
     createdAt: now,

@@ -1,23 +1,29 @@
-// Configurazione e contratto dell'integrazione Spoki (WhatsApp Business via "Automazioni").
+// Configurazione e contratto dell'integrazione Spoki (WhatsApp Business API).
 //
-// Spoki espone un URL di webhook per ogni automazione: chiamandolo con i dati del contatto,
-// Spoki invia il template WhatsApp collegato. Il payload è quello documentato da Spoki:
-//   { secret, phone, first_name, last_name, email, custom_fields: { … } }
-// dove `secret` è il segreto della singola automazione e i campi dinamici del messaggio (codice,
-// targa, orario, data, link al portale) viaggiano in `custom_fields`.
-//
-// Perimetro attuale: SOLO i due promemoria (giorno prima e giorno stesso). Gli altri template
-// restano definiti perché l'orchestratore li usa per SMS e log, ma non hanno automazione.
+// Due modi di far partire un template, entrambi documentati da Spoki:
+// - AUTOMAZIONE: ogni automazione espone un URL (`https://api.spoki.com/wh/ap/<uuid>/`) che si
+//   chiama con il segreto dell'automazione nel payload:
+//     { secret, phone, first_name, last_name, email, custom_fields: { … } }
+//   È il modo dei due promemoria (giorno prima, giorno stesso), configurati con SPOKI_URL_* e
+//   SPOKI_SECRET_*.
+// - TEMPLATE via API: `POST https://api.spoki.com/api/1/messages/send/` con la chiave API
+//   dell'account nell'intestazione `X-Spoki-Api-Key` e il template approvato da Meta per id:
+//     { type: "Template", phone, template: <id>, language, custom_fields: { … }, metadata: { … } }
+//   È il modo dei messaggi del check-in (benvenuto con link al portale, fine accettazione),
+//   configurati con SPOKI_TEMPLATE_WELCOME_ID e SPOKI_TEMPLATE_COMPLETE_ID.
 //
 // GUARDRAIL: nessuna chiamata HTTP parte se `SPOKI_MODE` non è `live` oppure se
-// `SPOKI_SAFETY_LOCK` è attivo (predefinito). In quel caso il payload viene solo formattato,
-// scritto nei log e nel registro del pannello admin. Vedi `canDeliverLive`.
+// `SPOKI_SAFETY_LOCK` è attivo (predefinito). Con `SPOKI_ENABLED=false` (predefinito) o senza
+// chiave API la configurazione stessa forza `simulation` (vedi `config/env.ts`). In tutti questi
+// casi il payload viene solo formattato, scritto nei log e nel registro del pannello admin.
 import type { SpokiMode } from '@/services/interfaces/provider-kinds';
 
-/** I template del progetto, uno per URL di automazione. */
+/** I template del progetto. */
 export type SpokiTemplateKind =
   | 'REMINDER_PREVIOUS_DAY'
   | 'REMINDER_SAME_DAY'
+  | 'CHECK_IN_STARTED'
+  | 'CHECK_IN_COMPLETED'
   | 'CONFIRMATION'
   | 'TURN_APPROACHING'
   | 'CANCELLATION';
@@ -25,30 +31,41 @@ export type SpokiTemplateKind =
 export const SPOKI_TEMPLATE_KINDS: readonly SpokiTemplateKind[] = [
   'REMINDER_PREVIOUS_DAY',
   'REMINDER_SAME_DAY',
+  'CHECK_IN_STARTED',
+  'CHECK_IN_COMPLETED',
   'CONFIRMATION',
   'TURN_APPROACHING',
   'CANCELLATION',
 ];
 
-/** I soli template integrati in questa fase: gli altri non hanno automazione configurabile. */
+/**
+ * I template integrati: i due promemoria (automazioni) e i due messaggi del check-in (template
+ * via API). Gli altri restano definiti per SMS e log ma non hanno una configurazione Spoki.
+ */
 export const SPOKI_ACTIVE_TEMPLATE_KINDS: readonly SpokiTemplateKind[] = [
   'REMINDER_PREVIOUS_DAY',
   'REMINDER_SAME_DAY',
+  'CHECK_IN_STARTED',
+  'CHECK_IN_COMPLETED',
 ];
 
 /** Da chiave del template Meta (usata dall'orchestratore) al template Spoki. */
 export const TEMPLATE_KIND_BY_KEY: Readonly<Record<string, SpokiTemplateKind>> = {
   reminder_previous_day_v1: 'REMINDER_PREVIOUS_DAY',
   reminder_same_day_v1: 'REMINDER_SAME_DAY',
+  check_in_started_v1: 'CHECK_IN_STARTED',
+  check_in_completed_v1: 'CHECK_IN_COMPLETED',
   booking_confirmed_v1: 'CONFIRMATION',
   turn_approaching_v1: 'TURN_APPROACHING',
   appointment_cancelled_v1: 'CANCELLATION',
 };
 
-/** Variabile d'ambiente che porta l'URL di ciascun template. */
+/** Variabile d'ambiente che porta l'URL dell'automazione di ciascun template. */
 export const SPOKI_URL_ENV_KEYS: Readonly<Record<SpokiTemplateKind, string>> = {
   REMINDER_PREVIOUS_DAY: 'SPOKI_URL_REMINDER_PREVIOUS_DAY',
   REMINDER_SAME_DAY: 'SPOKI_URL_REMINDER_SAME_DAY',
+  CHECK_IN_STARTED: 'SPOKI_URL_CHECK_IN_STARTED',
+  CHECK_IN_COMPLETED: 'SPOKI_URL_CHECK_IN_COMPLETED',
   CONFIRMATION: 'SPOKI_URL_CONFIRMATION',
   TURN_APPROACHING: 'SPOKI_URL_TURN_APPROACHING',
   CANCELLATION: 'SPOKI_URL_CANCELLATION',
@@ -58,10 +75,29 @@ export const SPOKI_URL_ENV_KEYS: Readonly<Record<SpokiTemplateKind, string>> = {
 export const SPOKI_SECRET_ENV_KEYS: Readonly<Record<SpokiTemplateKind, string>> = {
   REMINDER_PREVIOUS_DAY: 'SPOKI_SECRET_REMINDER_PREVIOUS_DAY',
   REMINDER_SAME_DAY: 'SPOKI_SECRET_REMINDER_SAME_DAY',
+  CHECK_IN_STARTED: 'SPOKI_SECRET_CHECK_IN_STARTED',
+  CHECK_IN_COMPLETED: 'SPOKI_SECRET_CHECK_IN_COMPLETED',
   CONFIRMATION: 'SPOKI_SECRET_CONFIRMATION',
   TURN_APPROACHING: 'SPOKI_SECRET_TURN_APPROACHING',
   CANCELLATION: 'SPOKI_SECRET_CANCELLATION',
 };
+
+/** Variabile d'ambiente con l'id del template Meta per l'invio via API; null se il template va via automazione. */
+export const SPOKI_TEMPLATE_ID_ENV_KEYS: Readonly<Record<SpokiTemplateKind, string | null>> = {
+  REMINDER_PREVIOUS_DAY: null,
+  REMINDER_SAME_DAY: null,
+  CHECK_IN_STARTED: 'SPOKI_TEMPLATE_WELCOME_ID',
+  CHECK_IN_COMPLETED: 'SPOKI_TEMPLATE_COMPLETE_ID',
+  CONFIRMATION: null,
+  TURN_APPROACHING: null,
+  CANCELLATION: null,
+};
+
+/** Indirizzo ufficiale delle API Spoki (percorsi `/api/1/…`); sovrascrivibile con SPOKI_API_BASE_URL. */
+export const SPOKI_DEFAULT_API_BASE_URL = 'https://api.spoki.com';
+
+/** Percorso dell'invio di un template via API. */
+export const SPOKI_SEND_PATH = '/api/1/messages/send/';
 
 export interface SpokiServiceConfig {
   readonly mode: SpokiMode;
@@ -70,16 +106,21 @@ export interface SpokiServiceConfig {
    * WhatsApp parte verso un telefono reale, nemmeno con `mode = live`.
    */
   readonly safetyLock: boolean;
-  /** Chiave API globale dell'account (menu "Integrazioni API" di Spoki); null se non impostata. */
+  /** Chiave API dell'account (menu "Integrazioni API" di Spoki, intestazione X-Spoki-Api-Key); null se non impostata. */
   readonly apiKey: string | null;
+  /** Base delle API (senza barra finale). */
+  readonly apiBaseUrl: string;
+  /** URL delle automazioni, per template. */
   readonly urls: Readonly<Record<SpokiTemplateKind, string | null>>;
   /** Segreto per automazione, inserito nel payload come richiesto da Spoki. */
   readonly secrets: Readonly<Record<SpokiTemplateKind, string | null>>;
+  /** Id del template Meta per l'invio via API; ha la precedenza sull'automazione se impostato. */
+  readonly templates: Readonly<Record<SpokiTemplateKind, string | null>>;
   /** Tempo massimo per una chiamata live. */
   readonly timeoutMs: number;
 }
 
-/** Campi dinamici del messaggio, come li vede l'automazione Spoki. */
+/** Campi dinamici del messaggio, come li vedono l'automazione o il template Spoki. */
 export interface SpokiCustomFields {
   /** Codice della pratica in coda (es. F041). */
   readonly code: string;
@@ -89,7 +130,7 @@ export interface SpokiCustomFields {
   readonly time: string;
   /** Data dell'appuntamento, "GG/MM/AAAA" (serve al promemoria del giorno prima). */
   readonly date: string;
-  /** Link al portale cliente: `${PUBLIC_BASE_URL}/portal?targa=${plate}`. */
+  /** Link personale al portale cliente: `${PUBLIC_BASE_URL}/portal?targa=${plate}&t=<token>`. */
   readonly portal_url: string;
 }
 
@@ -104,6 +145,48 @@ export interface SpokiWebhookPayload {
   readonly email: string;
   readonly custom_fields: SpokiCustomFields;
 }
+
+/**
+ * Metadati allegati all'invio via API: Spoki li rimanda nel webhook di esito (`data.metadata`),
+ * così il messaggio si ritrova anche senza il suo id. Nessun dato personale: solo chiavi tecniche.
+ */
+export interface SpokiSendMetadata {
+  /** Chiave di idempotenza del tentativo (job:canale:numero). */
+  readonly idempotency_key: string;
+  readonly template_kind: SpokiTemplateKind;
+  readonly correlation_id: string;
+}
+
+/** Payload di `POST /api/1/messages/send/` per un template approvato (formato Spoki). */
+export interface SpokiTemplateSendPayload {
+  readonly type: 'Template';
+  /** Numero in formato E.164. */
+  readonly phone: string;
+  /** Id numerico del template in Spoki (si legge dalla pagina del template). */
+  readonly template: number | string;
+  readonly language: string;
+  readonly first_name: string;
+  readonly last_name: string;
+  /** Spoki accetta l'e-mail vuota: si manda sempre, come nell'automazione. */
+  readonly email: string;
+  readonly custom_fields: SpokiCustomFields;
+  readonly metadata: SpokiSendMetadata;
+}
+
+/** Trasporto scelto per un template: automazione (URL + segreto) o API (template id + chiave). */
+export type SpokiTransport =
+  | {
+      readonly kind: 'AUTOMATION';
+      /** URL dell'automazione; null se non configurato (in simulazione si registra comunque). */
+      readonly url: string | null;
+      readonly payload: SpokiWebhookPayload;
+    }
+  | {
+      readonly kind: 'TEMPLATE';
+      /** Id del template; null se non configurato (in simulazione si registra comunque). */
+      readonly templateId: string | null;
+      readonly payload: SpokiTemplateSendPayload;
+    };
 
 /**
  * Regola unica del guardrail: la chiamata HTTP verso Spoki è ammessa solo con `mode = live` E
@@ -124,6 +207,11 @@ export function deliveryBlockReason(
   return safetyLock ? 'SAFETY_LOCK' : null;
 }
 
+/** URL completo dell'invio via API a partire dalla base configurata. */
+export function spokiSendUrl(apiBaseUrl: string): string {
+  return `${apiBaseUrl.replace(/\/+$/, '')}${SPOKI_SEND_PATH}`;
+}
+
 /** Ultime quattro cifre visibili: basta per riconoscere il numero nel registro. */
 export function maskForLog(phone: string): string {
   return phone.length <= 4 ? '****' : `${'*'.repeat(phone.length - 4)}${phone.slice(-4)}`;
@@ -137,7 +225,9 @@ export function maskSecret(secret: string): string {
   return secret.length <= 8 ? '••••' : `${secret.slice(0, 4)}••••${secret.slice(-4)}`;
 }
 
-/** Copia del payload adatta a log e registro (segreto mascherato). */
-export function payloadForLog(payload: SpokiWebhookPayload): Readonly<Record<string, unknown>> {
-  return { ...payload, secret: maskSecret(payload.secret) };
+/** Copia del payload adatta a log e registro (segreto mascherato, se c'è). */
+export function payloadForLog(
+  payload: SpokiWebhookPayload | SpokiTemplateSendPayload,
+): Readonly<Record<string, unknown>> {
+  return 'secret' in payload ? { ...payload, secret: maskSecret(payload.secret) } : { ...payload };
 }

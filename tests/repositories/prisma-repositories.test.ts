@@ -15,12 +15,14 @@ import {
   createPrismaClient,
   PrismaAppointmentRepository,
   PrismaMediaRepository,
+  PrismaNotificationRepository,
   PrismaOperatorRepository,
   PrismaSystemAlertRepository,
   PrismaWorkstationClaimRepository,
   type Db,
 } from '@/repositories/prisma';
 import type { SystemAlert } from '@/domain/entities/system-alert';
+import type { NotificationAttempt, NotificationJob } from '@/domain/entities/notification';
 import { asSystemAlertId } from '@/domain/ids';
 import { makeAppointment, TestClock } from '../helpers/fixtures';
 
@@ -346,5 +348,93 @@ describe('PrismaSystemAlertRepository', () => {
     ).toEqual(['al-2', 'al-1']);
     expect((await repo.list({ limit: 1 })).map((a) => a.id)).toEqual(['al-3']);
     expect(await repo.countByStatus()).toEqual({ NEW: 2, IN_PROGRESS: 0, RESOLVED: 1 });
+  });
+});
+
+describe('Prisma: ultimo WhatsApp sulla pratica e ricerca del job per id messaggio', () => {
+  it('updateWhatsAppDelivery scrive solo le quattro colonne, senza toccare la versione; update non le sovrascrive', async () => {
+    const repo = new PrismaAppointmentRepository(db, clock);
+    const inserita = await repo.insert(makeAppointment({ status: 'IN_PROGRESS' }));
+    if (!inserita.ok) {
+      throw new Error(inserita.error.message);
+    }
+    const a = inserita.value;
+    expect(a.whatsapp).toBeNull();
+
+    const conStato = await repo.updateWhatsAppDelivery(a.id, {
+      state: 'DELIVERED',
+      kind: 'CHECK_IN_STARTED',
+      at: '2026-09-22T09:00:00.000Z' as IsoDateTime,
+      providerMessageId: 'wa-abc',
+    });
+    expect(conStato?.whatsapp).toEqual({
+      state: 'DELIVERED',
+      kind: 'CHECK_IN_STARTED',
+      at: '2026-09-22T09:00:00.000Z',
+      providerMessageId: 'wa-abc',
+    });
+    expect(conStato?.version).toBe(a.version);
+    expect(conStato?.updatedAt).toBe(a.updatedAt);
+
+    // Una copia vecchia della pratica (senza whatsapp) salvata dal banco non cancella lo stato.
+    const salvata = await repo.update({ ...a, notes: 'nota del banco' }, a.version);
+    expect(salvata.ok && salvata.value.notes).toBe('nota del banco');
+    expect(salvata.ok && salvata.value.whatsapp?.state).toBe('DELIVERED');
+    expect(salvata.ok && salvata.value.version).toBe(a.version + 1);
+
+    expect(await repo.updateWhatsAppDelivery(a.id, null)).toMatchObject({ whatsapp: null });
+    expect(await repo.updateWhatsAppDelivery('non-esiste' as Appointment['id'], null)).toBeNull();
+  });
+
+  it('findJobByProviderMessageId ritrova il job dal tentativo, non da un altro campo', async () => {
+    const repo = new PrismaNotificationRepository(db);
+    const base = {
+      appointmentId: 'app-wa-1' as Appointment['id'],
+      businessDate: '2026-09-22' as IsoDate,
+      kind: 'CHECK_IN_STARTED' as const,
+      recipientPhone: '+393331234560' as NotificationJob['recipientPhone'],
+      whatsappOptIn: true,
+      code: 'F001' as NotificationJob['code'],
+      templateVariables: {},
+      renderedText: 'wa-999',
+      status: 'SENT' as const,
+      currentChannel: 'WHATSAPP' as const,
+      manualConfirmedBy: null,
+      manualNote: null,
+      createdAt: '2026-09-22T09:00:00.000Z' as IsoDateTime,
+      updatedAt: '2026-09-22T09:00:00.000Z' as IsoDateTime,
+    };
+    const tentativo = (jobId: string, providerMessageId: string) => ({
+      id: `${jobId}-a1` as NotificationAttempt['id'],
+      jobId: jobId as NotificationJob['id'],
+      attemptNo: 1,
+      channel: 'WHATSAPP' as const,
+      provider: 'SPOKI' as const,
+      providerMessageId,
+      outcome: 'SENT' as const,
+      errorCode: null,
+      errorMessage: null,
+      retryable: false,
+      latencyMs: 10,
+      requestedAt: base.createdAt,
+      respondedAt: base.createdAt,
+    });
+    await repo.insertJob({
+      ...base,
+      id: 'job-wa-1' as NotificationJob['id'],
+      idempotencyKey: 'app-wa-1:CHECK_IN_STARTED:2026-09-22',
+      attempts: [tentativo('job-wa-1', 'wa-999')],
+    });
+    // Il testo del secondo job contiene "wa-999" ma il suo tentativo ha un altro id: non deve uscire.
+    await repo.insertJob({
+      ...base,
+      id: 'job-wa-2' as NotificationJob['id'],
+      idempotencyKey: 'app-wa-1:CHECK_IN_COMPLETED:2026-09-22',
+      kind: 'CHECK_IN_COMPLETED',
+      attempts: [tentativo('job-wa-2', 'wa-1000')],
+    });
+    expect((await repo.findJobByProviderMessageId('wa-999'))?.id).toBe('job-wa-1');
+    expect((await repo.findJobByProviderMessageId('wa-1000'))?.id).toBe('job-wa-2');
+    expect(await repo.findJobByProviderMessageId('wa-99')).toBeNull();
   });
 });

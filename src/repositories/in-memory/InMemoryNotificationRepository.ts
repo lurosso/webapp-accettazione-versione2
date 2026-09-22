@@ -45,6 +45,15 @@ export class InMemoryNotificationRepository implements INotificationRepository {
     return null;
   }
 
+  async findJobByProviderMessageId(providerMessageId: string): Promise<NotificationJob | null> {
+    for (const job of this.map.values()) {
+      if (job.attempts.some((a) => a.providerMessageId === providerMessageId)) {
+        return clone(job);
+      }
+    }
+    return null;
+  }
+
   async listByAppointment(appointmentId: AppointmentId): Promise<readonly NotificationJob[]> {
     return [...this.map.values()]
       .filter((j) => j.appointmentId === appointmentId)

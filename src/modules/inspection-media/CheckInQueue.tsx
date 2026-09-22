@@ -94,6 +94,7 @@ export function CheckInQueue({
       'CUSTOMER_ARRIVED',
       'CUSTOMER_LATE_NOTICE',
       'BUSINESS_DAY_CLOSED',
+      'NOTIFICATION_JOB_CHANGED',
     ],
     invalidate: [queueKeys.all],
   });

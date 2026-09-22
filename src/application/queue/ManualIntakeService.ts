@@ -175,6 +175,7 @@ export class ManualIntakeService {
       orderClosedAt: null,
       legalHoldAt: null,
       legalHoldReason: null,
+      whatsapp: null,
       lastSyncRunId: null,
       version: 1,
       createdAt: now,

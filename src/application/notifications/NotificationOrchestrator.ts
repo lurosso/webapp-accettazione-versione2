@@ -23,7 +23,7 @@ import { err, ok } from '@/domain/result';
 import type { IsoDateTime } from '@/domain/value-objects/iso-date';
 import type { PhoneE164 } from '@/domain/value-objects/phone';
 import type { INotificationRepository } from '@/repositories/interfaces/INotificationRepository';
-import type { ProviderError, SendReceipt } from '@/services/interfaces/common';
+import type { DeliveryStatus, ProviderError, SendReceipt } from '@/services/interfaces/common';
 import type { IClock } from '@/services/interfaces/IClock';
 import type { IEventBus } from '@/services/interfaces/IEventBus';
 import type { IIdGenerator } from '@/services/interfaces/IIdGenerator';
@@ -45,6 +45,30 @@ export type NotificationOutcome =
   | { readonly kind: 'MANUAL_REQUIRED' }
   | { readonly kind: 'NO_RECIPIENT' }
   | { readonly kind: 'ALREADY_PROCESSED' };
+
+/**
+ * Chi vuole sapere, a ogni salvataggio di un job WhatsApp, com'è andato il messaggio: oggi lo
+ * specchio sulla pratica (`Appointment.whatsapp`), che coda e archivio leggono senza aprire il
+ * registro delle notifiche.
+ */
+export interface WhatsAppDeliverySink {
+  recordFromJob(job: NotificationJob): Promise<void>;
+}
+
+/** Esito di consegna riferito da Spoki (webhook), da applicare a un job già inviato. */
+export interface DeliveryUpdate {
+  readonly providerMessageId: string;
+  readonly state: DeliveryStatus['state'];
+  readonly reason: string | null;
+  readonly at: IsoDateTime;
+}
+
+/** Ordine degli stati WhatsApp: un esito non porta mai un messaggio indietro (letto → consegnato). */
+const WHATSAPP_RANK: Readonly<Partial<Record<NotificationJob['status'], number>>> = {
+  SENT: 1,
+  DELIVERED: 2,
+  READ: 3,
+};
 
 /** Dipendenze (solo interfacce). */
 export interface NotificationOrchestratorDeps {
@@ -70,6 +94,8 @@ export interface NotificationOrchestratorDeps {
    * Il ripiego SMS dopo un errore WhatsApp resta identico.
    */
   readonly whatsappConsentOverride?: boolean;
+  /** Specchio dello stato WhatsApp sulla pratica; assente nei test che non lo guardano. */
+  readonly whatsappDelivery?: WhatsAppDeliverySink;
 }
 
 /** Input dell'invio di un promemoria. */
@@ -311,6 +337,102 @@ export class NotificationOrchestrator {
     }
   }
 
+  /**
+   * Applica al job l'esito che Spoki riferisce con il webhook: inviato, consegnato, letto o
+   * fallito. Vale solo per i job il cui canale corrente è WhatsApp (un job già passato all'SMS
+   * non cambia più per un webhook tardivo) e non porta mai indietro lo stato: un «consegnato»
+   * arrivato dopo il «letto» non fa nulla. L'esito finisce sul tentativo WhatsApp con quell'id; se
+   * nessuno lo porta (Spoki può rispondere all'invio senza corpo, e il nostro id è allora
+   * sintetico) si lega il tentativo WhatsApp corrente — l'ultimo non fallito — all'id di Spoki,
+   * così i passaggi successivi si ritrovano per id. I tentativi falliti in precedenza non si
+   * toccano. Ogni cambiamento è salvato e pubblicato come NOTIFICATION_JOB_CHANGED.
+   */
+  async applyDeliveryStatus(
+    job: NotificationJob,
+    update: DeliveryUpdate,
+    correlationId: string,
+  ): Promise<NotificationJob> {
+    if (job.currentChannel !== 'WHATSAPP') {
+      return job;
+    }
+    const stato = this.statusForDelivery(update.state);
+    if (stato === null) {
+      return job;
+    }
+    const attualeRank = WHATSAPP_RANK[job.status] ?? 0;
+    if (stato !== 'FAILED' && (WHATSAPP_RANK[stato] ?? 0) <= attualeRank) {
+      return job;
+    }
+    if (stato === 'FAILED' && (job.status === 'FAILED' || job.status === 'MANUAL_REQUIRED')) {
+      return job;
+    }
+    const indice = this.attemptIndexFor(job, update.providerMessageId);
+    const attempts = job.attempts.map((a, i) =>
+      i === indice
+        ? {
+            ...a,
+            providerMessageId: update.providerMessageId,
+            outcome:
+              stato === 'FAILED'
+                ? ('FAILED' as const)
+                : stato === 'SENT'
+                  ? a.outcome
+                  : ('DELIVERED' as const),
+            errorCode:
+              stato === 'FAILED'
+                ? update.reason === null
+                  ? 'UNDELIVERABLE'
+                  : 'FAILED'
+                : a.errorCode,
+            errorMessage: stato === 'FAILED' ? update.reason : a.errorMessage,
+          }
+        : a,
+    );
+    const saved = await this.persist({ ...job, status: stato, attempts }, correlationId, true);
+    this.logger.info(`[Spoki] esito ${update.state} per ${job.code}: job ${saved.status}`, {
+      jobId: job.id,
+      providerMessageId: update.providerMessageId,
+    });
+    return saved;
+  }
+
+  /**
+   * Il tentativo a cui si riferisce un esito: quello con lo stesso id, altrimenti l'ultimo tentativo
+   * WhatsApp non fallito (il messaggio in volo); -1 se non c'è nulla da legare.
+   */
+  private attemptIndexFor(job: NotificationJob, providerMessageId: string): number {
+    const esatto = job.attempts.findIndex(
+      (a) => a.channel === 'WHATSAPP' && a.providerMessageId === providerMessageId,
+    );
+    if (esatto >= 0) {
+      return esatto;
+    }
+    for (let i = job.attempts.length - 1; i >= 0; i -= 1) {
+      const a = job.attempts[i];
+      if (a !== undefined && a.channel === 'WHATSAPP' && a.outcome !== 'FAILED') {
+        return i;
+      }
+    }
+    return -1;
+  }
+
+  /** Da stato della porta a stato del job; QUEUED non dice nulla di nuovo. */
+  private statusForDelivery(state: DeliveryStatus['state']): NotificationJob['status'] | null {
+    switch (state) {
+      case 'SENT':
+        return 'SENT';
+      case 'DELIVERED':
+        return 'DELIVERED';
+      case 'READ':
+        return 'READ';
+      case 'FAILED':
+      case 'UNDELIVERABLE':
+        return 'FAILED';
+      case 'QUEUED':
+        return null;
+    }
+  }
+
   /** PENDING e FAILED sono sempre riprocessabili; IN_FLIGHT solo se orfano (crash). */
   private isReprocessable(job: NotificationJob): boolean {
     return job.status === 'PENDING' || job.status === 'FAILED' || this.isStaleInFlight(job);
@@ -517,6 +639,20 @@ export class NotificationOrchestrator {
       ...job,
       updatedAt: this.deps.clock.nowIso(),
     });
+    // Lo specchio sulla pratica non deve mai far fallire un invio: si tenta e si registra.
+    if (
+      this.deps.whatsappDelivery !== undefined &&
+      saved.attempts.some((a) => a.channel === 'WHATSAPP')
+    ) {
+      try {
+        await this.deps.whatsappDelivery.recordFromJob(saved);
+      } catch (cause) {
+        this.logger.warn('stato WhatsApp non specchiato sulla pratica', {
+          jobId: saved.id,
+          message: cause instanceof Error ? cause.message : String(cause),
+        });
+      }
+    }
     if (publish) {
       this.deps.eventBus.publish({
         id: this.deps.ids.next(),

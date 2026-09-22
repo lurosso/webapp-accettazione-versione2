@@ -16,6 +16,11 @@ export interface INotificationRepository {
   updateJob(job: NotificationJob): Promise<NotificationJob>;
   findJobById(id: NotificationJobId): Promise<NotificationJob | null>;
   findJobByIdempotencyKey(key: string): Promise<NotificationJob | null>;
+  /**
+   * Il job che ha un tentativo con quell'identificativo presso il provider: è come il webhook di
+   * esito di Spoki ritrova il messaggio di cui parla. null se nessun tentativo lo porta.
+   */
+  findJobByProviderMessageId(providerMessageId: string): Promise<NotificationJob | null>;
   listByAppointment(appointmentId: AppointmentId): Promise<readonly NotificationJob[]>;
   /**
    * Tutti i job della giornata. Serve alla dashboard per mostrare in una sola lettura se il

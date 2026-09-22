@@ -18,6 +18,7 @@ import {
   type AppointmentFlow,
   type AppointmentStatus,
 } from '@/domain/entities/appointment';
+import type { WhatsAppDelivery } from '@/domain/entities/appointment';
 import type { IsoDate, IsoDateTime } from '@/domain/value-objects/iso-date';
 import { normalizePlate } from '@/domain/value-objects/plate';
 import type {
@@ -78,6 +79,8 @@ export interface InspectionArchiveEntry {
   readonly orderClosedAt: IsoDateTime | null;
   readonly legalHoldAt: IsoDateTime | null;
   readonly legalHoldReason: string | null;
+  /** Ultimo WhatsApp al cliente (inviato, consegnato, letto, non consegnato); null se nessuno. */
+  readonly whatsapp: WhatsAppDelivery | null;
   readonly photos: readonly ArchivedPhotoView[];
   /** True quando c'erano foto e tutti i file sono stati eliminati: restano i metadati. */
   readonly archived: boolean;
@@ -204,6 +207,7 @@ export class InspectionArchiveService {
         orderClosedAt: a.orderClosedAt,
         legalHoldAt: a.legalHoldAt,
         legalHoldReason: a.legalHoldReason,
+        whatsapp: a.whatsapp,
         photos: foto.map((asset) => ({
           id: asset.id,
           kind: asset.kind,

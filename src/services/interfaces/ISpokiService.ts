@@ -2,6 +2,7 @@
 
 import type { Result } from '@/domain/result';
 import type { SpokiSendRequestDto } from '../dto/spoki.dto';
+import type { SpokiWebhookEvent } from '../dto/spoki-webhook.dto';
 import type {
   CallOptions,
   DeliveryStatus,
@@ -24,11 +25,14 @@ export interface ISpokiService {
     providerMessageId: string,
     options?: CallOptions,
   ): Promise<ProviderResult<DeliveryStatus>>;
-  /** Interpreta il webhook di esito consegna (sincrono, senza I/O). */
+  /**
+   * Interpreta un webhook di Spoki (esito di consegna, messaggio in entrata o altro evento) nella
+   * forma normalizzata. Sincrono, senza I/O; la firma la verifica la rotta.
+   */
   parseWebhook(
     rawBody: unknown,
     headers: Readonly<Record<string, string>>,
-  ): Result<DeliveryStatus, ProviderError>;
+  ): Result<SpokiWebhookEvent, ProviderError>;
   /** Stato di salute del provider. */
   healthCheck(options?: CallOptions): Promise<HealthStatus>;
 }

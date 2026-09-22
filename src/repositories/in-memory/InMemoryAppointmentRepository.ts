@@ -1,7 +1,7 @@
 // Repository delle pratiche su Map: copie immutabili in uscita, versioning ottimistico,
 // contatore codici atomico nel singolo processo.
 
-import type { Appointment } from '@/domain/entities/appointment';
+import type { Appointment, WhatsAppDelivery } from '@/domain/entities/appointment';
 import type { DomainError } from '@/domain/errors';
 import { domainError } from '@/domain/errors';
 import type { AppointmentId } from '@/domain/ids';
@@ -192,11 +192,26 @@ export class InMemoryAppointmentRepository implements IAppointmentRepository {
     }
     const next: Appointment = {
       ...clone(appointment),
+      // Lo stato WhatsApp lo governa il webhook: una copia vecchia della pratica non lo riporta indietro.
+      whatsapp: current.whatsapp,
       version: current.version + 1,
       updatedAt: this.clock.nowIso(),
     };
     this.map.set(next.id, next);
     return ok(clone(next));
+  }
+
+  async updateWhatsAppDelivery(
+    id: AppointmentId,
+    delivery: WhatsAppDelivery | null,
+  ): Promise<Appointment | null> {
+    const current = this.map.get(id);
+    if (current === undefined) {
+      return null;
+    }
+    const next: Appointment = { ...current, whatsapp: delivery === null ? null : { ...delivery } };
+    this.map.set(id, next);
+    return clone(next);
   }
 
   async reserveNextSequence(businessDate: IsoDate, prefix: string): Promise<number> {

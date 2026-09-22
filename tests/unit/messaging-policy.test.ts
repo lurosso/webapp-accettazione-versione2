@@ -245,4 +245,102 @@ describe('CustomerMessagingPolicy', () => {
     await esegui();
     expect(await env.notifications.listByAppointment(a.id)).toHaveLength(0);
   });
+
+  it('alla presa in carico da parte di una persona parte il benvenuto con il link personale al portale', async () => {
+    const { env, esegui } = setup();
+    const a = await insert(env, makeAppointment({ status: 'IN_PROGRESS' }));
+
+    evento(env, {
+      actor: { kind: 'OPERATOR', id: 'op-advisor-1' },
+      type: 'APPOINTMENT_STATUS_CHANGED',
+      appointmentId: a.id,
+      from: 'WAITING',
+      to: 'IN_PROGRESS',
+      bayId: null,
+    });
+    await esegui();
+
+    const jobs = await env.notifications.listByAppointment(a.id);
+    const benvenuto = jobs.find((j) => j.kind === 'CHECK_IN_STARTED');
+    expect(benvenuto).toBeDefined();
+    expect(benvenuto?.renderedText).toContain(a.vehicle.plate);
+    expect(benvenuto?.renderedText).toContain('/portal?targa=');
+    expect(['SENT', 'DELIVERED']).toContain(benvenuto?.status);
+    // Lo stato WhatsApp arriva anche sulla pratica, per la coda e l'archivio.
+    const pratica = await env.appointments.findById(a.id);
+    expect(pratica?.whatsapp?.kind).toBe('CHECK_IN_STARTED');
+    expect(['SENT', 'DELIVERED']).toContain(pratica?.whatsapp?.state);
+    expect(pratica?.version).toBe(a.version);
+  });
+
+  it('a check-in completato da una persona parte il messaggio di fine accettazione', async () => {
+    const { env, esegui } = setup();
+    const a = await insert(env, makeAppointment({ status: 'COMPLETED' }));
+
+    evento(env, {
+      actor: { kind: 'OPERATOR', id: 'op-advisor-1' },
+      type: 'APPOINTMENT_STATUS_CHANGED',
+      appointmentId: a.id,
+      from: 'IN_PROGRESS',
+      to: 'COMPLETED',
+      bayId: null,
+    });
+    await esegui();
+
+    const jobs = await env.notifications.listByAppointment(a.id);
+    const fine = jobs.find((j) => j.kind === 'CHECK_IN_COMPLETED');
+    expect(fine?.renderedText).toContain(
+      'Procedura di accettazione completata. Grazie per la visita, puoi proseguire!',
+    );
+  });
+
+  it('la chiusura d’ufficio (attore di sistema) e le riconsegne non ricevono i messaggi del check-in', async () => {
+    const { env, esegui } = setup();
+    const chiusa = await insert(env, makeAppointment({ status: 'COMPLETED' }));
+    const riconsegna = await insert(
+      env,
+      makeAppointment({ status: 'IN_PROGRESS', flow: 'RETURN' }),
+    );
+
+    evento(env, {
+      actor: { kind: 'SYSTEM', id: null },
+      type: 'APPOINTMENT_STATUS_CHANGED',
+      appointmentId: chiusa.id,
+      from: 'IN_PROGRESS',
+      to: 'COMPLETED',
+      bayId: null,
+    });
+    evento(env, {
+      actor: { kind: 'OPERATOR', id: 'op-advisor-1' },
+      type: 'APPOINTMENT_STATUS_CHANGED',
+      appointmentId: riconsegna.id,
+      from: 'WAITING',
+      to: 'IN_PROGRESS',
+      bayId: null,
+    });
+    await esegui();
+
+    expect(await env.notifications.listByAppointment(chiusa.id)).toHaveLength(0);
+    expect(await env.notifications.listByAppointment(riconsegna.id)).toHaveLength(0);
+  });
+
+  it('riaprire e riprendere in carico nello stesso giorno non manda un secondo benvenuto', async () => {
+    const { env, esegui } = setup();
+    const a = await insert(env, makeAppointment({ status: 'IN_PROGRESS' }));
+    for (const from of ['WAITING', 'COMPLETED'] as const) {
+      evento(env, {
+        actor: { kind: 'OPERATOR', id: 'op-advisor-1' },
+        type: 'APPOINTMENT_STATUS_CHANGED',
+        appointmentId: a.id,
+        from,
+        to: 'IN_PROGRESS',
+        bayId: null,
+      });
+      await esegui();
+    }
+    const benvenuti = (await env.notifications.listByAppointment(a.id)).filter(
+      (j) => j.kind === 'CHECK_IN_STARTED',
+    );
+    expect(benvenuti).toHaveLength(1);
+  });
 });

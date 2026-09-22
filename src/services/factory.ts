@@ -126,9 +126,13 @@ export function createExternalServices(env: AppEnv, deps: ExternalServiceDeps): 
             // GUARDRAIL: con il blocco attivo nessuna chiamata HTTP parte, nemmeno in live.
             safetyLock: env.spokiSafetyLock,
             apiKey: env.spokiApiKey,
+            apiBaseUrl: env.spokiApiBaseUrl,
             urls: {
               REMINDER_PREVIOUS_DAY: env.spokiUrlReminderPreviousDay,
               REMINDER_SAME_DAY: env.spokiUrlReminderSameDay,
+              // I messaggi del check-in passano dalle API con l'id del template, non da un'automazione.
+              CHECK_IN_STARTED: null,
+              CHECK_IN_COMPLETED: null,
               CONFIRMATION: env.spokiUrlConfirmation,
               TURN_APPROACHING: env.spokiUrlTurnApproaching,
               CANCELLATION: env.spokiUrlCancellation,
@@ -136,7 +140,18 @@ export function createExternalServices(env: AppEnv, deps: ExternalServiceDeps): 
             secrets: {
               REMINDER_PREVIOUS_DAY: env.spokiSecretReminderPreviousDay,
               REMINDER_SAME_DAY: env.spokiSecretReminderSameDay,
+              CHECK_IN_STARTED: null,
+              CHECK_IN_COMPLETED: null,
               // Non integrati in questa fase: nessuna automazione, quindi nessun segreto.
+              CONFIRMATION: null,
+              TURN_APPROACHING: null,
+              CANCELLATION: null,
+            },
+            templates: {
+              REMINDER_PREVIOUS_DAY: null,
+              REMINDER_SAME_DAY: null,
+              CHECK_IN_STARTED: env.spokiTemplateWelcomeId,
+              CHECK_IN_COMPLETED: env.spokiTemplateCompleteId,
               CONFIRMATION: null,
               TURN_APPROACHING: null,
               CANCELLATION: null,

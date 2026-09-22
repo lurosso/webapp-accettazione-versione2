@@ -19,6 +19,7 @@ import { localTimeHHmm } from '@/lib/dates';
 import { cn } from '@/lib/utils/cn';
 import { ActionButtons } from './ActionButtons';
 import { StatusBadge } from './StatusBadge';
+import { WhatsAppBadge } from './WhatsAppBadge';
 import type { AppointmentAction } from './types';
 
 export interface AppointmentRowProps {
@@ -188,6 +189,13 @@ export function AppointmentRow({
         {a.serviceDescription !== null ? (
           <span className="text-ink-muted line-clamp-2 text-xs" title={a.serviceDescription}>
             {a.serviceDescription}
+          </span>
+        ) : null}
+        {/* L'unico esito che sta anche in tabella: se il WhatsApp è arrivato al cliente si vede
+            senza aprire nulla, perché è la domanda che l'accettatore si fa più spesso. */}
+        {a.whatsapp !== null ? (
+          <span className="mt-1 block">
+            <WhatsAppBadge delivery={a.whatsapp} timeZone={timeZone} />
           </span>
         ) : null}
       </TableCell>

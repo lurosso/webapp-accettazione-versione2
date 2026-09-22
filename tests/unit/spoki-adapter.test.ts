@@ -6,6 +6,7 @@ import { SequentialIdGenerator } from '@/services/mocks/SequentialIdGenerator';
 import {
   SpokiActivityLog,
   SpokiService,
+  buildTemplateSendPayload,
   buildWebhookPayload,
   canDeliverLive,
   deliveryBlockReason,
@@ -18,9 +19,18 @@ import { TestClock } from '../helpers/fixtures';
 const NESSUNO: Readonly<Record<SpokiTemplateKind, null>> = {
   REMINDER_PREVIOUS_DAY: null,
   REMINDER_SAME_DAY: null,
+  CHECK_IN_STARTED: null,
+  CHECK_IN_COMPLETED: null,
   CONFIRMATION: null,
   TURN_APPROACHING: null,
   CANCELLATION: null,
+};
+
+/** Id dei template dei due messaggi del check-in (invio via API). */
+const TEMPLATES: Readonly<Record<SpokiTemplateKind, string | null>> = {
+  ...NESSUNO,
+  CHECK_IN_STARTED: '3068',
+  CHECK_IN_COMPLETED: '3069',
 };
 
 const URLS: Readonly<Record<SpokiTemplateKind, string | null>> = {
@@ -62,8 +72,10 @@ function setup(
     mode: 'simulation',
     safetyLock: true,
     apiKey: null,
+    apiBaseUrl: 'https://api.spoki.example',
     urls: NESSUNO,
     secrets: NESSUNO,
+    templates: NESSUNO,
     timeoutMs: 1000,
     ...overrides,
   };
@@ -84,6 +96,7 @@ const LIVE_SBLOCCATO: Partial<SpokiServiceConfig> = {
   apiKey: 'chiave-segreta',
   urls: URLS,
   secrets: SECRETS,
+  templates: TEMPLATES,
 };
 
 const richiesta = (overrides: Partial<SpokiSendRequestDto> = {}): SpokiSendRequestDto => ({
@@ -201,14 +214,77 @@ describe('SpokiService in simulazione (blocco predefinito)', () => {
     expect(activityLog.list()).toHaveLength(0);
   });
 
-  it('lo stato di salute dice che è simulazione e segnala URL e segreti mancanti dei promemoria', async () => {
+  it('lo stato di salute dice che è simulazione e segnala la configurazione mancante di promemoria e template', async () => {
     const { service } = setup();
     const h = await service.healthCheck();
     expect(h.status).toBe('UP');
     expect(h.implementation).toBe('real');
     expect(h.detail).toContain('simulazione');
     expect(h.detail).toContain('REMINDER_PREVIOUS_DAY');
+    expect(h.detail).toContain('CHECK_IN_STARTED (SPOKI_TEMPLATE_WELCOME_ID)');
+    expect(h.detail).toContain('chiave API assente');
     expect(service.liveDeliveryAllowed).toBe(false);
+  });
+
+  it('un messaggio del check-in in simulazione finisce nel registro come template via API, con i metadati tecnici', async () => {
+    const rete = fakeFetch(() => new Response('{}', { status: 200 }));
+    const { service, activityLog } = setup({ templates: TEMPLATES }, rete.impl);
+    const r = await service.sendTemplateMessage(
+      richiesta({
+        templateKey: 'check_in_started_v1',
+        idempotencyKey: 'app-1:CHECK_IN_STARTED:2026-09-11:WA:1',
+      }),
+    );
+    expect(r.ok).toBe(true);
+    expect(rete.calls).toHaveLength(0);
+    const voce = activityLog.list()[0];
+    expect(voce?.templateKind).toBe('CHECK_IN_STARTED');
+    expect(voce?.url).toBe('https://api.spoki.example/api/1/messages/send/ · template 3068');
+    expect(voce?.payload).toMatchObject({
+      type: 'Template',
+      template: 3068,
+      language: 'IT',
+      phone: '+393331234567',
+      custom_fields: { code: 'F012', portal_url: 'https://officina.example/portal?targa=AB123CD' },
+      metadata: {
+        idempotency_key: 'app-1:CHECK_IN_STARTED:2026-09-11:WA:1',
+        template_kind: 'CHECK_IN_STARTED',
+        correlation_id: 'corr-1',
+      },
+    });
+    expect(voce?.payload['secret']).toBeUndefined();
+  });
+
+  it('il payload del template via API porta numero, nome, campi dinamici e metadati senza dati personali', () => {
+    const p = buildTemplateSendPayload(richiesta(), 'CHECK_IN_COMPLETED', '3069');
+    expect(p).toEqual({
+      type: 'Template',
+      phone: '+393331234567',
+      template: 3069,
+      language: 'IT',
+      first_name: 'Mario',
+      last_name: 'Rossi',
+      email: '',
+      custom_fields: {
+        code: 'F012',
+        plate: 'AB123CD',
+        time: '09:30',
+        date: '11/09/2026',
+        portal_url: 'https://officina.example/portal?targa=AB123CD',
+      },
+      metadata: {
+        idempotency_key: 'app-1:REMINDER_SAME_DAY:2026-09-11:WA:1',
+        template_kind: 'CHECK_IN_COMPLETED',
+        correlation_id: 'corr-1',
+      },
+    });
+    expect(JSON.stringify(p.metadata)).not.toContain('+39333');
+    expect(JSON.stringify(p.metadata)).not.toContain('Mario');
+    // Un id non numerico resta stringa; senza id resta vuoto (in live l'adapter lo rifiuta).
+    expect(buildTemplateSendPayload(richiesta(), 'CHECK_IN_STARTED', 'abc-1').template).toBe(
+      'abc-1',
+    );
+    expect(buildTemplateSendPayload(richiesta(), 'CHECK_IN_STARTED', null).template).toBe('');
   });
 
   it('il payload segue il formato Spoki: secret, phone E.164, nome, cognome, e-mail e custom_fields', () => {
@@ -288,6 +364,47 @@ describe('SpokiService live con blocco tolto', () => {
     expect(JSON.stringify(voce)).not.toContain(SECRETS.REMINDER_PREVIOUS_DAY);
   });
 
+  it("un template via API va a /api/1/messages/send/ con la chiave nell'intestazione X-Spoki-Api-Key", async () => {
+    const rete = fakeFetch(
+      () => new Response(JSON.stringify({ message: { uuid: 'msg-777' } }), { status: 202 }),
+    );
+    const { service, activityLog } = setup(LIVE_SBLOCCATO, rete.impl);
+    const r = await service.sendTemplateMessage(
+      richiesta({ templateKey: 'check_in_completed_v1', idempotencyKey: 'k-api' }),
+    );
+    expect(r.ok && r.value.providerMessageId).toBe('msg-777');
+    const chiamata = rete.calls[0];
+    expect(chiamata?.url).toBe('https://api.spoki.example/api/1/messages/send/');
+    const headers = chiamata?.init.headers as Record<string, string>;
+    expect(headers['x-spoki-api-key']).toBe('chiave-segreta');
+    expect(headers['authorization']).toBeUndefined();
+    const body = JSON.parse(String(chiamata?.init.body)) as Record<string, unknown>;
+    expect(body['type']).toBe('Template');
+    expect(body['template']).toBe(3069);
+    expect(body['secret']).toBeUndefined();
+    // 202 Accepted è un esito buono: in live la consegna resta SENT finché il webhook non parla.
+    const stato = await service.getDeliveryStatus('msg-777');
+    expect(stato.ok && stato.value.state).toBe('SENT');
+    expect(activityLog.list()[0]?.outcome.httpStatus).toBe(202);
+  });
+
+  it('senza id del template o senza chiave API il template via API non parte e non ritenta', async () => {
+    const rete = fakeFetch(() => new Response('{}', { status: 200 }));
+    const senzaId = setup({ ...LIVE_SBLOCCATO, templates: NESSUNO }, rete.impl);
+    const r1 = await senzaId.service.sendTemplateMessage(
+      richiesta({ templateKey: 'check_in_started_v1' }),
+    );
+    expect(!r1.ok && r1.error.code).toBe('INVALID_REQUEST');
+    expect(!r1.ok && r1.error.message).toContain('SPOKI_TEMPLATE_*_ID');
+
+    const senzaChiave = setup({ ...LIVE_SBLOCCATO, apiKey: null }, rete.impl);
+    const r2 = await senzaChiave.service.sendTemplateMessage(
+      richiesta({ templateKey: 'check_in_started_v1' }),
+    );
+    expect(!r2.ok && r2.error.code).toBe('AUTH');
+    expect(rete.calls).toHaveLength(0);
+  });
+
   it('senza chiave API la chiamata parte comunque: autentica il segreto nel payload', async () => {
     const rete = fakeFetch(() => new Response('{}', { status: 200 }));
     const { service } = setup({ ...LIVE_SBLOCCATO, apiKey: null }, rete.impl);
@@ -344,25 +461,43 @@ describe('SpokiService live con blocco tolto', () => {
     });
     const h = await service.healthCheck();
     expect(h.status).toBe('DEGRADED');
-    expect(h.detail).toContain('URL non configurati: REMINDER_SAME_DAY');
-    expect(h.detail).toContain('segreti non configurati: REMINDER_PREVIOUS_DAY');
+    expect(h.detail).toContain('REMINDER_SAME_DAY (URL)');
+    expect(h.detail).toContain('REMINDER_PREVIOUS_DAY (segreto)');
     expect(service.liveDeliveryAllowed).toBe(true);
   });
 
-  it('il webhook di esito aggiorna lo stato di consegna', () => {
+  it('il webhook di esito (piatto o V2) aggiorna lo stato di consegna noto', async () => {
     const { service } = setup(LIVE_SBLOCCATO);
     const r = service.parseWebhook({ message_id: 'wa-1', status: 'delivered' }, {});
-    expect(r.ok && r.value.state).toBe('DELIVERED');
+    expect(r.ok && r.value.kind === 'DELIVERY' && r.value.state).toBe('DELIVERED');
+    expect((await service.getDeliveryStatus('wa-1')).ok).toBe(true);
+    const v2 = service.parseWebhook(
+      {
+        version: 2,
+        event: 'message.outbound',
+        event_uuid: 'e-1',
+        data: { uuid: 'wa-2', send_status: 'Read', to_phone: '+393331234567' },
+      },
+      {},
+    );
+    expect(v2.ok && v2.value.kind === 'DELIVERY' && v2.value.state).toBe('READ');
     expect(service.parseWebhook({ status: 'x' }, {}).ok).toBe(false);
   });
 
-  it('elenca i template con URL, segreto e se sono integrati in questa fase', () => {
+  it('elenca i template con trasporto, configurazione e se sono integrati', () => {
     const { service } = setup(LIVE_SBLOCCATO);
     const t = service.templates();
     expect(t.filter((x) => x.active).map((x) => x.kind)).toEqual([
       'REMINDER_PREVIOUS_DAY',
       'REMINDER_SAME_DAY',
+      'CHECK_IN_STARTED',
+      'CHECK_IN_COMPLETED',
     ]);
     expect(t.find((x) => x.kind === 'CONFIRMATION')?.secretConfigured).toBe(false);
+    const benvenuto = t.find((x) => x.kind === 'CHECK_IN_STARTED');
+    expect(benvenuto?.transport).toBe('TEMPLATE');
+    expect(benvenuto?.templateEnvKey).toBe('SPOKI_TEMPLATE_WELCOME_ID');
+    expect(benvenuto?.configured).toBe(true);
+    expect(t.find((x) => x.kind === 'REMINDER_SAME_DAY')?.transport).toBe('AUTOMATION');
   });
 });

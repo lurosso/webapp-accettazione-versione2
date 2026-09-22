@@ -8,6 +8,7 @@ import { useState } from 'react';
 import { keepPreviousData, useQuery, useQueryClient } from '@tanstack/react-query';
 import type { InspectionArchiveEntry } from '@/application/media/InspectionArchiveService';
 import { Badge } from '@/components/ui/badge';
+import { WhatsAppBadge } from '@/modules/reception/WhatsAppBadge';
 import { Notice } from '@/components/ui/notice';
 import { Input } from '@/components/ui/input';
 import { Switch } from '@/components/ui/switch';
@@ -67,6 +68,7 @@ function Scheda({
             {STATO_IT[entry.status] ?? entry.status}
           </Badge>
           {entry.archived ? <Badge tone="neutral">File archiviati</Badge> : null}
+          <WhatsAppBadge delivery={entry.whatsapp} timeZone={timeZone} />
         </div>
       </div>
 

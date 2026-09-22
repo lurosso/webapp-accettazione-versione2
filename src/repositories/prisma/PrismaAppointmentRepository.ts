@@ -9,7 +9,11 @@
 // La concorrenza ottimistica passa dal database: `updateMany` con `id` E `version` attesa. Se non
 // aggiorna nessuna riga, o la pratica non c'è più o l'ha cambiata un'altra postazione — e si
 // rilegge per dire quale delle due, con la versione corrente, come fa la memoria.
-import type { Appointment } from '@/domain/entities/appointment';
+import {
+  isWhatsAppDeliveryState,
+  type Appointment,
+  type WhatsAppDelivery,
+} from '@/domain/entities/appointment';
 import type { Customer } from '@/domain/entities/customer';
 import type { Vehicle } from '@/domain/entities/vehicle';
 import { domainError, type DomainError } from '@/domain/errors';
@@ -64,6 +68,7 @@ function toEntity(r: Row): Appointment {
     orderClosedAt: r.orderClosedAt as Appointment['orderClosedAt'],
     legalHoldAt: r.legalHoldAt as Appointment['legalHoldAt'],
     legalHoldReason: r.legalHoldReason,
+    whatsapp: whatsappFromRow(r),
     lastSyncRunId: r.lastSyncRunId as Appointment['lastSyncRunId'],
     version: r.version,
     createdAt: r.createdAt as Appointment['createdAt'],
@@ -71,9 +76,42 @@ function toEntity(r: Row): Appointment {
   };
 }
 
+/** Le quattro colonne dell'ultimo WhatsApp ricomposte; null se la pratica non ne ha uno. */
+function whatsappFromRow(r: Row): WhatsAppDelivery | null {
+  if (
+    !isWhatsAppDeliveryState(r.whatsappState) ||
+    r.whatsappKind === null ||
+    r.whatsappAt === null
+  ) {
+    return null;
+  }
+  return {
+    state: r.whatsappState,
+    kind: r.whatsappKind as WhatsAppDelivery['kind'],
+    at: r.whatsappAt as WhatsAppDelivery['at'],
+    providerMessageId: r.whatsappMessageId,
+  };
+}
+
+/** Dall'oggetto alle quattro colonne. */
+function whatsappToColumns(w: WhatsAppDelivery | null): {
+  whatsappState: string | null;
+  whatsappKind: string | null;
+  whatsappAt: string | null;
+  whatsappMessageId: string | null;
+} {
+  return {
+    whatsappState: w?.state ?? null,
+    whatsappKind: w?.kind ?? null,
+    whatsappAt: w?.at ?? null,
+    whatsappMessageId: w?.providerMessageId ?? null,
+  };
+}
+
 /** Dal dominio alla riga: tutte le colonne, cliente e veicolo serializzati. */
 function toRow(a: Appointment): Prisma.AppointmentUncheckedCreateInput {
   return {
+    ...whatsappToColumns(a.whatsapp),
     id: a.id,
     externalRef: a.externalRef,
     source: a.source,
@@ -236,7 +274,15 @@ export class PrismaAppointmentRepository implements IAppointmentRepository {
     appointment: Appointment,
     expectedVersion: number,
   ): Promise<Result<Appointment, DomainError>> {
-    const { id: _id, ...dati } = toRow(appointment);
+    // Le colonne dell'ultimo WhatsApp non passano da qui: le scrive solo il webhook di esito.
+    const {
+      id: _id,
+      whatsappState: _ws,
+      whatsappKind: _wk,
+      whatsappAt: _wa,
+      whatsappMessageId: _wm,
+      ...dati
+    } = toRow(appointment);
     const aggiornate = await this.db.appointment.updateMany({
       where: { id: appointment.id, version: expectedVersion },
       data: { ...dati, version: expectedVersion + 1, updatedAt: this.clock.nowIso() },
@@ -261,6 +307,22 @@ export class PrismaAppointmentRepository implements IAppointmentRepository {
     }
     const dopo = await this.db.appointment.findUniqueOrThrow({ where: { id: appointment.id } });
     return ok(toEntity(dopo));
+  }
+
+  async updateWhatsAppDelivery(
+    id: AppointmentId,
+    delivery: WhatsAppDelivery | null,
+  ): Promise<Appointment | null> {
+    // Nessuna condizione sulla versione e nessun bump: è metadato di consegna, non lavoro al banco.
+    const aggiornate = await this.db.appointment.updateMany({
+      where: { id },
+      data: whatsappToColumns(delivery),
+    });
+    if (aggiornate.count === 0) {
+      return null;
+    }
+    const dopo = await this.db.appointment.findUnique({ where: { id } });
+    return dopo === null ? null : toEntity(dopo);
   }
 
   async reserveNextSequence(businessDate: IsoDate, prefix: string): Promise<number> {

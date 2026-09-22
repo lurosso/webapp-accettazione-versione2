@@ -29,32 +29,55 @@ import {
   type TemplateVars,
 } from '../notifications/templates';
 
-/** Tipi di messaggio provabili dal pannello: i soli due promemoria integrati con Spoki. */
+/** Tipi di messaggio provabili dal pannello: i due promemoria e i due messaggi del check-in. */
 export const SPOKI_TEST_KINDS = [
   'REMINDER_PREVIOUS_DAY',
   'REMINDER_SAME_DAY',
+  'CHECK_IN_STARTED',
+  'CHECK_IN_COMPLETED',
 ] as const satisfies readonly NotificationKind[];
 
 export type SpokiTestKind = (typeof SPOKI_TEST_KINDS)[number];
 
-/** Perché nessun WhatsApp reale può partire; null se può. */
-export type SpokiBlockReason = 'MOCK_PROVIDER' | 'SIMULATION' | 'SAFETY_LOCK' | null;
+/**
+ * Perché nessun WhatsApp reale può partire; null se può. DISABLED = SPOKI_ENABLED=false: la
+ * modalità effettiva è la simulazione qualunque cosa dica SPOKI_MODE.
+ */
+export type SpokiBlockReason = 'MOCK_PROVIDER' | 'DISABLED' | 'SIMULATION' | 'SAFETY_LOCK' | null;
 
-export interface SpokiTemplateStatus {
-  readonly kind: SpokiTestKind;
-  readonly label: string;
-  readonly urlEnvKey: string;
-  readonly secretEnvKey: string;
-  readonly urlConfigured: boolean;
-  readonly secretConfigured: boolean;
-  /** URL con il percorso accorciato: l'amministratore deve riconoscerlo, non copiarlo da qui. */
-  readonly urlPreview: string | null;
-}
+/** Com'è configurato un template: automazione (URL + segreto) oppure template via API (id). */
+export type SpokiTemplateStatus =
+  | {
+      readonly kind: SpokiTestKind;
+      readonly label: string;
+      readonly transport: 'AUTOMATION';
+      readonly urlEnvKey: string;
+      readonly secretEnvKey: string;
+      readonly urlConfigured: boolean;
+      readonly secretConfigured: boolean;
+      /** URL con il percorso accorciato: l'amministratore deve riconoscerlo, non copiarlo da qui. */
+      readonly urlPreview: string | null;
+    }
+  | {
+      readonly kind: SpokiTestKind;
+      readonly label: string;
+      readonly transport: 'TEMPLATE';
+      readonly templateEnvKey: string;
+      readonly templateConfigured: boolean;
+      /** Id del template: non è un segreto, si può mostrare. */
+      readonly templateId: string | null;
+    };
 
 export interface SpokiOverview {
   readonly provider: ProviderKind;
+  /** SPOKI_ENABLED: l'interruttore dell'integrazione. */
+  readonly enabled: boolean;
   readonly mode: SpokiMode;
   readonly safetyLock: boolean;
+  /** SPOKI_WEBHOOK_SECRET presente: gli esiti di consegna vengono accettati e verificati. */
+  readonly webhookSecretConfigured: boolean;
+  /** Indirizzo pubblico a cui puntare i webhook V2 in Spoki (Integrazioni → Webhook). */
+  readonly webhookUrl: string;
   /** SPOKI_OVERRIDE_CONSENT: promemoria WhatsApp tentati anche senza opt-in in anagrafica. */
   readonly consentOverride: boolean;
   /** True solo con provider real, modalità live e blocco tolto. */
@@ -79,8 +102,17 @@ export interface SpokiReminderTemplateConfig {
 
 export interface SpokiDiagnosticsConfig {
   readonly provider: ProviderKind;
+  /** SPOKI_ENABLED (facoltativo nei test: assente = acceso, così i test vecchi non cambiano). */
+  readonly enabled?: boolean;
   readonly mode: SpokiMode;
   readonly safetyLock: boolean;
+  /** SPOKI_WEBHOOK_SECRET presente (facoltativo nei test). */
+  readonly webhookSecretConfigured?: boolean;
+  /** Id dei template dei messaggi del check-in (facoltativo nei test). */
+  readonly templateIds?: {
+    readonly checkInStarted: string | null;
+    readonly checkInCompleted: string | null;
+  };
   /** SPOKI_OVERRIDE_CONSENT (facoltativo nei test). */
   readonly consentOverride?: boolean;
   readonly apiKey: string | null;
@@ -126,6 +158,8 @@ export interface SpokiTestResult {
 export const SPOKI_TEST_KIND_LABELS: Readonly<Record<SpokiTestKind, string>> = {
   REMINDER_PREVIOUS_DAY: 'Promemoria giorno prima',
   REMINDER_SAME_DAY: 'Promemoria giorno stesso',
+  CHECK_IN_STARTED: 'Presa in carico (link al portale)',
+  CHECK_IN_COMPLETED: 'Accettazione completata',
 };
 
 function maskKey(key: string): string {
@@ -146,14 +180,21 @@ function previewUrl(url: string | null): string | null {
   }
 }
 
-/** Regola del guardrail vista dal pannello (stessa dell'adapter, più il caso provider mock). */
+/**
+ * Regola del guardrail vista dal pannello: stessa dell'adapter, più il caso provider mock e
+ * l'interruttore spento, che forza la simulazione a monte.
+ */
 export function spokiBlockReason(
   provider: ProviderKind,
   mode: SpokiMode,
   safetyLock: boolean,
+  enabled = true,
 ): SpokiBlockReason {
   if (provider !== 'real') {
     return 'MOCK_PROVIDER';
+  }
+  if (!enabled) {
+    return 'DISABLED';
   }
   if (mode !== 'live') {
     return 'SIMULATION';
@@ -170,32 +211,59 @@ export class SpokiDiagnosticsService {
 
   overview(limit = 100): SpokiOverview {
     const c = this.deps.config;
-    const blockReason = spokiBlockReason(c.provider, c.mode, c.safetyLock);
-    const template = (
+    const enabled = c.enabled ?? true;
+    const blockReason = spokiBlockReason(c.provider, c.mode, c.safetyLock, enabled);
+    const automazione = (
       kind: SpokiTestKind,
       cfg: SpokiReminderTemplateConfig,
       suffix: string,
     ): SpokiTemplateStatus => ({
       kind,
       label: SPOKI_TEST_KIND_LABELS[kind],
+      transport: 'AUTOMATION',
       urlEnvKey: `SPOKI_URL_${suffix}`,
       secretEnvKey: `SPOKI_SECRET_${suffix}`,
       urlConfigured: cfg.url !== null,
       secretConfigured: cfg.secret !== null,
       urlPreview: previewUrl(cfg.url),
     });
+    const template = (
+      kind: SpokiTestKind,
+      templateEnvKey: string,
+      templateId: string | null,
+    ): SpokiTemplateStatus => ({
+      kind,
+      label: SPOKI_TEST_KIND_LABELS[kind],
+      transport: 'TEMPLATE',
+      templateEnvKey,
+      templateConfigured: templateId !== null,
+      templateId,
+    });
     return {
       provider: c.provider,
+      enabled,
       mode: c.mode,
       safetyLock: c.safetyLock,
+      webhookSecretConfigured: c.webhookSecretConfigured === true,
+      webhookUrl: `${c.publicBaseUrl}/api/v1/webhooks/spoki`,
       consentOverride: c.consentOverride === true,
       liveDeliveryAllowed: blockReason === null,
       blockReason,
       apiKeyConfigured: c.apiKey !== null,
       apiKeyMasked: c.apiKey === null ? null : maskKey(c.apiKey),
       templates: [
-        template('REMINDER_PREVIOUS_DAY', c.reminders.previousDay, 'REMINDER_PREVIOUS_DAY'),
-        template('REMINDER_SAME_DAY', c.reminders.sameDay, 'REMINDER_SAME_DAY'),
+        automazione('REMINDER_PREVIOUS_DAY', c.reminders.previousDay, 'REMINDER_PREVIOUS_DAY'),
+        automazione('REMINDER_SAME_DAY', c.reminders.sameDay, 'REMINDER_SAME_DAY'),
+        template(
+          'CHECK_IN_STARTED',
+          'SPOKI_TEMPLATE_WELCOME_ID',
+          c.templateIds?.checkInStarted ?? null,
+        ),
+        template(
+          'CHECK_IN_COMPLETED',
+          'SPOKI_TEMPLATE_COMPLETE_ID',
+          c.templateIds?.checkInCompleted ?? null,
+        ),
       ],
       publicBaseUrl: c.publicBaseUrl,
       reminderPreviousDayHourLocal: c.reminderPreviousDayHourLocal,
@@ -272,7 +340,7 @@ export class SpokiDiagnosticsService {
       );
     }
     const c = this.deps.config;
-    const blockReason = spokiBlockReason(c.provider, c.mode, c.safetyLock);
+    const blockReason = spokiBlockReason(c.provider, c.mode, c.safetyLock, c.enabled ?? true);
     this.logger.info('invio di prova eseguito', {
       kind: input.kind,
       operatorId: actor.operatorId,

@@ -17,7 +17,7 @@ const METODI = ['GET', 'POST', 'PUT', 'PATCH', 'DELETE'];
 const ACCESSO = {
   pubblico: 'Pubblico',
   webhook:
-    'Pubblico · segreto condiviso (`SPOKI_INBOUND_SECRET`); 404 con `MESSAGING_STANDBY=true`',
+    'Pubblico · firma HMAC `X-Spoki-Signature` o segreto condiviso (`SPOKI_WEBHOOK_SECRET`; risposte piatte con `SPOKI_INBOUND_SECRET`); 404 con `MESSAGING_STANDBY=true`',
   monitor: 'Pubblico · token del monitor (`?token=`, obbligatorio con DISPLAY_TOKEN_REQUIRED=true)',
   sessione: 'Sessione operatore (Accettatore, Manager, Amministratore)',
   banco: 'Accettatore e Amministratore (il BDC resta sul proprio cruscotto)',
@@ -298,7 +298,7 @@ export const ROTTE = [
     path: '/api/v1/webhooks/spoki',
     area: AREE[10],
     descrizione:
-      'Risposte del cliente su WhatsApp (Arrivato, In ritardo, Assente): registra arrivo o ritardo, segna assente e risponde con codice e link al tracciamento.',
+      'Webhook di Spoki: esiti di consegna dei WhatsApp (inviato, consegnato, letto, fallito) che aggiornano notifica e pratica, e risposte del cliente (Arrivato, In ritardo, Assente) che registrano arrivo o ritardo, segnano assente e rispondono con codice e link al tracciamento.',
     accesso: ACCESSO.webhook,
   },
   {

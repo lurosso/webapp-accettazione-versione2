@@ -2,7 +2,14 @@
 // cliente deve sapere, parte un messaggio. Chi produce l'evento (coda, sync, chiusura) non sa
 // nulla di WhatsApp: pubblica sul bus e va avanti. Questa policy ascolta e decide.
 //
-// Tre momenti, tre regole:
+// Cinque momenti, cinque regole:
+// - pratica presa in carico allo sportello → benvenuto con il link personale al portale, dove il
+//   cliente segue l'accettazione in tempo reale (solo accettazioni in entrata, solo se è stata
+//   una persona a premere «Prendi in carico»);
+// - check-in completato (foto e video caricati, oppure «Completato» dal banco) → «Procedura di
+//   accettazione completata. Grazie per la visita, puoi proseguire!». Anche qui solo per mano di
+//   una persona: la chiusura d'ufficio delle 19:00 e le pratiche chiuse in ODL dalla sync non
+//   ringraziano nessuno;
 // - pratica inserita a mano al banco → conferma con il codice. Le pratiche dell'agenda Infinity
 //   NON ricevono questa conferma: hanno già il promemoria del mattino, e un secondo messaggio
 //   sarebbe rumore;
@@ -117,6 +124,16 @@ export class CustomerMessagingPolicy {
         }
         return;
       case 'APPOINTMENT_STATUS_CHANGED':
+        if (event.to === 'IN_PROGRESS' && event.actor.kind === 'OPERATOR') {
+          await this.sendIntake(event.appointmentId, 'CHECK_IN_STARTED', event.correlationId);
+        }
+        if (
+          event.to === 'COMPLETED' &&
+          event.from === 'IN_PROGRESS' &&
+          event.actor.kind === 'OPERATOR'
+        ) {
+          await this.sendIntake(event.appointmentId, 'CHECK_IN_COMPLETED', event.correlationId);
+        }
         if ((event.to === 'CANCELLED' || event.to === 'NO_SHOW') && event.actor.kind !== 'SYSTEM') {
           await this.send(event.appointmentId, 'APPOINTMENT_CANCELLED', event.correlationId);
         }
@@ -169,6 +186,22 @@ export class CustomerMessagingPolicy {
   ): Promise<void> {
     const appointment = await this.deps.appointments.findById(appointmentId);
     if (appointment === null) {
+      return;
+    }
+    await this.sendAppointment(appointment, kind, correlationId);
+  }
+
+  /**
+   * Come `send`, ma solo per le accettazioni in entrata: una riconsegna non passa dal portale né
+   * dalla coda, e un «benvenuto in accettazione» a chi viene a ritirare l'auto sarebbe fuori luogo.
+   */
+  private async sendIntake(
+    appointmentId: Appointment['id'],
+    kind: NotificationKind,
+    correlationId: string,
+  ): Promise<void> {
+    const appointment = await this.deps.appointments.findById(appointmentId);
+    if (appointment === null || appointment.flow !== 'INTAKE') {
       return;
     }
     await this.sendAppointment(appointment, kind, correlationId);

@@ -34,14 +34,20 @@ const COPY: Record<NotificationJobStatus, BadgeCopy> = {
   SENT: {
     icon: '✓',
     label: 'WhatsApp',
-    title: 'Promemoria inviato via WhatsApp (consegna non ancora confermata)',
+    title: 'Messaggio inviato via WhatsApp (consegna non ancora confermata)',
     classes: 'bg-status-completed-soft text-status-completed-ink ring-status-completed/50',
   },
   DELIVERED: {
     icon: '✓✓',
     label: 'WhatsApp',
-    title: 'Promemoria consegnato via WhatsApp',
+    title: 'Messaggio consegnato via WhatsApp',
     classes: 'bg-status-completed-soft text-status-completed-ink ring-status-completed',
+  },
+  READ: {
+    icon: '✓✓',
+    label: 'letto',
+    title: 'Messaggio letto dal cliente su WhatsApp',
+    classes: 'bg-status-info-soft text-status-info-ink ring-status-info/40',
   },
   FAILED: {
     icon: '!',
@@ -94,7 +100,10 @@ export function NotificationBadge({ status, channel, className }: NotificationBa
     return null;
   }
   const base = COPY[status];
-  const copy = channel === 'SMS' && (status === 'SENT' || status === 'DELIVERED') ? SMS_COPY : base;
+  const copy =
+    channel === 'SMS' && (status === 'SENT' || status === 'DELIVERED' || status === 'READ')
+      ? SMS_COPY
+      : base;
 
   return (
     <span

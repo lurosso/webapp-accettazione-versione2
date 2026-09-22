@@ -5,6 +5,7 @@ import type { AppointmentId, BayId, BrandId, DeskId, OperatorId, SyncRunId } fro
 import type { IsoDate, IsoDateTime } from '../value-objects/iso-date';
 import type { QueueCode } from '../value-objects/queue-code';
 import type { Customer } from './customer';
+import type { NotificationKind } from './notification';
 import type { Vehicle } from './vehicle';
 
 /**
@@ -32,6 +33,30 @@ export type AppointmentSource = 'INFINITY' | 'MANUAL';
  * passa dalla coda né dai promemoria dell'appuntamento.
  */
 export type AppointmentFlow = 'INTAKE' | 'RETURN';
+
+/**
+ * Stato dell'ultimo WhatsApp mandato al cliente per la pratica, come lo racconta Spoki: inviato,
+ * consegnato, letto, oppure non consegnato. È quello che l'accettatore legge in coda e in archivio
+ * senza aprire il registro delle notifiche.
+ */
+export const WHATSAPP_DELIVERY_STATES = ['SENT', 'DELIVERED', 'READ', 'FAILED'] as const;
+
+export type WhatsAppDeliveryState = (typeof WHATSAPP_DELIVERY_STATES)[number];
+
+export function isWhatsAppDeliveryState(v: unknown): v is WhatsAppDeliveryState {
+  return typeof v === 'string' && (WHATSAPP_DELIVERY_STATES as readonly string[]).includes(v);
+}
+
+/** Ultimo messaggio WhatsApp della pratica: quale, quando è cambiato di stato e con che esito. */
+export interface WhatsAppDelivery {
+  readonly state: WhatsAppDeliveryState;
+  /** Tipo di messaggio (promemoria, benvenuto al banco, fine check-in…). */
+  readonly kind: NotificationKind;
+  /** Quando lo stato è stato registrato (dall'invio o dal webhook di Spoki). */
+  readonly at: IsoDateTime;
+  /** Identificativo del messaggio presso Spoki; null se non è tornato. */
+  readonly providerMessageId: string | null;
+}
 
 /** Pratica. Immutabile: ogni modifica crea un nuovo oggetto con `version + 1`. */
 export interface Appointment {
@@ -116,6 +141,14 @@ export interface Appointment {
   readonly orderClosedAt: IsoDateTime | null;
   readonly legalHoldAt: IsoDateTime | null;
   readonly legalHoldReason: string | null;
+  /**
+   * Ultimo WhatsApp al cliente, specchiato qui dal registro delle notifiche e aggiornato dal
+   * webhook di esito di Spoki. NON partecipa alla concorrenza ottimistica: lo scrive solo
+   * `IAppointmentRepository.updateWhatsAppDelivery`, senza toccare `version`, e `update` lo
+   * ignora, così un webhook arrivato mentre l'accettatore preme «Completato» non fa scattare un
+   * conflitto né viene sovrascritto da una copia vecchia della pratica.
+   */
+  readonly whatsapp: WhatsAppDelivery | null;
   /** Ultima sincronizzazione che ha toccato la pratica. */
   readonly lastSyncRunId: SyncRunId | null;
   /** Versione per la concorrenza ottimistica fra postazioni (409 → ConflictDialog). */

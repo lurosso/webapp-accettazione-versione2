@@ -1,0 +1,100 @@
+// Le variabili dell'integrazione Spoki: l'interruttore SPOKI_ENABLED, la modalità effettiva, gli id
+// dei template, il segreto dei webhook. Un .env.local scritto prima di queste chiavi resta valido.
+import { describe, expect, it } from 'vitest';
+import { parseEnv } from '@/config/env';
+
+const muto = () => undefined;
+
+describe('SPOKI_ENABLED e modalità effettiva', () => {
+  it('di default l’integrazione è spenta, in simulazione, con blocco di sicurezza e senza segreto webhook', () => {
+    const env = parseEnv({}, muto);
+    expect(env.spokiEnabled).toBe(false);
+    expect(env.spokiMode).toBe('simulation');
+    expect(env.spokiSafetyLock).toBe(true);
+    expect(env.spokiApiKey).toBeNull();
+    expect(env.spokiApiBaseUrl).toBe('https://api.spoki.com');
+    expect(env.spokiTemplateWelcomeId).toBeNull();
+    expect(env.spokiTemplateCompleteId).toBeNull();
+    expect(env.spokiWebhookSecret).toBeNull();
+  });
+
+  it('SPOKI_MODE=live senza interruttore acceso resta simulazione, e lo dice', () => {
+    const avvisi: string[] = [];
+    const env = parseEnv({ SPOKI_MODE: 'live', SPOKI_API_KEY: 'k'.repeat(20) }, (m) =>
+      avvisi.push(m),
+    );
+    expect(env.spokiMode).toBe('simulation');
+    expect(avvisi.some((m) => m.includes('SPOKI_ENABLED=false'))).toBe(true);
+  });
+
+  it('SPOKI_MODE=live con interruttore acceso ma senza chiave API resta simulazione, e lo dice', () => {
+    const avvisi: string[] = [];
+    const env = parseEnv({ SPOKI_MODE: 'live', SPOKI_ENABLED: 'true' }, (m) => avvisi.push(m));
+    expect(env.spokiEnabled).toBe(true);
+    expect(env.spokiMode).toBe('simulation');
+    expect(avvisi.some((m) => m.includes('SPOKI_API_KEY assente'))).toBe(true);
+  });
+
+  it('live effettivo solo con SPOKI_MODE=live, SPOKI_ENABLED=true e SPOKI_API_KEY; il safety lock resta a parte', () => {
+    const avvisi: string[] = [];
+    const env = parseEnv(
+      { SPOKI_MODE: 'live', SPOKI_ENABLED: 'true', SPOKI_API_KEY: 'k'.repeat(20) },
+      (m) => avvisi.push(m),
+    );
+    expect(env.spokiMode).toBe('live');
+    expect(env.spokiSafetyLock).toBe(true);
+    expect(avvisi).toEqual([]);
+  });
+
+  it('con SPOKI_ENABLED=true e SPOKI_MODE=simulation nessun avviso: la simulazione è una scelta', () => {
+    const avvisi: string[] = [];
+    const env = parseEnv({ SPOKI_ENABLED: 'true', SPOKI_MODE: 'simulation' }, (m) =>
+      avvisi.push(m),
+    );
+    expect(env.spokiMode).toBe('simulation');
+    expect(avvisi).toEqual([]);
+  });
+});
+
+describe('Template via API e webhook degli esiti', () => {
+  it('gli id dei template e la base delle API si leggono così come sono (barra finale tolta)', () => {
+    const env = parseEnv(
+      {
+        SPOKI_TEMPLATE_WELCOME_ID: '3068',
+        SPOKI_TEMPLATE_COMPLETE_ID: ' 3069 ',
+        SPOKI_API_BASE_URL: 'https://api.spoki.example/',
+      },
+      muto,
+    );
+    expect(env.spokiTemplateWelcomeId).toBe('3068');
+    expect(env.spokiTemplateCompleteId).toBe('3069');
+    expect(env.spokiApiBaseUrl).toBe('https://api.spoki.example');
+  });
+
+  it('un segreto dei webhook troppo corto viene ignorato con un avviso; uno vero passa', () => {
+    const avvisi: string[] = [];
+    expect(
+      parseEnv({ SPOKI_WEBHOOK_SECRET: 'corto' }, (m) => avvisi.push(m)).spokiWebhookSecret,
+    ).toBe(null);
+    expect(avvisi.some((m) => m.includes('SPOKI_WEBHOOK_SECRET'))).toBe(true);
+    expect(
+      parseEnv({ SPOKI_WEBHOOK_SECRET: 'whsec_a1b2c3d4e5f6a7b8c9d0' }, muto).spokiWebhookSecret,
+    ).toBe('whsec_a1b2c3d4e5f6a7b8c9d0');
+  });
+
+  it('le chiavi di prima (provider, URL e segreti delle automazioni, inbound) valgono ancora', () => {
+    const env = parseEnv(
+      {
+        SPOKI_PROVIDER: 'real',
+        SPOKI_URL_REMINDER_SAME_DAY: 'https://api.spoki.com/wh/ap/x/',
+        SPOKI_SECRET_REMINDER_SAME_DAY: 's'.repeat(32),
+        SPOKI_INBOUND_SECRET: 'i'.repeat(48),
+      },
+      muto,
+    );
+    expect(env.spokiProvider).toBe('real');
+    expect(env.spokiUrlReminderSameDay).toBe('https://api.spoki.com/wh/ap/x/');
+    expect(env.spokiSecretReminderSameDay).toBe('s'.repeat(32));
+    expect(env.spokiInboundSecret).toBe('i'.repeat(48));
+  });
+});

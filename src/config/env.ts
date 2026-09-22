@@ -55,7 +55,16 @@ export interface AppEnv {
   readonly servicesProvider: ProviderKind;
   readonly infinityProvider: ProviderKind;
   readonly spokiProvider: ProviderKind;
-  /** Con SPOKI_PROVIDER=real: simulazione (nessuna chiamata) o live. */
+  /**
+   * SPOKI_ENABLED (predefinito false): interruttore dell'integrazione WhatsApp. Finché è false, o
+   * manca SPOKI_API_KEY, la modalità effettiva è `simulation` qualunque sia SPOKI_MODE: i messaggi
+   * vengono formattati e registrati, nessun credito WhatsApp viene consumato.
+   */
+  readonly spokiEnabled: boolean;
+  /**
+   * Con SPOKI_PROVIDER=real: simulazione (nessuna chiamata) o live. È la modalità EFFETTIVA:
+   * `live` solo se richiesta E l'integrazione è accesa con la chiave API presente.
+   */
   readonly spokiMode: SpokiMode;
   /**
    * Blocco di sicurezza (SPOKI_SAFETY_LOCK, predefinito true): finché è attivo nessun WhatsApp
@@ -68,8 +77,24 @@ export interface AppEnv {
    * in anagrafica (Infinity non porta un opt-in WhatsApp). Non tocca il guardrail degli invii reali.
    */
   readonly spokiOverrideConsent: boolean;
-  /** Chiave API globale di Spoki (menu "Integrazioni API"); null se non impostata. */
+  /** Chiave API dell'account Spoki (menu "Integrazioni API", intestazione X-Spoki-Api-Key); null se non impostata. */
   readonly spokiApiKey: string | null;
+  /** Base delle API Spoki (SPOKI_API_BASE_URL, predefinito https://api.spoki.com), senza barra finale. */
+  readonly spokiApiBaseUrl: string;
+  /**
+   * Id dei template Meta approvati per i due messaggi del check-in, inviati via API
+   * (SPOKI_TEMPLATE_WELCOME_ID: presa in carico con link al portale; SPOKI_TEMPLATE_COMPLETE_ID:
+   * accettazione completata). null = non configurato: in live il messaggio ripiega sull'SMS.
+   */
+  readonly spokiTemplateWelcomeId: string | null;
+  readonly spokiTemplateCompleteId: string | null;
+  /**
+   * Segreto dei webhook V2 di Spoki (SPOKI_WEBHOOK_SECRET, `whsec_…`): verifica la firma
+   * `X-Spoki-Signature` degli esiti di consegna (inviato, consegnato, letto, fallito) e dei
+   * messaggi in entrata su POST /api/v1/webhooks/spoki. Vale anche come segreto condiviso
+   * (`x-spoki-secret`). Senza, gli esiti non vengono accettati (404).
+   */
+  readonly spokiWebhookSecret: string | null;
   /** URL e segreti delle automazioni dei due promemoria (giorno prima, giorno stesso). */
   readonly spokiUrlReminderPreviousDay: string | null;
   readonly spokiUrlReminderSameDay: string | null;
@@ -198,6 +223,50 @@ const CRM_MODES: readonly CrmMockMode[] = ['ok', 'error', 'timeout', 'flaky'];
 const SEQUENCE_SCOPES: readonly AppEnv['codeSequenceScope'][] = ['SITE', 'BRAND'];
 const NODE_ENVS: readonly AppEnv['nodeEnv'][] = ['development', 'test', 'production'];
 const SPOKI_MODES: readonly SpokiMode[] = ['simulation', 'live'];
+const DEFAULT_SPOKI_API_BASE_URL = 'https://api.spoki.com';
+/** Sotto questa lunghezza un segreto di webhook non è un segreto: si ignora, con avviso. */
+const MIN_WEBHOOK_SECRET_LENGTH = 16;
+
+/**
+ * Modalità Spoki EFFETTIVA. `live` richiede tre cose insieme: SPOKI_MODE=live, SPOKI_ENABLED=true
+ * e SPOKI_API_KEY presente. Manca una delle tre → `simulation`, e se il live era stato chiesto lo
+ * si dice nel log: un invio che non parte deve avere un perché leggibile.
+ */
+function pickSpokiMode(
+  source: EnvSource,
+  enabled: boolean,
+  apiKey: string | null,
+  warn: EnvWarning,
+): SpokiMode {
+  const richiesta = pickEnum(source, 'SPOKI_MODE', SPOKI_MODES, 'simulation', warn);
+  if (richiesta !== 'live') {
+    return 'simulation';
+  }
+  if (!enabled) {
+    warn('SPOKI_MODE=live ignorato: SPOKI_ENABLED=false. Modalità effettiva: simulation.');
+    return 'simulation';
+  }
+  if (apiKey === null) {
+    warn('SPOKI_MODE=live ignorato: SPOKI_API_KEY assente. Modalità effettiva: simulation.');
+    return 'simulation';
+  }
+  return 'live';
+}
+
+/** SPOKI_WEBHOOK_SECRET: accettato solo se abbastanza lungo da essere un segreto. */
+function pickWebhookSecret(source: EnvSource, warn: EnvWarning): string | null {
+  const valore = pickStringOrNull(source, 'SPOKI_WEBHOOK_SECRET');
+  if (valore === null) {
+    return null;
+  }
+  if (valore.length < MIN_WEBHOOK_SECRET_LENGTH) {
+    warn(
+      `SPOKI_WEBHOOK_SECRET troppo corto (${valore.length} caratteri, minimo ${MIN_WEBHOOK_SECRET_LENGTH}): ignorato, gli esiti di consegna non vengono accettati.`,
+    );
+    return null;
+  }
+  return valore;
+}
 const SEED_PROFILES: readonly SeedProfile[] = ['demo', 'real'];
 const MANUAL_INTAKE_UI: readonly ManualIntakeUi[] = ['none', 'managers', 'all'];
 
@@ -363,7 +432,9 @@ function pickTimeZone(source: EnvSource, key: string, fallback: string, warn: En
  * MOCK_SEED, MOCK_LATENCY_MS,
  * MOCK_INFINITY_MODE, MOCK_INFINITY_FLAKY_FAILURES, MOCK_INFINITY_CANCEL_ON_SECOND_CALL,
  * MOCK_SPOKI_FAIL_SUFFIX, MOCK_SPOKI_FAILURE_RATE, MOCK_SPOKI_MODE, MOCK_SMS_FAIL_SUFFIX,
- * MOCK_SMS_FAILURE_RATE, MOCK_SMS_MODE, MOCK_SMS_CREDITS, MOCK_CRM_MODE, MOCK_DELIVERY_DELAY_MS, NODE_ENV.
+ * MOCK_SMS_FAILURE_RATE, MOCK_SMS_MODE, MOCK_SMS_CREDITS, MOCK_CRM_MODE, MOCK_DELIVERY_DELAY_MS, NODE_ENV,
+ * SPOKI_ENABLED, SPOKI_MODE, SPOKI_SAFETY_LOCK, SPOKI_API_KEY, SPOKI_API_BASE_URL,
+ * SPOKI_TEMPLATE_WELCOME_ID, SPOKI_TEMPLATE_COMPLETE_ID, SPOKI_WEBHOOK_SECRET, SPOKI_INBOUND_SECRET.
  */
 export function parseEnv(
   source: EnvSource = readEnvSource(),
@@ -372,16 +443,26 @@ export function parseEnv(
   const servicesProvider = pickEnum(source, 'SERVICES_PROVIDER', PROVIDER_KINDS, 'mock', warn);
   const perPort = (key: string): ProviderKind =>
     pickEnum(source, key, PROVIDER_KINDS, servicesProvider, warn);
+  const spokiEnabled = pickBool(source, 'SPOKI_ENABLED', false, warn);
+  const spokiApiKey = pickStringOrNull(source, 'SPOKI_API_KEY');
 
   return {
     servicesProvider,
     infinityProvider: perPort('INFINITY_PROVIDER'),
     spokiProvider: perPort('SPOKI_PROVIDER'),
-    spokiMode: pickEnum(source, 'SPOKI_MODE', SPOKI_MODES, 'simulation', warn),
+    spokiEnabled,
+    spokiMode: pickSpokiMode(source, spokiEnabled, spokiApiKey, warn),
     // Predefinito TRUE: il blocco si toglie solo per scelta esplicita, mai per dimenticanza.
     spokiSafetyLock: pickBool(source, 'SPOKI_SAFETY_LOCK', true, warn),
     spokiOverrideConsent: pickBool(source, 'SPOKI_OVERRIDE_CONSENT', false, warn),
-    spokiApiKey: pickStringOrNull(source, 'SPOKI_API_KEY'),
+    spokiApiKey,
+    spokiApiBaseUrl: pickString(source, 'SPOKI_API_BASE_URL', DEFAULT_SPOKI_API_BASE_URL).replace(
+      /\/+$/,
+      '',
+    ),
+    spokiTemplateWelcomeId: pickStringOrNull(source, 'SPOKI_TEMPLATE_WELCOME_ID'),
+    spokiTemplateCompleteId: pickStringOrNull(source, 'SPOKI_TEMPLATE_COMPLETE_ID'),
+    spokiWebhookSecret: pickWebhookSecret(source, warn),
     spokiUrlReminderPreviousDay: pickStringOrNull(source, 'SPOKI_URL_REMINDER_PREVIOUS_DAY'),
     spokiUrlReminderSameDay: pickStringOrNull(source, 'SPOKI_URL_REMINDER_SAME_DAY'),
     spokiSecretReminderPreviousDay: pickStringOrNull(source, 'SPOKI_SECRET_REMINDER_PREVIOUS_DAY'),

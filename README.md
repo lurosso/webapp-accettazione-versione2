@@ -477,14 +477,13 @@ compare "in sala dalle HH:mm" — senza che l'accettatore ricarichi la pagina co
 
 ## Il giro di WhatsApp: promemoria, risposte del cliente e tracciamento
 
-> **In standby dal 2026-09-17.** Con `MESSAGING_STANDBY=true` (impostato in `.env.local`) tutta
-> l'integrazione con il cliente è in pausa: nessun promemoria programmato, nessun messaggio guidato
-> dagli eventi, webhook delle risposte che risponde 404. Il codice resta dov'è e nulla dipende dalle
-> credenziali Spoki: l'officina lavora, i log non si riempiono di invii che nessuno voleva. Per
-> riaccendere basta togliere la variabile e riavviare. Quello che segue descrive il comportamento a
-> integrazione accesa.
+> **Standby tolto il 2026-09-22.** `MESSAGING_STANDBY=true` (dal 2026-09-17) metteva in pausa tutta
+> l'integrazione con il cliente: nessun promemoria, nessun messaggio guidato dagli eventi, webhook
+> che rispondeva 404. Da oggi in `.env.local` è `false`, ma con `SPOKI_ENABLED=false` (predefinito)
+> e `SPOKI_MODE=simulation` nessun WhatsApp parte davvero: i payload finiscono nel registro del
+> pannello. Lo standby resta disponibile per fermare tutto in un colpo, se serve.
 
-**In uscita** l'integrazione Spoki manda due promemoria e una risposta:
+**In uscita** l'integrazione Spoki manda due promemoria, due messaggi del check-in e una risposta:
 
 - **Giorno prima** (alle `REMINDER_PREVIOUS_DAY_HOUR_LOCAL`, predefinito 18:00): il sistema
   anticipa la sincronizzazione dell'agenda di domani, così ogni pratica ha già il suo codice, e
@@ -495,13 +494,33 @@ compare "in sala dalle HH:mm" — senza che l'accettatore ricarichi la pagina co
   di ripiego, dove si risponde scrivendo.
 - **Conferma di arrivo**, appena il cliente tocca «Arrivato»: il suo codice e il link alla pagina di
   tracciamento. È così che oggi il cliente arriva alla pagina, senza inquadrare nessun QR.
+- **Presa in carico** («Prendi in carico» al banco o «Inizia check-in» dal tablet): benvenuto con il
+  link **personale** al portale (`/portal?targa=…&t=<token della pratica>`), dove il cliente segue
+  l'accettazione in tempo reale. Solo per le accettazioni in entrata e solo se a premere è stata una
+  persona.
+- **Accettazione completata** (check-in concluso con foto e video, oppure «Completato» dal banco):
+  «Procedura di accettazione completata. Grazie per la visita, puoi proseguire!». La chiusura
+  d'ufficio delle 19:00 e le pratiche chiuse in ODL dalla sync non ringraziano nessuno.
+
+I due messaggi del check-in partono **via API** (`POST https://api.spoki.com/api/1/messages/send/`,
+intestazione `X-Spoki-Api-Key`) con il template approvato da Meta indicato per id in
+`SPOKI_TEMPLATE_WELCOME_ID` e `SPOKI_TEMPLATE_COMPLETE_ID`; i promemoria continuano a passare dalle
+automazioni (URL + segreto). Tutti sono idempotenti per pratica, tipo e giornata: riaprire e
+riprendere in carico la stessa pratica non manda un secondo benvenuto.
 
 I promemoria sono idempotenti per pratica e giornata e si possono lanciare anche da un cron esterno
 (`POST /api/v1/system/cron/reminders?kind=previous-day|same-day` con `x-cron-secret`).
 
-**In entrata** le tre risposte tornano su `POST /api/v1/webhooks/spoki`, autenticato con il segreto
-condiviso `SPOKI_INBOUND_SECRET` (nel corpo `secret` o nell'intestazione `x-spoki-secret`; senza
-segreto configurato la rotta risponde 404). Ogni risposta diventa un fatto dell'officina:
+**In entrata** su `POST /api/v1/webhooks/spoki` arrivano due cose. Gli **esiti di consegna** dei
+messaggi in uscita (webhook V2 di Spoki, evento `message.outbound`: inviato, consegnato, letto,
+fallito), firmati con `X-Spoki-Signature` (HMAC-SHA256 del corpo con `SPOKI_WEBHOOK_SECRET`,
+finestra di cinque minuti contro i replay): aggiornano il job della notifica e lo **stato WhatsApp
+della pratica**, che compare come badge in coda («WhatsApp inviato / consegnato / letto / non
+consegnato»), nel pannello di dettaglio e in archivio. Un esito per un messaggio sconosciuto riceve
+`200 {"handled": false}`. E le tre **risposte del cliente**, come evento V2 `message.inbound` o nella
+forma piatta delle automazioni, autenticata con il segreto condiviso `SPOKI_INBOUND_SECRET` (nel
+corpo `secret` o nell'intestazione `x-spoki-secret`). Senza nessun segreto configurato la rotta
+risponde 404. Ogni risposta diventa un fatto dell'officina:
 
 | Risposta       | Cosa succede                                                                                              |
 | -------------- | --------------------------------------------------------------------------------------------------------- |
@@ -514,8 +533,10 @@ pratica in agenda oggi, riceve `200 {"handled": false}` e non tocca niente — s
 dell'officina arriva di tutto, e un «grazie» non deve segnare nessuno come assente. Un secondo
 tocco sullo stesso pulsante non sposta l'ora già registrata e non manda un secondo messaggio.
 
-**Guardrail anti-invio.** Nessun cliente reale riceve un WhatsApp finché `SPOKI_MODE` non è `live`
-**e** `SPOKI_SAFETY_LOCK` non è `false` (predefinito `true`). Con il blocco attivo l'adapter non
+**Guardrail anti-invio.** Nessun cliente reale riceve un WhatsApp finché `SPOKI_ENABLED` non è
+`true` con `SPOKI_API_KEY` presente, `SPOKI_MODE` non è `live` **e** `SPOKI_SAFETY_LOCK` non è
+`false` (predefinito `true`). Con l'interruttore spento o senza chiave la modalità effettiva è la
+simulazione qualunque cosa dica `SPOKI_MODE`, e il log lo dice all'avvio. Con il blocco attivo l'adapter non
 apre alcuna connessione: formatta il payload nel formato Spoki (`secret`, `phone` in E.164,
 `first_name`, `last_name`, `email`, `custom_fields` con `code`, `plate`, `time`, `date`,
 `portal_url`), lo scrive nel log e nel registro del pannello, e risponde come se fosse andato.
@@ -865,16 +886,16 @@ per i cron esterni.
 
 ### API: pubbliche (portale cliente, monitor, tabellone)
 
-| Rotta                          | Metodo | Descrizione                                                                                                                                              | Accesso                                                                                 |
-| ------------------------------ | ------ | -------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------- |
-| `/api/v1/health`               | GET    | Liveness del processo e stato aggregato delle quattro porte esterne (`?strict=` per il readiness).                                                       | Pubblico                                                                                |
-| `/api/v1/public/status`        | GET    | Stato della pratica per il portale (`?targa=` o `?t=` token): tappa, posizione in coda, orario, accettatore, sede.                                       | Pubblico                                                                                |
-| `/api/v1/webhooks/spoki`       | POST   | Risposte del cliente su WhatsApp (Arrivato, In ritardo, Assente): registra arrivo o ritardo, segna assente e risponde con codice e link al tracciamento. | Pubblico · segreto condiviso (`SPOKI_INBOUND_SECRET`); 404 con `MESSAGING_STANDBY=true` |
-| `/api/v1/public/arrival`       | POST   | "Sono arrivato" dalla pagina di tracciamento: registra l'ora in cui il cliente si annuncia in sala, senza cambiare il posto in coda.                     | Pubblico                                                                                |
-| `/api/v1/public/late-notice`   | POST   | "Sto arrivando in ritardo (+10 min)" dal portale: sposta l'arrivo atteso e avvisa la dashboard.                                                          | Pubblico                                                                                |
-| `/api/v1/public/board`         | GET    | Dati del tabellone della sala d'attesa (`?prossimi=`).                                                                                                   | Pubblico                                                                                |
-| `/api/v1/public/display`       | GET    | Stato del monitor di uno sportello (`?campata=A`, `?bay=`, `?bayCode=`): solo lettera, codice e targa.                                                   | Pubblico · token del monitor (`?token=`, obbligatorio con DISPLAY_TOKEN_REQUIRED=true)  |
-| `/api/v1/public/events/stream` | GET    | Eventi in tempo reale (SSE) per monitor e tabellone: solo il tipo di evento, senza identificativi.                                                       | Pubblico                                                                                |
+| Rotta                          | Metodo | Descrizione                                                                                                                                                                                                                                                                       | Accesso                                                                                                                                                              |
+| ------------------------------ | ------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `/api/v1/health`               | GET    | Liveness del processo e stato aggregato delle quattro porte esterne (`?strict=` per il readiness).                                                                                                                                                                                | Pubblico                                                                                                                                                             |
+| `/api/v1/public/status`        | GET    | Stato della pratica per il portale (`?targa=` o `?t=` token): tappa, posizione in coda, orario, accettatore, sede.                                                                                                                                                                | Pubblico                                                                                                                                                             |
+| `/api/v1/webhooks/spoki`       | POST   | Webhook di Spoki: esiti di consegna dei WhatsApp (inviato, consegnato, letto, fallito) che aggiornano notifica e pratica, e risposte del cliente (Arrivato, In ritardo, Assente) che registrano arrivo o ritardo, segnano assente e rispondono con codice e link al tracciamento. | Pubblico · firma HMAC `X-Spoki-Signature` o segreto condiviso (`SPOKI_WEBHOOK_SECRET`; risposte piatte con `SPOKI_INBOUND_SECRET`); 404 con `MESSAGING_STANDBY=true` |
+| `/api/v1/public/arrival`       | POST   | "Sono arrivato" dalla pagina di tracciamento: registra l'ora in cui il cliente si annuncia in sala, senza cambiare il posto in coda.                                                                                                                                              | Pubblico                                                                                                                                                             |
+| `/api/v1/public/late-notice`   | POST   | "Sto arrivando in ritardo (+10 min)" dal portale: sposta l'arrivo atteso e avvisa la dashboard.                                                                                                                                                                                   | Pubblico                                                                                                                                                             |
+| `/api/v1/public/board`         | GET    | Dati del tabellone della sala d'attesa (`?prossimi=`).                                                                                                                                                                                                                            | Pubblico                                                                                                                                                             |
+| `/api/v1/public/display`       | GET    | Stato del monitor di uno sportello (`?campata=A`, `?bay=`, `?bayCode=`): solo lettera, codice e targa.                                                                                                                                                                            | Pubblico · token del monitor (`?token=`, obbligatorio con DISPLAY_TOKEN_REQUIRED=true)                                                                               |
+| `/api/v1/public/events/stream` | GET    | Eventi in tempo reale (SSE) per monitor e tabellone: solo il tipo di evento, senza identificativi.                                                                                                                                                                                | Pubblico                                                                                                                                                             |
 
 ### API: manager, report e BDC
 

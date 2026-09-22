@@ -4,6 +4,7 @@ import type {
   Appointment,
   AppointmentFlow,
   AppointmentStatus,
+  WhatsAppDelivery,
 } from '@/domain/entities/appointment';
 import type { DomainError } from '@/domain/errors';
 import type { AppointmentId, BrandId, DeskId } from '@/domain/ids';
@@ -67,12 +68,22 @@ export interface IAppointmentRepository {
   /**
    * Aggiornamento con concorrenza ottimistica: se `expectedVersion` non coincide con la
    * versione corrente → VERSION_CONFLICT (409). In caso di successo incrementa `version`
-   * e aggiorna `updatedAt`.
+   * e aggiorna `updatedAt`. Il campo `whatsapp` NON viene scritto da qui: resta quello
+   * salvato (vedi `updateWhatsAppDelivery`).
    */
   update(
     appointment: Appointment,
     expectedVersion: number,
   ): Promise<Result<Appointment, DomainError>>;
+  /**
+   * Scrive SOLO lo stato dell'ultimo WhatsApp (dall'invio o dal webhook di esito di Spoki), senza
+   * toccare `version` né `updatedAt`: non è una modifica operativa e non deve far scattare
+   * conflitti alle postazioni. Restituisce la pratica aggiornata, o null se non esiste.
+   */
+  updateWhatsAppDelivery(
+    id: AppointmentId,
+    delivery: WhatsAppDelivery | null,
+  ): Promise<Appointment | null>;
   /** Contatore atomico per (giornata, prefisso): il numero restituito non viene mai riutilizzato. */
   reserveNextSequence(businessDate: IsoDate, prefix: string): Promise<number>;
   /** Pratiche WAITING/SKIPPED con (scheduledAt, sequence) precedente, nell'ambito indicato. */

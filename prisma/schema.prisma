@@ -61,6 +61,11 @@ model Appointment {
   orderClosedAt        String?
   legalHoldAt          String?
   legalHoldReason      String?
+  /// Ultimo WhatsApp al cliente (stato, tipo, quando, id Spoki): lo aggiorna il webhook di esito.
+  whatsappState        String?
+  whatsappKind         String?
+  whatsappAt           String?
+  whatsappMessageId    String?
   lastSyncRunId        String?
   version              Int
   createdAt            String
