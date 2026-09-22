@@ -41,6 +41,9 @@ describe('Sicurezza: Content-Security-Policy e intestazioni', () => {
   it('in sviluppo aggiunge solo ciò che serve a HMR e al debug di React', () => {
     const csp = direttive(buildContentSecurityPolicy({ nonce: 'n', dev: true }));
     expect(csp.get('script-src')).toContain("'unsafe-eval'");
+    // Senza strict-dynamic: i chunk dell'HMR di Turbopack sono inseriti dal parser.
+    expect(csp.get('script-src')).not.toContain('strict-dynamic');
+    expect(csp.get('script-src')).toContain("'nonce-n'");
     expect(csp.get('connect-src')).toContain('ws:');
   });
 

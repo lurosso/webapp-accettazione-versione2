@@ -35,7 +35,13 @@ export function buildContentSecurityPolicy({ nonce, dev }: CspOptions): string {
     "object-src 'none'",
     "frame-ancestors 'self'",
     "form-action 'self'",
-    `script-src 'self' 'nonce-${nonce}' 'strict-dynamic'${dev ? " 'unsafe-eval'" : ''}`,
+    // In sviluppo niente 'strict-dynamic': Turbopack applica gli aggiornamenti a caldo inserendo
+    // <script> dal parser, che 'strict-dynamic' blocca — la pagina restava appesa dopo ogni modifica
+    // finché non la si ricaricava. Con 'self' i chunk passano; in produzione non c'è HMR e la
+    // policy resta stretta (solo nonce, host ignorati).
+    dev
+      ? `script-src 'self' 'nonce-${nonce}' 'unsafe-eval'`
+      : `script-src 'self' 'nonce-${nonce}' 'strict-dynamic'`,
     "style-src 'self' 'unsafe-inline'",
     "img-src 'self' blob: data:",
     "media-src 'self' blob:",

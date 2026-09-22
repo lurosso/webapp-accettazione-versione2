@@ -10,10 +10,12 @@ import type { InspectionArchiveEntry } from '@/application/media/InspectionArchi
 import { Badge } from '@/components/ui/badge';
 import { Notice } from '@/components/ui/notice';
 import { Input } from '@/components/ui/input';
+import { Switch } from '@/components/ui/switch';
 import { TableSkeleton } from '@/components/ui/skeleton';
 import { EmptyState } from '@/components/shared/EmptyState';
 import { fetchInspectionArchive, patchAppointmentRetention } from '@/lib/api-client/client';
 import { formatDateTimeIt, localTimeHHmm } from '@/lib/dates';
+import { archiveCountLabel, filterArchiveEntries } from './archive-filter';
 import {
   RiquadroConservazione,
   type ComandiConservazione,
@@ -152,6 +154,9 @@ export function InspectionArchive({
   // all'arrivo, e l'arrivo è oggi — e il calendario porta indietro. Con una ricerca per targa o
   // codice il giorno non conta: la storia di un veicolo attraversa le giornate.
   const [giorno, setGiorno] = useState(today);
+  // «Solo con foto/video»: al ritiro interessano le pratiche documentate, non tutta l'agenda.
+  // Spento per default: l'archivio resta l'elenco completo della giornata.
+  const [soloConMedia, setSoloConMedia] = useState(false);
 
   /** I comandi di conservazione per una scheda: dopo il cambio si ricarica l'archivio. */
   const comandiPer = (entry: InspectionArchiveEntry): ComandiConservazione =>
@@ -171,6 +176,8 @@ export function InspectionArchive({
   const giornoLeggibile = new Intl.DateTimeFormat('it-IT', { dateStyle: 'full' }).format(
     new Date(`${giorno}T12:00:00Z`),
   );
+  const tutte = risultati.data?.entries ?? [];
+  const voci = filterArchiveEntries(tutte, soloConMedia);
 
   return (
     <div className="flex flex-col gap-4">
@@ -185,58 +192,69 @@ export function InspectionArchive({
       </header>
 
       {/*
-       * Barra degli strumenti su una riga propria, non accanto al titolo: sull'iPad in verticale
-       * il calendario finiva schiacciato sotto la ricerca. Ogni controllo ha una larghezza minima
-       * e, quando lo spazio manca, la ricerca va a capo intera invece di collassare sul calendario.
+       * La barra degli strumenti è un riquadro proprio sotto il titolo, in due righe: calendario e
+       * ricerca sulla prima, l'interruttore sulla seconda. Ogni controllo ha la stessa altezza
+       * (`controllo`) e una larghezza minima; quando lo spazio manca la ricerca va a capo intera,
+       * mai sopra il calendario. Niente posizionamenti assoluti: solo flex con `gap`.
        */}
-      <div
-        className="flex flex-wrap items-end gap-x-4 gap-y-3"
+      <section
+        className="bg-surface border-line flex flex-col gap-4 rounded-2xl border p-4"
         role="search"
+        aria-label="Strumenti dell'archivio"
         data-testid="archivio-strumenti"
       >
-        <label className="flex w-48 shrink-0 flex-col gap-1">
-          <span className="testo-nota text-ink-soft font-semibold">Giornata</span>
-          <Input
-            type="date"
-            value={giorno}
-            max={today}
-            aria-label="Giornata da consultare"
-            data-testid="archivio-giorno"
-            onChange={(event) => {
-              if (event.target.value !== '') {
-                setGiorno(event.target.value);
-                setQuery('');
-                setTesto('');
-              }
-            }}
-            className="controllo min-w-44"
-          />
-        </label>
-        <form
-          className="flex min-w-[18rem] flex-1 flex-wrap items-end gap-2"
-          onSubmit={(event) => {
-            event.preventDefault();
-            setQuery(testo.trim());
-          }}
-        >
-          <label className="flex min-w-[12rem] flex-1 flex-col gap-1">
-            <span className="testo-nota text-ink-soft font-semibold">Targa o codice</span>
+        <div className="flex flex-wrap items-end gap-4">
+          <label className="flex w-52 shrink-0 flex-col gap-1.5">
+            <span className="testo-nota text-ink-soft font-semibold">Giornata</span>
             <Input
-              aria-label="Cerca per targa o codice pratica"
-              placeholder="es. AB123CD, F012"
-              value={testo}
-              onChange={(event) => setTesto(event.target.value)}
-              className="controllo font-mono uppercase"
+              type="date"
+              value={giorno}
+              max={today}
+              aria-label="Giornata da consultare"
+              data-testid="archivio-giorno"
+              onChange={(event) => {
+                if (event.target.value !== '') {
+                  setGiorno(event.target.value);
+                  setQuery('');
+                  setTesto('');
+                }
+              }}
+              className="controllo min-w-44"
             />
           </label>
-          <button
-            type="submit"
-            className="bg-brand-secondary hover:bg-brand-blue-dark premibile focus-anello controllo min-w-touch inline-flex shrink-0 items-center justify-center rounded-md px-4 text-sm font-semibold text-white"
+          <form
+            className="flex min-w-[20rem] flex-1 flex-wrap items-end gap-3"
+            onSubmit={(event) => {
+              event.preventDefault();
+              setQuery(testo.trim());
+            }}
           >
-            Cerca
-          </button>
-        </form>
-      </div>
+            <label className="flex min-w-[14rem] flex-1 flex-col gap-1.5">
+              <span className="testo-nota text-ink-soft font-semibold">Targa o codice</span>
+              <Input
+                aria-label="Cerca per targa o codice pratica"
+                placeholder="es. AB123CD, F012"
+                value={testo}
+                onChange={(event) => setTesto(event.target.value)}
+                className="controllo font-mono uppercase"
+              />
+            </label>
+            <button
+              type="submit"
+              className="bg-brand-secondary hover:bg-brand-blue-dark premibile focus-anello controllo min-w-touch inline-flex shrink-0 items-center justify-center rounded-md px-4 text-sm font-semibold text-white"
+            >
+              Cerca
+            </button>
+          </form>
+        </div>
+        <Switch
+          checked={soloConMedia}
+          onChange={setSoloConMedia}
+          label="Solo con foto/video"
+          description="Nasconde le pratiche senza file allegati"
+          testId="archivio-solo-media"
+        />
+      </section>
 
       <p className="testo-corpo text-ink-soft" data-testid="archivio-intestazione">
         {query === ''
@@ -244,6 +262,12 @@ export function InspectionArchive({
             ? `Oggi, ${giornoLeggibile}`
             : giornoLeggibile
           : `Risultati per «${query}» su tutte le giornate`}
+        {risultati.data !== undefined ? (
+          <span className="text-ink-muted" data-testid="archivio-conteggio">
+            {' · '}
+            {archiveCountLabel(voci.length, tutte.length, soloConMedia)}
+          </span>
+        ) : null}
       </p>
 
       {risultati.isPending ? (
@@ -252,21 +276,27 @@ export function InspectionArchive({
         <Notice tone="error">
           Archivio non disponibile in questo momento: riprova fra qualche istante.
         </Notice>
-      ) : (risultati.data?.entries.length ?? 0) === 0 ? (
+      ) : voci.length === 0 ? (
         <EmptyState
           size="page"
           title={
-            query === '' ? 'Nessuna pratica in questa giornata' : `Nessun risultato per "${query}"`
+            soloConMedia && tutte.length > 0
+              ? 'Nessuna pratica con foto o video'
+              : query === ''
+                ? 'Nessuna pratica in questa giornata'
+                : `Nessun risultato per "${query}"`
           }
           description={
-            query === ''
-              ? 'Nessun ingresso in agenda per il giorno scelto: prova un altro giorno dal calendario.'
-              : 'Controlla la targa (senza spazi) o il codice pratica.'
+            soloConMedia && tutte.length > 0
+              ? `Le ${tutte.length} pratiche trovate non hanno file allegati: spegni «Solo con foto/video» per vederle.`
+              : query === ''
+                ? 'Nessun ingresso in agenda per il giorno scelto: prova un altro giorno dal calendario.'
+                : 'Controlla la targa (senza spazi) o il codice pratica.'
           }
         />
       ) : (
         <ul className="flex flex-col gap-3">
-          {risultati.data?.entries.map((entry) => (
+          {voci.map((entry) => (
             <Scheda
               key={entry.appointmentId}
               entry={entry}

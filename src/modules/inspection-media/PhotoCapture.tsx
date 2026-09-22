@@ -35,8 +35,11 @@ interface Caricamento {
   readonly previewUrl: string;
 }
 
-/** I contenitori video accettati dal server, elencati uno per uno (vedi il commento all'input). */
-const VIDEO_ACCEPT = 'video/mp4,video/quicktime,video/webm,video/3gpp,video/x-m4v';
+/**
+ * Tipi video per gli input: prima quelli espliciti dell'iPad (mp4, QuickTime), poi il jolly per
+ * gli altri dispositivi. Il server accetta comunque solo i contenitori che riconosce dai byte.
+ */
+const VIDEO_ACCEPT = 'video/mp4,video/quicktime,video/*';
 
 export function PhotoCapture({ appointmentId, media, onUploaded, onRemove }: PhotoCaptureProps) {
   const inputRefs = useRef(new Map<string, HTMLInputElement | null>());
@@ -370,13 +373,16 @@ export function PhotoCapture({ appointmentId, media, onUploaded, onRemove }: Pho
         </ul>
         {inputNascosto('EXTRA', 'image/*', (file) => void onFile(file, 'EXTRA', 'PHOTO'))}
         {/*
-         * Tipi ESPLICITI e non `video/*`: con il jolly iOS ricomprime la ripresa a qualità
-         * «media» prima di consegnarla e il video del veicolo perde i dettagli — il graffio che
-         * serviva a vedere. Con i tipi elencati passa il file originale (.mov HEVC dell'iPad). Il
-         * client non ridimensiona né ricodifica nulla: il file parte com'è, entro gli 80 MB.
+         * Il client non ridimensiona né ricodifica nulla: il file parte com'è, entro gli 80 MB.
+         * Quello che comprime è iOS quando registra dal browser; la via per la qualità nativa
+         * (4K, 60 fps) è l'app Fotocamera più «Galleria», e la riga qui sotto lo ricorda.
          */}
         {inputNascosto('VIDEO', VIDEO_ACCEPT, (file) => void onFile(file, null, 'VIDEO'))}
         {inputNascosto('GALLERIA', `image/*,${VIDEO_ACCEPT}`, dalRullino, false)}
+        <p className="text-ink-muted testo-nota" data-testid="nota-qualita-video">
+          Per la massima qualità (4K, 60 fps) registra il video con l&apos;app Fotocamera
+          dell&apos;iPad e caricalo da «Galleria»: il file arriva com&apos;è, senza ricompressione.
+        </p>
       </div>
     </section>
   );

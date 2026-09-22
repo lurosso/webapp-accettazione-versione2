@@ -52,15 +52,14 @@ describe('Check-in: slot del video obbligatorio', () => {
     expect(html).toMatch(/<input[^>]*data-testid="input-galleria"[^>]*>/);
     const galleria = /<input[^>]*data-testid="input-galleria"[^>]*>/.exec(html)?.[0] ?? '';
     expect(galleria).not.toContain('capture=');
-    expect(galleria).toContain(
-      'accept="image/*,video/mp4,video/quicktime,video/webm,video/3gpp,video/x-m4v"',
-    );
-    // Il video del giro: fotocamera diretta e tipi elencati uno per uno, niente jolly video/*,
-    // che su iOS fa ricomprimere la ripresa.
+    expect(galleria).toContain('accept="image/*,video/mp4,video/quicktime,video/*"');
+    // Il video del giro: fotocamera diretta, tipi dell'iPad espliciti davanti al jolly.
     const video = /<input[^>]*data-testid="input-video"[^>]*>/.exec(html)?.[0] ?? '';
     expect(video).toContain('capture="environment"');
-    expect(video).toContain('accept="video/mp4,video/quicktime,video/webm,video/3gpp,video/x-m4v"');
-    expect(video).not.toContain('video/*');
+    expect(video).toContain('accept="video/mp4,video/quicktime,video/*"');
+    // Il promemoria sulla qualità nativa: Fotocamera dell'iPad più «Galleria».
+    expect(html).toContain('data-testid="nota-qualita-video"');
+    expect(html).toContain('Fotocamera');
   });
 
   it('con il check-in chiuso (senza onRemove) il video resta visibile ma senza ×', () => {
