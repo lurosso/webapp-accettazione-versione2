@@ -9,7 +9,7 @@
 //   scomodo da leggere e da chiudere.
 // I dati arrivano dalla riga già scaricata (`/api/v1/queue`), quindi la scheda si apre subito e
 // continua ad aggiornarsi con il polling della coda, senza una richiesta dedicata.
-import Link from 'next/link';
+import { TransitionLink } from '@/components/layout/TransitionLink';
 import { useEffect } from 'react';
 import { isAutoClosedPending, isInQueue, type Appointment } from '@/domain/entities/appointment';
 import { customerFullName } from '@/domain/entities/customer';
@@ -345,12 +345,12 @@ export function AppointmentDetailPanel({
 
           {/* Passaggio manuale all'ispezione: solo dove si può fare, cioè sul tablet. */}
           {allowCheckIn && a.status === 'IN_PROGRESS' ? (
-            <Link
+            <TransitionLink
               href={checkInPath(a.id)}
               className="bg-brand-secondary hover:bg-brand-blue-dark controllo-lg transizione premibile focus-anello testo-dato flex items-center justify-center rounded-xl px-4 font-semibold text-white"
             >
               Passa al check-in fotografico
-            </Link>
+            </TransitionLink>
           ) : null}
 
           {/*

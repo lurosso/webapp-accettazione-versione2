@@ -13,13 +13,13 @@
 // Il contenuto resta quello di prima: identità di chi è collegato (sempre visibile, è la prima
 // domanda che si fa chi trova una postazione già aperta), postazione e sportello, orologio
 // dell'officina, sezioni consentite dal ruolo, uscita.
-import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
 import { useEffect, useState } from 'react';
 import type { OperatorRole } from '@/domain/entities/operator';
 import { Button } from '@/components/ui/button';
 import { useIsTouchLayout } from '@/hooks/useMediaQuery';
 import { BrandMark } from './BrandMark';
+import { TransitionLink } from './TransitionLink';
 import { OperatorChip } from '@/components/shared/OperatorChip';
 import { postLogout } from '@/lib/api-client/client';
 import { canAccess, type ProtectedArea } from '@/lib/navigation';
@@ -111,7 +111,7 @@ export function Header({ displayName, role, workstationLabel, deskLabel, timeZon
             {NAV.filter(
               (item) => canAccess(item.area, role) && (item.href !== '/check-in' || touchLayout),
             ).map((item) => (
-              <Link
+              <TransitionLink
                 key={item.href}
                 href={item.href}
                 className={cn(
@@ -127,7 +127,7 @@ export function Header({ displayName, role, workstationLabel, deskLabel, timeZon
                 )}
               >
                 {item.label}
-              </Link>
+              </TransitionLink>
             ))}
           </nav>
         </div>

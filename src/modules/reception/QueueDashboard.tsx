@@ -17,6 +17,7 @@ import { UndoToast } from '@/components/ui/undo-toast';
 import { EmptyState } from '@/components/shared/EmptyState';
 import { STALE_WARNING_MS } from '@/config/constants';
 import { useAppointmentActions } from '@/hooks/useAppointmentActions';
+import { useTransitionRouter } from '@/hooks/useTransitionRouter';
 import { useLiveUpdates } from '@/hooks/useLiveUpdates';
 import { useIsTouchLayout } from '@/hooks/useMediaQuery';
 import { useQueue } from '@/hooks/useQueue';
@@ -107,6 +108,7 @@ export function QueueDashboard({
   monitorLabel = null,
 }: QueueDashboardProps) {
   const router = useRouter();
+  const transizione = useTransitionRouter();
   const pathname = usePathname();
   const searchParams = useSearchParams();
   const queryClient = useQueryClient();
@@ -188,12 +190,12 @@ export function QueueDashboard({
   const dopoPresaInCarico = useCallback(
     (appointmentId: string): void => {
       if (touchLayout) {
-        router.push(checkInPath(appointmentId));
+        transizione.push(checkInPath(appointmentId));
         return;
       }
       setSelectedId(appointmentId);
     },
-    [router, touchLayout],
+    [transizione, touchLayout],
   );
 
   const onAction = useCallback(

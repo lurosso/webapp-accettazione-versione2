@@ -1905,6 +1905,15 @@ Audit in quattro aree (portale pubblico, upload, autorizzazioni/sessioni, integr
 - [x] M8-T44-S02 Transizione di pagina come CSS esplicito fuori dal tema: `@keyframes entra-pagina` (6 px, 200 ms, ease-out, `both`) e classe piena `.animate-entra-pagina`; tolta la variabile `--animate-entra-pagina`. Con `prefers-reduced-motion: reduce` (impostazione frequente sugli iPad, che prima azzerava l'animazione) resta una dissolvenza di 200 ms senza spostamento.
 - [x] M8-T44-S03 Test `page-transition-css.test.ts`: keyframes e classe presenti, nessuna variabile del tema, dissolvenza sotto reduce-motion, reset del campo data.
 
+### M8-T45 — Transizione di pagina affidabile su WebKit (iPad fisico) _(2026-09-22)_
+
+Diagnosi: l'animazione partiva all'inserimento del contenitore, ma sull'iPad la pagina nuova va idratata (decine di schede, query, immagini) e il primo frame arriva centinaia di millisecondi dopo: una `animation` di 200 ms era già finita al primo frame e la pagina compariva di colpo. Chrome sul PC idrata in pochi millisecondi e la mostrava. In più l'effetto era solo in entrata, senza alcun segno al tocco.
+
+- [x] M8-T45-S01 `PageTransition` in tre fasi (`data-fase`): `entrata` (dipinta trasparente), `visibile` (transizione avviata dopo due `requestAnimationFrame`, cioè dopo il primo frame dipinto), `uscita` (la pagina lasciata sfuma al tocco). Prima pagina della sessione sempre visibile (niente pagina bianca in attesa del JS). `key={pathname}`.
+- [x] M8-T45-S02 Store `page-transition-store.ts` (`segnalaUscita`/`azzeraUscita`, azzeramento di sicurezza a 1,5 s, `clickDaAnimare`, `soloPercorso`), hook `useTransitionRouter` (push con uscita, niente uscita verso la stessa pagina) e `TransitionLink` (Link di Next che intercetta solo il click normale). Usati in: navigazione della testata, «Coda» e «Vai alla coda» del check-in, presa in carico dal tablet, «Passa al check-in fotografico».
+- [x] M8-T45-S03 CSS: `.transizione-pagina[data-fase=…]` con `transition` (240 ms entrata, 140 ms uscita), `will-change` solo durante le fasi, `transform: none` da visibile (gli elementi fixed restano al posto); sotto `prefers-reduced-motion` resta la sola dissolvenza. Tolte `@keyframes entra-pagina` e `.animate-entra-pagina`.
+- [x] M8-T45-S04 Test: `page-transition.test.ts` (store, timer di sicurezza, click da animare, SSR visibile) e `page-transition-css.test.ts` aggiornato.
+
 ---
 
 ## Backlog / Idee future

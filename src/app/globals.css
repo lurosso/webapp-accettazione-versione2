@@ -564,43 +564,61 @@ input[type='date']::-webkit-datetime-edit {
 }
 
 /*
- * Transizione di pagina: @keyframes espliciti e una classe piena, non una variabile del tema.
- * WebKit vuole la regola scritta per intero; 200 ms ease-out, e il contenitore resta al suo
- * stato finale (`both`). La applica `PageTransition` al div legato al percorso: si rimonta a
- * ogni navigazione e l'animazione riparte.
+ * Transizione di pagina, in tre fasi scritte da `PageTransition` nell'attributo `data-fase`.
+ *
+ * Non è una `animation` che parte all'inserimento: sull'iPad la pagina nuova va idratata e il
+ * primo frame arriva centinaia di millisecondi dopo l'inserimento — un'animazione di 200 ms
+ * sarebbe già finita, e la pagina comparirebbe di colpo. Qui il contenitore viene DIPINTO
+ * trasparente (`entrata`) e la transizione verso `visibile` parte al frame successivo, avviata dal
+ * componente: qualunque sia il tempo di idratazione, la dissolvenza si vede. `uscita` è la pagina
+ * che si sta lasciando, sfumata appena si tocca il link, mentre la nuova viene chiesta al server.
+ *
+ * `transform` torna a `none` nello stato visibile: un contenitore trasformato diventerebbe il
+ * riferimento degli elementi `position: fixed` (avviso «Annulla», finestre) e li sposterebbe.
+ * `will-change` solo durante le fasi di movimento: promuove il livello sulla GPU di WebKit, così
+ * la dissolvenza gira sul compositore anche se il thread principale è occupato.
  */
-@keyframes entra-pagina {
-  from {
-    opacity: 0;
-    transform: translateY(6px);
-  }
-  to {
-    opacity: 1;
-    transform: translateY(0);
-  }
+.transizione-pagina[data-fase='entrata'] {
+  opacity: 0;
+  transform: translate3d(0, 6px, 0);
+  will-change: opacity, transform;
 }
 
-@keyframes entra-pagina-dissolvenza {
-  from {
-    opacity: 0;
-  }
-  to {
-    opacity: 1;
-  }
+.transizione-pagina[data-fase='visibile'] {
+  opacity: 1;
+  transform: none;
+  transition:
+    opacity 240ms ease-out,
+    transform 240ms ease-out;
 }
 
-.animate-entra-pagina {
-  animation: entra-pagina 200ms ease-out both;
+.transizione-pagina[data-fase='uscita'] {
+  opacity: 0.35;
+  transform: translate3d(0, -4px, 0);
+  will-change: opacity, transform;
+  transition:
+    opacity 140ms ease-in,
+    transform 140ms ease-in;
 }
 
 /*
  * Con «Riduci movimento» attivo (impostazione frequente sugli iPad) la regola generale sopra
- * azzera ogni animazione; qui il cambio di pagina resta una dissolvenza senza spostamento, che
+ * azzera ogni transizione; qui il cambio di pagina resta una dissolvenza senza spostamento, che
  * non è un movimento e non dà fastidio, ma evita il salto secco fra una schermata e l'altra.
  */
 @media (prefers-reduced-motion: reduce) {
-  .animate-entra-pagina {
-    animation: entra-pagina-dissolvenza 200ms ease-out both !important;
-    animation-duration: 200ms !important;
+  .transizione-pagina[data-fase='entrata'],
+  .transizione-pagina[data-fase='uscita'] {
+    transform: none;
+  }
+
+  .transizione-pagina[data-fase='visibile'] {
+    transition: opacity 240ms ease-out !important;
+    transition-duration: 240ms !important;
+  }
+
+  .transizione-pagina[data-fase='uscita'] {
+    transition: opacity 140ms ease-in !important;
+    transition-duration: 140ms !important;
   }
 }

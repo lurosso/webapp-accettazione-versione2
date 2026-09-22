@@ -11,7 +11,6 @@
 // fondo, a tutta larghezza, staccato dal testo da un bordo. Le descrizioni dei difetti arrivano da
 // Infinity e possono essere lunghe una riga di terminale: si fermano a due righe e si aprono con
 // "Mostra tutto", così una scheda non spinge fuori schermo tutte le altre.
-import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useEffect, useState } from 'react';
 import {
@@ -24,10 +23,12 @@ import { LATE_GRACE_MINUTES } from '@/config/constants';
 import type { QueueRowView } from '@/domain/read-models';
 import type { Session } from '@/application/auth/IAuthService';
 import { BrandMark } from '@/components/layout/BrandMark';
+import { TransitionLink } from '@/components/layout/TransitionLink';
 import { EmptyState } from '@/components/shared/EmptyState';
 import { CardSkeleton } from '@/components/ui/skeleton';
 import { useAppointmentActions } from '@/hooks/useAppointmentActions';
 import { useLiveUpdates } from '@/hooks/useLiveUpdates';
+import { useTransitionRouter } from '@/hooks/useTransitionRouter';
 import { useTouchLayoutKind } from '@/hooks/useMediaQuery';
 import { useQueue } from '@/hooks/useQueue';
 import { queueKeys } from '@/lib/api-client/query-keys';
@@ -64,6 +65,7 @@ export function CheckInQueue({
   openCheckInFor = null,
 }: CheckInQueueProps) {
   const router = useRouter();
+  const transizione = useTransitionRouter();
   // Da un PC il check-in fotografico non si fa: la pagina lo dice invece di mostrare la fotocamera.
   const dispositivo = useTouchLayoutKind();
   const [scheda, setScheda] = useState<Scheda>('attesa');
@@ -140,7 +142,7 @@ export function CheckInQueue({
     setInCheckIn(null);
     if (daDashboard) {
       setDaDashboard(false);
-      router.push('/accettazione');
+      transizione.push('/accettazione');
     }
   };
   const brandName = (brandId: string): string =>
@@ -169,12 +171,12 @@ export function CheckInQueue({
           title="Il check-in fotografico si fa dal tablet"
           description="Da un PC non si scattano foto. La presa in carico e i dettagli della pratica sono nella coda accettazione; il giro fotografico del veicolo si apre dal tablet sul piazzale."
           actions={
-            <Link
+            <TransitionLink
               href="/accettazione"
               className="bg-brand-secondary hover:bg-brand-blue-dark premibile focus-anello controllo inline-flex items-center rounded-md px-4 text-sm font-semibold text-white"
             >
               Vai alla coda accettazione
-            </Link>
+            </TransitionLink>
           }
         />
       </main>
@@ -200,12 +202,12 @@ export function CheckInQueue({
             </div>
           </div>
           <div className="flex items-center gap-2">
-            <Link
+            <TransitionLink
               href="/accettazione"
               className="premibile controllo focus-anello inline-flex items-center rounded-xl border-2 border-white/40 px-4 text-base font-semibold text-white [--anello-colore:#fff] hover:bg-white/10"
             >
               Coda
-            </Link>
+            </TransitionLink>
           </div>
         </div>
       </header>
