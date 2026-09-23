@@ -40,6 +40,7 @@ const PROTECTED_PAGE_PREFIXES = [
   '/manager',
   '/admin',
   '/bdc',
+  '/comunicazioni',
   '/cambia-password',
 ];
 

@@ -15,6 +15,7 @@ import { isAutoClosedPending, isInQueue, type Appointment } from '@/domain/entit
 import { customerFullName } from '@/domain/entities/customer';
 import type { NotificationJobStatus } from '@/domain/entities/notification';
 import type { QueueRowView } from '@/domain/read-models';
+import { MAX_SKIPS_BEFORE_ANOMALY } from '@/config/constants';
 import { Badge } from '@/components/ui/badge';
 import { ExpandableText } from '@/components/ui/expandable-text';
 import { Button } from '@/components/ui/button';
@@ -248,7 +249,11 @@ export function AppointmentDetailPanel({
             <div className="flex flex-wrap items-center gap-2">
               <StatusBadge status={a.status} />
               {a.source === 'MANUAL' ? <Badge tone="info">Inserita a mano</Badge> : null}
-              {a.skipCount > 0 ? (
+              {a.skipCount >= MAX_SKIPS_BEFORE_ANOMALY && isInQueue(a.status) ? (
+                <Badge tone="danger" dot>
+                  Saltata {a.skipCount} volte · verificare presenza
+                </Badge>
+              ) : a.skipCount > 0 ? (
                 <Badge tone="warning">
                   {a.skipCount === 1 ? 'Saltata 1 volta' : `Saltata ${a.skipCount} volte`}
                 </Badge>

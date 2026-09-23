@@ -7,13 +7,19 @@
 //   la fotocamera posteriore e dicono a colpo d'occhio cosa è stato ripreso (bordo verde);
 // - "+ Foto": uno scatto in più quando serve, senza dover scegliere una casella;
 // - "Video": la ripresa breve del giro (mp4/mov/webm dalla fotocamera del tablet).
-// Anteprima subito, rotella mentre il file viaggia; se il salvataggio fallisce il media sparisce e
-// compare l'errore, perché una foto che sembra esserci ma non è stata salvata è peggio di nessuna
-// foto. Tutti i bersagli sono almeno 44 px: si usa in piedi, con i guanti.
+// Anteprima subito, con la percentuale mentre il file viaggia. Dal 2026-09-23 uno scatto non si
+// perde più se la rete cade: il file resta sul tablet (coda dei caricamenti, `upload-queue.ts`) e
+// riparte da solo quando la connessione torna, e il riquadro dice in che stato è — in viaggio, in
+// attesa di rete, rifiutato dal server (allora: «Riprova» o «Scarta»). Finché resta qualcosa da
+// caricare il check-in non si chiude: una foto che sembra esserci ma non è sul server è peggio di
+// nessuna foto. Tutti i bersagli sono almeno 44 px: si usa in piedi, con i guanti.
 import { useEffect, useRef, useState } from 'react';
 import type { MediaCategory } from '@/domain/entities/media-asset';
-import { ApiError, uploadInspectionMedia, type InspectionPhoto } from '@/lib/api-client/client';
+import { ApiError, type InspectionPhoto } from '@/lib/api-client/client';
 import { cn } from '@/lib/utils/cn';
+import type { PendingUpload } from './upload-queue';
+import { previewUrlFor } from './upload-store';
+import { useUploadQueue } from './useUploadQueue';
 
 export interface PhotoCaptureProps {
   readonly appointmentId: string;
@@ -27,14 +33,6 @@ export interface PhotoCaptureProps {
   readonly onRemove?: ((mediaId: string) => Promise<void>) | undefined;
 }
 
-/** Media in corso di caricamento, tenuto accanto al proprio slot (o fra gli extra). */
-interface Caricamento {
-  readonly id: string;
-  readonly category: MediaCategory | null;
-  readonly kind: 'PHOTO' | 'VIDEO';
-  readonly previewUrl: string;
-}
-
 /**
  * Tipi video per gli input: prima quelli espliciti dell'iPad (mp4, QuickTime), poi il jolly per
  * gli altri dispositivi. Il server accetta comunque solo i contenitori che riconosce dai byte.
@@ -43,7 +41,7 @@ const VIDEO_ACCEPT = 'video/mp4,video/quicktime,video/*';
 
 export function PhotoCapture({ appointmentId, media, onUploaded, onRemove }: PhotoCaptureProps) {
   const inputRefs = useRef(new Map<string, HTMLInputElement | null>());
-  const [inCorso, setInCorso] = useState<readonly Caricamento[]>([]);
+  const uploads = useUploadQueue(appointmentId, onUploaded);
   const [errore, setErrore] = useState<string | null>(null);
   /** Media di cui è in corso l'eliminazione: il suo pulsante resta spento finché non finisce. */
   const [inEliminazione, setInEliminazione] = useState<string | null>(null);
@@ -84,36 +82,32 @@ export function PhotoCapture({ appointmentId, media, onUploaded, onRemove }: Pho
       </button>
     );
 
-  // Le anteprime locali occupano memoria finché non vengono liberate.
+  // L'orologio del «riprovo tra N s»: gira solo finché qualcosa aspetta la rete.
+  const [adesso, setAdesso] = useState(() => Date.now());
+  const inAttesaDiRete = uploads.pending.some(
+    (u) => u.status === 'WAITING_NETWORK' || u.status === 'WAITING_AUTH',
+  );
   useEffect(() => {
-    return () => {
-      for (const c of inCorso) {
-        URL.revokeObjectURL(c.previewUrl);
-      }
-    };
-  }, [inCorso]);
+    if (!inAttesaDiRete) {
+      return undefined;
+    }
+    const t = setInterval(() => setAdesso(Date.now()), 1_000);
+    return () => clearInterval(t);
+  }, [inAttesaDiRete]);
 
+  /** Il file entra nella coda del tablet (e da lì parte): da questo momento non si perde più. */
   const onFile = async (
     file: File,
     category: MediaCategory | null,
     kind: 'PHOTO' | 'VIDEO',
   ): Promise<void> => {
     setErrore(null);
-    const previewUrl = URL.createObjectURL(file);
-    const id = `${kind}-${category ?? 'video'}-${file.size}-${previewUrl}`;
-    setInCorso((precedenti) => [...precedenti, { id, category, kind, previewUrl }]);
     try {
-      const salvato = await uploadInspectionMedia(appointmentId, file, category);
-      onUploaded(salvato);
-    } catch (cause) {
+      await uploads.enqueue({ blob: file, fileName: file.name, category, kind });
+    } catch {
       setErrore(
-        cause instanceof ApiError
-          ? cause.message
-          : `${kind === 'VIDEO' ? 'Video' : 'Foto'} non salvat${kind === 'VIDEO' ? 'o' : 'a'}: controlla la connessione e riprova.`,
+        `${kind === 'VIDEO' ? 'Video' : 'Foto'} non acquisit${kind === 'VIDEO' ? 'o' : 'a'}: riprova lo scatto.`,
       );
-    } finally {
-      setInCorso((precedenti) => precedenti.filter((c) => c.id !== id));
-      URL.revokeObjectURL(previewUrl);
     }
   };
 
@@ -150,7 +144,7 @@ export function PhotoCapture({ appointmentId, media, onUploaded, onRemove }: Pho
 
   const foto = media.filter((m) => m.kind !== 'VIDEO');
   const video = media.filter((m) => m.kind === 'VIDEO');
-  const inCaricamento = inCorso;
+  const videoInCoda = uploads.pending.some((u) => u.kind === 'VIDEO');
 
   /** Dal rullino può arrivare una foto o un video: lo dice il file, la casella non c'è. */
   const dalRullino = (file: File): void => {
@@ -203,7 +197,22 @@ export function PhotoCapture({ appointmentId, media, onUploaded, onRemove }: Pho
               </svg>
               Galleria
             </button>
-            {video.length === 0 ? (
+            {uploads.pending.length > 0 ? (
+              <span
+                className="bg-status-info-soft text-status-info-ink testo-corpo rounded-full px-4 py-1.5 font-bold"
+                data-testid="caricamenti-in-attesa"
+                aria-live="polite"
+              >
+                {uploads.pending.length === 1
+                  ? '1 file in attesa di caricamento'
+                  : `${uploads.pending.length} file in attesa di caricamento`}
+              </span>
+            ) : null}
+            {video.length === 0 && videoInCoda ? (
+              <span className="bg-status-in-progress-soft text-status-in-progress-ink testo-corpo rounded-full px-4 py-1.5 font-bold">
+                Video in caricamento — attendi prima di chiudere
+              </span>
+            ) : video.length === 0 ? (
               <span className="bg-status-in-progress-soft text-status-in-progress-ink testo-corpo rounded-full px-4 py-1.5 font-bold">
                 Manca il video — non si può chiudere
               </span>
@@ -306,19 +315,15 @@ export function PhotoCapture({ appointmentId, media, onUploaded, onRemove }: Pho
             </li>
           ))}
 
-          {inCaricamento.map((c) => (
-            <li key={c.id} className="snap-start">
-              <span className={cn(RIQUADRO, 'border-line bg-slate-100')}>
-                {/* eslint-disable-next-line @next/next/no-img-element */}
-                <img
-                  src={c.previewUrl}
-                  alt=""
-                  className="absolute inset-0 h-full w-full object-cover opacity-50"
-                />
-                <span className="absolute inset-0 flex items-center justify-center bg-slate-900/40 text-sm font-semibold text-white">
-                  Salvataggio…
-                </span>
-              </span>
+          {uploads.pending.map((u) => (
+            <li key={u.id} className="snap-start">
+              <RiquadroInAttesa
+                upload={u}
+                adesso={adesso}
+                classeRiquadro={RIQUADRO}
+                onRetry={() => uploads.retryNow(u.id)}
+                onDiscard={() => void uploads.discard(u.id)}
+              />
             </li>
           ))}
 
@@ -379,11 +384,135 @@ export function PhotoCapture({ appointmentId, media, onUploaded, onRemove }: Pho
          */}
         {inputNascosto('VIDEO', VIDEO_ACCEPT, (file) => void onFile(file, null, 'VIDEO'))}
         {inputNascosto('GALLERIA', `image/*,${VIDEO_ACCEPT}`, dalRullino, false)}
+        {uploads.pending.length > 0 ? (
+          <p className="text-ink-soft testo-nota" data-testid="nota-caricamenti">
+            {uploads.persistent
+              ? 'I file in attesa restano salvati sul tablet anche senza rete o chiudendo la pagina: partono da soli appena la connessione torna.'
+              : 'I file in attesa partono da soli appena la connessione torna: tieni aperta questa pagina finché non sono caricati.'}
+          </p>
+        ) : null}
         <p className="text-ink-muted testo-nota" data-testid="nota-qualita-video">
           Per la massima qualità (4K, 60 fps) registra il video con l&apos;app Fotocamera
           dell&apos;iPad e caricalo da «Galleria»: il file arriva com&apos;è, senza ricompressione.
         </p>
       </div>
     </section>
+  );
+}
+
+interface RiquadroInAttesaProps {
+  readonly upload: PendingUpload;
+  /** Millisecondi epoch, per il conto alla rovescia del prossimo tentativo. */
+  readonly adesso: number;
+  readonly classeRiquadro: string;
+  readonly onRetry: () => void;
+  readonly onDiscard: () => void;
+}
+
+/**
+ * Un file acquisito e non ancora sul server: l'anteprima dal file locale e, sopra, lo stato in
+ * parole. È sempre vero: «in attesa di rete» vuol dire che riparte da solo, «non salvata» vuol dire
+ * che il server l'ha rifiutata e serve una decisione.
+ */
+function RiquadroInAttesa({
+  upload,
+  adesso,
+  classeRiquadro,
+  onRetry,
+  onDiscard,
+}: RiquadroInAttesaProps) {
+  const anteprima = upload.kind === 'PHOTO' ? previewUrlFor(upload) : null;
+  const percentuale = Math.round(upload.progress * 100);
+  const secondi =
+    upload.nextAttemptAt === null
+      ? 0
+      : Math.max(0, Math.ceil((upload.nextAttemptAt - adesso) / 1_000));
+  const nome = upload.kind === 'VIDEO' ? 'Video' : 'Foto';
+
+  return (
+    <span
+      className={cn(
+        classeRiquadro,
+        upload.status === 'FAILED'
+          ? 'border-status-no-show bg-status-no-show-soft'
+          : 'border-status-info bg-surface-sunken',
+      )}
+      data-testid={`in-attesa-${upload.id}`}
+      aria-label={`${nome} in attesa di caricamento`}
+    >
+      {anteprima !== null ? (
+        /* eslint-disable-next-line @next/next/no-img-element */
+        <img
+          src={anteprima}
+          alt=""
+          className="absolute inset-0 h-full w-full object-cover opacity-40"
+        />
+      ) : (
+        <span
+          className="text-ink-muted absolute inset-0 flex items-center justify-center text-4xl"
+          aria-hidden="true"
+        >
+          ▶
+        </span>
+      )}
+      <span className="bg-surface/90 text-ink relative flex flex-col gap-1 px-3 py-2">
+        {upload.status === 'UPLOADING' ? (
+          <>
+            <span className="testo-corpo font-bold">Caricamento {percentuale}%</span>
+            <span className="bg-line-subtle block h-2 overflow-hidden rounded-full">
+              <span
+                className="bg-status-info block h-full rounded-full"
+                style={{ width: `${percentuale}%` }}
+              />
+            </span>
+          </>
+        ) : upload.status === 'QUEUED' ? (
+          <span className="testo-corpo font-bold">{nome} in coda…</span>
+        ) : upload.status === 'WAITING_NETWORK' ? (
+          <>
+            <span className="testo-corpo font-bold">In attesa di rete</span>
+            <span className="text-ink-soft testo-nota">
+              {secondi > 0 ? `riprovo tra ${secondi} s` : 'riprovo adesso…'}
+            </span>
+            <button
+              type="button"
+              onClick={onRetry}
+              className="premibile focus-anello controllo border-line bg-surface testo-nota rounded-lg border px-2 font-semibold"
+            >
+              Riprova ora
+            </button>
+          </>
+        ) : upload.status === 'WAITING_AUTH' ? (
+          <span className="testo-nota font-semibold">
+            Sessione scaduta: accedi di nuovo, il file resta sul tablet.
+          </span>
+        ) : (
+          <>
+            <span className="text-status-no-show-ink testo-corpo font-bold">
+              {nome} non salvat{upload.kind === 'VIDEO' ? 'o' : 'a'}
+            </span>
+            {upload.lastError !== null ? (
+              <span className="text-ink-soft testo-nota line-clamp-2">{upload.lastError}</span>
+            ) : null}
+            <span className="flex gap-1">
+              <button
+                type="button"
+                onClick={onRetry}
+                className="premibile focus-anello controllo border-line bg-surface testo-nota flex-1 rounded-lg border px-2 font-semibold"
+              >
+                Riprova
+              </button>
+              <button
+                type="button"
+                onClick={onDiscard}
+                className="premibile focus-anello controllo border-line bg-surface text-status-no-show-ink testo-nota flex-1 rounded-lg border px-2 font-semibold"
+              >
+                Scarta
+              </button>
+            </span>
+          </>
+        )}
+      </span>
+    </span>
   );
 }

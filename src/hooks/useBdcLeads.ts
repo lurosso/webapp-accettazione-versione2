@@ -12,7 +12,7 @@ export const BDC_POLLING_MS = 10_000;
 export const bdcKeys = {
   all: ['bdc-leads'] as const,
   list: (params: BdcLeadsParams) =>
-    ['bdc-leads', params.businessDate, params.includeHandled] as const,
+    ['bdc-leads', params.businessDate, params.includeHandled, params.kind ?? 'tutti'] as const,
 };
 
 export function useBdcLeads(params: BdcLeadsParams) {

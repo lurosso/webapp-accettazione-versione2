@@ -77,6 +77,32 @@ export type NotificationJobStatus =
 /** Esito di un singolo tentativo. */
 export type NotificationAttemptOutcome = 'SENT' | 'DELIVERED' | 'FAILED';
 
+/**
+ * Esito di un contatto fatto a mano, registrato da chi chiude la segnalazione nella schermata
+ * Comunicazioni. È la risposta alla domanda «il cliente sa quello che doveva sapere?».
+ */
+export const MANUAL_CONTACT_OUTCOMES = [
+  'PHONE_CALLED',
+  'INFORMED_AT_DESK',
+  'UNREACHABLE',
+  'WRONG_NUMBER',
+  'OTHER',
+] as const;
+
+export type ManualContactOutcome = (typeof MANUAL_CONTACT_OUTCOMES)[number];
+
+export const MANUAL_CONTACT_OUTCOME_LABELS: Readonly<Record<ManualContactOutcome, string>> = {
+  PHONE_CALLED: 'Cliente chiamato al telefono',
+  INFORMED_AT_DESK: 'Cliente informato di persona',
+  UNREACHABLE: 'Cliente non raggiungibile',
+  WRONG_NUMBER: 'Numero errato o inesistente',
+  OTHER: 'Altro (vedi nota)',
+};
+
+export function isManualContactOutcome(v: unknown): v is ManualContactOutcome {
+  return typeof v === 'string' && (MANUAL_CONTACT_OUTCOMES as readonly string[]).includes(v);
+}
+
 /** Singola chiamata a un provider. */
 export interface NotificationAttempt {
   readonly id: NotificationAttemptId;
@@ -115,6 +141,20 @@ export interface NotificationJob {
   readonly attempts: readonly NotificationAttempt[];
   readonly manualConfirmedBy: OperatorId | null;
   readonly manualNote: string | null;
+  /** Esito registrato chiudendo a mano la segnalazione; null finché non è chiusa. */
+  readonly manualOutcome: ManualContactOutcome | null;
+  readonly manualConfirmedAt: IsoDateTime | null;
+  /**
+   * Prossimo tentativo automatico di un job FAILED; null = nessuna riprova programmata (riuscito,
+   * da contattare a mano, oppure tentativi esauriti).
+   */
+  readonly nextAttemptAt: IsoDateTime | null;
+  /** Riprove automatiche già fatte (il primo invio non conta). */
+  readonly autoRetryCount: number;
+  /** Chi ha preso in carico il contatto dalla schermata Comunicazioni, e quando. */
+  readonly claimedByOperatorId: OperatorId | null;
+  readonly claimedByName: string | null;
+  readonly claimedAt: IsoDateTime | null;
   readonly createdAt: IsoDateTime;
   readonly updatedAt: IsoDateTime;
 }

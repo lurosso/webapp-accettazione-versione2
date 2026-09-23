@@ -54,6 +54,7 @@ describe('Archivio: storico per targa', () => {
       capturedByOperatorId: asOperatorId('op-advisor-1'),
       capturedAt: '2026-09-10T08:10:00.000Z' as IsoDateTime,
       note: null,
+      clientUploadId: null,
       expiresAt: '2026-10-10T08:10:00.000Z' as IsoDateTime,
       archivedAt: null,
     });
@@ -103,6 +104,7 @@ describe('Archivio: storico per targa', () => {
       capturedByOperatorId: asOperatorId('op-advisor-1'),
       capturedAt: '2026-09-16T09:40:00.000Z' as IsoDateTime,
       note: null,
+      clientUploadId: null,
       expiresAt: '2026-10-16T09:40:00.000Z' as IsoDateTime,
       archivedAt: null,
     });

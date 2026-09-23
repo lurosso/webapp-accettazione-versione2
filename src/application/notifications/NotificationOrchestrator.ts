@@ -3,10 +3,16 @@
 // registra un NotificationAttempt per ogni chiamata, pubblica NOTIFICATION_JOB_CHANGED
 // e non lancia mai eccezioni.
 
-import { NOTIFICATION_IN_FLIGHT_STALE_MS } from '@/config/constants';
+import {
+  NOTIFICATION_DRAIN_BATCH,
+  NOTIFICATION_IN_FLIGHT_STALE_MS,
+  NOTIFICATION_MAX_AUTO_RETRIES,
+  NOTIFICATION_RETRY_BACKOFF_MINUTES,
+} from '@/config/constants';
 import type { Appointment } from '@/domain/entities/appointment';
 import type { Brand } from '@/domain/entities/brand';
 import type {
+  ManualContactOutcome,
   NotificationAttempt,
   NotificationChannel,
   NotificationJob,
@@ -98,6 +104,12 @@ export interface NotificationOrchestratorDeps {
   readonly whatsappDelivery?: WhatsAppDeliverySink;
   /** Minuti di anticipo ammessi per «Sono arrivato» (SPOKI_MAX_EARLY_ARRIVAL_MINUTES): finisce nel testo. */
   readonly maxEarlyArrivalMinutes?: number;
+  /**
+   * C'è qualcuno che ritenta davvero (`NOTIFICATION_RETRY_ENABLED` e messaggistica attiva)? Se no,
+   * un fallimento temporaneo non promette un «nuovo tentativo alle…» che non arriverebbe mai: va
+   * subito fra i «da contattare a mano». Default true.
+   */
+  readonly autoRetry?: boolean;
 }
 
 /** Input dell'invio di un promemoria. */
@@ -119,6 +131,30 @@ export interface NotificationRun {
   readonly job: NotificationJob;
   readonly outcome: NotificationOutcome;
 }
+
+/** Riepilogo di una passata del temporizzatore delle riprove. */
+export interface NotificationRetrySummary {
+  readonly attempted: number;
+  readonly sent: number;
+  readonly rescheduled: number;
+  readonly manualRequired: number;
+  readonly skipped: number;
+}
+
+/** Chi agisce su un job dalla schermata Comunicazioni. */
+export interface CommunicationActor {
+  readonly operatorId: OperatorId;
+  readonly displayName: string;
+  /** Amministratori e responsabili possono rilasciare la presa in carico di un collega. */
+  readonly privileged: boolean;
+}
+
+/** Stati in cui un job è «da gestire» a mano: c'è ancora un cliente che non sa. */
+const DA_GESTIRE: readonly NotificationJob['status'][] = [
+  'FAILED',
+  'MANUAL_REQUIRED',
+  'NO_RECIPIENT',
+];
 
 interface AttemptInput {
   readonly channel: NotificationChannel;
@@ -186,6 +222,13 @@ export class NotificationOrchestrator {
       attempts: [],
       manualConfirmedBy: null,
       manualNote: null,
+      manualOutcome: null,
+      manualConfirmedAt: null,
+      nextAttemptAt: null,
+      autoRetryCount: 0,
+      claimedByOperatorId: null,
+      claimedByName: null,
+      claimedAt: null,
       createdAt: now,
       updatedAt: now,
     };
@@ -259,11 +302,15 @@ export class NotificationOrchestrator {
     return runs;
   }
 
-  /** Il supervisor conferma di aver contattato il cliente a mano. */
+  /**
+   * Chi ha contattato il cliente a mano chiude la segnalazione con l'esito (telefonato, informato
+   * allo sportello, non raggiungibile…) e una nota. Da qui il job non si ritenta più.
+   */
   async confirmManual(
     jobId: NotificationJobId,
     operatorId: OperatorId,
     note: string,
+    options: { readonly outcome?: ManualContactOutcome; readonly operatorName?: string } = {},
   ): Promise<Result<NotificationJob, DomainError>> {
     try {
       const job = await this.deps.notifications.findJobById(jobId);
@@ -301,6 +348,13 @@ export class NotificationOrchestrator {
           attempts: [...job.attempts, attempt],
           manualConfirmedBy: operatorId,
           manualNote: note.trim().length > 0 ? note.trim() : null,
+          manualOutcome: options.outcome ?? 'OTHER',
+          manualConfirmedAt: this.deps.clock.nowIso(),
+          nextAttemptAt: null,
+          // Chi chiude ha in carico il contatto, anche se non l'aveva preso prima.
+          claimedByOperatorId: job.claimedByOperatorId ?? operatorId,
+          claimedByName: job.claimedByName ?? options.operatorName ?? null,
+          claimedAt: job.claimedAt ?? this.deps.clock.nowIso(),
         },
         `manual-confirm:${jobId}`,
         true,
@@ -340,7 +394,12 @@ export class NotificationOrchestrator {
       if (job.recipientPhone === null) {
         return err(domainError('NO_RECIPIENT', 'La pratica non ha un recapito telefonico.'));
       }
-      const run = await this.process(job, job.recipientPhone, job.whatsappOptIn, `retry:${jobId}`);
+      const run = await this.process(
+        { ...job, nextAttemptAt: null },
+        job.recipientPhone,
+        this.shouldTryWhatsApp(job),
+        `retry:${jobId}`,
+      );
       return ok(run);
     } catch (cause) {
       if (job === null) {
@@ -401,7 +460,22 @@ export class NotificationOrchestrator {
           }
         : a,
     );
-    const saved = await this.persist({ ...job, status: stato, attempts }, correlationId, true);
+    // WhatsApp non consegnato: il ripiego SMS parte al prossimo giro del temporizzatore (la
+    // riprova salta WhatsApp, che ha appena fallito). Senza riprove disponibili, contatto manuale.
+    const prossimo = stato === 'FAILED' ? this.nextRetryAt(job, true) : null;
+    const nuovoStato = stato === 'FAILED' && prossimo === null ? 'MANUAL_REQUIRED' : stato;
+    const saved = await this.persist(
+      {
+        ...job,
+        status: nuovoStato,
+        attempts: attempts.map((a, i) =>
+          i === indice && stato === 'FAILED' ? { ...a, retryable: false } : a,
+        ),
+        nextAttemptAt: prossimo,
+      },
+      correlationId,
+      true,
+    );
     this.logger.info(`[Spoki] esito ${update.state} per ${job.code}: job ${saved.status}`, {
       jobId: job.id,
       providerMessageId: update.providerMessageId,
@@ -444,6 +518,184 @@ export class NotificationOrchestrator {
       case 'QUEUED':
         return null;
     }
+  }
+
+  /**
+   * Passata del temporizzatore: ritenta i messaggi FAILED la cui attesa è scaduta e riprende quelli
+   * rimasti IN_FLIGHT per un crash. Ogni riprova conta; esaurite le riprove il job diventa
+   * «da contattare a mano». I messaggi di una giornata passata non si mandano più: la loro riprova
+   * si ferma e restano nella schermata Comunicazioni per chi vuole chiuderli.
+   */
+  async retryDue(limit = NOTIFICATION_DRAIN_BATCH): Promise<NotificationRetrySummary> {
+    const now = this.deps.clock.nowIso();
+    const oggi = this.deps.clock.today();
+    const dovuti = await this.deps.notifications.listRetryDue(now, limit);
+    const orfani = (await this.deps.notifications.listByStatus(['IN_FLIGHT'])).filter((j) =>
+      this.isStaleInFlight(j),
+    );
+    const riepilogo = { attempted: 0, sent: 0, rescheduled: 0, manualRequired: 0, skipped: 0 };
+    for (const elencato of [...dovuti, ...orfani].slice(0, Math.max(0, limit))) {
+      const correlationId = this.deps.ids.next();
+      // Il giro lavora su un elenco letto prima degli invii, che con i provider lenti durano: nel
+      // frattempo un operatore può aver chiuso, ripreso o riprovato il messaggio. Si riparte dalla
+      // copia aggiornata, e se è cambiata qualcosa il messaggio non è più di questo giro.
+      const job = await this.deps.notifications.findJobById(elencato.id);
+      if (job === null || job.updatedAt !== elencato.updatedAt) {
+        continue;
+      }
+      try {
+        // Un promemoria del giorno prima ha la data di domani: si ferma solo quello di un giorno
+        // già passato, che al cliente non serve più.
+        if (job.businessDate < oggi || job.recipientPhone === null) {
+          await this.persist(
+            {
+              ...job,
+              // Un invio rimasto a metà non resta «in viaggio» per sempre: diventa da gestire.
+              status: job.status === 'IN_FLIGHT' ? 'MANUAL_REQUIRED' : job.status,
+              nextAttemptAt: null,
+            },
+            correlationId,
+            true,
+          );
+          riepilogo.skipped += 1;
+          continue;
+        }
+        const contato = await this.persist(
+          { ...job, autoRetryCount: job.autoRetryCount + 1, nextAttemptAt: null },
+          correlationId,
+          false,
+        );
+        const run = await this.process(
+          contato,
+          job.recipientPhone,
+          this.shouldTryWhatsApp(job),
+          correlationId,
+        );
+        riepilogo.attempted += 1;
+        if (run.outcome.kind === 'WHATSAPP_SENT' || run.outcome.kind === 'SMS_FALLBACK_SENT') {
+          riepilogo.sent += 1;
+        } else if (run.outcome.kind === 'FAILED_RETRYABLE') {
+          riepilogo.rescheduled += 1;
+        } else if (run.outcome.kind === 'MANUAL_REQUIRED') {
+          riepilogo.manualRequired += 1;
+        }
+      } catch (cause) {
+        await this.failSafe(job, correlationId, cause);
+        riepilogo.manualRequired += 1;
+      }
+    }
+    if (riepilogo.attempted + riepilogo.skipped > 0) {
+      this.logger.info('riprova dei messaggi: passata completata', { ...riepilogo });
+    }
+    return riepilogo;
+  }
+
+  /**
+   * «Prendo io»: un operatore si prende il contatto con il cliente, così due colleghi non
+   * telefonano alla stessa persona. Chi l'ha già preso può ripremere; un collega no.
+   */
+  async claim(
+    jobId: NotificationJobId,
+    actor: CommunicationActor,
+  ): Promise<Result<NotificationJob, DomainError>> {
+    const job = await this.deps.notifications.findJobById(jobId);
+    if (job === null) {
+      return err(domainError('NOT_FOUND', `Notifica non trovata: ${jobId}.`));
+    }
+    if (!DA_GESTIRE.includes(job.status)) {
+      return err(
+        domainError('INVALID_TRANSITION', 'Questa comunicazione non è più da gestire.', {
+          status: job.status,
+        }),
+      );
+    }
+    if (job.claimedByOperatorId !== null && job.claimedByOperatorId !== actor.operatorId) {
+      return err(
+        domainError(
+          'VERSION_CONFLICT',
+          `La comunicazione è già in carico a ${job.claimedByName ?? 'un collega'}.`,
+          { claimedBy: job.claimedByName },
+        ),
+      );
+    }
+    if (job.claimedByOperatorId === actor.operatorId) {
+      return ok(job);
+    }
+    const salvato = await this.persist(
+      {
+        ...job,
+        claimedByOperatorId: actor.operatorId,
+        claimedByName: actor.displayName,
+        claimedAt: this.deps.clock.nowIso(),
+      },
+      `claim:${jobId}`,
+      true,
+      { kind: 'OPERATOR', id: actor.operatorId },
+    );
+    this.logger.info(`comunicazione per ${job.code} presa in carico`, {
+      jobId,
+      operatorId: actor.operatorId,
+    });
+    return ok(salvato);
+  }
+
+  /** Lascia la presa in carico: chi l'aveva presa, oppure un responsabile o un amministratore. */
+  async release(
+    jobId: NotificationJobId,
+    actor: CommunicationActor,
+  ): Promise<Result<NotificationJob, DomainError>> {
+    const job = await this.deps.notifications.findJobById(jobId);
+    if (job === null) {
+      return err(domainError('NOT_FOUND', `Notifica non trovata: ${jobId}.`));
+    }
+    if (!DA_GESTIRE.includes(job.status)) {
+      return err(
+        domainError('INVALID_TRANSITION', 'Questa comunicazione non è più da gestire.', {
+          status: job.status,
+        }),
+      );
+    }
+    if (job.claimedByOperatorId === null) {
+      return ok(job);
+    }
+    if (job.claimedByOperatorId !== actor.operatorId && !actor.privileged) {
+      return err(
+        domainError(
+          'INVALID_TRANSITION',
+          `La comunicazione è in carico a ${job.claimedByName ?? 'un collega'}: la rilascia lui, un responsabile o un amministratore.`,
+        ),
+      );
+    }
+    const salvato = await this.persist(
+      { ...job, claimedByOperatorId: null, claimedByName: null, claimedAt: null },
+      `release:${jobId}`,
+      true,
+      { kind: 'OPERATOR', id: actor.operatorId },
+    );
+    return ok(salvato);
+  }
+
+  /**
+   * Si ritenta WhatsApp solo se il cliente lo consente e WhatsApp non ha già fallito in modo
+   * definitivo (numero non su WhatsApp, template rifiutato, esito FAILED da Spoki): in quel caso la
+   * riprova va dritta all'SMS, che è quello che serve al cliente.
+   */
+  private shouldTryWhatsApp(job: NotificationJob): boolean {
+    if (!job.whatsappOptIn) {
+      return false;
+    }
+    return !job.attempts.some(
+      (a) => a.channel === 'WHATSAPP' && a.outcome === 'FAILED' && !a.retryable,
+    );
+  }
+
+  /** Quando ritentare dopo un fallimento temporaneo; null se le riprove automatiche sono finite. */
+  private nextRetryAt(job: NotificationJob, subito = false): IsoDateTime | null {
+    if (this.deps.autoRetry === false || job.autoRetryCount >= NOTIFICATION_MAX_AUTO_RETRIES) {
+      return null;
+    }
+    const minuti = subito ? 0 : (NOTIFICATION_RETRY_BACKOFF_MINUTES[job.autoRetryCount] ?? 1);
+    return new Date(this.deps.clock.now().getTime() + minuti * 60_000).toISOString() as IsoDateTime;
   }
 
   /** PENDING e FAILED sono sempre riprocessabili; IN_FLIGHT solo se orfano (crash). */
@@ -514,7 +766,7 @@ export class NotificationOrchestrator {
         };
         if (!undeliverable) {
           current = await this.persist(
-            { ...current, status: delivered ? 'DELIVERED' : 'SENT' },
+            { ...current, status: delivered ? 'DELIVERED' : 'SENT', nextAttemptAt: null },
             correlationId,
             true,
           );
@@ -565,6 +817,7 @@ export class NotificationOrchestrator {
         {
           ...current,
           status: 'SENT',
+          nextAttemptAt: null,
           currentChannel: 'SMS',
           attempts: [
             ...current.attempts,
@@ -587,11 +840,15 @@ export class NotificationOrchestrator {
 
     // Entrambi i canali hanno fallito: se l'ultimo errore è retryable (timeout, rete, rate limit)
     // il job resta FAILED per il retry automatico (M3); altrimenti serve il contatto manuale.
-    const retryable = sms.error.retryable;
+    // Errore temporaneo con riprove ancora disponibili: FAILED con il prossimo tentativo già
+    // fissato, così «sarà ritentato» è vero. Riprove finite, o errore definitivo: contatto manuale.
+    const prossimo = sms.error.retryable ? this.nextRetryAt(current) : null;
+    const retryable = prossimo !== null;
     current = await this.persist(
       {
         ...current,
         status: retryable ? 'FAILED' : 'MANUAL_REQUIRED',
+        nextAttemptAt: prossimo,
         currentChannel: retryable ? 'SMS' : 'MANUAL',
         attempts: [
           ...current.attempts,
@@ -603,8 +860,10 @@ export class NotificationOrchestrator {
     );
     this.logger.error(
       retryable
-        ? 'entrambi i canali hanno fallito con errori temporanei: job FAILED, retry automatico o conferma manuale'
-        : 'entrambi i canali hanno fallito: richiesto contatto manuale',
+        ? `entrambi i canali hanno fallito con errori temporanei: nuovo tentativo alle ${prossimo ?? '?'}`
+        : sms.error.retryable
+          ? 'riprove automatiche esaurite: richiesto contatto manuale'
+          : 'entrambi i canali hanno fallito: richiesto contatto manuale',
       {
         jobId: current.id,
         appointmentId: current.appointmentId,
@@ -630,6 +889,7 @@ export class NotificationOrchestrator {
       ...job,
       status: 'MANUAL_REQUIRED',
       currentChannel: 'MANUAL',
+      nextAttemptAt: null,
       updatedAt: this.deps.clock.nowIso(),
     };
     try {

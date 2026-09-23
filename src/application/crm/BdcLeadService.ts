@@ -7,7 +7,7 @@
 // Per questo "ricontattato" scrive lo stato `MANUAL`, che vale sia come esito del lavoro del BDC
 // sia come "non ritentare più" per lo svuotamento automatico (M6-T02).
 import type { Appointment } from '@/domain/entities/appointment';
-import type { CrmOutboxEvent } from '@/domain/entities/crm-outbox-event';
+import type { CrmEventType, CrmOutboxEvent } from '@/domain/entities/crm-outbox-event';
 import { customerFullName } from '@/domain/entities/customer';
 import { domainError, type DomainError } from '@/domain/errors';
 import { asCrmOutboxEventId, type CrmOutboxEventId, type OperatorId } from '@/domain/ids';
@@ -36,6 +36,8 @@ export interface ListLeadsInput {
   readonly businessDate?: string | null;
   /** Include anche i lead già chiusi (per verificare cosa è stato fatto). */
   readonly includeHandled?: boolean;
+  /** Solo questi tipi (es. le sole anomalie per l'amministratore); assente = assenti e anomalie. */
+  readonly types?: readonly CrmEventType[];
 }
 
 export interface MarkContactedInput {
@@ -44,8 +46,11 @@ export interface MarkContactedInput {
   readonly note: string | null;
 }
 
-/** Eventi che diventano lead per il BDC. Le anomalie di flusso arrivano con M6-T02. */
-const LEAD_TYPES = ['NO_SHOW'] as const;
+/**
+ * Eventi che diventano lead per il BDC: gli assenti e, dal 2026-09-23, le anomalie di flusso sulla
+ * pratica (il cliente saltato tre volte, da cercare: «Verificare presenza»).
+ */
+const LEAD_TYPES: readonly CrmEventType[] = ['NO_SHOW', 'ANOMALY'];
 
 function textOf(payload: Readonly<Record<string, unknown>>, key: string): string | null {
   const value = payload[key];
@@ -62,9 +67,8 @@ export class BdcLeadService {
   /** Lead del BDC, dai più recenti ai più vecchi; quelli ancora aperti restano in cima. */
   async listLeads(input: ListLeadsInput = {}): Promise<BdcLeadsView> {
     const eventi = await this.deps.outbox.listByStatus(['PENDING', 'SENT', 'FAILED', 'MANUAL']);
-    const candidati = eventi.filter((e) =>
-      LEAD_TYPES.includes(e.type as (typeof LEAD_TYPES)[number]),
-    );
+    const tipi = input.types ?? LEAD_TYPES;
+    const candidati = eventi.filter((e) => LEAD_TYPES.includes(e.type) && tipi.includes(e.type));
 
     const leads: BdcLeadView[] = [];
     for (const evento of candidati) {
@@ -184,6 +188,7 @@ export class BdcLeadService {
     const base = {
       eventId: evento.id,
       type: evento.type,
+      anomalyKind: evento.anomalyKind,
       deliveryStatus: evento.status,
       appointmentId: evento.appointmentId,
       reason: evento.operatorNote,

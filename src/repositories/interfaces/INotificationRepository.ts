@@ -2,7 +2,7 @@
 
 import type { NotificationJob, NotificationJobStatus } from '@/domain/entities/notification';
 import type { AppointmentId, NotificationJobId } from '@/domain/ids';
-import type { IsoDate } from '@/domain/value-objects/iso-date';
+import type { IsoDate, IsoDateTime } from '@/domain/value-objects/iso-date';
 
 /** Repository dei job di notifica. */
 export interface INotificationRepository {
@@ -31,4 +31,9 @@ export interface INotificationRepository {
     statuses: readonly NotificationJobStatus[],
     businessDate?: IsoDate,
   ): Promise<readonly NotificationJob[]>;
+  /**
+   * Job FAILED con un `nextAttemptAt` già scaduto, dai più vecchi: quelli che il temporizzatore
+   * deve ritentare adesso. `nextAttemptAt === null` resta fuori (nessuna riprova programmata).
+   */
+  listRetryDue(now: IsoDateTime, limit: number): Promise<readonly NotificationJob[]>;
 }

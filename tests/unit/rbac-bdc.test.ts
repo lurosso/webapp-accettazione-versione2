@@ -14,12 +14,27 @@ import {
   type ProtectedArea,
 } from '@/lib/navigation';
 
-const AREE: readonly ProtectedArea[] = ['accettazione', 'check-in', 'manager', 'admin', 'sistema'];
+const AREE: readonly ProtectedArea[] = [
+  'accettazione',
+  'check-in',
+  'manager',
+  'admin',
+  'sistema',
+  'comunicazioni',
+];
 
 describe('RBAC: il BDC resta sul proprio cruscotto', () => {
-  it('il responsabile/BDC (SUPERVISOR) accede solo alla propria area', () => {
+  it('il responsabile/BDC (SUPERVISOR) accede solo alla propria area e alle Comunicazioni', () => {
     const consentite = AREE.filter((area) => canAccess(area, 'SUPERVISOR'));
-    expect(consentite).toEqual(['manager']);
+    expect(consentite).toEqual(['manager', 'comunicazioni']);
+  });
+
+  it('le Comunicazioni da richiamare sono di banco, BDC e amministratore; non del kiosk', () => {
+    expect(canAccess('comunicazioni', 'ADVISOR')).toBe(true);
+    expect(canAccess('comunicazioni', 'SUPERVISOR')).toBe(true);
+    expect(canAccess('comunicazioni', 'ADMIN')).toBe(true);
+    expect(canAccess('comunicazioni', 'KIOSK')).toBe(false);
+    expect(redirectForForbiddenArea('comunicazioni', 'SUPERVISOR')).toBeNull();
   });
 
   it('coda, archivio, check-in e sistema sono del banco e dell’amministratore', () => {

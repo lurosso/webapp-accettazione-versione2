@@ -20,6 +20,7 @@ const ACCESSO = {
     'Pubblico · firma HMAC `X-Spoki-Signature` o segreto condiviso (`SPOKI_WEBHOOK_SECRET`; risposte piatte con `SPOKI_INBOUND_SECRET`); 404 con `MESSAGING_STANDBY=true`',
   monitor: 'Pubblico · token del monitor (`?token=`, obbligatorio con DISPLAY_TOKEN_REQUIRED=true)',
   sessione: 'Sessione operatore (Accettatore, Manager, Amministratore)',
+  comunicazioni: 'Accettatore, Manager/BDC e Amministratore',
   banco: 'Accettatore e Amministratore (il BDC resta sul proprio cruscotto)',
   sessioneProvvisoria: 'Sessione operatore, anche con password provvisoria',
   manager: 'Manager e Amministratore',
@@ -108,8 +109,15 @@ export const ROTTE = [
     path: '/manager',
     area: AREE[3],
     descrizione:
-      'Cruscotto BDC: solo i clienti assenti da ricontattare e riprogrammare su Infinity.',
+      'Cruscotto BDC: i clienti assenti da ricontattare e riprogrammare su Infinity e quelli saltati tre volte al banco, di cui verificare la presenza.',
     accesso: ACCESSO.manager,
+  },
+  {
+    path: '/comunicazioni',
+    area: AREE[3],
+    descrizione:
+      'Comunicazioni: i messaggi al cliente non arrivati — in riprova automatica (con l’ora del prossimo tentativo), da contattare a mano, senza numero — con «Prendo io», «Riprova invio» e la chiusura con l’esito del contatto.',
+    accesso: ACCESSO.comunicazioni,
   },
   // Admin
   {
@@ -356,10 +364,24 @@ export const ROTTE = [
     accesso: ACCESSO.admin,
   },
   {
+    path: '/api/v1/notifications',
+    area: AREE[11],
+    descrizione:
+      'Schermata Comunicazioni: messaggi al cliente non arrivati degli ultimi giorni, con i conteggi (`?vista=gestite` per quelli chiusi a mano).',
+    accesso: ACCESSO.comunicazioni,
+  },
+  {
+    path: '/api/v1/notifications/:id/actions',
+    area: AREE[11],
+    descrizione:
+      'Comandi su un messaggio non arrivato: `claim` (prendo io), `release`, `retry` (riprova invio), `confirm` (esito del contatto e chiusura).',
+    accesso: ACCESSO.comunicazioni,
+  },
+  {
     path: '/api/v1/crm/leads',
     area: AREE[11],
     descrizione:
-      'Clienti da ricontattare per il BDC (`?giornata=&gestiti=1`): nomi e telefoni degli assenti.',
+      'Clienti da ricontattare per il BDC (`?giornata=&gestiti=1`, `tipo=assenti` o `tipo=anomalie`): assenti e clienti saltati tre volte da cercare.',
     accesso: ACCESSO.manager,
   },
   {

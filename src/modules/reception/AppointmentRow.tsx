@@ -12,6 +12,7 @@ import {
   type AppointmentStatus,
 } from '@/domain/entities/appointment';
 import type { QueueRowView } from '@/domain/read-models';
+import { MAX_SKIPS_BEFORE_ANOMALY } from '@/config/constants';
 import { Badge } from '@/components/ui/badge';
 import { OperatorChip } from '@/components/shared/OperatorChip';
 import { TableCell, TableRow } from '@/components/ui/table';
@@ -211,7 +212,12 @@ export function AppointmentRow({
             chiusa d&apos;ufficio · da confermare
           </span>
         ) : null}
-        {a.skipCount > 0 ? (
+        {a.skipCount >= MAX_SKIPS_BEFORE_ANOMALY && isInQueue(a.status) ? (
+          // Dal terzo salto è un'anomalia segnalata al BDC: la riga dice cosa fare.
+          <span className="text-status-no-show-ink mt-0.5 block text-xs font-semibold">
+            saltata {a.skipCount} volte · verificare presenza
+          </span>
+        ) : a.skipCount > 0 ? (
           // "In attesa ×1" si leggeva come un conteggio dello stato: meglio dire cosa è successo.
           <span className="text-ink-muted mt-0.5 block text-xs">
             {a.skipCount === 1 ? 'saltata 1 volta' : `saltata ${a.skipCount} volte`}

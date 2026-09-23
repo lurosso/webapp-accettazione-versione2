@@ -84,8 +84,8 @@ export function BdcDashboard({ session, businessDate, timeZone }: BdcDashboardPr
           <h1 className="text-xl font-bold text-slate-900">Cruscotto BDC</h1>
           <p className="text-sm text-slate-600">
             Clienti che non si sono presentati in officina, da ricontattare e riprogrammare su
-            Infinity. L&apos;elenco si aggiorna da solo ogni {Math.round(BDC_POLLING_MS / 1000)}{' '}
-            secondi.
+            Infinity, e clienti saltati tre volte al banco, di cui verificare la presenza.
+            L&apos;elenco si aggiorna da solo ogni {Math.round(BDC_POLLING_MS / 1000)} secondi.
           </p>
         </div>
         <div className="flex flex-wrap items-center gap-2">

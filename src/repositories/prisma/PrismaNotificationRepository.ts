@@ -1,7 +1,11 @@
 // I promemoria e gli avvisi al cliente su SQLite, con i loro tentativi. La chiave di idempotenza
 // è un vincolo unico del database: lo stesso promemoria non parte due volte nemmeno se due
 // processi lo chiedono nello stesso istante.
-import type { NotificationAttempt, NotificationJob } from '@/domain/entities/notification';
+import {
+  isManualContactOutcome,
+  type NotificationAttempt,
+  type NotificationJob,
+} from '@/domain/entities/notification';
 import type { AppointmentId, NotificationJobId, OperatorId } from '@/domain/ids';
 import type { IsoDate, IsoDateTime } from '@/domain/value-objects/iso-date';
 import type { QueueCode } from '@/domain/value-objects/queue-code';
@@ -30,6 +34,13 @@ function toEntity(r: Row): NotificationJob {
     attempts: fromJson<NotificationAttempt[]>(r.attemptsJson, 'attemptsJson'),
     manualConfirmedBy: r.manualConfirmedBy as OperatorId | null,
     manualNote: r.manualNote,
+    manualOutcome: isManualContactOutcome(r.manualOutcome) ? r.manualOutcome : null,
+    manualConfirmedAt: r.manualConfirmedAt as IsoDateTime | null,
+    nextAttemptAt: r.nextAttemptAt as IsoDateTime | null,
+    autoRetryCount: r.autoRetryCount,
+    claimedByOperatorId: r.claimedByOperatorId as OperatorId | null,
+    claimedByName: r.claimedByName,
+    claimedAt: r.claimedAt as IsoDateTime | null,
     createdAt: r.createdAt as IsoDateTime,
     updatedAt: r.updatedAt as IsoDateTime,
   };
@@ -52,6 +63,13 @@ function toRow(j: NotificationJob): Row {
     attemptsJson: toJson(j.attempts),
     manualConfirmedBy: j.manualConfirmedBy,
     manualNote: j.manualNote,
+    manualOutcome: j.manualOutcome,
+    manualConfirmedAt: j.manualConfirmedAt,
+    nextAttemptAt: j.nextAttemptAt,
+    autoRetryCount: j.autoRetryCount,
+    claimedByOperatorId: j.claimedByOperatorId,
+    claimedByName: j.claimedByName,
+    claimedAt: j.claimedAt,
     createdAt: j.createdAt,
     updatedAt: j.updatedAt,
   };
@@ -115,6 +133,15 @@ export class PrismaNotificationRepository implements INotificationRepository {
     const rows = await this.db.notificationJob.findMany({
       where: { businessDate },
       orderBy: { createdAt: 'asc' },
+    });
+    return rows.map(toEntity);
+  }
+
+  async listRetryDue(now: IsoDateTime, limit: number): Promise<readonly NotificationJob[]> {
+    const rows = await this.db.notificationJob.findMany({
+      where: { status: 'FAILED', nextAttemptAt: { not: null, lte: now } },
+      orderBy: { nextAttemptAt: 'asc' },
+      take: Math.max(0, limit),
     });
     return rows.map(toEntity);
   }

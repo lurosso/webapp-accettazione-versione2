@@ -2,7 +2,7 @@
 
 import type { NotificationJob, NotificationJobStatus } from '@/domain/entities/notification';
 import type { AppointmentId, NotificationJobId } from '@/domain/ids';
-import type { IsoDate } from '@/domain/value-objects/iso-date';
+import type { IsoDate, IsoDateTime } from '@/domain/value-objects/iso-date';
 import type { INotificationRepository } from '../interfaces/INotificationRepository';
 import type { InMemoryStore } from './InMemoryStore';
 
@@ -65,6 +65,14 @@ export class InMemoryNotificationRepository implements INotificationRepository {
     return [...this.map.values()]
       .filter((j) => j.businessDate === businessDate)
       .sort((a, b) => (a.createdAt < b.createdAt ? -1 : a.createdAt > b.createdAt ? 1 : 0))
+      .map(clone);
+  }
+
+  async listRetryDue(now: IsoDateTime, limit: number): Promise<readonly NotificationJob[]> {
+    return [...this.map.values()]
+      .filter((j) => j.status === 'FAILED' && j.nextAttemptAt !== null && j.nextAttemptAt <= now)
+      .sort((a, b) => ((a.nextAttemptAt ?? '') < (b.nextAttemptAt ?? '') ? -1 : 1))
+      .slice(0, Math.max(0, limit))
       .map(clone);
   }
 

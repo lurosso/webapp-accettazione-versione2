@@ -51,9 +51,9 @@ const COPY: Record<NotificationJobStatus, BadgeCopy> = {
   },
   FAILED: {
     icon: '!',
-    label: 'da ritentare',
+    label: 'in riprova',
     title:
-      'Invio non riuscito per un problema temporaneo: sarà ritentato, oppure contattare il cliente',
+      'Invio non riuscito per un problema temporaneo: il sistema lo ritenta da solo dopo 1, 5 e 15 minuti, poi passa a «Da contattare a mano» nella schermata Comunicazioni',
     classes: 'bg-status-no-show-soft text-status-no-show-ink ring-status-no-show/50',
   },
   MANUAL_REQUIRED: {

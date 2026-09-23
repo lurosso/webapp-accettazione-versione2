@@ -22,6 +22,7 @@ import { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import type { Session } from '@/application/auth/IAuthService';
 import { cn } from '@/lib/utils/cn';
+import { AnomaliesPanel } from './AnomaliesPanel';
 import { CloseDayPanel } from './CloseDayPanel';
 import { DailyReportPanel } from './DailyReportPanel';
 import { LiveQueuePanel } from './LiveQueuePanel';
@@ -44,7 +45,7 @@ const SEZIONI = [
   {
     id: 'monitoraggio',
     label: 'Monitoraggio operativo',
-    descrizione: 'Sportelli, code e pratiche da sbloccare',
+    descrizione: 'Sportelli, code, pratiche da sbloccare e anomalie della giornata',
   },
   {
     id: 'sistema',
@@ -148,7 +149,12 @@ export function AdminDashboard({ session, businessDate, timeZone }: AdminDashboa
           </>
         ) : null}
 
-        {sezione === 'monitoraggio' ? <MonitoringPanel timeZone={timeZone} /> : null}
+        {sezione === 'monitoraggio' ? (
+          <>
+            <MonitoringPanel timeZone={timeZone} />
+            <AnomaliesPanel businessDate={businessDate} timeZone={timeZone} />
+          </>
+        ) : null}
 
         {sezione === 'sistema' ? (
           <>

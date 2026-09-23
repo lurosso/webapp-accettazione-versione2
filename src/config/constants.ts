@@ -104,6 +104,26 @@ export const LATE_GRACE_MINUTES = 10;
 export const NOTIFICATION_IN_FLIGHT_STALE_MS = 5 * 60_000;
 
 /**
+ * Attese delle riprove automatiche di un messaggio fallito per un problema temporaneo (minuti):
+ * dopo l'ultima, se non è ancora partito, diventa «da contattare a mano» nella schermata
+ * Comunicazioni. Un messaggio sull'arrivo in officina non ha senso un'ora dopo: tre tentativi in
+ * venti minuti, poi decide una persona.
+ */
+export const NOTIFICATION_RETRY_BACKOFF_MINUTES = [1, 5, 15] as const;
+
+/** Riprove automatiche massime per un job (il primo invio non conta). */
+export const NOTIFICATION_MAX_AUTO_RETRIES = NOTIFICATION_RETRY_BACKOFF_MINUTES.length;
+
+/** Ogni quanto il temporizzatore guarda i messaggi da ritentare (ms). */
+export const NOTIFICATION_DRAIN_INTERVAL_MS = 60_000;
+
+/** Quanti messaggi ritenta al massimo per passata. */
+export const NOTIFICATION_DRAIN_BATCH = 20;
+
+/** Giorni indietro mostrati dalla schermata Comunicazioni. */
+export const COMMUNICATIONS_LOOKBACK_DAYS = 7;
+
+/**
  * Limiti di frequenza del login (per indirizzo e per nome utente, finestra di un minuto).
  * Servono contro i tentativi a raffica sulla rete interna: otto errori al minuto sullo stesso
  * utente sono un attacco o una tastiera rotta, in entrambi i casi meglio fermarsi un attimo.

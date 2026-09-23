@@ -65,7 +65,7 @@ export function BdcLeadsTable({
     return (
       <EmptyState
         title="Nessun cliente da ricontattare"
-        description="Tutte le assenze della giornata sono state gestite e riprogrammate. Un nuovo assente compare qui entro pochi secondi."
+        description="Tutte le assenze e le anomalie della giornata sono state gestite. Un nuovo assente, o un cliente saltato tre volte, compare qui entro pochi secondi."
       />
     );
   }
@@ -79,7 +79,7 @@ export function BdcLeadsTable({
           <TableHead className="pt-3">Cliente</TableHead>
           <TableHead className="pt-3">Telefono</TableHead>
           <TableHead className="pt-3">Veicolo</TableHead>
-          <TableHead className="pt-3">Assenza</TableHead>
+          <TableHead className="pt-3">Segnalata</TableHead>
           <TableHead className="pt-3">Stato</TableHead>
           <TableHead className="pt-3">Azioni</TableHead>
         </TableRow>
@@ -109,6 +109,13 @@ export function BdcLeadsTable({
               </TableCell>
               <TableCell>
                 <span className="font-semibold">{lead.customerName ?? '—'}</span>
+                {lead.type === 'ANOMALY' ? (
+                  // Non è un assente: è un cliente che al banco non si è trovato. Va cercato, non
+                  // riprogrammato — per questo il segno è diverso da quello delle assenze.
+                  <Badge tone="warning" dot className="mt-1">
+                    Verificare presenza
+                  </Badge>
+                ) : null}
                 {lead.reason !== null ? (
                   <span className="text-ink-muted testo-nota block">{lead.reason}</span>
                 ) : null}

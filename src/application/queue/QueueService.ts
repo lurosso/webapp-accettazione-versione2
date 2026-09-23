@@ -12,7 +12,7 @@ import type { AppointmentFlow } from '@/domain/entities/appointment';
 import type { OperatorRole } from '@/domain/entities/operator';
 import type { Bay } from '@/domain/entities/bay';
 import type { Desk } from '@/domain/entities/desk';
-import { RELEASING_DISPLAY_MS } from '@/config/constants';
+import { MAX_SKIPS_BEFORE_ANOMALY, RELEASING_DISPLAY_MS } from '@/config/constants';
 import { assertTransition } from '@/domain/appointment-state-machine';
 import { domainError, type DomainError } from '@/domain/errors';
 import type { AppointmentId, BayId, DeskId, OperatorId, WorkstationId } from '@/domain/ids';
@@ -371,28 +371,63 @@ export class QueueService {
     if (!bay.ok) {
       return bay;
     }
-    return this.apply(
+    const updated = await this.apply(
       a,
       'IN_PROGRESS',
       {
         bayId: bay.value,
         operatorId: ctx.operatorId,
         takenAt: this.deps.clock.nowIso(),
+        // Il cliente c'era: la serie dei salti consecutivi finisce qui.
+        skipCount: 0,
       },
       input.expectedVersion,
       ctx,
     );
+    if (updated.ok && a.skipCount >= MAX_SKIPS_BEFORE_ANOMALY) {
+      // La presenza è verificata: il cliente è al banco. Il BDC non deve chiamarlo.
+      await this.deps.crmNotifier.resolveAnomaly(
+        updated.value,
+        'EXCESSIVE_SKIPS',
+        ctx.operatorId,
+        'Cliente presente: pratica presa in carico al banco.',
+      );
+    }
+    return updated;
   }
 
-  /** Salta: la pratica resta al proprio orario, evidenziata; `skipCount + 1`. */
+  /**
+   * Salta: la pratica resta al proprio orario, evidenziata; `skipCount + 1`.
+   *
+   * Al terzo salto della stessa pratica (`MAX_SKIPS_BEFORE_ANOMALY`) il cliente probabilmente non
+   * è in sala: si registra un'anomalia sulla pratica, che arriva al BDC e all'amministratore
+   * («Cliente saltato 3 volte - Verificare presenza»). I salti non si azzerano con «Ripristina»:
+   * finché la pratica non viene presa in carico sono salti consecutivi della stessa persona. La
+   * presa in carico azzera la serie (il cliente c'era): se poi la pratica torna in coda e viene
+   * saltata altre tre volte, l'anomalia della giornata si riapre.
+   */
   async skip(
     input: TransitionInput,
     ctx: ActionContext,
   ): Promise<Result<Appointment, DomainError>> {
-    return this.transition(input, ctx, 'SKIPPED', (a) => ({
+    const updated = await this.transition(input, ctx, 'SKIPPED', (a) => ({
       skipCount: a.skipCount + 1,
       skippedAt: this.deps.clock.nowIso(),
     }));
+    if (updated.ok && updated.value.skipCount >= MAX_SKIPS_BEFORE_ANOMALY) {
+      // Non blocca il banco: il notificatore non lancia, e un CRM giù lascia l'evento in coda.
+      await this.deps.crmNotifier.notifyAnomaly(
+        updated.value,
+        'EXCESSIVE_SKIPS',
+        excessiveSkipsDescription(updated.value.skipCount),
+        ctx.correlationId ?? this.deps.ids.next(),
+        { skippedAt: updated.value.skippedAt, operatorId: ctx.operatorId },
+        // Una serie nuova che arriva a tre riapre l'anomalia chiusa; il quarto salto della stessa
+        // serie no, se il BDC l'aveva già verificata.
+        { reopenIfClosed: updated.value.skipCount === MAX_SKIPS_BEFORE_ANOMALY },
+      );
+    }
+    return updated;
   }
 
   /** Completato: IN_PROGRESS → COMPLETED, lo sportello si libera (occupazione derivata). */
@@ -437,7 +472,10 @@ export class QueueService {
     }));
   }
 
-  /** Ripristina: SKIPPED → WAITING mantenendo `skipCount` (serve all'anomalia EXCESSIVE_SKIPS). */
+  /**
+   * Ripristina: SKIPPED → WAITING mantenendo `skipCount`, che conta i salti consecutivi (serve
+   * all'anomalia EXCESSIVE_SKIPS) e si azzera solo con la presa in carico.
+   */
   async restore(
     input: TransitionInput,
     ctx: ActionContext,
@@ -923,4 +961,9 @@ export class QueueService {
     });
     return ok(saved);
   }
+}
+
+/** La frase dell'anomalia dei salti, come la legge il BDC: cosa è successo e cosa fare. */
+export function excessiveSkipsDescription(skipCount: number): string {
+  return `Cliente saltato ${skipCount} volte - Verificare presenza`;
 }

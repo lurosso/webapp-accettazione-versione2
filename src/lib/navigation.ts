@@ -34,7 +34,8 @@ export function checkInPath(appointmentId: string): string {
 export const CHECK_IN_PARAM = 'pratica';
 
 /** Aree protette dell'applicazione. */
-export type ProtectedArea = 'accettazione' | 'check-in' | 'manager' | 'admin' | 'sistema';
+export type ProtectedArea =
+  'accettazione' | 'check-in' | 'manager' | 'admin' | 'sistema' | 'comunicazioni';
 
 /**
  * Ruoli ammessi su ciascuna area; un solo elenco, usato dalle pagine, dalla navigazione e dalle
@@ -44,6 +45,10 @@ export type ProtectedArea = 'accettazione' | 'check-in' | 'manager' | 'admin' | 
  * Non è una questione di fiducia ma di responsabilità — la coda la governano gli accettatori al
  * banco, e una pratica presa in carico da chi sta al telefono è una pratica che nessuno sta
  * accettando. L'amministratore resta l'unico che vede tutto, perché deve poter controllare.
+ *
+ * Dal 2026-09-23 l'eccezione è la schermata Comunicazioni: i messaggi al cliente non arrivati li
+ * può richiamare chiunque sia libero — il banco tra un cliente e l'altro, il BDC che sta già al
+ * telefono. Lì non si tocca la coda: si telefona e si registra l'esito.
  */
 export const AREA_ROLES: Record<ProtectedArea, readonly OperatorRole[]> = {
   accettazione: ['ADVISOR', 'ADMIN'],
@@ -51,6 +56,7 @@ export const AREA_ROLES: Record<ProtectedArea, readonly OperatorRole[]> = {
   manager: ['SUPERVISOR', 'ADMIN'],
   admin: ['ADMIN'],
   sistema: ['ADVISOR', 'ADMIN'],
+  comunicazioni: ['ADVISOR', 'SUPERVISOR', 'ADMIN'],
 };
 
 /** True se il ruolo può accedere all'area. */

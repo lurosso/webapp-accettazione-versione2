@@ -11,7 +11,7 @@
 // tablet tenuto in mano un tocco involontario non deve concludere un'accettazione.
 // Testi grandi, bordi spessi, contrasto alto, niente stati che dipendono dal passaggio del mouse.
 import { useQueryClient } from '@tanstack/react-query';
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { SlideToConfirm } from '@/components/ui/slide-to-confirm';
 import type { QueueRowView } from '@/domain/read-models';
 import {
@@ -25,6 +25,7 @@ import { queueKeys } from '@/lib/api-client/query-keys';
 import { localTimeHHmm } from '@/lib/dates';
 import { cn } from '@/lib/utils/cn';
 import { PhotoCapture } from './PhotoCapture';
+import { useUploadQueue } from './useUploadQueue';
 
 export interface CheckInScreenProps {
   readonly row: QueueRowView;
@@ -72,7 +73,11 @@ export function CheckInScreen({
     fetchInspectionPhotos(a.id)
       .then((r) => {
         if (attivo) {
-          setMedia(r.photos);
+          // Un file della coda può essere arrivato mentre l'elenco era in viaggio: si uniscono.
+          setMedia((precedenti) => {
+            const ids = new Set(r.photos.map((p) => p.id));
+            return [...r.photos, ...precedenti.filter((p) => !ids.has(p.id))];
+          });
         }
       })
       .catch(() => {
@@ -82,6 +87,15 @@ export function CheckInScreen({
       attivo = false;
     };
   }, [a.id]);
+
+  // I file ancora sul tablet: finché ce n'è uno il fascicolo non è completo e non si chiude.
+  const inAttesa = useUploadQueue(a.id).pending.length;
+  /** Un file salvato dalla coda entra nel fascicolo; due volte lo stesso no (ricarica + evento). */
+  const aggiungiMedia = useCallback((m: InspectionPhoto) => {
+    setMedia((precedenti) =>
+      precedenti.some((p) => p.id === m.id) ? precedenti : [...precedenti, m],
+    );
+  }, []);
 
   const foto = media.filter((m) => m.kind !== 'VIDEO').length;
   const video = media.filter((m) => m.kind === 'VIDEO').length;
@@ -118,9 +132,13 @@ export function CheckInScreen({
     });
   };
 
-  const riepilogoMedia = videoMancante
-    ? 'Registra il video del veicolo: è l’unico passaggio obbligatorio. Le foto restano facoltative.'
-    : `${foto} foto e ${video} video nel fascicolo. Tutto pronto: la pratica si chiude e lo sportello si libera.`;
+  const riepilogoMedia =
+    inAttesa > 0
+      ? `Attendi il caricamento di ${inAttesa === 1 ? '1 file' : `${inAttesa} file`}: parte da solo appena la rete lo consente, poi si può chiudere.`
+      : videoMancante
+        ? 'Registra il video del veicolo: è l’unico passaggio obbligatorio. Le foto restano facoltative.'
+        : `${foto} foto e ${video} video nel fascicolo. Tutto pronto: la pratica si chiude e lo sportello si libera.`;
+  const nonChiudibile = videoMancante || inAttesa > 0;
 
   return (
     <div className="fixed inset-0 z-50 flex flex-col bg-slate-100 text-slate-900">
@@ -200,7 +218,7 @@ export function CheckInScreen({
           <PhotoCapture
             appointmentId={a.id}
             media={media}
-            onUploaded={(m) => setMedia((precedenti) => [...precedenti, m])}
+            onUploaded={aggiungiMedia}
             // Si corregge finché il check-in è aperto. Dopo, il fascicolo è sigillato: niente «×».
             onRemove={
               a.status === 'IN_PROGRESS'
@@ -270,7 +288,7 @@ export function CheckInScreen({
               pendingLabel="Conclusione in corso…"
               actionLabel={`Completa il check-in della pratica ${a.code}`}
               pending={inChiusura}
-              disabled={videoMancante}
+              disabled={nonChiudibile}
               onConfirm={() => void completa()}
               data-testid="conferma-check-in"
             />
@@ -279,7 +297,7 @@ export function CheckInScreen({
             id="stato-check-in"
             className={cn(
               'text-center text-base font-semibold',
-              videoMancante ? 'text-status-in-progress-ink' : 'text-status-completed-ink',
+              nonChiudibile ? 'text-status-in-progress-ink' : 'text-status-completed-ink',
             )}
           >
             {riepilogoMedia}

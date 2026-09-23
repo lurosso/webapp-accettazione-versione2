@@ -19,6 +19,11 @@ import type {
   SpokiTestResult,
 } from '@/application/messaging/SpokiDiagnosticsService';
 import type { InspectionArchiveEntry } from '@/application/media/InspectionArchiveService';
+import type {
+  CommunicationRowView,
+  CommunicationsView,
+} from '@/application/notifications/CommunicationsService';
+import type { ManualContactOutcome } from '@/domain/entities/notification';
 import type { MediaCategory } from '@/domain/entities/media-asset';
 import type { BoardStatus, DisplayStatus } from '@/modules/bay-displays/types';
 import type { PublicStatus } from '@/modules/customer-portal/types';
@@ -297,6 +302,73 @@ export async function uploadInspectionMedia(
   return payload.photo;
 }
 
+/** Esito di un invio dalla coda del tablet: il media salvato, oppure lo stato HTTP (null = rete). */
+export type InspectionUploadResult =
+  | { readonly ok: true; readonly media: InspectionPhoto }
+  | { readonly ok: false; readonly status: number | null; readonly message: string };
+
+/**
+ * POST /api/v1/appointments/{id}/media dalla coda dei caricamenti del tablet (`upload-queue.ts`).
+ * XHR e non `fetch` perché serve l'avanzamento dell'invio: un video da 60 MB sul Wi-Fi del
+ * piazzale ci mette, e una rotella ferma sembra un tablet bloccato. Non lancia mai: la coda deve
+ * sapere se riprovare (rete, 5xx), aspettare il nuovo accesso (401) o fermarsi (rifiuto).
+ * `idCaricamento` rende idempotente il nuovo invio dello stesso file.
+ */
+export function sendInspectionMedia(input: {
+  readonly appointmentId: string;
+  readonly blob: Blob;
+  readonly fileName: string;
+  readonly category: MediaCategory | null;
+  readonly uploadId: string;
+  readonly onProgress: (fraction: number) => void;
+}): Promise<InspectionUploadResult> {
+  return new Promise((resolve) => {
+    const body = new FormData();
+    body.set('foto', input.blob, input.fileName);
+    body.set('idCaricamento', input.uploadId);
+    if (input.category !== null) {
+      body.set('categoria', input.category);
+    }
+    const xhr = new XMLHttpRequest();
+    xhr.open('POST', `/api/v1/appointments/${encodeURIComponent(input.appointmentId)}/media`);
+    // Due minuti di base, di più per i file grandi (50 kB/s): un video lento non è un video perso.
+    xhr.timeout = Math.min(600_000, Math.max(120_000, Math.round(input.blob.size / 50)));
+    xhr.upload.onprogress = (event) => {
+      if (event.lengthComputable && event.total > 0) {
+        input.onProgress(event.loaded / event.total);
+      }
+    };
+    xhr.onload = () => {
+      let payload: unknown = null;
+      try {
+        payload = JSON.parse(xhr.responseText) as unknown;
+      } catch {
+        payload = null;
+      }
+      if (
+        xhr.status >= 200 &&
+        xhr.status < 300 &&
+        isRecord(payload) &&
+        isRecord(payload['photo'])
+      ) {
+        resolve({ ok: true, media: payload['photo'] as unknown as InspectionPhoto });
+        return;
+      }
+      const errore = isRecord(payload) && isRecord(payload['error']) ? payload['error'] : null;
+      const message =
+        errore !== null && typeof errore['message'] === 'string'
+          ? errore['message']
+          : `Errore ${xhr.status} dal server.`;
+      resolve({ ok: false, status: xhr.status === 0 ? null : xhr.status, message });
+    };
+    xhr.onerror = () => resolve({ ok: false, status: null, message: 'Rete non raggiungibile.' });
+    xhr.ontimeout = () =>
+      resolve({ ok: false, status: null, message: 'Il server non ha risposto in tempo.' });
+    xhr.onabort = () => resolve({ ok: false, status: null, message: 'Invio interrotto.' });
+    xhr.send(body);
+  });
+}
+
 /** GET /api/v1/appointments/{id}/media: foto e video già acquisiti per la pratica. */
 export function fetchInspectionPhotos(
   appointmentId: string,
@@ -343,6 +415,8 @@ export interface BdcLeadsParams {
   /** Giornata `YYYY-MM-DD`, oppure null per tutte quelle in memoria. */
   readonly businessDate: string | null;
   readonly includeHandled: boolean;
+  /** Uno solo dei due elenchi; assente = assenti e anomalie insieme. */
+  readonly kind?: 'assenti' | 'anomalie';
 }
 
 /** GET /api/v1/crm/leads: clienti da ricontattare (solo responsabile e amministratore). */
@@ -354,6 +428,9 @@ export function fetchBdcLeads(params: BdcLeadsParams): Promise<
   const search = new URLSearchParams({ giornata: params.businessDate ?? 'tutte' });
   if (params.includeHandled) {
     search.set('gestiti', '1');
+  }
+  if (params.kind !== undefined) {
+    search.set('tipo', params.kind);
   }
   return apiFetch(`/api/v1/crm/leads?${search.toString()}`);
 }
@@ -479,6 +556,31 @@ export function postOutboxRetry(eventId: string): Promise<{
   readonly event: CrmOutboxEvent;
 }> {
   return apiFetch(`/api/v1/crm/outbox/${encodeURIComponent(eventId)}/retry`, { method: 'POST' });
+}
+
+/** GET /api/v1/notifications: i messaggi al cliente non arrivati (da gestire oppure già gestiti). */
+export function fetchCommunications(vista: 'open' | 'handled'): Promise<CommunicationsView> {
+  return apiFetch(`/api/v1/notifications${vista === 'handled' ? '?vista=gestite' : ''}`);
+}
+
+/** Comando della schermata Comunicazioni su un messaggio non arrivato. */
+export type CommunicationCommand =
+  | { readonly action: 'claim' | 'release' | 'retry' }
+  | {
+      readonly action: 'confirm';
+      readonly outcome: ManualContactOutcome;
+      readonly note: string | null;
+    };
+
+/** POST /api/v1/notifications/{id}/actions: prendo io, rilascio, riprova, esito e chiusura. */
+export function postCommunicationAction(
+  jobId: string,
+  command: CommunicationCommand,
+): Promise<{ readonly row: CommunicationRowView }> {
+  return apiFetch(`/api/v1/notifications/${encodeURIComponent(jobId)}/actions`, {
+    method: 'POST',
+    json: command,
+  });
 }
 
 /** GET /api/v1/reports/daily: indicatori della giornata (responsabile e amministratore). */

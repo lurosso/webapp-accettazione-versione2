@@ -20,6 +20,37 @@ const ANOMALY_DESCRIPTIONS: Readonly<Record<CrmAnomalyKind, string>> = {
   MANUAL_APPOINTMENT: "Pratica inserita manualmente perché assente dall'agenda Infinity.",
 };
 
+/**
+ * Chiave di idempotenza di un'anomalia: una sola segnalazione per pratica, tipo e giornata. Chi
+ * salta la stessa pratica una quarta volta non ne apre una seconda.
+ */
+export function buildAnomalyIdempotencyKey(
+  appointment: Appointment,
+  anomalyKind: CrmAnomalyKind,
+): string {
+  return `${appointment.id}:ANOMALY:${anomalyKind}:${appointment.businessDate}`;
+}
+
+/** Payload di un'anomalia rilevata su una pratica, con la frase che il BDC legge in cruscotto. */
+export function toCrmAppointmentAnomalyPayload(
+  appointment: Appointment,
+  anomalyKind: CrmAnomalyKind,
+  description: string,
+  detectedAt: IsoDateTime,
+  details: Readonly<Record<string, unknown>> = {},
+): CrmAnomalyPayloadDto {
+  return {
+    schemaVersion: 1,
+    idempotencyKey: buildAnomalyIdempotencyKey(appointment, anomalyKind),
+    anomalyKind,
+    appointmentExternalRef: appointment.externalRef,
+    code: appointment.code,
+    description,
+    detectedAt,
+    details: { ...details, appointmentId: appointment.id, skipCount: appointment.skipCount },
+  };
+}
+
 /** Chiave di idempotenza del no-show: una sola segnalazione per pratica e giornata. */
 export function buildNoShowIdempotencyKey(appointment: Appointment): string {
   return `${appointment.id}:NO_SHOW:${appointment.businessDate}`;

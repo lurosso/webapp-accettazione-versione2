@@ -22,4 +22,8 @@ export async function register(): Promise<void> {
   if (container.env.crmRetryEnabled) {
     container.crmRetryScheduler.start();
   }
+  // Riprova dei messaggi falliti: ferma con lo standby della messaggistica o con l'interruttore.
+  if (container.env.notificationRetryEnabled && !container.env.messagingStandby) {
+    container.notificationRetryScheduler.start();
+  }
 }

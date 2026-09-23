@@ -162,6 +162,12 @@ export interface AppEnv {
   /** Messaggi al cliente guidati dagli eventi (conferma, turno vicino, annullamento). */
   readonly messagingTriggersEnabled: boolean;
   /**
+   * NOTIFICATION_RETRY_ENABLED (predefinito true): riprova automatica dei messaggi falliti per un
+   * problema temporaneo, con attesa crescente. Spento, restano fermi finché qualcuno non preme
+   * «Riprova» nella schermata Comunicazioni.
+   */
+  readonly notificationRetryEnabled: boolean;
+  /**
    * `MESSAGING_STANDBY` (predefinito false): mette in pausa TUTTA l'integrazione con il cliente —
    * promemoria programmati, messaggi guidati dagli eventi e webhook delle risposte. Serve mentre
    * si lavora al resto dell'applicazione: senza credenziali Spoki l'officina funziona lo stesso,
@@ -543,6 +549,7 @@ export function parseEnv(
     crmRetryEnabled: pickBool(source, 'CRM_RETRY_ENABLED', true, warn),
     displayTokenRequired: pickBool(source, 'DISPLAY_TOKEN_REQUIRED', false, warn),
     messagingTriggersEnabled: pickBool(source, 'MESSAGING_TRIGGERS_ENABLED', true, warn),
+    notificationRetryEnabled: pickBool(source, 'NOTIFICATION_RETRY_ENABLED', true, warn),
     messagingStandby: pickBool(source, 'MESSAGING_STANDBY', false, warn),
     // Nome nuovo (MEDIA_*, perché ormai ci sono anche i video) con il vecchio come ripiego: un
     // .env già scritto continua a valere senza modifiche.

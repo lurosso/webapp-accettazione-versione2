@@ -28,6 +28,7 @@ import { EmptyState } from '@/components/shared/EmptyState';
 import { CardSkeleton } from '@/components/ui/skeleton';
 import { useAppointmentActions } from '@/hooks/useAppointmentActions';
 import { useLiveUpdates } from '@/hooks/useLiveUpdates';
+import { PendingUploadsNotice } from './PendingUploadsNotice';
 import { useTransitionRouter } from '@/hooks/useTransitionRouter';
 import { useTouchLayoutKind } from '@/hooks/useMediaQuery';
 import { useQueue } from '@/hooks/useQueue';
@@ -221,6 +222,18 @@ export function CheckInQueue({
           >
             {conferma}
           </p>
+        ) : null}
+
+        {/* Foto e video ancora sul tablet: dopo che la coda è arrivata, per sapere quali pratiche sono aperte. */}
+        {data !== undefined ? (
+          <PendingUploadsNotice
+            codeFor={(appointmentId) => {
+              const r = rows.find((x) => x.appointment.id === appointmentId);
+              return r !== undefined && r.appointment.status === 'IN_PROGRESS'
+                ? r.appointment.code
+                : null;
+            }}
+          />
         ) : null}
 
         {richiestaAssente ? (

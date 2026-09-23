@@ -331,7 +331,7 @@ pulsanti grandi da usare in piedi accanto alla vettura.
    Fiancata destra) più _Interni_ e _Dettaglio danni_, ognuno con più scatti, e **+ Foto** per uno
    scatto libero fuori dalle caselle (finisce fra le "Foto aggiuntive"). Toccando uno slot si apre
    la fotocamera posteriore del tablet (su un computer si sceglie un file); l'anteprima compare
-   subito con la rotella di attesa e resta nello slot a caricamento concluso. I file finiscono
+   subito con la percentuale di invio e resta nello slot a caricamento concluso. I file finiscono
    dietro `IMediaStorage`, cioè in
    `.data/uploads/<giornata>/<codice>/<parte>-<id>.<estensione>`, e si rileggono da
    `GET /api/v1/media/<chiave>` con la sessione attiva. Restano lì anche dopo un riavvio.
@@ -348,6 +348,18 @@ pulsanti grandi da usare in piedi accanto alla vettura.
 6. Nella dashboard di accettazione, il clic sulla pratica apre il pannello con la sezione
    **Ispezione al veicolo**: le note, i video e le foto, raggruppati per parte del veicolo e
    apribili con un clic (il video parte nel riquadro a schermo intero).
+
+**Se la rete cade sul piazzale nessuna foto e nessun video si perde.** Ogni file scattato entra
+prima in un archivio del tablet (IndexedDB `accettazione-upload`, con ripiego in memoria dove non
+c'è) e poi parte. Se l'invio non arriva, il riquadro dice «In attesa di rete · riprovo tra N s» e
+riprova da solo con un'attesa crescente (2, 4, 8… fino a 60 secondi), subito quando il tablet torna
+in linea o la pagina torna in primo piano, e anche dopo aver chiuso e riaperto il browser; un file
+rifiutato dal server (troppo grande, formato non ammesso, check-in già chiuso) si ferma e chiede
+**Riprova** o **Scarta**. Finché c'è qualcosa in attesa l'intestazione dice «N file in attesa di
+caricamento» e il check-in non si chiude; l'elenco del check-in mostra i file in attesa di tutte le
+pratiche. Ogni file viaggia con un proprio `idCaricamento`: se la risposta del server si perde ma il
+file era arrivato, il nuovo invio non crea un doppione. Per provarlo: DevTools › Network ›
+_Offline_, scatta una foto, torna _Online_.
 
 Il CRM non può bloccare l'officina: se non risponde (`MOCK_CRM_MODE=error`) l'accettazione si
 chiude lo stesso e l'evento resta nella coda di uscita, pronto per il rinvio. Con
@@ -395,8 +407,9 @@ capo invece di sovrapporsi.
 
 ### Provare il cruscotto BDC
 
-Il cruscotto BDC è **solo l'elenco dei clienti assenti**: chi non si è presentato, da richiamare e
-da riprogrammare su Infinity. Niente statistiche, niente medie, niente grafici e nemmeno la
+Il cruscotto BDC è **l'elenco dei clienti da richiamare**: chi non si è presentato, da richiamare e
+da riprogrammare su Infinity, e — dal 2026-09-23 — chi è stato **saltato tre volte** al banco
+(«Verificare presenza», vedi sotto). Niente statistiche, niente medie, niente grafici e nemmeno la
 chiusura di giornata: stanno tutti in Amministrazione. Serve un account con ruolo responsabile: `responsabile` / `demo`. Dalla dashboard
 di accettazione segna assente un cliente del blocco **In ritardo / assenti**, poi apri
 <http://localhost:3000/manager>: la riga compare subito nel cruscotto con nome, numero richiamabile
@@ -410,6 +423,36 @@ serve dopo un tocco sbagliato o una riprogrammazione che poi salta.
 
 La chiusura del lead è indipendente dal CRM: con `MOCK_CRM_MODE=error` la riga dice "CRM non
 raggiungibile", ma il BDC può comunque telefonare e chiudere: l'evento resta in coda per il rinvio.
+
+**Il terzo «Salta».** Quando la stessa pratica viene saltata per la terza volta di fila (fra un
+salto e l'altro c'è «Ripristina»; la presa in carico interrompe la serie), il sistema registra
+un'anomalia sulla pratica, «Cliente saltato 3 volte - Verificare presenza»: arriva nel cruscotto BDC
+con il segno _Verificare presenza_, nel pannello **Anomalie di oggi** dell'amministratore
+(_Monitoraggio operativo_) e al CRM come evento `ANOMALY`/`EXCESSIVE_SKIPS`. Una sola per pratica e
+giornata; la riga della coda dice «saltata 3 volte · verificare presenza». Se poi il cliente viene
+preso in carico, l'anomalia si chiude da sola («Cliente presente»): il BDC non telefona a chi è già al
+banco.
+
+### Provare la schermata Comunicazioni
+
+<http://localhost:3000/comunicazioni> (accettatori, BDC, amministratore) elenca i **messaggi al
+cliente che non sono arrivati** negli ultimi sette giorni, con il testo del messaggio (quello da
+dire al telefono), il numero da chiamare con un tocco e l'ultimo errore dei provider. Ogni riga dice
+cosa sta facendo il sistema:
+
+- **Nuovo tentativo alle HH:mm (n/3)**: l'invio è fallito per un problema temporaneo e il sistema
+  lo ritenta da solo dopo 1, 5 e 15 minuti (`NOTIFICATION_RETRY_ENABLED`); un WhatsApp dato per non
+  consegnato da Spoki riparte via SMS;
+- **Da contattare a mano**: i tentativi automatici sono finiti o i canali hanno rifiutato il numero;
+- **Senza numero**: in agenda non c'è un telefono, il cliente va informato di persona.
+
+**Prendo io** mette il proprio nome sulla riga (un collega non può prenderla; la rilascia chi l'ha
+presa, un responsabile o un amministratore), **Riprova invio** ripercorre subito WhatsApp e SMS,
+**Registra esito** chiude la segnalazione con l'esito (cliente chiamato al telefono, informato di
+persona, non raggiungibile, numero errato, altro) e una nota facoltativa. La vista **Gestite** mostra
+chi ha chiuso cosa e quando. Per provarla con i mock: un cliente il cui telefono finisce per **8**
+va in timeout su entrambi i canali (riprova automatica), uno che finisce per **99** va dritto a «Da
+contattare a mano».
 
 ### Provare il portale cliente
 
@@ -602,7 +645,9 @@ resta il pulsante **Riprova sync** in dashboard. Nel frattempo l'officina lavora
 **Un provider di messaggi non risponde.** I messaggi al cliente partono dagli eventi (pratica
 inserita a mano, turno che si avvicina, annullamento deciso da una persona) e sempre fuori dal
 percorso della richiesta che li ha generati: la presa in carico non aspetta WhatsApp. Il ripiego
-WhatsApp → SMS → contatto manuale resta quello del promemoria del mattino.
+WhatsApp → SMS → contatto manuale resta quello del promemoria del mattino. Un invio fallito per un
+problema temporaneo si ritenta da solo dopo 1, 5 e 15 minuti; poi la riga passa a «Da contattare a
+mano» nella schermata **Comunicazioni**, dove qualcuno la prende in carico e registra l'esito.
 
 **Una schermata va in errore.** L'area operatore mostra il problema dentro l'applicazione, con
 "Riprova" e "Torna alla coda"; un monitor mostra uno schermo giallo "MONITOR IN RIPRISTINO" e si
@@ -832,10 +877,11 @@ per i cron esterni.
 
 ### Manager e BDC
 
-| Rotta      | Metodo | Descrizione                                                                        | Accesso                  |
-| ---------- | ------ | ---------------------------------------------------------------------------------- | ------------------------ |
-| `/bdc`     | pagina | Alias dell'indirizzo usato dal reparto: rimanda al cruscotto BDC (/manager).       | Manager e Amministratore |
-| `/manager` | pagina | Cruscotto BDC: solo i clienti assenti da ricontattare e riprogrammare su Infinity. | Manager e Amministratore |
+| Rotta            | Metodo | Descrizione                                                                                                                                                                                                                 | Accesso                                   |
+| ---------------- | ------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------- |
+| `/bdc`           | pagina | Alias dell'indirizzo usato dal reparto: rimanda al cruscotto BDC (/manager).                                                                                                                                                | Manager e Amministratore                  |
+| `/manager`       | pagina | Cruscotto BDC: i clienti assenti da ricontattare e riprogrammare su Infinity e quelli saltati tre volte al banco, di cui verificare la presenza.                                                                            | Manager e Amministratore                  |
+| `/comunicazioni` | pagina | Comunicazioni: i messaggi al cliente non arrivati — in riprova automatica (con l’ora del prossimo tentativo), da contattare a mano, senza numero — con «Prendo io», «Riprova invio» e la chiusura con l’esito del contatto. | Accettatore, Manager/BDC e Amministratore |
 
 ### Amministrazione e configurazione
 
@@ -907,14 +953,16 @@ per i cron esterni.
 
 ### API: manager, report e BDC
 
-| Rotta                             | Metodo | Descrizione                                                                                                | Accesso                  |
-| --------------------------------- | ------ | ---------------------------------------------------------------------------------------------------------- | ------------------------ |
-| `/api/v1/reports/daily`           | GET    | Indicatori della giornata (`?giornata=`): attesa media, durata, esiti.                                     | Solo Amministratore      |
-| `/api/v1/reports/daily/csv`       | GET    | Riepilogo dettagliato della giornata in CSV (con BOM per Excel).                                           | Solo Amministratore      |
-| `/api/v1/crm/leads`               | GET    | Clienti da ricontattare per il BDC (`?giornata=&gestiti=1`): nomi e telefoni degli assenti.                | Manager e Amministratore |
-| `/api/v1/crm/leads/:id/reopen`    | POST   | Riporta un lead chiuso fra quelli da ricontattare (tocco sbagliato o riprogrammazione saltata).            | Manager e Amministratore |
-| `/api/v1/crm/leads/:id/contacted` | POST   | Il BDC dichiara di aver ricontattato il cliente (chi, esito).                                              | Manager e Amministratore |
-| `/api/v1/system/close-day`        | POST   | Chiusura della giornata: chi è in coda diventa assente (lead BDC), chi è in carico viene chiuso d'ufficio. | Manager e Amministratore |
+| Rotta                               | Metodo | Descrizione                                                                                                                                    | Accesso                                   |
+| ----------------------------------- | ------ | ---------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------- |
+| `/api/v1/reports/daily`             | GET    | Indicatori della giornata (`?giornata=`): attesa media, durata, esiti.                                                                         | Solo Amministratore                       |
+| `/api/v1/reports/daily/csv`         | GET    | Riepilogo dettagliato della giornata in CSV (con BOM per Excel).                                                                               | Solo Amministratore                       |
+| `/api/v1/notifications`             | GET    | Schermata Comunicazioni: messaggi al cliente non arrivati degli ultimi giorni, con i conteggi (`?vista=gestite` per quelli chiusi a mano).     | Accettatore, Manager/BDC e Amministratore |
+| `/api/v1/notifications/:id/actions` | POST   | Comandi su un messaggio non arrivato: `claim` (prendo io), `release`, `retry` (riprova invio), `confirm` (esito del contatto e chiusura).      | Accettatore, Manager/BDC e Amministratore |
+| `/api/v1/crm/leads`                 | GET    | Clienti da ricontattare per il BDC (`?giornata=&gestiti=1`, `tipo=assenti` o `tipo=anomalie`): assenti e clienti saltati tre volte da cercare. | Manager e Amministratore                  |
+| `/api/v1/crm/leads/:id/reopen`      | POST   | Riporta un lead chiuso fra quelli da ricontattare (tocco sbagliato o riprogrammazione saltata).                                                | Manager e Amministratore                  |
+| `/api/v1/crm/leads/:id/contacted`   | POST   | Il BDC dichiara di aver ricontattato il cliente (chi, esito).                                                                                  | Manager e Amministratore                  |
+| `/api/v1/system/close-day`          | POST   | Chiusura della giornata: chi è in coda diventa assente (lead BDC), chi è in carico viene chiuso d'ufficio.                                     | Manager e Amministratore                  |
 
 ### API: amministrazione
 

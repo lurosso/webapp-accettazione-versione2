@@ -1,5 +1,6 @@
 // GET /api/v1/crm/leads — clienti da ricontattare per il BDC (modulo F).
-// Parametri: `giornata=YYYY-MM-DD` (default: oggi) e `gestiti=1` per vedere anche quelli chiusi.
+// Parametri: `giornata=YYYY-MM-DD` (default: oggi), `gestiti=1` per vedere anche quelli chiusi e
+// `tipo=assenti|anomalie` per uno solo dei due elenchi (default: entrambi).
 // Riservata a SUPERVISOR e ADMIN: contiene nomi e numeri di telefono di clienti che non si sono
 // presentati, dati che non devono girare oltre chi li deve lavorare.
 import { NextResponse, type NextRequest } from 'next/server';
@@ -24,10 +25,16 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
   const giornata = searchParams.get('giornata');
   const tutte = giornata === 'tutte';
   const includeHandled = searchParams.get('gestiti') === '1';
+  const tipo = searchParams.get('tipo');
 
   const view = await container.bdcLeadService.listLeads({
     businessDate: tutte ? null : (giornata ?? container.clock.today()),
     includeHandled,
+    ...(tipo === 'anomalie'
+      ? { types: ['ANOMALY'] as const }
+      : tipo === 'assenti'
+        ? { types: ['NO_SHOW'] as const }
+        : {}),
   });
 
   return NextResponse.json(

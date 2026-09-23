@@ -22,6 +22,7 @@ function toEntity(r: Row): MediaAsset {
     capturedByOperatorId: r.capturedByOperatorId as MediaAsset['capturedByOperatorId'],
     capturedAt: r.capturedAt as IsoDateTime,
     note: r.note,
+    clientUploadId: r.clientUploadId,
     expiresAt: r.expiresAt as IsoDateTime,
     archivedAt: r.archivedAt as MediaAsset['archivedAt'],
   };
@@ -40,6 +41,7 @@ function toRow(m: MediaAsset): Row {
     capturedByOperatorId: m.capturedByOperatorId,
     capturedAt: m.capturedAt,
     note: m.note,
+    clientUploadId: m.clientUploadId,
     expiresAt: m.expiresAt,
     archivedAt: m.archivedAt,
   };
@@ -50,6 +52,14 @@ export class PrismaMediaRepository implements IMediaRepository {
 
   async insert(asset: MediaAsset): Promise<MediaAsset> {
     return toEntity(await this.db.mediaAsset.create({ data: toRow(asset) }));
+  }
+
+  async findByClientUploadId(
+    appointmentId: AppointmentId,
+    clientUploadId: string,
+  ): Promise<MediaAsset | null> {
+    const r = await this.db.mediaAsset.findFirst({ where: { appointmentId, clientUploadId } });
+    return r === null ? null : toEntity(r);
   }
 
   async listByAppointment(appointmentId: AppointmentId): Promise<readonly MediaAsset[]> {

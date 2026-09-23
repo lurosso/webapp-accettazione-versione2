@@ -164,6 +164,7 @@ describe('DailyReportService: esportazione CSV', () => {
       sizeBytes: 1024,
       storageKey: `${TEST_DATE}/${a.code}/front-media-1.jpg`,
       thumbnailKey: null,
+      clientUploadId: null,
       capturedByOperatorId: 'op-advisor-1' as never,
       capturedAt: AT('09:00'),
       note: null,

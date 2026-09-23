@@ -43,6 +43,12 @@ export const MAX_UPLOAD_REQUEST_BYTES = MAX_VIDEO_BYTES + 512 * 1024;
 const CampiTestuali = z.object({
   nota: z.string().trim().max(500).optional(),
   categoria: z.string().trim().max(32).optional(),
+  // Identificativo del caricamento scelto dal tablet: rende idempotente un nuovo invio.
+  idCaricamento: z
+    .string()
+    .trim()
+    .regex(/^[A-Za-z0-9-]{8,64}$/)
+    .optional(),
 });
 
 interface RouteContext {
@@ -152,6 +158,7 @@ export async function POST(request: NextRequest, context: RouteContext): Promise
   const campi = CampiTestuali.safeParse({
     nota: campoTesto(form.get('nota')),
     categoria: campoTesto(form.get('categoria')),
+    idCaricamento: campoTesto(form.get('idCaricamento')),
   });
   if (!campi.success) {
     return badRequestResponse('Campi del media non validi.', { issues: campi.error.issues });
@@ -188,6 +195,7 @@ export async function POST(request: NextRequest, context: RouteContext): Promise
     mimeType: dichiarato,
     category: isMediaCategory(categoria) ? categoria : null,
     note: nota === '' ? null : nota,
+    clientUploadId: campi.data.idCaricamento ?? null,
   });
   if (!salvata.ok) {
     return domainErrorResponse(salvata.error, { 'x-correlation-id': correlationId });

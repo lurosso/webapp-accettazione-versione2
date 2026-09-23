@@ -11,6 +11,15 @@ export class InMemoryMediaRepository implements IMediaRepository {
   constructor(private readonly store: InMemoryStore) {}
 
   async insert(asset: MediaAsset): Promise<MediaAsset> {
+    // Come l'indice unico del database: lo stesso caricamento del tablet non entra due volte.
+    if (
+      asset.clientUploadId !== null &&
+      [...this.store.state.media.values()].some(
+        (m) => m.appointmentId === asset.appointmentId && m.clientUploadId === asset.clientUploadId,
+      )
+    ) {
+      throw new Error(`clientUploadId già presente per la pratica: ${asset.clientUploadId}`);
+    }
     const stored = { ...asset };
     this.store.state.media.set(stored.id, stored);
     return { ...stored };
@@ -21,6 +30,16 @@ export class InMemoryMediaRepository implements IMediaRepository {
       .filter((m) => m.appointmentId === appointmentId)
       .sort((a, b) => (a.capturedAt < b.capturedAt ? -1 : a.capturedAt > b.capturedAt ? 1 : 0))
       .map((m) => ({ ...m }));
+  }
+
+  async findByClientUploadId(
+    appointmentId: AppointmentId,
+    clientUploadId: string,
+  ): Promise<MediaAsset | null> {
+    const trovato = [...this.store.state.media.values()].find(
+      (m) => m.appointmentId === appointmentId && m.clientUploadId === clientUploadId,
+    );
+    return trovato === undefined ? null : { ...trovato };
   }
 
   async listAll(): Promise<readonly MediaAsset[]> {

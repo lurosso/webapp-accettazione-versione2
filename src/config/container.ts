@@ -14,8 +14,10 @@ import { InspectionArchiveService } from '@/application/media/InspectionArchiveS
 import { InspectionService } from '@/application/media/InspectionService';
 import { DailyReportService } from '@/application/reporting/DailyReportService';
 import { AppointmentReminderService } from '@/application/notifications/AppointmentReminderService';
+import { CommunicationsService } from '@/application/notifications/CommunicationsService';
 import { CustomerMessagingPolicy } from '@/application/notifications/CustomerMessagingPolicy';
 import { NotificationOrchestrator } from '@/application/notifications/NotificationOrchestrator';
+import { NotificationRetryScheduler } from '@/application/notifications/NotificationRetryScheduler';
 import {
   AppointmentWhatsAppMirror,
   WhatsAppDeliveryService,
@@ -78,6 +80,9 @@ export interface Container {
   readonly bdcLeadService: BdcLeadService;
   readonly crmOutboxService: CrmOutboxService;
   readonly crmRetryScheduler: CrmRetryScheduler;
+  /** Riprova automatica dei messaggi al cliente falliti per un problema temporaneo. */
+  readonly notificationRetryScheduler: NotificationRetryScheduler;
+  readonly communicationsService: CommunicationsService;
   readonly inspectionService: InspectionService;
   readonly inspectionArchiveService: InspectionArchiveService;
   readonly operatorAdminService: OperatorAdminService;
@@ -198,6 +203,8 @@ export function createContainer(overrides: ContainerOverrides = {}): Container {
     portalToken: (appointmentId) => portalTokens.forAppointment(appointmentId),
     whatsappConsentOverride: env.spokiOverrideConsent,
     maxEarlyArrivalMinutes: env.spokiMaxEarlyArrivalMinutes,
+    // Il «nuovo tentativo alle…» si promette solo se il temporizzatore della riprova gira davvero.
+    autoRetry: env.notificationRetryEnabled && !env.messagingStandby,
     // Ogni job WhatsApp salvato aggiorna lo stato sulla pratica: coda e archivio lo leggono da lì.
     whatsappDelivery: new AppointmentWhatsAppMirror(repos.appointments, logger),
   });
@@ -348,6 +355,18 @@ export function createContainer(overrides: ContainerOverrides = {}): Container {
   // Rinvii automatici verso il CRM: un temporizzatore nel processo, spegnibile da env quando i
   // rinvii li fa un cron esterno sull'endpoint dedicato.
   const crmRetryScheduler = new CrmRetryScheduler({ notifier: crmNotifier, logger });
+  const notificationRetryScheduler = new NotificationRetryScheduler({
+    orchestrator: notificationOrchestrator,
+    logger,
+  });
+  const communicationsService = new CommunicationsService({
+    notifications: repos.notifications,
+    appointments: repos.appointments,
+    operators: repos.operators,
+    orchestrator: notificationOrchestrator,
+    clock,
+    logger,
+  });
 
   const bdcLeadService = new BdcLeadService({
     outbox: repos.crmOutbox,
@@ -542,6 +561,8 @@ export function createContainer(overrides: ContainerOverrides = {}): Container {
     bdcLeadService,
     crmOutboxService,
     crmRetryScheduler,
+    notificationRetryScheduler,
+    communicationsService,
     inspectionService,
     inspectionArchiveService,
     operatorAdminService,
@@ -575,6 +596,8 @@ export function getContainer(): Container {
     // Codice ricaricato: si sostituisce il cablaggio e si spostano i timer sui nuovi scheduler.
     existing.syncScheduler.stop();
     existing.crmRetryScheduler.stop();
+    // Un container creato prima che esistesse la riprova dei messaggi non ha questo scheduler.
+    (existing as Partial<Container>).notificationRetryScheduler?.stop();
     existing.messagingPolicy.stop();
     const rebuilt = createContainer();
     g[GLOBAL_KEY] = rebuilt;
@@ -582,6 +605,9 @@ export function getContainer(): Container {
       rebuilt.syncScheduler.start();
       if (rebuilt.env.crmRetryEnabled) {
         rebuilt.crmRetryScheduler.start();
+      }
+      if (rebuilt.env.notificationRetryEnabled && !rebuilt.env.messagingStandby) {
+        rebuilt.notificationRetryScheduler.start();
       }
     }
     rebuilt.logger.info('[Container] ricostruito dopo una ricompilazione (solo sviluppo)');
@@ -608,6 +634,7 @@ export function resetContainerForTests(): void {
   if (isContainer(existing)) {
     existing.syncScheduler.stop();
     existing.crmRetryScheduler.stop();
+    existing.notificationRetryScheduler.stop();
     existing.messagingPolicy.stop();
   }
   delete g[GLOBAL_KEY];

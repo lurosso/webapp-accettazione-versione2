@@ -80,6 +80,11 @@ export interface AddMediaInput {
    */
   readonly category: MediaCategory | null;
   readonly note?: string | null;
+  /**
+   * Identificativo scelto dal tablet (coda di caricamento): se un media con lo stesso id esiste
+   * già per la pratica, si restituisce quello, senza salvare di nuovo il file.
+   */
+  readonly clientUploadId?: string | null;
 }
 
 /** Ingresso della vecchia firma, quando la categoria era sempre nota (`addPhoto`). */
@@ -124,6 +129,15 @@ export const VIDEO_MANCANTE =
 
 export class InspectionService {
   private readonly logger: ILogger;
+  /**
+   * Invii dello stesso caricamento del tablet ancora in lavorazione: un secondo invio con lo stesso
+   * `idCaricamento` (la prima richiesta è andata in timeout sul tablet ma qui sta ancora scrivendo)
+   * aspetta il primo e ne riceve l'esito, invece di salvare il file due volte.
+   */
+  private readonly caricamentiInCorso = new Map<
+    string,
+    Promise<Result<StoredPhoto, DomainError>>
+  >();
 
   constructor(private readonly deps: InspectionServiceDeps) {
     this.logger = deps.logger.child('[Ispezione]');
@@ -138,6 +152,21 @@ export class InspectionService {
    * contestazione, e non si ritocca a posteriori.
    */
   async addMedia(input: AddMediaInput): Promise<Result<StoredPhoto, DomainError>> {
+    const idCaricamento = input.clientUploadId ?? null;
+    if (idCaricamento === null) {
+      return this.salvaMedia(input);
+    }
+    const chiave = `${input.appointmentId}:${idCaricamento}`;
+    const inCorso = this.caricamentiInCorso.get(chiave);
+    if (inCorso !== undefined) {
+      return inCorso;
+    }
+    const lavoro = this.salvaMedia(input).finally(() => this.caricamentiInCorso.delete(chiave));
+    this.caricamentiInCorso.set(chiave, lavoro);
+    return lavoro;
+  }
+
+  private async salvaMedia(input: AddMediaInput): Promise<Result<StoredPhoto, DomainError>> {
     const dichiarato = input.mimeType.trim().toLowerCase();
     if (input.bytes.byteLength === 0) {
       return err(
@@ -180,6 +209,22 @@ export class InspectionService {
     const appointment = await this.deps.appointments.findById(input.appointmentId);
     if (appointment === null) {
       return err(domainError('NOT_FOUND', `Pratica non trovata: ${input.appointmentId}.`));
+    }
+    // Nuovo invio dello stesso file dalla coda del tablet (la rete era caduta dopo il salvataggio):
+    // vale anche a check-in già chiuso, perché il file era arrivato quando la pratica era in carico.
+    const clientUploadId = input.clientUploadId ?? null;
+    if (clientUploadId !== null) {
+      const giaSalvato = await this.deps.media.findByClientUploadId(appointment.id, clientUploadId);
+      if (giaSalvato !== null) {
+        this.logger.info(`media già ricevuto per ${appointment.code}: nuovo invio ignorato`, {
+          mediaId: giaSalvato.id,
+          clientUploadId,
+        });
+        return ok({
+          asset: giaSalvato,
+          url: this.deps.mediaStorage.getUrl(giaSalvato.storageKey),
+        });
+      }
     }
     if (appointment.status !== 'IN_PROGRESS') {
       return err(
@@ -228,24 +273,41 @@ export class InspectionService {
       return salvata;
     }
 
-    const asset = await this.deps.media.insert({
-      id,
-      appointmentId: appointment.id,
-      kind,
-      category,
-      mimeType,
-      sizeBytes: input.bytes.byteLength,
-      storageKey: salvata.value.key,
-      thumbnailKey: null,
-      capturedByOperatorId: input.operatorId,
-      capturedAt: this.deps.clock.nowIso(),
-      note: input.note ?? null,
-      // La scadenza nasce con il media: la retention non deve ricalcolare nulla, solo confrontare.
-      expiresAt: new Date(
-        this.deps.clock.now().getTime() + this.deps.retentionDays * 24 * 60 * 60_000,
-      ).toISOString() as IsoDateTime,
-      archivedAt: null,
-    });
+    let asset: MediaAsset;
+    try {
+      asset = await this.deps.media.insert({
+        id,
+        appointmentId: appointment.id,
+        kind,
+        category,
+        mimeType,
+        sizeBytes: input.bytes.byteLength,
+        storageKey: salvata.value.key,
+        thumbnailKey: null,
+        capturedByOperatorId: input.operatorId,
+        capturedAt: this.deps.clock.nowIso(),
+        note: input.note ?? null,
+        clientUploadId,
+        // La scadenza nasce con il media: la retention non deve ricalcolare nulla, solo confrontare.
+        expiresAt: new Date(
+          this.deps.clock.now().getTime() + this.deps.retentionDays * 24 * 60 * 60_000,
+        ).toISOString() as IsoDateTime,
+        archivedAt: null,
+      });
+    } catch (cause) {
+      // Due invii dello stesso caricamento arrivati insieme (un altro processo, un'altra scheda):
+      // l'indice unico ha fatto vincere l'altro. Il file appena scritto si toglie e si risponde con
+      // quello salvato, così il tablet smette di riprovare e sul disco non resta un orfano.
+      const vincitore =
+        clientUploadId === null
+          ? null
+          : await this.deps.media.findByClientUploadId(appointment.id, clientUploadId);
+      if (vincitore === null) {
+        throw cause;
+      }
+      await this.deps.mediaStorage.delete(salvata.value.key);
+      return ok({ asset: vincitore, url: this.deps.mediaStorage.getUrl(vincitore.storageKey) });
+    }
     this.logger.info(`media acquisito per ${appointment.code}`, {
       mediaId: asset.id,
       kind,

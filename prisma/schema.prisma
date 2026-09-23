@@ -90,9 +90,12 @@ model MediaAsset {
   capturedByOperatorId String
   capturedAt           String
   note                 String?
+  /// Identificativo del caricamento scelto dal tablet: un nuovo invio dello stesso file non duplica.
+  clientUploadId       String?
   expiresAt            String
   archivedAt           String?
 
+  @@unique([appointmentId, clientUploadId])
   @@index([appointmentId])
   @@index([archivedAt, expiresAt])
 }
@@ -153,11 +156,20 @@ model NotificationJob {
   attemptsJson          String
   manualConfirmedBy     String?
   manualNote            String?
+  /// Gestione manuale e riprova: esito, quando, prossimo tentativo, chi l'ha in carico.
+  manualOutcome         String?
+  manualConfirmedAt     String?
+  nextAttemptAt         String?
+  autoRetryCount        Int     @default(0)
+  claimedByOperatorId   String?
+  claimedByName         String?
+  claimedAt             String?
   createdAt             String
   updatedAt             String
 
   @@index([appointmentId])
   @@index([businessDate, status])
+  @@index([status, nextAttemptAt])
 }
 
 model CrmOutboxEvent {

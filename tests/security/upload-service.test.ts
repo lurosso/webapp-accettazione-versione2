@@ -200,3 +200,92 @@ describe('Sicurezza upload: integrità del fascicolo', () => {
     expect(foto.ok).toBe(true);
   });
 });
+
+describe('Caricamenti ripetibili dal tablet (idCaricamento)', () => {
+  it('lo stesso file rimandato con lo stesso id non crea un doppione: torna il media già salvato', async () => {
+    const s = setup();
+    const a = await inCarico(s);
+    const input = {
+      appointmentId: a.id,
+      operatorId: s.ctx.operatorId,
+      bytes: jpegBytes(),
+      mimeType: 'image/jpeg',
+      category: 'EXTRA' as const,
+      clientUploadId: 'c0ffee00-1111-4222-8333-444455556666',
+    };
+    const primo = await s.inspection.addMedia(input);
+    const secondo = await s.inspection.addMedia(input);
+    expect(primo.ok && secondo.ok).toBe(true);
+    if (primo.ok && secondo.ok) {
+      expect(secondo.value.asset.id).toBe(primo.value.asset.id);
+    }
+    expect(await s.env.media.listByAppointment(a.id)).toHaveLength(1);
+    expect(s.env.mediaStorage.size).toBe(1);
+  });
+
+  it('se la risposta si era persa e il check-in nel frattempo si è chiuso, il nuovo invio trova il file', async () => {
+    const s = setup();
+    const a = await inCarico(s);
+    const input = {
+      appointmentId: a.id,
+      operatorId: s.ctx.operatorId,
+      bytes: jpegBytes(),
+      mimeType: 'image/jpeg',
+      category: 'EXTRA' as const,
+      clientUploadId: 'feedface-aaaa-4bbb-8ccc-ddddeeeeffff',
+    };
+    const primo = await s.inspection.addMedia(input);
+    expect(primo.ok).toBe(true);
+    const corrente = await s.env.appointments.findById(a.id);
+    if (corrente === null) {
+      throw new Error('pratica sparita');
+    }
+    await s.env.appointments.update({ ...corrente, status: 'COMPLETED' }, corrente.version);
+    const ripetuto = await s.inspection.addMedia(input);
+    expect(ripetuto.ok).toBe(true);
+    // Un file nuovo, invece, su una pratica chiusa resta rifiutato.
+    const nuovo = await s.inspection.addMedia({ ...input, clientUploadId: 'nuovo-id-0001' });
+    expect(nuovo.ok).toBe(false);
+  });
+
+  it('id diversi sono file diversi', async () => {
+    const s = setup();
+    const a = await inCarico(s);
+    const base = {
+      appointmentId: a.id,
+      operatorId: s.ctx.operatorId,
+      bytes: jpegBytes(),
+      mimeType: 'image/jpeg',
+      category: 'EXTRA' as const,
+    };
+    await s.inspection.addMedia({ ...base, clientUploadId: 'id-uno-0001' });
+    await s.inspection.addMedia({ ...base, clientUploadId: 'id-due-0002' });
+    await s.inspection.addMedia(base);
+    expect(await s.env.media.listByAppointment(a.id)).toHaveLength(3);
+  });
+});
+
+describe('Caricamenti ripetibili: due invii insieme', () => {
+  it('lo stesso idCaricamento inviato due volte in parallelo salva un file solo', async () => {
+    const s = setup();
+    const a = await inCarico(s);
+    const input = {
+      appointmentId: a.id,
+      operatorId: s.ctx.operatorId,
+      bytes: jpegBytes(),
+      mimeType: 'image/jpeg',
+      category: 'EXTRA' as const,
+      clientUploadId: 'parallelo-0001-4000-8000-000000000001',
+    };
+    const [uno, due] = await Promise.all([
+      s.inspection.addMedia(input),
+      s.inspection.addMedia(input),
+    ]);
+    expect(uno.ok && due.ok).toBe(true);
+    if (uno.ok && due.ok) {
+      expect(due.value.asset.id).toBe(uno.value.asset.id);
+    }
+    expect(await s.env.media.listByAppointment(a.id)).toHaveLength(1);
+    expect(s.env.mediaStorage.size).toBe(1);
+  });
+});

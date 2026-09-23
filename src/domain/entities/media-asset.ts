@@ -73,6 +73,12 @@ export interface MediaAsset {
   readonly capturedByOperatorId: OperatorId;
   readonly capturedAt: IsoDateTime;
   readonly note: string | null;
+  /**
+   * Identificativo scelto dal tablet per questo caricamento. Rende idempotente il nuovo invio dello
+   * stesso file dopo una caduta di rete: se il primo era arrivato ma la risposta no, il secondo
+   * restituisce il media già salvato invece di duplicarlo. null per i caricamenti senza coda.
+   */
+  readonly clientUploadId: string | null;
   /** Dopo questo istante il file può essere eliminato dal disco (retention). */
   readonly expiresAt: IsoDateTime;
   /**

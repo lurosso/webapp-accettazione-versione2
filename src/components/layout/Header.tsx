@@ -39,6 +39,7 @@ const NAV: readonly { href: string; label: string; area: ProtectedArea }[] = [
   { href: '/accettazione/archivio', label: 'Archivio', area: 'accettazione' },
   { href: '/check-in', label: 'Check-in', area: 'check-in' },
   { href: '/manager', label: 'BDC', area: 'manager' },
+  { href: '/comunicazioni', label: 'Comunicazioni', area: 'comunicazioni' },
   { href: '/admin', label: 'Admin', area: 'admin' },
   { href: '/sistema', label: 'Sistema', area: 'sistema' },
 ];

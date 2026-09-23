@@ -16,7 +16,11 @@ import {
 } from '@/config/constants';
 import type { Appointment } from '@/domain/entities/appointment';
 import type { Brand } from '@/domain/entities/brand';
-import type { CrmEventType, CrmOutboxEvent } from '@/domain/entities/crm-outbox-event';
+import type {
+  CrmAnomalyKind,
+  CrmEventType,
+  CrmOutboxEvent,
+} from '@/domain/entities/crm-outbox-event';
 import { asCrmOutboxEventId } from '@/domain/ids';
 import type { CrmOutboxEventId, OperatorId } from '@/domain/ids';
 import type { IsoDateTime } from '@/domain/value-objects/iso-date';
@@ -34,8 +38,10 @@ import type { IEventBus } from '@/services/interfaces/IEventBus';
 import type { IIdGenerator } from '@/services/interfaces/IIdGenerator';
 import type { ILogger } from '@/services/interfaces/ILogger';
 import {
+  buildAnomalyIdempotencyKey,
   buildCheckInIdempotencyKey,
   buildNoShowIdempotencyKey,
+  toCrmAppointmentAnomalyPayload,
   toCrmCheckInPayload,
   toCrmNoShowPayload,
 } from '@/services/mappers/crm.mapper';
@@ -113,6 +119,118 @@ export class CrmNotifier {
       operatorNote: reason,
       correlationId,
     });
+  }
+
+  /**
+   * Anomalia di flusso su una pratica (es. saltata tre volte di fila): finisce nella coda di uscita
+   * come ogni evento per il CRM, e da lì nel cruscotto del BDC e nell'elenco delle anomalie di
+   * giornata dell'amministratore. Una per pratica, tipo e giornata: se esiste già non se ne apre
+   * un'altra e non si rispedisce niente. Se era stata chiusa, con `reopenIfClosed` torna fra
+   * quelle da lavorare con la frase nuova (es. il cliente preso in carico e poi rimesso in coda è
+   * stato saltato di nuovo tre volte).
+   */
+  async notifyAnomaly(
+    appointment: Appointment,
+    anomalyKind: CrmAnomalyKind,
+    description: string,
+    correlationId: string,
+    details: Readonly<Record<string, unknown>> = {},
+    options: { readonly reopenIfClosed?: boolean } = {},
+  ): Promise<CrmDelivery> {
+    const idempotencyKey = buildAnomalyIdempotencyKey(appointment, anomalyKind);
+    try {
+      const esistente = await this.deps.outbox.findByIdempotencyKey(idempotencyKey);
+      if (esistente !== null && esistente.status === 'MANUAL' && options.reopenIfClosed === true) {
+        const riaperto = await this.deps.outbox.update({
+          ...esistente,
+          status: esistente.sentAt === null ? 'PENDING' : 'SENT',
+          nextAttemptAt: esistente.sentAt === null ? this.deps.clock.nowIso() : null,
+          operatorNote: description,
+          handledAt: null,
+          handledByOperatorId: null,
+          handledNote: null,
+        });
+        this.publishChanged(riaperto, correlationId);
+        this.logger.warn(`anomalia su ${appointment.code} riaperta: ${description}`, {
+          eventId: riaperto.id,
+          anomalyKind,
+        });
+        return { outcome: 'SKIPPED', event: riaperto };
+      }
+      if (esistente !== null) {
+        return {
+          outcome: esistente.status === 'SENT' ? 'ALREADY_SENT' : 'SKIPPED',
+          event: esistente,
+        };
+      }
+    } catch (cause) {
+      this.logger.error(
+        `anomalia ${anomalyKind} di ${appointment.code}: lettura della coda fallita`,
+        {
+          message: cause instanceof Error ? cause.message : String(cause),
+        },
+      );
+      return { outcome: 'QUEUED', event: null };
+    }
+    const payload = toCrmAppointmentAnomalyPayload(
+      appointment,
+      anomalyKind,
+      description,
+      this.deps.clock.nowIso(),
+      details,
+    );
+    this.logger.warn(`anomalia su ${appointment.code}: ${description}`, {
+      appointmentId: appointment.id,
+      anomalyKind,
+    });
+    return this.deliver({
+      type: 'ANOMALY',
+      anomalyKind,
+      idempotencyKey,
+      appointment,
+      payload,
+      // La frase dell'anomalia è quella che il BDC legge accanto al nome prima di telefonare.
+      operatorNote: description,
+      correlationId,
+    });
+  }
+
+  /**
+   * L'anomalia si è risolta da sola in officina (il cliente saltato è stato poi preso in carico):
+   * la riga si chiude come gestita, con la nota del perché, così il BDC non telefona a chi è già
+   * al banco. Se non c'era niente di aperto non fa niente; non lancia mai.
+   */
+  async resolveAnomaly(
+    appointment: Appointment,
+    anomalyKind: CrmAnomalyKind,
+    operatorId: OperatorId,
+    note: string,
+  ): Promise<void> {
+    try {
+      const evento = await this.deps.outbox.findByIdempotencyKey(
+        buildAnomalyIdempotencyKey(appointment, anomalyKind),
+      );
+      if (evento === null || evento.status === 'MANUAL') {
+        return;
+      }
+      const chiuso = await this.deps.outbox.update({
+        ...evento,
+        status: 'MANUAL',
+        nextAttemptAt: null,
+        handledAt: this.deps.clock.nowIso(),
+        handledByOperatorId: operatorId,
+        handledNote: note,
+      });
+      this.publishChanged(chiuso, this.deps.ids.next());
+      this.logger.info(`anomalia ${anomalyKind} di ${appointment.code} chiusa: ${note}`, {
+        eventId: evento.id,
+        operatorId,
+      });
+    } catch (cause) {
+      this.logger.error(`anomalia ${anomalyKind} di ${appointment.code} non chiusa`, {
+        message: cause instanceof Error ? cause.message : String(cause),
+      });
+    }
   }
 
   /** Accettazione conclusa al veicolo, con note e foto del tablet. */
@@ -241,6 +359,7 @@ export class CrmNotifier {
    */
   private async deliver(input: {
     readonly type: CrmEventType;
+    readonly anomalyKind?: CrmAnomalyKind;
     readonly idempotencyKey: string;
     readonly appointment: Appointment;
     readonly payload: CrmPayload;
@@ -259,7 +378,7 @@ export class CrmNotifier {
         (await this.deps.outbox.insert({
           id: this.deps.ids.nextAs(asCrmOutboxEventId),
           type: input.type,
-          anomalyKind: null,
+          anomalyKind: input.anomalyKind ?? null,
           appointmentId: input.appointment.id,
           idempotencyKey: input.idempotencyKey,
           payload: { ...input.payload },

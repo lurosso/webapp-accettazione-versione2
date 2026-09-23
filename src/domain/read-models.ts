@@ -2,7 +2,7 @@
 // Nessun nome, telefono o modello: solo codice, stato e posizione.
 
 import type { Appointment, AppointmentStatus } from './entities/appointment';
-import type { CrmEventType, CrmOutboxStatus } from './entities/crm-outbox-event';
+import type { CrmAnomalyKind, CrmEventType, CrmOutboxStatus } from './entities/crm-outbox-event';
 import type { NotificationChannel, NotificationJobStatus } from './entities/notification';
 import type { BayId } from './ids';
 import type { IsoDate, IsoDateTime } from './value-objects/iso-date';
@@ -131,6 +131,8 @@ export interface QueueRowView {
 export interface BdcLeadView {
   readonly eventId: string;
   readonly type: CrmEventType;
+  /** Per un'anomalia di flusso (es. EXCESSIVE_SKIPS: «Verificare presenza»); null per un assente. */
+  readonly anomalyKind: CrmAnomalyKind | null;
   /** Stato dell'evento verso il CRM: MANUAL = già gestito dal BDC. */
   readonly deliveryStatus: CrmOutboxStatus;
   readonly appointmentId: string;
