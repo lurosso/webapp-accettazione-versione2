@@ -9,6 +9,7 @@ import {
 } from '@/application/notifications/WhatsAppInboundService';
 import type { Appointment } from '@/domain/entities/appointment';
 import type { DomainEvent } from '@/domain/events';
+import type { IsoDateTime } from '@/domain/value-objects/iso-date';
 import type { PhoneE164 } from '@/domain/value-objects/phone';
 import { buildTestEnv, makeAppointment, TestClock } from '../helpers/fixtures';
 
@@ -16,7 +17,7 @@ const TELEFONO = '+393331234560' as PhoneE164;
 
 function setup(
   clock = new TestClock('2026-09-10T07:00:00.000Z'),
-  portale: { readonly writesRequireToken?: boolean } = {},
+  portale: { readonly writesRequireToken?: boolean; readonly maxEarlyArrivalMinutes?: number } = {},
 ) {
   const env = buildTestEnv(clock);
   const eventi: DomainEvent[] = [];
@@ -55,6 +56,9 @@ function setup(
     clock,
     ids: env.ids,
     logger: env.logger,
+    ...(portale.maxEarlyArrivalMinutes === undefined
+      ? {}
+      : { maxEarlyArrivalMinutes: portale.maxEarlyArrivalMinutes }),
   });
   return { env, clock, inbound, eventi };
 }
@@ -293,5 +297,101 @@ describe('WhatsAppInboundService: con PORTAL_WRITES_REQUIRE_TOKEN il numero bast
     const arrivo = await inbound.handle({ phone: '+393331234560', text: 'ACTION_ARRIVED' });
     expect(arrivo.ok && arrivo.value.reply).toBe('ARRIVED');
     expect((await env.appointments.findById(a.id))?.customerArrivedAt).not.toBeNull();
+  });
+});
+
+describe('WhatsAppInboundService: guardrail sull’arrivo prematuro', () => {
+  /** Appuntamento alle 09:00 UTC (11:00 a Roma); l'orologio del test decide l'anticipo. */
+  const alle0900 = () =>
+    makeAppointment({
+      scheduledAt: '2026-09-10T09:00:00.000Z' as IsoDateTime,
+      customer: { ...makeAppointment().customer, phone: TELEFONO },
+    });
+
+  it('120 minuti prima: la pratica non si tocca e il cliente riceve il messaggio con l’orario e la finestra', async () => {
+    const { env, inbound, eventi } = setup(new TestClock('2026-09-10T07:00:00.000Z'));
+    const a = await insert(env, alle0900());
+    const esito = await inbound.handle({ phone: '+393331234560', text: 'ACTION_ARRIVED' });
+    expect(esito.ok).toBe(true);
+    if (!esito.ok) {
+      return;
+    }
+    expect(esito.value.reply).toBe('ARRIVED');
+    expect(esito.value.premature).toBe(true);
+    expect(esito.value.replySent).toBe(true);
+    const dopo = await env.appointments.findById(a.id);
+    expect(dopo?.status).toBe('WAITING');
+    expect(dopo?.customerArrivedAt).toBeNull();
+    expect(dopo?.version).toBe(a.version);
+    expect(eventi.some((e) => e.type === 'CUSTOMER_ARRIVED')).toBe(false);
+    const jobs = await env.notifications.listByAppointment(a.id);
+    expect(jobs.some((j) => j.kind === 'ARRIVAL_CONFIRMED')).toBe(false);
+    const presto = jobs.find((j) => j.kind === 'ARRIVAL_TOO_EARLY');
+    expect(presto?.renderedText).toContain('previsto per le 11:00');
+    expect(presto?.renderedText).toContain("È ancora un po' presto");
+    expect(presto?.renderedText).toContain('al massimo 60 minuti prima');
+  });
+
+  it('un secondo tocco prematuro qualche minuto dopo riceve di nuovo la spiegazione, ma non due volte nello stesso minuto', async () => {
+    const clock = new TestClock('2026-09-10T07:00:00.000Z');
+    const { env, inbound } = setup(clock);
+    const a = await insert(env, alle0900());
+    await inbound.handle({ phone: '+393331234560', text: 'ACTION_ARRIVED' });
+    await inbound.handle({ phone: '+393331234560', text: 'ACTION_ARRIVED' });
+    clock.advance(5 * 60_000);
+    await inbound.handle({ phone: '+393331234560', text: 'ACTION_ARRIVED' });
+    const risposte = (await env.notifications.listByAppointment(a.id)).filter(
+      (j) => j.kind === 'ARRIVAL_TOO_EARLY',
+    );
+    expect(risposte).toHaveLength(2);
+  });
+
+  it('30 minuti prima (o in orario, o dopo) l’arrivo è registrato come sempre, con codice e smart link', async () => {
+    for (const ora of [
+      '2026-09-10T08:30:00.000Z',
+      '2026-09-10T09:00:00.000Z',
+      '2026-09-10T09:40:00.000Z',
+    ]) {
+      const { env, inbound } = setup(new TestClock(ora));
+      const a = await insert(env, alle0900());
+      const esito = await inbound.handle({ phone: '+393331234560', text: 'ACTION_ARRIVED' });
+      expect(esito.ok && esito.value.premature).toBe(false);
+      expect(esito.ok && esito.value.repeated).toBe(false);
+      expect((await env.appointments.findById(a.id))?.customerArrivedAt).toBe(ora);
+      expect(
+        (await env.notifications.listByAppointment(a.id)).some(
+          (j) => j.kind === 'ARRIVAL_CONFIRMED',
+        ),
+      ).toBe(true);
+    }
+  });
+
+  it('la finestra è configurabile: con 180 minuti, un tocco 120 minuti prima entra in fila', async () => {
+    const { env, inbound } = setup(new TestClock('2026-09-10T07:00:00.000Z'), {
+      maxEarlyArrivalMinutes: 180,
+    });
+    const a = await insert(env, alle0900());
+    const esito = await inbound.handle({ phone: '+393331234560', text: 'ACTION_ARRIVED' });
+    expect(esito.ok && esito.value.premature).toBe(false);
+    expect((await env.appointments.findById(a.id))?.customerArrivedAt).not.toBeNull();
+  });
+
+  it('«In ritardo» e «Non posso venire» valgono a qualunque ora, anche molto prima dell’orario', async () => {
+    const { env, inbound } = setup(new TestClock('2026-09-10T05:00:00.000Z'));
+    const ritardo = await insert(env, alle0900());
+    const esitoRitardo = await inbound.handle({ phone: '+393331234560', text: 'ACTION_LATE' });
+    expect(esitoRitardo.ok && esitoRitardo.value.reply).toBe('LATE');
+    expect((await env.appointments.findById(ritardo.id))?.customerLateNoticeAt).not.toBeNull();
+
+    const assente = await insert(
+      env,
+      makeAppointment({
+        scheduledAt: '2026-09-10T09:00:00.000Z' as IsoDateTime,
+        customer: { ...makeAppointment().customer, phone: '+393331234561' as PhoneE164 },
+      }),
+    );
+    const esitoAssente = await inbound.handle({ phone: '+393331234561', text: 'ACTION_ABSENT' });
+    expect(esitoAssente.ok && esitoAssente.value.reply).toBe('ABSENT');
+    expect((await env.appointments.findById(assente.id))?.status).toBe('NO_SHOW');
   });
 });

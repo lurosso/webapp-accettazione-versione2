@@ -179,6 +179,15 @@ export const SITE_NAME = 'Autoclub Group';
 /** Minuti di ritardo dichiarati dal pulsante rapido del portale ("Sto arrivando in ritardo"). */
 export const CUSTOMER_LATE_NOTICE_MINUTES = 10;
 
+/**
+ * Quanti minuti prima dell'orario un cliente può dichiararsi arrivato da WhatsApp
+ * (SPOKI_MAX_EARLY_ARRIVAL_MINUTES). Chi tocca «Sono arrivato» appena legge il promemoria del
+ * mattino, con l'appuntamento alle 16:00, non entra in fila: riceve un messaggio che spiega
+ * quando ripremere. Il pulsante «Sono qui» del portale non ha questa finestra: chi è sulla pagina è
+ * già in officina.
+ */
+export const DEFAULT_MAX_EARLY_ARRIVAL_MINUTES = 60;
+
 /** Dopo quanti minuti il cliente può rifare la segnalazione di ritardo (evita doppi tocchi). */
 export const CUSTOMER_LATE_NOTICE_COOLDOWN_MINUTES = 5;
 

@@ -6,6 +6,7 @@
 //
 // GUARDRAIL del test manuale: il numero deve essere digitato dall'operatore e NON può essere quello
 // di un cliente presente in agenda (oggi o domani): la prova si fa su un telefono interno.
+import { DEFAULT_MAX_EARLY_ARRIVAL_MINUTES } from '@/config/constants';
 import type { NotificationKind } from '@/domain/entities/notification';
 import { domainError, type DomainError } from '@/domain/errors';
 import { err, ok, type Result } from '@/domain/result';
@@ -36,6 +37,7 @@ export const SPOKI_TEST_KINDS = [
   'ARRIVAL_CONFIRMED',
   'LATE_CONFIRMED',
   'ABSENT_CONFIRMED',
+  'ARRIVAL_TOO_EARLY',
   'CHECK_IN_STARTED',
   'CHECK_IN_COMPLETED',
 ] as const satisfies readonly NotificationKind[];
@@ -118,6 +120,7 @@ export interface SpokiDiagnosticsConfig {
     readonly arrivalConfirmed?: string | null;
     readonly lateConfirmed?: string | null;
     readonly absentConfirmed?: string | null;
+    readonly arrivalTooEarly?: string | null;
     readonly checkInStarted: string | null;
     readonly checkInCompleted: string | null;
   };
@@ -169,6 +172,7 @@ export const SPOKI_TEST_KIND_LABELS: Readonly<Record<SpokiTestKind, string>> = {
   ARRIVAL_CONFIRMED: 'Risposta a «Sono arrivato» (codice e smart link)',
   LATE_CONFIRMED: 'Risposta a «In ritardo»',
   ABSENT_CONFIRMED: 'Risposta a «Non posso venire»',
+  ARRIVAL_TOO_EARLY: 'Risposta a «Sono arrivato» troppo presto',
   CHECK_IN_STARTED: 'Presa in carico (link al portale)',
   CHECK_IN_COMPLETED: 'Accettazione completata',
 };
@@ -296,6 +300,11 @@ export class SpokiDiagnosticsService {
           c.templateIds?.absentConfirmed ?? null,
         ),
         template(
+          'ARRIVAL_TOO_EARLY',
+          'SPOKI_TEMPLATE_EARLY_REPLY_ID',
+          c.templateIds?.arrivalTooEarly ?? null,
+        ),
+        template(
           'CHECK_IN_STARTED',
           'SPOKI_TEMPLATE_WELCOME_ID',
           c.templateIds?.checkInStarted ?? null,
@@ -354,6 +363,7 @@ export class SpokiDiagnosticsService {
       plate: 'AB123CD',
       brandName: 'Autoclub Group',
       portalUrl: buildPortalUrl(this.deps.config.publicBaseUrl, 'AB123CD'),
+      earlyArrivalWindowMinutes: String(DEFAULT_MAX_EARLY_ARRIVAL_MINUTES),
     };
     const text = template.render(vars);
     const correlationId = this.deps.ids.next();

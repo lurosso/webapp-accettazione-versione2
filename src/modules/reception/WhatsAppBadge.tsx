@@ -34,6 +34,7 @@ export const WHATSAPP_KIND_LABELS: Readonly<Record<NotificationKind, string>> = 
   ARRIVAL_CONFIRMED: 'conferma di arrivo con smart link',
   LATE_CONFIRMED: 'conferma del ritardo',
   ABSENT_CONFIRMED: 'conferma dell’annullamento',
+  ARRIVAL_TOO_EARLY: 'arrivo dichiarato troppo presto',
   BOOKING_CONFIRMED: 'conferma della pratica',
   TURN_APPROACHING: 'turno in arrivo',
   YOUR_TURN: 'è il suo turno',

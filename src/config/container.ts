@@ -197,6 +197,7 @@ export function createContainer(overrides: ContainerOverrides = {}): Container {
     publicBaseUrl: env.publicBaseUrl,
     portalToken: (appointmentId) => portalTokens.forAppointment(appointmentId),
     whatsappConsentOverride: env.spokiOverrideConsent,
+    maxEarlyArrivalMinutes: env.spokiMaxEarlyArrivalMinutes,
     // Ogni job WhatsApp salvato aggiorna lo stato sulla pratica: coda e archivio lo leggono da lì.
     whatsappDelivery: new AppointmentWhatsAppMirror(repos.appointments, logger),
   });
@@ -249,6 +250,7 @@ export function createContainer(overrides: ContainerOverrides = {}): Container {
         arrivalConfirmed: env.spokiTemplateArrivedReplyId,
         lateConfirmed: env.spokiTemplateLateReplyId,
         absentConfirmed: env.spokiTemplateAbsentReplyId,
+        arrivalTooEarly: env.spokiTemplateEarlyReplyId,
         checkInStarted: env.spokiTemplateWelcomeId,
         checkInCompleted: env.spokiTemplateCompleteId,
       },
@@ -390,6 +392,7 @@ export function createContainer(overrides: ContainerOverrides = {}): Container {
     clock,
     ids,
     logger,
+    maxEarlyArrivalMinutes: env.spokiMaxEarlyArrivalMinutes,
   });
 
   const inspectionService = new InspectionService({

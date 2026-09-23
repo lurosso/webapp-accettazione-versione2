@@ -96,6 +96,8 @@ export interface NotificationOrchestratorDeps {
   readonly whatsappConsentOverride?: boolean;
   /** Specchio dello stato WhatsApp sulla pratica; assente nei test che non lo guardano. */
   readonly whatsappDelivery?: WhatsAppDeliverySink;
+  /** Minuti di anticipo ammessi per «Sono arrivato» (SPOKI_MAX_EARLY_ARRIVAL_MINUTES): finisce nel testo. */
+  readonly maxEarlyArrivalMinutes?: number;
 }
 
 /** Input dell'invio di un promemoria. */
@@ -104,6 +106,12 @@ export interface SendReminderInput {
   readonly brand: Brand;
   readonly kind: NotificationKind;
   readonly correlationId: string;
+  /**
+   * Suffisso della chiave di idempotenza: di norma un messaggio per (pratica, tipo, giornata);
+   * con il suffisso se ne ammette uno per suffisso (es. la risposta «troppo presto», che deve
+   * tornare a ogni tocco, ma una volta sola per minuto).
+   */
+  readonly dedupeSuffix?: string;
 }
 
 /** Job + esito. */
@@ -141,17 +149,22 @@ export class NotificationOrchestrator {
    */
   async sendReminder(input: SendReminderInput): Promise<NotificationRun> {
     const { appointment, brand, kind, correlationId } = input;
-    const idempotencyKey = buildNotificationIdempotencyKey(
+    const chiaveBase = buildNotificationIdempotencyKey(
       appointment.id,
       kind,
       appointment.businessDate,
     );
+    const idempotencyKey =
+      input.dedupeSuffix === undefined || input.dedupeSuffix === ''
+        ? chiaveBase
+        : `${chiaveBase}:${input.dedupeSuffix}`;
     const vars = buildTemplateVars(
       appointment,
       brand,
       this.deps.timeZone,
       this.deps.publicBaseUrl ?? '',
       this.deps.portalToken?.(appointment.id) ?? null,
+      this.deps.maxEarlyArrivalMinutes,
     );
     const renderedText = NOTIFICATION_TEMPLATES[kind].render(vars);
     const now = this.deps.clock.nowIso();

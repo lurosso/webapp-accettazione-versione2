@@ -134,6 +134,7 @@ export function createExternalServices(env: AppEnv, deps: ExternalServiceDeps): 
               ARRIVAL_CONFIRMED: null,
               LATE_CONFIRMED: null,
               ABSENT_CONFIRMED: null,
+              ARRIVAL_TOO_EARLY: null,
               CHECK_IN_STARTED: null,
               CHECK_IN_COMPLETED: null,
               CONFIRMATION: env.spokiUrlConfirmation,
@@ -146,6 +147,7 @@ export function createExternalServices(env: AppEnv, deps: ExternalServiceDeps): 
               ARRIVAL_CONFIRMED: null,
               LATE_CONFIRMED: null,
               ABSENT_CONFIRMED: null,
+              ARRIVAL_TOO_EARLY: null,
               CHECK_IN_STARTED: null,
               CHECK_IN_COMPLETED: null,
               // Non integrati in questa fase: nessuna automazione, quindi nessun segreto.
@@ -159,6 +161,7 @@ export function createExternalServices(env: AppEnv, deps: ExternalServiceDeps): 
               ARRIVAL_CONFIRMED: env.spokiTemplateArrivedReplyId,
               LATE_CONFIRMED: env.spokiTemplateLateReplyId,
               ABSENT_CONFIRMED: env.spokiTemplateAbsentReplyId,
+              ARRIVAL_TOO_EARLY: env.spokiTemplateEarlyReplyId,
               CHECK_IN_STARTED: env.spokiTemplateWelcomeId,
               CHECK_IN_COMPLETED: env.spokiTemplateCompleteId,
               CONFIRMATION: null,

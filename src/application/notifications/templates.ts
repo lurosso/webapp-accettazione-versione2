@@ -18,6 +18,7 @@
 import type { Appointment } from '@/domain/entities/appointment';
 import type { Brand } from '@/domain/entities/brand';
 import type { NotificationKind } from '@/domain/entities/notification';
+import { DEFAULT_MAX_EARLY_ARRIVAL_MINUTES } from '@/config/constants';
 import { formatBusinessDateIt, localTimeHHmm, toBusinessDate } from '@/lib/dates';
 
 /** Variabili disponibili nei template. */
@@ -33,8 +34,10 @@ export interface TemplateVars {
   readonly scheduledDate: string;
   readonly plate: string;
   readonly brandName: string;
-  /** Link al portale cliente per seguire la coda (/portal?targa=…), già assoluto. */
+  /** Link al portale cliente per seguire la coda (smart link /portal/<token> o /portal?targa=…), già assoluto. */
   readonly portalUrl: string;
+  /** Minuti di anticipo ammessi per «Sono arrivato» (SPOKI_MAX_EARLY_ARRIVAL_MINUTES), come testo. */
+  readonly earlyArrivalWindowMinutes: string;
 }
 
 /**
@@ -94,6 +97,11 @@ export const NOTIFICATION_TEMPLATES: Readonly<Record<NotificationKind, Notificat
     render: () =>
       "Grazie per l'avviso! Abbiamo informato l'accettazione del tuo ritardo. Quando sarai giunto in officina, avvisa il nostro personale o clicca 'Sono arrivato'.",
   },
+  ARRIVAL_TOO_EARLY: {
+    spokiTemplateKey: 'arrival_too_early_v1',
+    render: (v) =>
+      `Il tuo appuntamento in AutoClub è previsto per le ${v.scheduledTime}. È ancora un po' presto per l'inserimento in fila! Ti invitiamo a premere nuovamente 'Sono arrivato' quando sarai nei pressi dell'officina (al massimo ${v.earlyArrivalWindowMinutes} minuti prima dell'orario).`,
+  },
   ABSENT_CONFIRMED: {
     spokiTemplateKey: 'absent_confirmed_v1',
     render: () =>
@@ -137,6 +145,7 @@ export function buildTemplateVars(
   timeZone = 'Europe/Rome',
   publicBaseUrl = '',
   portalToken: string | null = null,
+  earlyArrivalWindowMinutes: number = DEFAULT_MAX_EARLY_ARRIVAL_MINUTES,
 ): TemplateVars {
   const scheduled = new Date(appointment.scheduledAt);
   // Aziende e clienti senza nome (dati reali di Infinity): il saluto usa la ragione sociale, così
@@ -152,5 +161,6 @@ export function buildTemplateVars(
     plate: appointment.vehicle.plate,
     brandName: brand.name,
     portalUrl: buildPortalUrl(publicBaseUrl, appointment.vehicle.plate, portalToken),
+    earlyArrivalWindowMinutes: String(earlyArrivalWindowMinutes),
   };
 }

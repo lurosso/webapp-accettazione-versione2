@@ -12,6 +12,7 @@ import {
 } from '@/config/container';
 import type { Appointment } from '@/domain/entities/appointment';
 import type { NotificationJob } from '@/domain/entities/notification';
+import type { IsoDateTime } from '@/domain/value-objects/iso-date';
 import type { PhoneE164 } from '@/domain/value-objects/phone';
 import { buildSpokiSignatureHeader } from '@/lib/http/spoki-signature';
 import { createPortalTokenFactory, derivePortalTokenKey } from '@/application/portal/portal-token';
@@ -419,5 +420,61 @@ describe('Webhook Spoki: risposte del cliente', () => {
       );
       expect(conferma?.renderedText).toContain('Abbiamo annullato la prenotazione di oggi');
     });
+  });
+});
+
+describe('Webhook Spoki: guardrail sull’arrivo prematuro', () => {
+  it('«Sono arrivato» 120 minuti prima → pratica intatta, risposta «troppo presto»; 30 minuti prima → in fila', async () => {
+    // Orologio del container alle 08:00 UTC: appuntamento alle 10:00 UTC = 120 minuti di anticipo.
+    const presto = await container.repos.appointments.insert(
+      makeAppointment({
+        status: 'WAITING',
+        businessDate: clock.today(),
+        scheduledAt: '2026-09-10T10:00:00.000Z' as IsoDateTime,
+        customer: { ...makeAppointment().customer, phone: '+393331230010' as PhoneE164 },
+      }),
+    );
+    if (!presto.ok) {
+      throw new Error(presto.error.message);
+    }
+    const r1 = await POST(pulsante('+393331230010', 'ACTION_ARRIVED', 'btn-presto'));
+    expect(r1.status).toBe(200);
+    expect(await r1.json()).toMatchObject({
+      handled: true,
+      reply: 'ARRIVED',
+      premature: true,
+      replySent: true,
+    });
+    const dopoPresto = await container.repos.appointments.findById(presto.value.id);
+    expect(dopoPresto?.customerArrivedAt).toBeNull();
+    expect(dopoPresto?.version).toBe(presto.value.version);
+    const jobs = await container.repos.notifications.listByAppointment(presto.value.id);
+    expect(jobs.map((j) => j.kind)).toEqual(['ARRIVAL_TOO_EARLY']);
+    // Orario locale di Roma (10:00 UTC = 12:00 con l'ora legale) e finestra predefinita.
+    expect(jobs[0]?.renderedText).toContain('previsto per le 12:00');
+    expect(jobs[0]?.renderedText).toContain('al massimo 60 minuti prima');
+
+    // 08:30 UTC: 30 minuti di anticipo, dentro la finestra.
+    const vicino = await container.repos.appointments.insert(
+      makeAppointment({
+        status: 'WAITING',
+        businessDate: clock.today(),
+        scheduledAt: '2026-09-10T08:30:00.000Z' as IsoDateTime,
+        customer: { ...makeAppointment().customer, phone: '+393331230011' as PhoneE164 },
+      }),
+    );
+    if (!vicino.ok) {
+      throw new Error(vicino.error.message);
+    }
+    const r2 = await POST(pulsante('+393331230011', 'ACTION_ARRIVED', 'btn-vicino'));
+    expect(await r2.json()).toMatchObject({ handled: true, reply: 'ARRIVED', premature: false });
+    expect(
+      (await container.repos.appointments.findById(vicino.value.id))?.customerArrivedAt,
+    ).not.toBeNull();
+    expect(
+      (await container.repos.notifications.listByAppointment(vicino.value.id)).some(
+        (j) => j.kind === 'ARRIVAL_CONFIRMED',
+      ),
+    ).toBe(true);
   });
 });

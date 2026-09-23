@@ -1944,6 +1944,12 @@ Diagnosi: l'animazione partiva all'inserimento del contenitore, ma sull'iPad la 
 - [x] M8-T48-S07 Revisione avversariale a due lenti (correttezza del flusso, sicurezza e architettura): tre rilievi corretti con test (ritardo via WhatsApp anche con PORTAL_WRITES_REQUIRE_TOKEN=true, nessuna doppia decodifica del token nella pagina, pratica di domani aperta dallo smart link senza posizione in coda e senza pulsante di arrivo; pannello Spoki allineato a resolveTransportKind).
 - [ ] M8-T48-S06 In Spoki: creare i cinque template con i testi e i tre pulsanti rapidi, copiare gli id nelle variabili; il webhook `message.inbound` deve essere attivo (stesso `SPOKI_WEBHOOK_SECRET`). Verificare sul primo messaggio reale che `data.payload` porti il payload del pulsante (in caso contrario vale l'etichetta o il testo).
 
+### M8-T49 — Guardrail sull'arrivo prematuro da WhatsApp _(2026-09-23, richiesta del committente)_
+
+- [x] M8-T49-S01 `SPOKI_MAX_EARLY_ARRIVAL_MINUTES` (predefinito 60, `DEFAULT_MAX_EARLY_ARRIVAL_MINUTES`) in `env.ts` e `.env.example`, cablata nel servizio delle risposte e nell'orchestratore (finisce nel testo della risposta).
+- [x] M8-T49-S02 `WhatsAppInboundService.registerArrival`: se all'orario effettivo della pratica mancano più di N minuti, nessuna scrittura (stato, ora di arrivo, codice intatti) e risposta `ARRIVAL_TOO_EARLY` «Il tuo appuntamento in AutoClub è previsto per le {ora}. È ancora un po' presto per l'inserimento in fila! Ti invitiamo a premere nuovamente 'Sono arrivato' quando sarai nei pressi dell'officina (al massimo {N} minuti prima dell'orario).», una per minuto (suffisso della chiave di idempotenza `dedupeSuffix`), così ogni tocco prematuro riceve risposta senza doppioni; `InboundResult.premature` e campo `premature` nella risposta del webhook. «In ritardo» e «Non posso venire» senza finestra.
+- [x] M8-T49-S03 Kind Spoki `ARRIVAL_TOO_EARLY` (`arrival_too_early_v1`, id `SPOKI_TEMPLATE_EARLY_REPLY_ID`) attivo, nel pannello e fra i messaggi di prova. Test: 120 minuti di anticipo → rifiuto con il messaggio e DB intatto; 30 minuti → in fila; finestra configurabile; ritardo e assenza a qualunque ora (`whatsapp-inbound`, `spoki-webhook-route`, `spoki-env`).
+
 ---
 
 ## Backlog / Idee future

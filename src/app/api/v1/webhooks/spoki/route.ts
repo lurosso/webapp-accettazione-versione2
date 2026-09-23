@@ -230,6 +230,7 @@ async function rispostaCliente(
       code: esito.value.appointment.code,
       repeated: esito.value.repeated,
       replySent: esito.value.replySent,
+      premature: esito.value.premature,
     },
     { headers },
   );

@@ -124,3 +124,24 @@ describe('Template via API e webhook degli esiti', () => {
     });
   });
 });
+
+describe('SPOKI_MAX_EARLY_ARRIVAL_MINUTES: finestra dell’arrivo prematuro', () => {
+  it('vale 60 di default, si legge da .env e un valore non valido ricade sul predefinito con avviso', () => {
+    const avvisi: string[] = [];
+    expect(parseEnv({}, muto).spokiMaxEarlyArrivalMinutes).toBe(60);
+    expect(
+      parseEnv({ SPOKI_MAX_EARLY_ARRIVAL_MINUTES: '120' }, muto).spokiMaxEarlyArrivalMinutes,
+    ).toBe(120);
+    expect(
+      parseEnv({ SPOKI_MAX_EARLY_ARRIVAL_MINUTES: '0' }, muto).spokiMaxEarlyArrivalMinutes,
+    ).toBe(0);
+    expect(
+      parseEnv({ SPOKI_MAX_EARLY_ARRIVAL_MINUTES: '-5' }, (m) => avvisi.push(m))
+        .spokiMaxEarlyArrivalMinutes,
+    ).toBe(60);
+    expect(avvisi.some((m) => m.includes('SPOKI_MAX_EARLY_ARRIVAL_MINUTES'))).toBe(true);
+    expect(
+      parseEnv({ SPOKI_TEMPLATE_EARLY_REPLY_ID: '4005' }, muto).spokiTemplateEarlyReplyId,
+    ).toBe('4005');
+  });
+});

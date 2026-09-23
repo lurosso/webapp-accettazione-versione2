@@ -7,7 +7,10 @@
 //
 // - ARRIVATO   → la pratica resta in coda al suo posto, ma si annota l'ora dell'arrivo («in fila
 //                dalle …» in dashboard) e il cliente riceve subito codice e smart link personale
-//                al tracciamento (niente più QR da inquadrare);
+//                al tracciamento (niente più QR da inquadrare). GUARDRAIL: se manca più di
+//                SPOKI_MAX_EARLY_ARRIVAL_MINUTES all'orario (il pulsante premuto appena letto il
+//                promemoria del mattino, con l'appuntamento alle 16:00) la pratica non si tocca e
+//                il cliente riceve un messaggio che spiega quando ripremere;
 // - IN RITARDO → la stessa segnalazione del portale: l'arrivo atteso si sposta e la dashboard
 //                mostra l'avviso ambra, senza toccare l'ordine della coda; il cliente riceve la
 //                conferma che l'accettazione è stata avvisata;
@@ -18,8 +21,9 @@
 // Tutto passa dai casi d'uso esistenti (portale e coda): questo servizio traduce, non decide.
 // Un messaggio che non corrisponde a nessuna delle tre risposte viene ignorato senza errori: sul
 // numero dell'officina arriva di tutto, e un «grazie» non deve segnare nessuno come assente.
+import { DEFAULT_MAX_EARLY_ARRIVAL_MINUTES } from '@/config/constants';
 import type { Appointment } from '@/domain/entities/appointment';
-import { isInQueue } from '@/domain/entities/appointment';
+import { effectiveScheduleTime, isInQueue } from '@/domain/entities/appointment';
 import type { Brand } from '@/domain/entities/brand';
 import type { NotificationKind } from '@/domain/entities/notification';
 import { domainError, type DomainError } from '@/domain/errors';
@@ -99,6 +103,8 @@ export interface WhatsAppInboundServiceDeps {
   readonly clock: IClock;
   readonly ids: IIdGenerator;
   readonly logger: ILogger;
+  /** Finestra di anticipo massimo per «Sono arrivato» (SPOKI_MAX_EARLY_ARRIVAL_MINUTES); predefinito 60. */
+  readonly maxEarlyArrivalMinutes?: number;
 }
 
 /** Com'è andata la risposta del cliente, per la risposta al webhook e per i log. */
@@ -109,6 +115,11 @@ export interface InboundResult {
   readonly repeated: boolean;
   /** True se al cliente è partita (o è stata messa in coda) la risposta automatica. */
   readonly replySent: boolean;
+  /**
+   * «Sono arrivato» premuto troppo presto: la pratica non è stata toccata e il cliente ha ricevuto
+   * il messaggio che spiega quando ripremere. Falso per tutte le altre risposte.
+   */
+  readonly premature: boolean;
 }
 
 /** Messaggio in entrata, già estratto dal corpo del webhook. */
@@ -166,6 +177,23 @@ export class WhatsAppInboundService {
     a: Appointment,
     correlationId: string | null,
   ): Promise<Result<InboundResult, DomainError>> {
+    // GUARDRAIL: troppo presto rispetto all'orario? Niente fila, niente codice: solo il messaggio
+    // che dice quando ripremere. «In ritardo» e «Non posso venire» non passano di qui.
+    const anticipoMs =
+      new Date(effectiveScheduleTime(a)).getTime() - this.deps.clock.now().getTime();
+    if (isInQueue(a.status) && a.customerArrivedAt === null && anticipoMs > this.maxEarlyMs()) {
+      this.logger.info(
+        `pratica ${a.code}: «Sono arrivato» con ${Math.round(anticipoMs / 60_000)} minuti di anticipo, oltre la finestra`,
+        {
+          appointmentId: a.id,
+          finestraMinuti: this.maxEarlyMinutes(),
+        },
+      );
+      const replySent = await this.sendReply(a, 'ARRIVAL_TOO_EARLY', correlationId, {
+        dedupeSuffix: this.deps.clock.nowIso().slice(0, 16),
+      });
+      return ok({ reply: 'ARRIVED', appointment: a, repeated: false, replySent, premature: true });
+    }
     const esito = await this.deps.portal.registerArrival({ plate: a.vehicle.plate }, 'WHATSAPP');
     if (!esito.ok) {
       return esito;
@@ -177,6 +205,7 @@ export class WhatsAppInboundService {
         appointment: esito.value.appointment,
         repeated: true,
         replySent: false,
+        premature: false,
       });
     }
     const replySent = await this.sendReply(
@@ -189,7 +218,16 @@ export class WhatsAppInboundService {
       appointment: esito.value.appointment,
       repeated: false,
       replySent,
+      premature: false,
     });
+  }
+
+  private maxEarlyMinutes(): number {
+    return this.deps.maxEarlyArrivalMinutes ?? DEFAULT_MAX_EARLY_ARRIVAL_MINUTES;
+  }
+
+  private maxEarlyMs(): number {
+    return this.maxEarlyMinutes() * 60_000;
   }
 
   /**
@@ -214,7 +252,7 @@ export class WhatsAppInboundService {
     const replySent = repeated
       ? false
       : await this.sendReply(corrente, 'LATE_CONFIRMED', correlationId);
-    return ok({ reply: 'LATE', appointment: corrente, repeated, replySent });
+    return ok({ reply: 'LATE', appointment: corrente, repeated, replySent, premature: false });
   }
 
   /**
@@ -227,7 +265,13 @@ export class WhatsAppInboundService {
     correlationId: string | null,
   ): Promise<Result<InboundResult, DomainError>> {
     if (a.status === 'NO_SHOW') {
-      return ok({ reply: 'ABSENT', appointment: a, repeated: true, replySent: false });
+      return ok({
+        reply: 'ABSENT',
+        appointment: a,
+        repeated: true,
+        replySent: false,
+        premature: false,
+      });
     }
     const ctx: ActionContext = {
       operatorId: SYSTEM_ACTOR_ID,
@@ -244,7 +288,13 @@ export class WhatsAppInboundService {
     }
     this.logger.info(`cliente assente per sua segnalazione: ${a.code}`, { appointmentId: a.id });
     const replySent = await this.sendReply(esito.value, 'ABSENT_CONFIRMED', correlationId);
-    return ok({ reply: 'ABSENT', appointment: esito.value, repeated: false, replySent });
+    return ok({
+      reply: 'ABSENT',
+      appointment: esito.value,
+      repeated: false,
+      replySent,
+      premature: false,
+    });
   }
 
   /**
@@ -253,8 +303,12 @@ export class WhatsAppInboundService {
    */
   private async sendReply(
     a: Appointment,
-    kind: Extract<NotificationKind, 'ARRIVAL_CONFIRMED' | 'LATE_CONFIRMED' | 'ABSENT_CONFIRMED'>,
+    kind: Extract<
+      NotificationKind,
+      'ARRIVAL_CONFIRMED' | 'LATE_CONFIRMED' | 'ABSENT_CONFIRMED' | 'ARRIVAL_TOO_EARLY'
+    >,
     correlationId: string | null,
+    options: { readonly dedupeSuffix?: string } = {},
   ): Promise<boolean> {
     const brands: readonly Brand[] = await this.deps.referenceData.listBrands();
     const brand = brands.find((b) => b.id === a.brandId);
@@ -268,6 +322,7 @@ export class WhatsAppInboundService {
         brand,
         kind,
         correlationId: correlationId ?? this.deps.ids.next(),
+        ...(options.dedupeSuffix === undefined ? {} : { dedupeSuffix: options.dedupeSuffix }),
       });
       // Consegnato su WhatsApp, ripiegato su SMS o già mandato: per il cliente è partita.
       return (

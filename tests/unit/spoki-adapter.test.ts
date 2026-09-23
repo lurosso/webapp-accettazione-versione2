@@ -22,6 +22,7 @@ const NESSUNO: Readonly<Record<SpokiTemplateKind, null>> = {
   ARRIVAL_CONFIRMED: null,
   LATE_CONFIRMED: null,
   ABSENT_CONFIRMED: null,
+  ARRIVAL_TOO_EARLY: null,
   CHECK_IN_STARTED: null,
   CHECK_IN_COMPLETED: null,
   CONFIRMATION: null,
@@ -497,6 +498,7 @@ describe('SpokiService live con blocco tolto', () => {
       'ARRIVAL_CONFIRMED',
       'LATE_CONFIRMED',
       'ABSENT_CONFIRMED',
+      'ARRIVAL_TOO_EARLY',
       'CHECK_IN_STARTED',
       'CHECK_IN_COMPLETED',
     ]);

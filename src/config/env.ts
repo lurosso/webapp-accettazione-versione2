@@ -27,6 +27,7 @@ import {
   DEFAULT_REMINDER_SAME_DAY_HOUR,
   DEFAULT_SYNC_HOUR_LOCAL,
   TIMEZONE,
+  DEFAULT_MAX_EARLY_ARRIVAL_MINUTES,
 } from './constants';
 
 /** Sorgente grezza delle variabili (process.env o un oggetto nei test). */
@@ -98,6 +99,14 @@ export interface AppEnv {
   readonly spokiTemplateArrivedReplyId: string | null;
   readonly spokiTemplateLateReplyId: string | null;
   readonly spokiTemplateAbsentReplyId: string | null;
+  /** Id del template della risposta a chi tocca «Sono arrivato» troppo presto. */
+  readonly spokiTemplateEarlyReplyId: string | null;
+  /**
+   * Finestra di anticipo massimo per «Sono arrivato» da WhatsApp (SPOKI_MAX_EARLY_ARRIVAL_MINUTES,
+   * predefinito 60): oltre, la pratica non entra in fila e il cliente riceve un messaggio che spiega
+   * quando ripremere. 0 = solo dall'orario in avanti.
+   */
+  readonly spokiMaxEarlyArrivalMinutes: number;
   /**
    * Segreto dei webhook V2 di Spoki (SPOKI_WEBHOOK_SECRET, `whsec_…`): verifica la firma
    * `X-Spoki-Signature` degli esiti di consegna (inviato, consegnato, letto, fallito) e dei
@@ -446,7 +455,8 @@ function pickTimeZone(source: EnvSource, key: string, fallback: string, warn: En
  * SPOKI_ENABLED, SPOKI_MODE, SPOKI_SAFETY_LOCK, SPOKI_API_KEY, SPOKI_API_BASE_URL,
  * SPOKI_TEMPLATE_WELCOME_ID, SPOKI_TEMPLATE_COMPLETE_ID, SPOKI_TEMPLATE_REMINDER_D1_ID,
  * SPOKI_TEMPLATE_SAME_DAY_ID, SPOKI_TEMPLATE_ARRIVED_REPLY_ID, SPOKI_TEMPLATE_LATE_REPLY_ID,
- * SPOKI_TEMPLATE_ABSENT_REPLY_ID, SPOKI_WEBHOOK_SECRET, SPOKI_INBOUND_SECRET.
+ * SPOKI_TEMPLATE_ABSENT_REPLY_ID, SPOKI_TEMPLATE_EARLY_REPLY_ID, SPOKI_MAX_EARLY_ARRIVAL_MINUTES,
+ * SPOKI_WEBHOOK_SECRET, SPOKI_INBOUND_SECRET.
  */
 export function parseEnv(
   source: EnvSource = readEnvSource(),
@@ -479,6 +489,13 @@ export function parseEnv(
     spokiTemplateArrivedReplyId: pickStringOrNull(source, 'SPOKI_TEMPLATE_ARRIVED_REPLY_ID'),
     spokiTemplateLateReplyId: pickStringOrNull(source, 'SPOKI_TEMPLATE_LATE_REPLY_ID'),
     spokiTemplateAbsentReplyId: pickStringOrNull(source, 'SPOKI_TEMPLATE_ABSENT_REPLY_ID'),
+    spokiTemplateEarlyReplyId: pickStringOrNull(source, 'SPOKI_TEMPLATE_EARLY_REPLY_ID'),
+    spokiMaxEarlyArrivalMinutes: pickInt(
+      source,
+      'SPOKI_MAX_EARLY_ARRIVAL_MINUTES',
+      DEFAULT_MAX_EARLY_ARRIVAL_MINUTES,
+      warn,
+    ),
     spokiWebhookSecret: pickWebhookSecret(source, warn),
     spokiUrlReminderPreviousDay: pickStringOrNull(source, 'SPOKI_URL_REMINDER_PREVIOUS_DAY'),
     spokiUrlReminderSameDay: pickStringOrNull(source, 'SPOKI_URL_REMINDER_SAME_DAY'),

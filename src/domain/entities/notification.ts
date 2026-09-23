@@ -34,6 +34,8 @@ export type NotificationKind =
   | 'LATE_CONFIRMED'
   /** Risposta automatica a chi ha toccato «Non posso venire»: prenotazione annullata, il BDC richiama. */
   | 'ABSENT_CONFIRMED'
+  /** Risposta a chi tocca «Sono arrivato» troppo presto: non è in fila, ripremere vicino all'orario. */
+  | 'ARRIVAL_TOO_EARLY'
   | 'BOOKING_CONFIRMED'
   | 'TURN_APPROACHING'
   | 'YOUR_TURN'
