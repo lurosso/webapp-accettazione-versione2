@@ -108,8 +108,10 @@ describe('AppointmentReminderService: promemoria del giorno stesso', () => {
     expect(jobs.some((j) => j.appointmentId === presa.id)).toBe(false);
     const primo = jobs[0]!;
     expect(primo.templateVariables['scheduledDate']).toBe('10/09/2026');
-    expect(primo.renderedText).toContain('oggi alle');
-    expect(primo.renderedText).toContain(primo.code);
+    expect(primo.renderedText).toContain('oggi alle ore');
+    // Il codice non è nel testo (lo dice la risposta a «Sono arrivato»), ma resta sul job e nelle variabili.
+    expect(primo.templateVariables['code']).toBe(primo.code);
+    expect(primo.renderedText).toContain(primo.templateVariables['plate'] ?? '');
 
     const secondo = await reminders.sendSameDayReminders(TEST_DATE);
     // I job FAILED (entrambi i canali in errore temporaneo) si ritentano: gli altri sono già fatti.
@@ -145,7 +147,8 @@ describe('AppointmentReminderService: promemoria del giorno prima', () => {
     expect(job.templateVariables['scheduledDate']).toBe('11/09/2026');
     expect(job.templateVariables['portalUrl']).toContain('/portal?targa=');
     expect(job.renderedText).toContain('domani 11/09/2026');
-    expect(job.renderedText).toContain(job.code);
+    expect(job.renderedText).toContain('A domani!');
+    expect(job.templateVariables['code']).toBe(job.code);
     // Oggi non è stato toccato: nessun promemoria per la giornata corrente.
     expect(await env.notifications.listByDate(TEST_DATE)).toHaveLength(0);
   });

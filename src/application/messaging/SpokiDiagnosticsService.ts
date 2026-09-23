@@ -29,10 +29,13 @@ import {
   type TemplateVars,
 } from '../notifications/templates';
 
-/** Tipi di messaggio provabili dal pannello: i due promemoria e i due messaggi del check-in. */
+/** Tipi di messaggio provabili dal pannello: promemoria, risposte ai pulsanti e messaggi del check-in. */
 export const SPOKI_TEST_KINDS = [
   'REMINDER_PREVIOUS_DAY',
   'REMINDER_SAME_DAY',
+  'ARRIVAL_CONFIRMED',
+  'LATE_CONFIRMED',
+  'ABSENT_CONFIRMED',
   'CHECK_IN_STARTED',
   'CHECK_IN_COMPLETED',
 ] as const satisfies readonly NotificationKind[];
@@ -108,8 +111,13 @@ export interface SpokiDiagnosticsConfig {
   readonly safetyLock: boolean;
   /** SPOKI_WEBHOOK_SECRET presente (facoltativo nei test). */
   readonly webhookSecretConfigured?: boolean;
-  /** Id dei template dei messaggi del check-in (facoltativo nei test). */
+  /** Id dei template via API (facoltativo nei test); i promemoria con id partono via API. */
   readonly templateIds?: {
+    readonly reminderPreviousDay?: string | null;
+    readonly reminderSameDay?: string | null;
+    readonly arrivalConfirmed?: string | null;
+    readonly lateConfirmed?: string | null;
+    readonly absentConfirmed?: string | null;
     readonly checkInStarted: string | null;
     readonly checkInCompleted: string | null;
   };
@@ -157,7 +165,10 @@ export interface SpokiTestResult {
 
 export const SPOKI_TEST_KIND_LABELS: Readonly<Record<SpokiTestKind, string>> = {
   REMINDER_PREVIOUS_DAY: 'Promemoria giorno prima',
-  REMINDER_SAME_DAY: 'Promemoria giorno stesso',
+  REMINDER_SAME_DAY: 'Promemoria giorno stesso (con pulsanti)',
+  ARRIVAL_CONFIRMED: 'Risposta a «Sono arrivato» (codice e smart link)',
+  LATE_CONFIRMED: 'Risposta a «In ritardo»',
+  ABSENT_CONFIRMED: 'Risposta a «Non posso venire»',
   CHECK_IN_STARTED: 'Presa in carico (link al portale)',
   CHECK_IN_COMPLETED: 'Accettazione completata',
 };
@@ -252,8 +263,38 @@ export class SpokiDiagnosticsService {
       apiKeyConfigured: c.apiKey !== null,
       apiKeyMasked: c.apiKey === null ? null : maskKey(c.apiKey),
       templates: [
-        automazione('REMINDER_PREVIOUS_DAY', c.reminders.previousDay, 'REMINDER_PREVIOUS_DAY'),
-        automazione('REMINDER_SAME_DAY', c.reminders.sameDay, 'REMINDER_SAME_DAY'),
+        // Stessa regola del servizio (`resolveTransportKind`): l'id del template vince; senza id
+        // ma con l'URL si resta sull'automazione; senza nessuno dei due il promemoria è un template
+        // via API da configurare. Pannello, stato di salute e invio indicano la stessa variabile.
+        c.templateIds?.reminderPreviousDay != null || c.reminders.previousDay.url === null
+          ? template(
+              'REMINDER_PREVIOUS_DAY',
+              'SPOKI_TEMPLATE_REMINDER_D1_ID',
+              c.templateIds?.reminderPreviousDay ?? null,
+            )
+          : automazione('REMINDER_PREVIOUS_DAY', c.reminders.previousDay, 'REMINDER_PREVIOUS_DAY'),
+        c.templateIds?.reminderSameDay != null || c.reminders.sameDay.url === null
+          ? template(
+              'REMINDER_SAME_DAY',
+              'SPOKI_TEMPLATE_SAME_DAY_ID',
+              c.templateIds?.reminderSameDay ?? null,
+            )
+          : automazione('REMINDER_SAME_DAY', c.reminders.sameDay, 'REMINDER_SAME_DAY'),
+        template(
+          'ARRIVAL_CONFIRMED',
+          'SPOKI_TEMPLATE_ARRIVED_REPLY_ID',
+          c.templateIds?.arrivalConfirmed ?? null,
+        ),
+        template(
+          'LATE_CONFIRMED',
+          'SPOKI_TEMPLATE_LATE_REPLY_ID',
+          c.templateIds?.lateConfirmed ?? null,
+        ),
+        template(
+          'ABSENT_CONFIRMED',
+          'SPOKI_TEMPLATE_ABSENT_REPLY_ID',
+          c.templateIds?.absentConfirmed ?? null,
+        ),
         template(
           'CHECK_IN_STARTED',
           'SPOKI_TEMPLATE_WELCOME_ID',

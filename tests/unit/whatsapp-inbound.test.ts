@@ -14,7 +14,10 @@ import { buildTestEnv, makeAppointment, TestClock } from '../helpers/fixtures';
 
 const TELEFONO = '+393331234560' as PhoneE164;
 
-function setup(clock = new TestClock('2026-09-10T07:00:00.000Z')) {
+function setup(
+  clock = new TestClock('2026-09-10T07:00:00.000Z'),
+  portale: { readonly writesRequireToken?: boolean } = {},
+) {
   const env = buildTestEnv(clock);
   const eventi: DomainEvent[] = [];
   env.eventBus.subscribe((e) => {
@@ -29,6 +32,7 @@ function setup(clock = new TestClock('2026-09-10T07:00:00.000Z')) {
     ids: env.ids,
     logger: env.logger,
     tokens: null,
+    writesRequireToken: portale.writesRequireToken === true,
   });
   const queueService = new QueueService({
     appointments: env.appointments,
@@ -64,14 +68,38 @@ async function insert(env: ReturnType<typeof buildTestEnv>, a: Appointment): Pro
 }
 
 describe('parseCustomerReply: le tre risposte del messaggio', () => {
-  it('riconosce pulsanti, testo scritto a mano e numero dell’opzione', () => {
-    for (const testo of ['Arrivato', 'ARRIVATO', 'sono arrivato', 'Sono qui!', 'arrivata', '1']) {
+  it('riconosce i payload dei pulsanti, le etichette, il testo scritto a mano e il numero dell’opzione', () => {
+    for (const testo of [
+      'ACTION_ARRIVED',
+      'action_arrived',
+      'SONO_ARRIVATO',
+      'Arrivato',
+      'ARRIVATO',
+      'sono arrivato',
+      'Sono qui!',
+      'arrivata',
+      '1',
+    ]) {
       expect(parseCustomerReply(testo)).toBe('ARRIVED');
     }
-    for (const testo of ['In ritardo', 'in ritardo di 10 minuti', 'sono in ritardo', '2']) {
+    for (const testo of [
+      'ACTION_LATE',
+      'IN_RITARDO',
+      'In ritardo',
+      'in ritardo di 10 minuti',
+      'sono in ritardo',
+      '2',
+    ]) {
       expect(parseCustomerReply(testo)).toBe('LATE');
     }
-    for (const testo of ['Assente', 'non vengo', 'devo disdire', '3']) {
+    for (const testo of [
+      'ACTION_ABSENT',
+      'NON_POSSO_VENIRE',
+      'Assente',
+      'non vengo',
+      'devo disdire',
+      '3',
+    ]) {
       expect(parseCustomerReply(testo)).toBe('ABSENT');
     }
   });
@@ -113,7 +141,10 @@ describe('WhatsAppInboundService: risposta «Arrivato»', () => {
       (j) => j.kind === 'ARRIVAL_CONFIRMED',
     );
     expect(job).toBeDefined();
-    expect(job?.renderedText).toContain(a.code);
+    expect(job?.renderedText).toContain(
+      `Perfetto! Sei stato inserito in fila con il codice ${a.code}`,
+    );
+    // Senza segreto dei token (test) il link è quello per targa; con il segreto è /portal/<token>.
     expect(job?.renderedText).toContain('/portal?targa=');
   });
 
@@ -146,14 +177,25 @@ describe('WhatsAppInboundService: «In ritardo» e «Assente»', () => {
       makeAppointment({ customer: { ...makeAppointment().customer, phone: TELEFONO } }),
     );
 
-    const esito = await inbound.handle({ phone: '+393331234560', text: 'In ritardo' });
+    const esito = await inbound.handle({ phone: '+393331234560', text: 'ACTION_LATE' });
     expect(esito.ok && esito.value.reply).toBe('LATE');
+    expect(esito.ok && esito.value.replySent).toBe(true);
 
     const corrente = await env.appointments.findById(a.id);
     expect(corrente?.status).toBe('WAITING');
     expect(corrente?.customerLateNoticeAt).not.toBeNull();
     expect(corrente?.customerEtaAt).not.toBeNull();
     expect(eventi.some((e) => e.type === 'CUSTOMER_LATE_NOTICE')).toBe(true);
+
+    // Al cliente parte la conferma del ritardo, una volta sola anche se ripete il tocco.
+    const conferme = (await env.notifications.listByAppointment(a.id)).filter(
+      (j) => j.kind === 'LATE_CONFIRMED',
+    );
+    expect(conferme).toHaveLength(1);
+    expect(conferme[0]?.renderedText).toContain("Grazie per l'avviso!");
+    const ripetuto = await inbound.handle({ phone: '+393331234560', text: 'ACTION_LATE' });
+    expect(ripetuto.ok && ripetuto.value.repeated).toBe(true);
+    expect(ripetuto.ok && ripetuto.value.replySent).toBe(false);
   });
 
   it('«Assente» segna il no-show con il motivo e crea il lead per il BDC', async () => {
@@ -163,12 +205,19 @@ describe('WhatsAppInboundService: «In ritardo» e «Assente»', () => {
       makeAppointment({ customer: { ...makeAppointment().customer, phone: TELEFONO } }),
     );
 
-    const esito = await inbound.handle({ phone: '+393331234560', text: 'non vengo' });
+    const esito = await inbound.handle({ phone: '+393331234560', text: 'ACTION_ABSENT' });
     expect(esito.ok && esito.value.reply).toBe('ABSENT');
+    expect(esito.ok && esito.value.replySent).toBe(true);
 
     const corrente = await env.appointments.findById(a.id);
     expect(corrente?.status).toBe('NO_SHOW');
     expect(corrente?.noShowAt).not.toBeNull();
+
+    // Al cliente parte la conferma dell'annullamento.
+    const conferma = (await env.notifications.listByAppointment(a.id)).find(
+      (j) => j.kind === 'ABSENT_CONFIRMED',
+    );
+    expect(conferma?.renderedText).toContain('Abbiamo annullato la prenotazione di oggi');
 
     // Il BDC lo trova nel proprio elenco, con scritto che è stato il cliente a dirlo: il motivo
     // viaggia accanto al payload, ed è la riga che il back office legge prima di telefonare.
@@ -221,5 +270,28 @@ describe('WhatsAppInboundService: messaggi che non riguardano nessuna pratica', 
     const corrente = await env.appointments.findById(a.id);
     expect(corrente?.status).toBe('IN_PROGRESS');
     expect(corrente?.customerArrivedAt).toBeNull();
+  });
+});
+
+describe('WhatsAppInboundService: con PORTAL_WRITES_REQUIRE_TOKEN il numero basta', () => {
+  it('«Sono arrivato» e «In ritardo» via WhatsApp funzionano anche quando dal portale serve il token', async () => {
+    const { env, inbound } = setup(new TestClock('2026-09-10T07:00:00.000Z'), {
+      writesRequireToken: true,
+    });
+    const a = await insert(
+      env,
+      makeAppointment({ customer: { ...makeAppointment().customer, phone: TELEFONO } }),
+    );
+    const ritardo = await inbound.handle({ phone: '+393331234560', text: 'ACTION_LATE' });
+    expect(ritardo.ok && ritardo.value.reply).toBe('LATE');
+    expect(ritardo.ok && ritardo.value.replySent).toBe(true);
+    expect((await env.appointments.findById(a.id))?.customerLateNoticeAt).not.toBeNull();
+    expect(
+      (await env.notifications.listByAppointment(a.id)).some((j) => j.kind === 'LATE_CONFIRMED'),
+    ).toBe(true);
+
+    const arrivo = await inbound.handle({ phone: '+393331234560', text: 'ACTION_ARRIVED' });
+    expect(arrivo.ok && arrivo.value.reply).toBe('ARRIVED');
+    expect((await env.appointments.findById(a.id))?.customerArrivedAt).not.toBeNull();
   });
 });

@@ -1,6 +1,7 @@
-// Portale cliente mobile: la pagina aperta dal link WhatsApp (`/portal?targa=AB123CD&t=…`) e dal
-// QR. Nessun login: si entra con la targa o con il token unico della pratica. Mostra il percorso
-// della vettura in tempo reale e permette di avvisare un ritardo con un tocco.
+// Portale cliente mobile: la pagina aperta dal QR (`/portal?targa=AB123CD`) o dal token della
+// pratica (`/portal?t=…`; lo smart link dei messaggi WhatsApp è `/portal/<token>`). Nessun login:
+// si entra con la targa o con il token unico della pratica. Mostra il percorso della vettura in
+// tempo reale e permette di avvisare un ritardo o l'arrivo con un tocco.
 import type { Metadata } from 'next';
 import { redirect } from 'next/navigation';
 import { PublicStatusView } from '@/modules/customer-portal/PublicStatusView';

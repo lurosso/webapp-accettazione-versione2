@@ -1,6 +1,7 @@
 // Token di accesso al portale cliente, uno per pratica, senza login e senza nulla da salvare.
 //
-// Il link inviato via WhatsApp è `/portal?targa=AB123CD&t=<token>`: il token è l'HMAC dell'id
+// Lo smart link inviato via WhatsApp è `/portal/<token>` (accettato anche `/portal?t=<token>`
+// e, con la targa, `/portal?targa=AB123CD&t=<token>`): il token è l'HMAC dell'id
 // della pratica con il segreto del server, quindi non si indovina dalla targa né dal codice F041
 // e non richiede una colonna in più. Chi ha solo la targa (QR in officina) accede comunque in
 // lettura, con i limiti di frequenza dell'API pubblica; il token evita anche quelli, perché chi
@@ -12,6 +13,14 @@ import type { AppointmentId } from '@/domain/ids';
 
 /** Lunghezza del token: 16 caratteri esadecimali (64 bit), leggibile in un link e non enumerabile. */
 export const TOKEN_LENGTH = 16;
+
+/** Forma di un token valido: solo esadecimale minuscolo, lunghezza esatta. */
+export const PORTAL_TOKEN_PATTERN = /^[0-9a-f]{16}$/;
+
+/** True se la stringa ha la forma di un token del portale (non dice se corrisponde a una pratica). */
+export function isPortalToken(candidate: string): boolean {
+  return PORTAL_TOKEN_PATTERN.test(candidate);
+}
 
 /**
  * Chiave dei token del portale, derivata dal segreto di sessione con un'etichetta fissa: stessa

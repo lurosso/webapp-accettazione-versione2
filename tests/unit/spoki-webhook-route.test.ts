@@ -14,12 +14,14 @@ import type { Appointment } from '@/domain/entities/appointment';
 import type { NotificationJob } from '@/domain/entities/notification';
 import type { PhoneE164 } from '@/domain/value-objects/phone';
 import { buildSpokiSignatureHeader } from '@/lib/http/spoki-signature';
+import { createPortalTokenFactory, derivePortalTokenKey } from '@/application/portal/portal-token';
 import { InMemoryStore } from '@/repositories/in-memory/InMemoryStore';
 import { NoopLogger } from '@/services/mocks/ConsoleLogger';
 import { makeAppointment, TestClock } from '../helpers/fixtures';
 
 const SEGRETO_WEBHOOK = 'segreto-webhook-di-prova-non-reale-0002';
 const SEGRETO_INBOUND = 'inbound-0123456789abcdef0123456789abcdef';
+const SEGRETO_SESSIONE = 's'.repeat(40);
 const ORIGINE = 'http://officina.local';
 
 let container: Container;
@@ -129,10 +131,54 @@ beforeAll(() => {
     clock,
     logger: new NoopLogger(),
     store: InMemoryStore.createIsolated(),
-    sessionSecret: 's'.repeat(40),
+    sessionSecret: SEGRETO_SESSIONE,
   });
   setContainerForTests(container);
 });
+
+/** Evento V2 `message.inbound` firmato: il cliente ha toccato un pulsante del promemoria. */
+function pulsante(phone: string, payload: string, eventUuid: string): NextRequest {
+  const corpo = JSON.stringify({
+    version: 2,
+    event: 'message.inbound',
+    event_uuid: eventUuid,
+    timestamp: clock.now().getTime() / 1000,
+    data: {
+      uuid: `in-${eventUuid}`,
+      from_phone: phone,
+      to_phone: '+390831981810',
+      text:
+        payload === 'ACTION_ARRIVED'
+          ? 'Sono arrivato'
+          : payload === 'ACTION_LATE'
+            ? 'In ritardo'
+            : 'Non posso venire',
+      payload,
+      sent_datetime: clock.nowIso(),
+    },
+  });
+  return richiesta(corpo, {
+    'x-spoki-signature': buildSpokiSignatureHeader(
+      corpo,
+      SEGRETO_WEBHOOK,
+      Math.floor(clock.now().getTime() / 1000),
+    ),
+  });
+}
+
+async function praticaInAttesa(phone: string): Promise<Appointment> {
+  const r = await container.repos.appointments.insert(
+    makeAppointment({
+      status: 'WAITING',
+      businessDate: clock.today(),
+      customer: { ...makeAppointment().customer, phone: phone as PhoneE164 },
+    }),
+  );
+  if (!r.ok) {
+    throw new Error(r.error.message);
+  }
+  return r.value;
+}
 
 afterAll(() => {
   resetContainerForTests();
@@ -310,5 +356,68 @@ describe('Webhook Spoki: risposte del cliente', () => {
     expect(r.status).toBe(200);
     // Testo non riconosciuto o numero senza pratica: ignorato senza errore.
     expect((await r.json()).handled).toBe(false);
+  });
+
+  describe('Webhook Spoki: i tre pulsanti del promemoria del giorno stesso', () => {
+    it('«Sono arrivato» (ACTION_ARRIVED): la pratica è in fila e il cliente riceve codice e smart link personale', async () => {
+      const a = await praticaInAttesa('+393331230001');
+      const r = await POST(pulsante(a.customer.phone ?? '', 'ACTION_ARRIVED', 'btn-1'));
+      expect(r.status).toBe(200);
+      expect(await r.json()).toMatchObject({ handled: true, reply: 'ARRIVED', code: a.code });
+
+      const dopo = await container.repos.appointments.findById(a.id);
+      expect(dopo?.status).toBe('WAITING');
+      expect(dopo?.customerArrivedAt).not.toBeNull();
+
+      const tokens = createPortalTokenFactory(derivePortalTokenKey(SEGRETO_SESSIONE));
+      const token = tokens.forAppointment(a.id);
+      const risposta = (await container.repos.notifications.listByAppointment(a.id)).find(
+        (j) => j.kind === 'ARRIVAL_CONFIRMED',
+      );
+      expect(risposta?.renderedText).toContain(
+        `Perfetto! Sei stato inserito in fila con il codice ${a.code}`,
+      );
+      expect(risposta?.renderedText).toContain(`/portal/${token}`);
+      expect(risposta?.renderedText).not.toContain(a.vehicle.plate);
+      // Lo smart link apre direttamente la pratica: nessuna targa né codice da scrivere.
+      const stato = await container.customerPortalService.getStatus({ token });
+      expect(stato.ok && stato.value.code).toBe(a.code);
+      expect(stato.ok && stato.value.arrivedAt).not.toBeNull();
+    });
+
+    it('«In ritardo» (ACTION_LATE): la dashboard vede l’avviso e il cliente riceve la conferma', async () => {
+      const a = await praticaInAttesa('+393331230002');
+      const r = await POST(pulsante(a.customer.phone ?? '', 'ACTION_LATE', 'btn-2'));
+      expect(r.status).toBe(200);
+      expect(await r.json()).toMatchObject({ handled: true, reply: 'LATE', replySent: true });
+
+      const dopo = await container.repos.appointments.findById(a.id);
+      expect(dopo?.status).toBe('WAITING');
+      expect(dopo?.customerLateNoticeAt).not.toBeNull();
+      expect(dopo?.customerEtaAt).not.toBeNull();
+      const conferma = (await container.repos.notifications.listByAppointment(a.id)).find(
+        (j) => j.kind === 'LATE_CONFIRMED',
+      );
+      expect(conferma?.renderedText).toContain("Abbiamo informato l'accettazione del tuo ritardo");
+    });
+
+    it('«Non posso venire» (ACTION_ABSENT): la pratica è assente, lo slot si libera e il cliente riceve la conferma', async () => {
+      const a = await praticaInAttesa('+393331230003');
+      const r = await POST(pulsante(a.customer.phone ?? '', 'ACTION_ABSENT', 'btn-3'));
+      expect(r.status).toBe(200);
+      expect(await r.json()).toMatchObject({ handled: true, reply: 'ABSENT', replySent: true });
+
+      const dopo = await container.repos.appointments.findById(a.id);
+      expect(dopo?.status).toBe('NO_SHOW');
+      expect(dopo?.noShowAt).not.toBeNull();
+      const inCoda = await container.repos.appointments.listByDate(clock.today(), {
+        statuses: ['WAITING', 'SKIPPED'],
+      });
+      expect(inCoda.some((x) => x.id === a.id)).toBe(false);
+      const conferma = (await container.repos.notifications.listByAppointment(a.id)).find(
+        (j) => j.kind === 'ABSENT_CONFIRMED',
+      );
+      expect(conferma?.renderedText).toContain('Abbiamo annullato la prenotazione di oggi');
+    });
   });
 });

@@ -2,7 +2,7 @@
 // targhe non valide o sconosciute, pratiche concluse, auto-segnalazione del ritardo.
 import { describe, expect, it } from 'vitest';
 import { CustomerPortalService, portalStageOf } from '@/application/portal/CustomerPortalService';
-import { createPortalTokenFactory } from '@/application/portal/portal-token';
+import { createPortalTokenFactory, isPortalToken } from '@/application/portal/portal-token';
 import { LATE_GRACE_MINUTES } from '@/config/constants';
 import { isDueWithinGrace, isLate, type Appointment } from '@/domain/entities/appointment';
 import type { DomainEvent } from '@/domain/events';
@@ -165,7 +165,7 @@ describe('Portale: accesso per targa o token, targhe non valide e pratiche concl
     expect(conTarga.ok && conTarga.value.code).toBe(mia.code);
   });
 
-  it('il link dei messaggi porta targa e token', async () => {
+  it('il link dei messaggi è lo smart link personale /portal/<token>, senza targa nell’indirizzo', async () => {
     const { env, tokens } = setup();
     const a = makeAppointment();
     const vars = buildTemplateVars(
@@ -175,9 +175,38 @@ describe('Portale: accesso per targa o token, targhe non valide e pratiche concl
       'https://officina.example',
       tokens.forAppointment(a.id),
     );
-    expect(vars.portalUrl).toBe(
-      `https://officina.example/portal?targa=${a.vehicle.plate}&t=${tokens.forAppointment(a.id)}`,
+    expect(vars.portalUrl).toBe(`https://officina.example/portal/${tokens.forAppointment(a.id)}`);
+    expect(vars.portalUrl).not.toContain(a.vehicle.plate);
+    expect(isPortalToken(tokens.forAppointment(a.id))).toBe(true);
+    for (const brutto of [
+      '',
+      'ffff',
+      'FFFFFFFFFFFFFFFF',
+      'zzzzzzzzzzzzzzzz',
+      'ffffffffffffffff0',
+    ]) {
+      expect(isPortalToken(brutto)).toBe(false);
+    }
+  });
+
+  it('lo smart link del promemoria del giorno prima apre già la pratica di domani', async () => {
+    const { env, service, tokens } = setup();
+    const domani = await insert(
+      env,
+      makeAppointment({
+        businessDate: '2026-09-11' as IsoDate,
+        scheduledAt: '2026-09-11T07:30:00.000Z' as IsoDateTime,
+      }),
     );
+    const perToken = await service.getStatus({ token: tokens.forAppointment(domani.id) });
+    expect(perToken.ok && perToken.value.code).toBe(domani.code);
+    expect(perToken.ok && perToken.value.expired).toBe(false);
+    // Domani non è in coda oggi: nessuna posizione, nessun «Sono arrivato», nessun ritardo.
+    expect(perToken.ok && perToken.value.queuePosition).toBeNull();
+    expect(perToken.ok && perToken.value.aheadCount).toBe(0);
+    expect(perToken.ok && perToken.value.canReportDelay).toBe(false);
+    const arrivo = await service.registerArrival({ token: tokens.forAppointment(domani.id) });
+    expect(arrivo.ok && arrivo.value.registered).toBe(false);
   });
 
   it('targa mancante o malformata → VALIDATION; targa sconosciuta → NOT_FOUND', async () => {

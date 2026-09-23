@@ -154,7 +154,14 @@ export const ROTTE = [
     path: '/portal',
     area: AREE[7],
     descrizione:
-      'Tracciamento del cliente dal link WhatsApp o dal QR (`?targa=` e `&t=` token): posizione in fila, lettera dello sportello, orari di arrivo e chiamata, "Sto arrivando in ritardo".',
+      'Tracciamento del cliente dal QR (`?targa=`) o dal token (`?t=`): posizione in fila, lettera dello sportello, orari di arrivo e chiamata, "Sono arrivato", "Sto arrivando in ritardo".',
+    accesso: ACCESSO.pubblico,
+  },
+  {
+    path: '/portal/:token',
+    area: AREE[7],
+    descrizione:
+      'Smart link personale ricevuto su WhatsApp: apre direttamente lo stato di attesa della pratica legata al token, senza targa né codice (stessa schermata di /portal).',
     accesso: ACCESSO.pubblico,
   },
   {

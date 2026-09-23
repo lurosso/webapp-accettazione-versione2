@@ -32,8 +32,11 @@ describe('NotificationOrchestrator: WhatsApp con ripiego su SMS', () => {
     expect(run.job.currentChannel).toBe('WHATSAPP');
     expect(run.job.attempts).toHaveLength(1);
     expect(run.job.attempts[0]?.provider).toBe('SPOKI');
-    // Il testo contiene il codice progressivo, che è ciò che il cliente dovrà esibire.
-    expect(run.job.renderedText).toContain(appointment.code);
+    // Il codice progressivo viaggia con il job e nelle variabili del template (il testo del
+    // promemoria del giorno stesso non lo cita: arriva con la risposta a «Sono arrivato»).
+    expect(run.job.code).toBe(appointment.code);
+    expect(run.job.templateVariables['code']).toBe(appointment.code);
+    expect(run.job.renderedText).toContain(appointment.vehicle.plate);
   });
 
   it("numero che finisce per 9: WhatsApp rifiutato, l'SMS parte da solo", async () => {

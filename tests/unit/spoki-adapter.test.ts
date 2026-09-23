@@ -19,6 +19,9 @@ import { TestClock } from '../helpers/fixtures';
 const NESSUNO: Readonly<Record<SpokiTemplateKind, null>> = {
   REMINDER_PREVIOUS_DAY: null,
   REMINDER_SAME_DAY: null,
+  ARRIVAL_CONFIRMED: null,
+  LATE_CONFIRMED: null,
+  ABSENT_CONFIRMED: null,
   CHECK_IN_STARTED: null,
   CHECK_IN_COMPLETED: null,
   CONFIRMATION: null,
@@ -461,7 +464,8 @@ describe('SpokiService live con blocco tolto', () => {
     });
     const h = await service.healthCheck();
     expect(h.status).toBe('DEGRADED');
-    expect(h.detail).toContain('REMINDER_SAME_DAY (URL)');
+    // Senza URL il promemoria del giorno stesso ricade sul template via API, che qui non ha id.
+    expect(h.detail).toContain('REMINDER_SAME_DAY (SPOKI_TEMPLATE_SAME_DAY_ID)');
     expect(h.detail).toContain('REMINDER_PREVIOUS_DAY (segreto)');
     expect(service.liveDeliveryAllowed).toBe(true);
   });
@@ -490,6 +494,9 @@ describe('SpokiService live con blocco tolto', () => {
     expect(t.filter((x) => x.active).map((x) => x.kind)).toEqual([
       'REMINDER_PREVIOUS_DAY',
       'REMINDER_SAME_DAY',
+      'ARRIVAL_CONFIRMED',
+      'LATE_CONFIRMED',
+      'ABSENT_CONFIRMED',
       'CHECK_IN_STARTED',
       'CHECK_IN_COMPLETED',
     ]);
@@ -499,5 +506,49 @@ describe('SpokiService live con blocco tolto', () => {
     expect(benvenuto?.templateEnvKey).toBe('SPOKI_TEMPLATE_WELCOME_ID');
     expect(benvenuto?.configured).toBe(true);
     expect(t.find((x) => x.kind === 'REMINDER_SAME_DAY')?.transport).toBe('AUTOMATION');
+  });
+
+  describe('Pulsanti rapidi e scelta del trasporto', () => {
+    it('il promemoria del giorno stesso via API porta i tre pulsanti con i payload ACTION_*', () => {
+      const p = buildTemplateSendPayload(
+        richiesta({ templateKey: 'reminder_same_day_v1' }),
+        'REMINDER_SAME_DAY',
+        '4001',
+      );
+      expect(p.buttons).toEqual([
+        { order: 0, payload: 'ACTION_ARRIVED' },
+        { order: 1, payload: 'ACTION_LATE' },
+        { order: 2, payload: 'ACTION_ABSENT' },
+      ]);
+      // Gli altri template non hanno pulsanti: la chiave non compare nemmeno.
+      expect(
+        'buttons' in buildTemplateSendPayload(richiesta(), 'REMINDER_PREVIOUS_DAY', '4000'),
+      ).toBe(false);
+    });
+
+    it("l'id del template vince sull'automazione; senza id il promemoria resta sull'automazione; le risposte sono via API", async () => {
+      const rete = fakeFetch(() => new Response('{}', { status: 202 }));
+      const { service } = setup(
+        { ...LIVE_SBLOCCATO, templates: { ...TEMPLATES, REMINDER_PREVIOUS_DAY: '4000' } },
+        rete.impl,
+      );
+      const t = service.templates();
+      expect(t.find((x) => x.kind === 'REMINDER_PREVIOUS_DAY')?.transport).toBe('TEMPLATE');
+      expect(t.find((x) => x.kind === 'REMINDER_SAME_DAY')?.transport).toBe('AUTOMATION');
+      expect(t.find((x) => x.kind === 'ARRIVAL_CONFIRMED')?.transport).toBe('TEMPLATE');
+      expect(t.find((x) => x.kind === 'ARRIVAL_CONFIRMED')?.templateEnvKey).toBe(
+        'SPOKI_TEMPLATE_ARRIVED_REPLY_ID',
+      );
+      expect(t.find((x) => x.kind === 'ARRIVAL_CONFIRMED')?.configured).toBe(false);
+
+      await service.sendTemplateMessage(
+        richiesta({ templateKey: 'reminder_previous_day_v1', idempotencyKey: 'k-d1' }),
+      );
+      expect(rete.calls[0]?.url).toBe('https://api.spoki.example/api/1/messages/send/');
+      await service.sendTemplateMessage(
+        richiesta({ templateKey: 'reminder_same_day_v1', idempotencyKey: 'k-same' }),
+      );
+      expect(rete.calls[1]?.url).toBe(URLS.REMINDER_SAME_DAY);
+    });
   });
 });

@@ -108,15 +108,18 @@ export class CustomerPortalService {
   }
 
   /**
-   * "Sto arrivando in ritardo (+N min)": il cliente avvisa l'accettazione dal telefono. La pratica
-   * resta in coda al suo posto; l'arrivo atteso si sposta e la dashboard mostra l'avviso ambra.
+   * "Sto arrivando in ritardo (+N min)": il cliente avvisa l'accettazione dal telefono, dalla
+   * pagina di tracciamento o toccando «In ritardo» su WhatsApp (`channel`). La pratica resta in
+   * coda al suo posto; l'arrivo atteso si sposta e la dashboard mostra l'avviso ambra.
    */
   async reportDelay(
     lookup: PortalLookup,
     minutes: number = this.deps.lateNoticeMinutes ?? CUSTOMER_LATE_NOTICE_MINUTES,
+    channel: 'PORTAL' | 'WHATSAPP' = 'PORTAL',
   ): Promise<Result<PortalStatusView, DomainError>> {
+    // Via WhatsApp il cliente è già identificato dal numero: il token serve solo dal portale.
     const trovata = await this.resolve(lookup, {
-      requireToken: this.deps.writesRequireToken === true,
+      requireToken: this.deps.writesRequireToken === true && channel === 'PORTAL',
     });
     if (!trovata.ok) {
       return trovata;
@@ -239,9 +242,12 @@ export class CustomerPortalService {
     let candidate: Appointment | undefined;
     if (token !== '' && this.deps.tokens !== null) {
       const tokens = this.deps.tokens;
+      // Oggi, ieri (chi riapre il link il giorno dopo) e domani (lo smart link del promemoria del
+      // giorno prima si apre già la sera prima).
       candidate = [
         ...(await this.deps.appointments.listByDate(today, { includeCancelled: true })),
         ...(await this.deps.appointments.listByDate(yesterday, { includeCancelled: true })),
+        ...(await this.deps.appointments.listByDate(addDays(today, 1), { includeCancelled: true })),
       ].find((a) => tokens.matches(a.id, token));
     }
     if (options.requireToken === true) {
@@ -331,13 +337,16 @@ export class CustomerPortalService {
     ]);
     const desk = deskOf(a, desks);
     const expired = this.isExpired(a, now, today);
+    // Lo smart link del promemoria del giorno prima si apre già la sera prima: la pratica di domani
+    // non è in coda oggi, quindi niente posizione né pulsante «Sono arrivato».
+    const inCodaOggi = isInQueue(a.status) && a.businessDate <= today;
     return {
       code: a.code,
       status: a.status,
-      aheadCount: isInQueue(a.status) ? countAheadInSameDesk(a, inQueue, desks) : 0,
+      aheadCount: inCodaOggi ? countAheadInSameDesk(a, inQueue, desks) : 0,
       // "Sei il numero N in attesa": i clienti davanti più se stesso. Fuori dalla coda non ha
       // senso una posizione, e mostrarne una vecchia confonderebbe chi è già allo sportello.
-      queuePosition: isInQueue(a.status) ? countAheadInSameDesk(a, inQueue, desks) + 1 : null,
+      queuePosition: inCodaOggi ? countAheadInSameDesk(a, inQueue, desks) + 1 : null,
       arrivedAt: a.customerArrivedAt,
       startedAt: a.takenAt,
       // Lettera dello sportello: è l'indicazione che il cliente deve seguire in sala.

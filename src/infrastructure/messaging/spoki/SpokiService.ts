@@ -30,7 +30,9 @@ import type { ISpokiService } from '@/services/interfaces/ISpokiService';
 import { SpokiClientAdapter, type FetchLike } from './SpokiClientAdapter';
 import {
   canDeliverLive,
+  resolveTransportKind,
   SPOKI_ACTIVE_TEMPLATE_KINDS,
+  SPOKI_QUICK_REPLIES,
   SPOKI_TEMPLATE_ID_ENV_KEYS,
   SPOKI_TEMPLATE_KINDS,
   TEMPLATE_KIND_BY_KEY,
@@ -141,13 +143,13 @@ export class SpokiService implements ISpokiService {
   }
 
   /**
-   * Il trasporto di un template: le API se il template ha un id configurato, l'automazione negli
-   * altri casi (anche quando l'URL manca: in simulazione si registra comunque, in live l'adapter
-   * spiega cosa manca).
+   * Il trasporto di un template (vedi `resolveTransportKind`): l'id del template vince
+   * sull'automazione; senza configurazione si sceglie quello previsto, così in simulazione il
+   * registro dice cosa manca e in live l'adapter lo spiega.
    */
   private transportFor(kind: SpokiTemplateKind, request: SpokiSendRequestDto): SpokiTransport {
     const templateId = this.config.templates[kind];
-    if (templateId !== null || SPOKI_TEMPLATE_ID_ENV_KEYS[kind] !== null) {
+    if (resolveTransportKind(kind, templateId, this.config.urls[kind]) === 'TEMPLATE') {
       return {
         kind: 'TEMPLATE',
         templateId,
@@ -245,7 +247,7 @@ export class SpokiService implements ISpokiService {
       const templateId = this.config.templates[kind];
       const url = this.config.urls[kind];
       const secretConfigured = this.config.secrets[kind] !== null;
-      const transport = templateId !== null || templateEnvKey !== null ? 'TEMPLATE' : 'AUTOMATION';
+      const transport = resolveTransportKind(kind, templateId, url);
       return {
         kind,
         active: SPOKI_ACTIVE_TEMPLATE_KINDS.includes(kind),
@@ -285,8 +287,9 @@ export function buildWebhookPayload(
 
 /**
  * Payload di `POST /api/1/messages/send/` per un template approvato: stesso numero e stessi campi
- * dinamici dell'automazione, più l'id del template, la lingua e i metadati tecnici che Spoki
- * rimanda nel webhook di esito (per ritrovare il messaggio anche senza il suo id).
+ * dinamici dell'automazione, più l'id del template, la lingua, i pulsanti rapidi con il loro
+ * payload (dove il template li ha) e i metadati tecnici che Spoki rimanda nel webhook di esito
+ * (per ritrovare il messaggio anche senza il suo id).
  */
 export function buildTemplateSendPayload(
   request: SpokiSendRequestDto,
@@ -295,6 +298,7 @@ export function buildTemplateSendPayload(
 ): SpokiTemplateSendPayload {
   const v = request.variables;
   const numerico = templateId !== null && /^\d+$/.test(templateId) ? Number(templateId) : null;
+  const pulsanti = SPOKI_QUICK_REPLIES[kind];
   return {
     type: 'Template',
     phone: request.to,
@@ -304,6 +308,9 @@ export function buildTemplateSendPayload(
     last_name: v['lastName'] ?? '',
     email: v['email'] ?? '',
     custom_fields: customFieldsOf(request),
+    ...(pulsanti === undefined
+      ? {}
+      : { buttons: pulsanti.map((b) => ({ order: b.order, payload: b.payload })) }),
     metadata: {
       idempotency_key: request.idempotencyKey,
       template_kind: kind,

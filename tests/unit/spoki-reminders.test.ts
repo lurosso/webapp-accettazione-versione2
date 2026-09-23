@@ -48,7 +48,7 @@ describe('Promemoria: variabili e testi', () => {
     expect(vars.portalUrl).toBe(`https://officina.example/portal?targa=${vars.plate}`);
   });
 
-  it('il giorno prima cita data, ora, targa, codice e link; il giorno stesso ora, targa e codice', () => {
+  it('il giorno prima cita data, ora e targa; il giorno stesso ora, targa e le tre opzioni', () => {
     const env = buildTestEnv();
     const a = appuntamentoDomani();
     const vars = buildTemplateVars(
@@ -58,15 +58,16 @@ describe('Promemoria: variabili e testi', () => {
       'https://officina.example',
     );
     const prima = NOTIFICATION_TEMPLATES.REMINDER_PREVIOUS_DAY.render(vars);
-    expect(prima).toContain('domani 11/09/2026');
-    expect(prima).toContain('alle 09:30');
-    expect(prima).toContain(a.vehicle.plate);
-    expect(prima).toContain(a.code);
-    expect(prima).toContain('/portal?targa=');
+    expect(prima).toContain('Gentile cliente');
+    expect(prima).toContain('domani 11/09/2026 alle ore 09:30');
+    expect(prima).toContain(`targa ${a.vehicle.plate}`);
+    expect(prima).toContain('A domani!');
     const stesso = NOTIFICATION_TEMPLATES.REMINDER_SAME_DAY.render(vars);
-    expect(stesso).toContain('oggi alle 09:30');
+    expect(stesso).toContain('Buongiorno!');
+    expect(stesso).toContain('oggi alle ore 09:30');
     expect(stesso).toContain(a.vehicle.plate);
-    expect(stesso).toContain(a.code);
+    expect(stesso).toContain("selezioni un'opzione");
+    expect(stesso).toContain('1) Sono arrivato');
     expect(stesso).not.toContain('http');
     expect(NOTIFICATION_TEMPLATES.REMINDER_PREVIOUS_DAY.spokiTemplateKey).toBe(
       'reminder_previous_day_v1',
@@ -90,6 +91,9 @@ describe('Promemoria: dal record della pratica al payload Spoki, passando dal se
         urls: {
           REMINDER_PREVIOUS_DAY: 'https://api.spoki.example/wh/ap/prev/',
           REMINDER_SAME_DAY: 'https://api.spoki.example/wh/ap/same/',
+          ARRIVAL_CONFIRMED: null,
+          LATE_CONFIRMED: null,
+          ABSENT_CONFIRMED: null,
           CHECK_IN_STARTED: null,
           CHECK_IN_COMPLETED: null,
           CONFIRMATION: null,
@@ -99,6 +103,9 @@ describe('Promemoria: dal record della pratica al payload Spoki, passando dal se
         secrets: {
           REMINDER_PREVIOUS_DAY: 'segreto-prev-0123456789abcdef',
           REMINDER_SAME_DAY: 'segreto-same-0123456789abcdef',
+          ARRIVAL_CONFIRMED: null,
+          LATE_CONFIRMED: null,
+          ABSENT_CONFIRMED: null,
           CHECK_IN_STARTED: null,
           CHECK_IN_COMPLETED: null,
           CONFIRMATION: null,
@@ -108,6 +115,9 @@ describe('Promemoria: dal record della pratica al payload Spoki, passando dal se
         templates: {
           REMINDER_PREVIOUS_DAY: null,
           REMINDER_SAME_DAY: null,
+          ARRIVAL_CONFIRMED: null,
+          LATE_CONFIRMED: null,
+          ABSENT_CONFIRMED: null,
           CHECK_IN_STARTED: null,
           CHECK_IN_COMPLETED: null,
           CONFIRMATION: null,
@@ -204,7 +214,13 @@ describe('Pannello di diagnostica: guardrail del test manuale', () => {
       urlConfigured: true,
       secretConfigured: true,
     });
-    expect(o.templates[1]).toMatchObject({ urlConfigured: false, secretConfigured: false });
+    // Senza URL né id il promemoria del giorno stesso è un template via API da configurare: il
+    // pannello indica la stessa variabile del servizio (`resolveTransportKind`).
+    expect(o.templates[1]).toMatchObject({
+      transport: 'TEMPLATE',
+      templateEnvKey: 'SPOKI_TEMPLATE_SAME_DAY_ID',
+      templateConfigured: false,
+    });
     expect(spokiBlockReason('mock', 'live', false)).toBe('MOCK_PROVIDER');
     expect(spokiBlockReason('real', 'live', true)).toBe('SAFETY_LOCK');
     expect(spokiBlockReason('real', 'live', false)).toBeNull();
@@ -238,7 +254,7 @@ describe('Pannello di diagnostica: guardrail del test manuale', () => {
       expect(interno.value.templateKey).toBe('reminder_previous_day_v1');
       // Il giorno prima nella prova parla di domani rispetto all'orologio del test (10/09 → 11/09).
       expect(interno.value.renderedText).toContain('domani 11/09/2026');
-      expect(interno.value.renderedText).toContain('Luca');
+      expect(interno.value.renderedText).toContain('targa AB123CD');
     }
   });
 });

@@ -97,4 +97,30 @@ describe('Template via API e webhook degli esiti', () => {
     expect(env.spokiSecretReminderSameDay).toBe('s'.repeat(32));
     expect(env.spokiInboundSecret).toBe('i'.repeat(48));
   });
+
+  describe('Id dei template di promemoria e risposte ai pulsanti', () => {
+    it('si leggono dalle cinque variabili dedicate e sono null se assenti', () => {
+      const vuoto = parseEnv({}, muto);
+      expect(vuoto.spokiTemplateReminderD1Id).toBeNull();
+      expect(vuoto.spokiTemplateSameDayId).toBeNull();
+      expect(vuoto.spokiTemplateArrivedReplyId).toBeNull();
+      expect(vuoto.spokiTemplateLateReplyId).toBeNull();
+      expect(vuoto.spokiTemplateAbsentReplyId).toBeNull();
+      const env = parseEnv(
+        {
+          SPOKI_TEMPLATE_REMINDER_D1_ID: '4000',
+          SPOKI_TEMPLATE_SAME_DAY_ID: '4001',
+          SPOKI_TEMPLATE_ARRIVED_REPLY_ID: '4002',
+          SPOKI_TEMPLATE_LATE_REPLY_ID: '4003',
+          SPOKI_TEMPLATE_ABSENT_REPLY_ID: '4004',
+        },
+        muto,
+      );
+      expect(env.spokiTemplateReminderD1Id).toBe('4000');
+      expect(env.spokiTemplateSameDayId).toBe('4001');
+      expect(env.spokiTemplateArrivedReplyId).toBe('4002');
+      expect(env.spokiTemplateLateReplyId).toBe('4003');
+      expect(env.spokiTemplateAbsentReplyId).toBe('4004');
+    });
+  });
 });

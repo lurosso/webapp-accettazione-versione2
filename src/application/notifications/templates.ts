@@ -1,12 +1,14 @@
 // Testi dei messaggi al cliente (italiano) e chiavi dei template Spoki approvati da Meta.
 //
-// In questa fase l'integrazione WhatsApp copre il giro completo di una giornata:
-// - REMINDER_PREVIOUS_DAY, il giorno prima: data, orario, targa, codice, link al portale;
-// - REMINDER_SAME_DAY, la mattina dell'appuntamento: orario, targa, codice e le TRE risposte
-//   rapide «Arrivato», «In ritardo», «Assente» (i pulsanti stanno nel template Spoki; qui c'è il
-//   testo che li accompagna, che vale anche per l'SMS di ripiego, dove si risponde scrivendo);
-// - ARRIVAL_CONFIRMED, la risposta a chi tocca «Arrivato»: codice in coda e link alla pagina di
-//   tracciamento, che sostituisce il QR da inquadrare in officina;
+// L'integrazione WhatsApp copre il giro completo di una giornata:
+// - REMINDER_PREVIOUS_DAY, il giorno prima: data, orario e targa («A domani!»);
+// - REMINDER_SAME_DAY, la mattina dell'appuntamento: orario e targa, con i TRE pulsanti rapidi
+//   «Sono arrivato», «In ritardo», «Non posso venire» (i pulsanti stanno nel template Spoki e
+//   tornano al webhook come ACTION_ARRIVED / ACTION_LATE / ACTION_ABSENT; qui c'è il testo che
+//   li accompagna, che vale anche per l'SMS di ripiego, dove si risponde con 1, 2 o 3);
+// - ARRIVAL_CONFIRMED, la risposta a chi tocca «Sono arrivato»: codice in coda e smart link
+//   personale al portale (`/portal/<token>`), che sostituisce il QR da inquadrare in officina;
+// - LATE_CONFIRMED e ABSENT_CONFIRMED, le risposte agli altri due pulsanti;
 // - CHECK_IN_STARTED, alla presa in carico allo sportello: benvenuto con il link PERSONALE al
 //   portale (token della pratica), dove il cliente segue l'accettazione in tempo reale;
 // - CHECK_IN_COMPLETED, a fine check-in (foto e video caricati): «Procedura di accettazione
@@ -36,16 +38,21 @@ export interface TemplateVars {
 }
 
 /**
- * Link pubblico del portale per una targa. `publicBaseUrl` vuoto → percorso relativo. Con il token
- * della pratica (`t`) il cliente entra dal link WhatsApp senza limiti di frequenza né enumerazione.
+ * Link pubblico del portale. Con il token della pratica è lo SMART LINK personale
+ * `/portal/<token>`: si apre direttamente sullo stato di attesa, senza scrivere targa né codice,
+ * e nell'indirizzo non compare la targa. Senza token (contesti senza segreto, QR) resta il link
+ * per targa. `publicBaseUrl` vuoto → percorso relativo.
  */
 export function buildPortalUrl(
   publicBaseUrl: string,
   plate: string,
   token: string | null = null,
 ): string {
-  const base = `${publicBaseUrl.replace(/\/+$/, '')}/portal?targa=${encodeURIComponent(plate)}`;
-  return token === null || token === '' ? base : `${base}&t=${encodeURIComponent(token)}`;
+  const base = publicBaseUrl.replace(/\/+$/, '');
+  if (token !== null && token !== '') {
+    return `${base}/portal/${encodeURIComponent(token)}`;
+  }
+  return `${base}/portal?targa=${encodeURIComponent(plate)}`;
 }
 
 /** Definizione di un template: chiave Spoki e funzione di rendering del testo (per SMS e log). */
@@ -59,12 +66,13 @@ export const NOTIFICATION_TEMPLATES: Readonly<Record<NotificationKind, Notificat
   REMINDER_PREVIOUS_DAY: {
     spokiTemplateKey: 'reminder_previous_day_v1',
     render: (v) =>
-      `Buongiorno ${v.firstName}, le ricordiamo l'appuntamento di domani ${v.scheduledDate} alle ${v.scheduledTime} presso Autoclub Group per la vettura ${v.plate}. Il suo codice di accettazione è ${v.code}. Segua la coda in tempo reale: ${v.portalUrl}`,
+      `Gentile cliente, le ricordiamo il suo appuntamento in AutoClub per domani ${v.scheduledDate} alle ore ${v.scheduledTime} per la vettura targa ${v.plate}. A domani!`,
   },
   REMINDER_SAME_DAY: {
     spokiTemplateKey: 'reminder_same_day_v1',
+    // Su WhatsApp le tre scelte sono pulsanti; sull'SMS di ripiego si risponde con il numero.
     render: (v) =>
-      `Buongiorno ${v.firstName}, le ricordiamo l'appuntamento di oggi alle ${v.scheduledTime} presso Autoclub Group per la vettura ${v.plate}. Il suo codice di accettazione è ${v.code}. Quando è qui ci risponda ARRIVATO; se è in ritardo IN RITARDO, se non può venire ASSENTE.`,
+      `Buongiorno! Le ricordiamo l'appuntamento di oggi alle ore ${v.scheduledTime} per la vettura ${v.plate}. Per aiutarci a gestire la fila, selezioni un'opzione: 1) Sono arrivato · 2) In ritardo · 3) Non posso venire`,
   },
   CHECK_IN_STARTED: {
     spokiTemplateKey: 'check_in_started_v1',
@@ -79,7 +87,17 @@ export const NOTIFICATION_TEMPLATES: Readonly<Record<NotificationKind, Notificat
   ARRIVAL_CONFIRMED: {
     spokiTemplateKey: 'arrival_confirmed_v1',
     render: (v) =>
-      `Bentornato ${v.firstName}, la aspettiamo. Il suo codice è ${v.code}: lo vedrà comparire sul monitor dello sportello. Segua il suo turno in tempo reale qui: ${v.portalUrl}`,
+      `Perfetto! Sei stato inserito in fila con il codice ${v.code}. Puoi monitorare l'attesa in tempo reale da questo link personalizzato: ${v.portalUrl}`,
+  },
+  LATE_CONFIRMED: {
+    spokiTemplateKey: 'late_confirmed_v1',
+    render: () =>
+      "Grazie per l'avviso! Abbiamo informato l'accettazione del tuo ritardo. Quando sarai giunto in officina, avvisa il nostro personale o clicca 'Sono arrivato'.",
+  },
+  ABSENT_CONFIRMED: {
+    spokiTemplateKey: 'absent_confirmed_v1',
+    render: () =>
+      "Grazie per la comunicazione. Abbiamo annullato la prenotazione di oggi. Un nostro operatore la ricontatterà per riprogrammare l'appuntamento.",
   },
   BOOKING_CONFIRMED: {
     spokiTemplateKey: 'booking_confirmed_v1',

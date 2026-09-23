@@ -244,6 +244,11 @@ export function createContainer(overrides: ContainerOverrides = {}): Container {
       safetyLock: env.spokiSafetyLock,
       webhookSecretConfigured: env.spokiWebhookSecret !== null,
       templateIds: {
+        reminderPreviousDay: env.spokiTemplateReminderD1Id,
+        reminderSameDay: env.spokiTemplateSameDayId,
+        arrivalConfirmed: env.spokiTemplateArrivedReplyId,
+        lateConfirmed: env.spokiTemplateLateReplyId,
+        absentConfirmed: env.spokiTemplateAbsentReplyId,
         checkInStarted: env.spokiTemplateWelcomeId,
         checkInCompleted: env.spokiTemplateCompleteId,
       },

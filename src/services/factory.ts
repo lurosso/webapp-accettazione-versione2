@@ -130,7 +130,10 @@ export function createExternalServices(env: AppEnv, deps: ExternalServiceDeps): 
             urls: {
               REMINDER_PREVIOUS_DAY: env.spokiUrlReminderPreviousDay,
               REMINDER_SAME_DAY: env.spokiUrlReminderSameDay,
-              // I messaggi del check-in passano dalle API con l'id del template, non da un'automazione.
+              // Risposte ai pulsanti e messaggi del check-in: via API con l'id del template.
+              ARRIVAL_CONFIRMED: null,
+              LATE_CONFIRMED: null,
+              ABSENT_CONFIRMED: null,
               CHECK_IN_STARTED: null,
               CHECK_IN_COMPLETED: null,
               CONFIRMATION: env.spokiUrlConfirmation,
@@ -140,6 +143,9 @@ export function createExternalServices(env: AppEnv, deps: ExternalServiceDeps): 
             secrets: {
               REMINDER_PREVIOUS_DAY: env.spokiSecretReminderPreviousDay,
               REMINDER_SAME_DAY: env.spokiSecretReminderSameDay,
+              ARRIVAL_CONFIRMED: null,
+              LATE_CONFIRMED: null,
+              ABSENT_CONFIRMED: null,
               CHECK_IN_STARTED: null,
               CHECK_IN_COMPLETED: null,
               // Non integrati in questa fase: nessuna automazione, quindi nessun segreto.
@@ -148,8 +154,11 @@ export function createExternalServices(env: AppEnv, deps: ExternalServiceDeps): 
               CANCELLATION: null,
             },
             templates: {
-              REMINDER_PREVIOUS_DAY: null,
-              REMINDER_SAME_DAY: null,
+              REMINDER_PREVIOUS_DAY: env.spokiTemplateReminderD1Id,
+              REMINDER_SAME_DAY: env.spokiTemplateSameDayId,
+              ARRIVAL_CONFIRMED: env.spokiTemplateArrivedReplyId,
+              LATE_CONFIRMED: env.spokiTemplateLateReplyId,
+              ABSENT_CONFIRMED: env.spokiTemplateAbsentReplyId,
               CHECK_IN_STARTED: env.spokiTemplateWelcomeId,
               CHECK_IN_COMPLETED: env.spokiTemplateCompleteId,
               CONFIRMATION: null,

@@ -89,6 +89,16 @@ export interface AppEnv {
   readonly spokiTemplateWelcomeId: string | null;
   readonly spokiTemplateCompleteId: string | null;
   /**
+   * Id dei template Meta dei promemoria e delle tre risposte automatiche ai pulsanti del
+   * promemoria del giorno stesso («Sono arrivato», «In ritardo», «Non posso venire»). Se un
+   * promemoria ha l'id, parte via API al posto dell'automazione (SPOKI_URL_*).
+   */
+  readonly spokiTemplateReminderD1Id: string | null;
+  readonly spokiTemplateSameDayId: string | null;
+  readonly spokiTemplateArrivedReplyId: string | null;
+  readonly spokiTemplateLateReplyId: string | null;
+  readonly spokiTemplateAbsentReplyId: string | null;
+  /**
    * Segreto dei webhook V2 di Spoki (SPOKI_WEBHOOK_SECRET, `whsec_…`): verifica la firma
    * `X-Spoki-Signature` degli esiti di consegna (inviato, consegnato, letto, fallito) e dei
    * messaggi in entrata su POST /api/v1/webhooks/spoki. Vale anche come segreto condiviso
@@ -434,7 +444,9 @@ function pickTimeZone(source: EnvSource, key: string, fallback: string, warn: En
  * MOCK_SPOKI_FAIL_SUFFIX, MOCK_SPOKI_FAILURE_RATE, MOCK_SPOKI_MODE, MOCK_SMS_FAIL_SUFFIX,
  * MOCK_SMS_FAILURE_RATE, MOCK_SMS_MODE, MOCK_SMS_CREDITS, MOCK_CRM_MODE, MOCK_DELIVERY_DELAY_MS, NODE_ENV,
  * SPOKI_ENABLED, SPOKI_MODE, SPOKI_SAFETY_LOCK, SPOKI_API_KEY, SPOKI_API_BASE_URL,
- * SPOKI_TEMPLATE_WELCOME_ID, SPOKI_TEMPLATE_COMPLETE_ID, SPOKI_WEBHOOK_SECRET, SPOKI_INBOUND_SECRET.
+ * SPOKI_TEMPLATE_WELCOME_ID, SPOKI_TEMPLATE_COMPLETE_ID, SPOKI_TEMPLATE_REMINDER_D1_ID,
+ * SPOKI_TEMPLATE_SAME_DAY_ID, SPOKI_TEMPLATE_ARRIVED_REPLY_ID, SPOKI_TEMPLATE_LATE_REPLY_ID,
+ * SPOKI_TEMPLATE_ABSENT_REPLY_ID, SPOKI_WEBHOOK_SECRET, SPOKI_INBOUND_SECRET.
  */
 export function parseEnv(
   source: EnvSource = readEnvSource(),
@@ -462,6 +474,11 @@ export function parseEnv(
     ),
     spokiTemplateWelcomeId: pickStringOrNull(source, 'SPOKI_TEMPLATE_WELCOME_ID'),
     spokiTemplateCompleteId: pickStringOrNull(source, 'SPOKI_TEMPLATE_COMPLETE_ID'),
+    spokiTemplateReminderD1Id: pickStringOrNull(source, 'SPOKI_TEMPLATE_REMINDER_D1_ID'),
+    spokiTemplateSameDayId: pickStringOrNull(source, 'SPOKI_TEMPLATE_SAME_DAY_ID'),
+    spokiTemplateArrivedReplyId: pickStringOrNull(source, 'SPOKI_TEMPLATE_ARRIVED_REPLY_ID'),
+    spokiTemplateLateReplyId: pickStringOrNull(source, 'SPOKI_TEMPLATE_LATE_REPLY_ID'),
+    spokiTemplateAbsentReplyId: pickStringOrNull(source, 'SPOKI_TEMPLATE_ABSENT_REPLY_ID'),
     spokiWebhookSecret: pickWebhookSecret(source, warn),
     spokiUrlReminderPreviousDay: pickStringOrNull(source, 'SPOKI_URL_REMINDER_PREVIOUS_DAY'),
     spokiUrlReminderSameDay: pickStringOrNull(source, 'SPOKI_URL_REMINDER_SAME_DAY'),

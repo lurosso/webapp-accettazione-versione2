@@ -414,9 +414,10 @@ raggiungibile", ma il BDC può comunque telefonare e chiudere: l'evento resta in
 ### Provare il portale cliente
 
 Il portale si apre su <http://localhost:3000/qr> (alias breve di `/cliente`, adatto ai cartelli con
-il QR code) oppure direttamente su `/portal?targa=AB123CD`, l'indirizzo che il cliente riceve via
-WhatsApp (con in più `&t=<token>`, il token unico della pratica che apre la pagina senza login e
-senza limiti di frequenza).
+il QR code), sullo smart link personale `/portal/<token>` che il cliente riceve su WhatsApp (il
+token unico della pratica apre la pagina senza login, senza scrivere la targa e senza limiti di
+frequenza), oppure direttamente su `/portal?targa=AB123CD` (la stessa ricerca del QR; resta valido
+anche `/portal?t=<token>`).
 
 La schermata mobile è pensata per chi aspetta **in auto, in fila** davanti all'officina e guarda lo
 schermo due secondi ogni tanto, e cambia
@@ -487,25 +488,31 @@ compare "in sala dalle HH:mm" — senza che l'accettatore ricarichi la pagina co
 
 - **Giorno prima** (alle `REMINDER_PREVIOUS_DAY_HOUR_LOCAL`, predefinito 18:00): il sistema
   anticipa la sincronizzazione dell'agenda di domani, così ogni pratica ha già il suo codice, e
-  scrive a chi è in attesa domani con data, orario, targa, codice (es. F041) e link al portale.
+  scrive a chi è in attesa domani: «Gentile cliente, le ricordiamo il suo appuntamento in AutoClub
+  per domani {data} alle ore {ora} per la vettura targa {targa}. A domani!».
 - **Giorno stesso** (alle `REMINDER_SAME_DAY_HOUR_LOCAL`, predefinito 07:30, dopo la sync): a chi è
-  in coda oggi arrivano orario, targa, codice e **tre risposte rapide**: «Arrivato», «In ritardo»,
-  «Assente». I pulsanti stanno nel template Spoki; il testo che li accompagna vale anche per l'SMS
-  di ripiego, dove si risponde scrivendo.
-- **Conferma di arrivo**, appena il cliente tocca «Arrivato»: il suo codice e il link alla pagina di
-  tracciamento. È così che oggi il cliente arriva alla pagina, senza inquadrare nessun QR.
+  in coda oggi arrivano orario e targa con **tre pulsanti rapidi**: «Sono arrivato», «In ritardo»,
+  «Non posso venire» (payload `ACTION_ARRIVED`, `ACTION_LATE`, `ACTION_ABSENT`, che Spoki
+  rimanda nel webhook). Sull'SMS di ripiego si risponde con 1, 2 o 3.
+- **Risposte automatiche ai pulsanti**: a chi tocca «Sono arrivato» arrivano il codice e lo **smart
+  link** personale `/portal/<token>`, che apre direttamente lo stato di attesa senza scrivere targa
+  né codice («Perfetto! Sei stato inserito in fila con il codice F012…»); a chi tocca «In ritardo»
+  la conferma che l'accettazione è stata avvisata; a chi tocca «Non posso venire» la conferma
+  dell'annullamento e che un operatore richiamerà. È così che il cliente arriva alla pagina di
+  tracciamento, senza inquadrare nessun QR.
 - **Presa in carico** («Prendi in carico» al banco o «Inizia check-in» dal tablet): benvenuto con il
-  link **personale** al portale (`/portal?targa=…&t=<token della pratica>`), dove il cliente segue
+  link **personale** al portale (lo smart link `/portal/<token della pratica>`), dove il cliente segue
   l'accettazione in tempo reale. Solo per le accettazioni in entrata e solo se a premere è stata una
   persona.
 - **Accettazione completata** (check-in concluso con foto e video, oppure «Completato» dal banco):
   «Procedura di accettazione completata. Grazie per la visita, puoi proseguire!». La chiusura
   d'ufficio delle 19:00 e le pratiche chiuse in ODL dalla sync non ringraziano nessuno.
 
-I due messaggi del check-in partono **via API** (`POST https://api.spoki.com/api/1/messages/send/`,
-intestazione `X-Spoki-Api-Key`) con il template approvato da Meta indicato per id in
-`SPOKI_TEMPLATE_WELCOME_ID` e `SPOKI_TEMPLATE_COMPLETE_ID`; i promemoria continuano a passare dalle
-automazioni (URL + segreto). Tutti sono idempotenti per pratica, tipo e giornata: riaprire e
+I messaggi partono **via API** (`POST https://api.spoki.com/api/1/messages/send/`, intestazione
+`X-Spoki-Api-Key`) con il template approvato da Meta indicato per id: `SPOKI_TEMPLATE_REMINDER_D1_ID`,
+`SPOKI_TEMPLATE_SAME_DAY_ID` (con `buttons[].payload`), `SPOKI_TEMPLATE_ARRIVED_REPLY_ID`,
+`SPOKI_TEMPLATE_LATE_REPLY_ID`, `SPOKI_TEMPLATE_ABSENT_REPLY_ID`, `SPOKI_TEMPLATE_WELCOME_ID`,
+`SPOKI_TEMPLATE_COMPLETE_ID`. Un promemoria senza id resta sull'automazione (URL + segreto). Tutti sono idempotenti per pratica, tipo e giornata: riaprire e
 riprendere in carico la stessa pratica non manda un secondo benvenuto.
 
 I promemoria sono idempotenti per pratica e giornata e si possono lanciare anche da un cron esterno
@@ -522,11 +529,11 @@ forma piatta delle automazioni, autenticata con il segreto condiviso `SPOKI_INBO
 corpo `secret` o nell'intestazione `x-spoki-secret`). Senza nessun segreto configurato la rotta
 risponde 404. Ogni risposta diventa un fatto dell'officina:
 
-| Risposta       | Cosa succede                                                                                              |
-| -------------- | --------------------------------------------------------------------------------------------------------- |
-| **Arrivato**   | Si annota l'ora dell'arrivo, la pratica resta al suo posto in coda e parte la risposta con codice e link  |
-| **In ritardo** | Come il pulsante del portale: l'arrivo atteso si sposta di 10 minuti e la dashboard mostra l'avviso ambra |
-| **Assente**    | La pratica diventa assente e finisce nel cruscotto BDC, con scritto che è stato il cliente a dirlo        |
+| Pulsante                               | Cosa succede                                                                                                                                                      |
+| -------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Sono arrivato** (`ACTION_ARRIVED`)   | Si annota l'ora dell'arrivo («in fila dalle …» in dashboard), la pratica resta al suo posto in coda e parte la risposta con codice e smart link `/portal/<token>` |
+| **In ritardo** (`ACTION_LATE`)         | Come il pulsante del portale: l'arrivo atteso si sposta di 10 minuti, la dashboard mostra l'avviso ambra e il cliente riceve la conferma                          |
+| **Non posso venire** (`ACTION_ABSENT`) | La pratica diventa assente (lo slot in coda si libera), finisce nel cruscotto BDC con scritto che è stato il cliente a dirlo, e il cliente riceve la conferma     |
 
 Il webhook è prudente per costruzione: un testo che non è una delle tre risposte, o un numero senza
 pratica in agenda oggi, riceve `200 {"handled": false}` e non tocca niente — sul numero
@@ -852,12 +859,13 @@ per i cron esterni.
 
 ### Portale cliente (live tracking)
 
-| Rotta            | Metodo | Descrizione                                                                                                                                                                        | Accesso  |
-| ---------------- | ------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------- |
-| `/portal`        | pagina | Tracciamento del cliente dal link WhatsApp o dal QR (`?targa=` e `&t=` token): posizione in fila, lettera dello sportello, orari di arrivo e chiamata, "Sto arrivando in ritardo". | Pubblico |
-| `/cliente`       | pagina | Ingresso dal QR code: ricerca per targa.                                                                                                                                           | Pubblico |
-| `/cliente/stato` | pagina | Esito della ricerca per targa: la stessa schermata del portale.                                                                                                                    | Pubblico |
-| `/qr`            | pagina | Alias corto stampato sui cartelli: rimanda a /cliente (con `?src=` corsia).                                                                                                        | Pubblico |
+| Rotta            | Metodo | Descrizione                                                                                                                                                                           | Accesso  |
+| ---------------- | ------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------- |
+| `/portal`        | pagina | Tracciamento del cliente dal QR (`?targa=`) o dal token (`?t=`): posizione in fila, lettera dello sportello, orari di arrivo e chiamata, "Sono arrivato", "Sto arrivando in ritardo". | Pubblico |
+| `/portal/:token` | pagina | Smart link personale ricevuto su WhatsApp: apre direttamente lo stato di attesa della pratica legata al token, senza targa né codice (stessa schermata di /portal).                   | Pubblico |
+| `/cliente`       | pagina | Ingresso dal QR code: ricerca per targa.                                                                                                                                              | Pubblico |
+| `/cliente/stato` | pagina | Esito della ricerca per targa: la stessa schermata del portale.                                                                                                                       | Pubblico |
+| `/qr`            | pagina | Alias corto stampato sui cartelli: rimanda a /cliente (con `?src=` corsia).                                                                                                           | Pubblico |
 
 ### API: autenticazione
 

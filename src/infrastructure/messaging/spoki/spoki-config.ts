@@ -4,13 +4,17 @@
 // - AUTOMAZIONE: ogni automazione espone un URL (`https://api.spoki.com/wh/ap/<uuid>/`) che si
 //   chiama con il segreto dell'automazione nel payload:
 //     { secret, phone, first_name, last_name, email, custom_fields: { … } }
-//   È il modo dei due promemoria (giorno prima, giorno stesso), configurati con SPOKI_URL_* e
-//   SPOKI_SECRET_*.
+//   Configurata con SPOKI_URL_* e SPOKI_SECRET_*.
 // - TEMPLATE via API: `POST https://api.spoki.com/api/1/messages/send/` con la chiave API
 //   dell'account nell'intestazione `X-Spoki-Api-Key` e il template approvato da Meta per id:
-//     { type: "Template", phone, template: <id>, language, custom_fields: { … }, metadata: { … } }
-//   È il modo dei messaggi del check-in (benvenuto con link al portale, fine accettazione),
-//   configurati con SPOKI_TEMPLATE_WELCOME_ID e SPOKI_TEMPLATE_COMPLETE_ID.
+//     { type: "Template", phone, template: <id>, language, custom_fields: { … }, buttons, metadata }
+//   Configurata con SPOKI_TEMPLATE_*_ID. I pulsanti rapidi del promemoria del giorno stesso
+//   («Sono arrivato», «In ritardo», «Non posso venire») viaggiano con un payload tecnico
+//   (ACTION_ARRIVED, ACTION_LATE, ACTION_ABSENT) che Spoki rimanda nel webhook `message.inbound`.
+//
+// Per ogni template vince l'id se configurato, altrimenti l'URL dell'automazione; senza nessuno
+// dei due si sceglie in base alla variabile prevista, così in simulazione il registro dice cosa
+// manca.
 //
 // GUARDRAIL: nessuna chiamata HTTP parte se `SPOKI_MODE` non è `live` oppure se
 // `SPOKI_SAFETY_LOCK` è attivo (predefinito). Con `SPOKI_ENABLED=false` (predefinito) o senza
@@ -22,6 +26,9 @@ import type { SpokiMode } from '@/services/interfaces/provider-kinds';
 export type SpokiTemplateKind =
   | 'REMINDER_PREVIOUS_DAY'
   | 'REMINDER_SAME_DAY'
+  | 'ARRIVAL_CONFIRMED'
+  | 'LATE_CONFIRMED'
+  | 'ABSENT_CONFIRMED'
   | 'CHECK_IN_STARTED'
   | 'CHECK_IN_COMPLETED'
   | 'CONFIRMATION'
@@ -31,6 +38,9 @@ export type SpokiTemplateKind =
 export const SPOKI_TEMPLATE_KINDS: readonly SpokiTemplateKind[] = [
   'REMINDER_PREVIOUS_DAY',
   'REMINDER_SAME_DAY',
+  'ARRIVAL_CONFIRMED',
+  'LATE_CONFIRMED',
+  'ABSENT_CONFIRMED',
   'CHECK_IN_STARTED',
   'CHECK_IN_COMPLETED',
   'CONFIRMATION',
@@ -39,12 +49,16 @@ export const SPOKI_TEMPLATE_KINDS: readonly SpokiTemplateKind[] = [
 ];
 
 /**
- * I template integrati: i due promemoria (automazioni) e i due messaggi del check-in (template
- * via API). Gli altri restano definiti per SMS e log ma non hanno una configurazione Spoki.
+ * I template integrati: i due promemoria, le tre risposte automatiche ai pulsanti del promemoria
+ * del giorno stesso e i due messaggi del check-in. Gli altri restano definiti per SMS e log ma
+ * non hanno una configurazione Spoki.
  */
 export const SPOKI_ACTIVE_TEMPLATE_KINDS: readonly SpokiTemplateKind[] = [
   'REMINDER_PREVIOUS_DAY',
   'REMINDER_SAME_DAY',
+  'ARRIVAL_CONFIRMED',
+  'LATE_CONFIRMED',
+  'ABSENT_CONFIRMED',
   'CHECK_IN_STARTED',
   'CHECK_IN_COMPLETED',
 ];
@@ -53,6 +67,9 @@ export const SPOKI_ACTIVE_TEMPLATE_KINDS: readonly SpokiTemplateKind[] = [
 export const TEMPLATE_KIND_BY_KEY: Readonly<Record<string, SpokiTemplateKind>> = {
   reminder_previous_day_v1: 'REMINDER_PREVIOUS_DAY',
   reminder_same_day_v1: 'REMINDER_SAME_DAY',
+  arrival_confirmed_v1: 'ARRIVAL_CONFIRMED',
+  late_confirmed_v1: 'LATE_CONFIRMED',
+  absent_confirmed_v1: 'ABSENT_CONFIRMED',
   check_in_started_v1: 'CHECK_IN_STARTED',
   check_in_completed_v1: 'CHECK_IN_COMPLETED',
   booking_confirmed_v1: 'CONFIRMATION',
@@ -64,6 +81,9 @@ export const TEMPLATE_KIND_BY_KEY: Readonly<Record<string, SpokiTemplateKind>> =
 export const SPOKI_URL_ENV_KEYS: Readonly<Record<SpokiTemplateKind, string>> = {
   REMINDER_PREVIOUS_DAY: 'SPOKI_URL_REMINDER_PREVIOUS_DAY',
   REMINDER_SAME_DAY: 'SPOKI_URL_REMINDER_SAME_DAY',
+  ARRIVAL_CONFIRMED: 'SPOKI_URL_ARRIVAL_CONFIRMED',
+  LATE_CONFIRMED: 'SPOKI_URL_LATE_CONFIRMED',
+  ABSENT_CONFIRMED: 'SPOKI_URL_ABSENT_CONFIRMED',
   CHECK_IN_STARTED: 'SPOKI_URL_CHECK_IN_STARTED',
   CHECK_IN_COMPLETED: 'SPOKI_URL_CHECK_IN_COMPLETED',
   CONFIRMATION: 'SPOKI_URL_CONFIRMATION',
@@ -75,6 +95,9 @@ export const SPOKI_URL_ENV_KEYS: Readonly<Record<SpokiTemplateKind, string>> = {
 export const SPOKI_SECRET_ENV_KEYS: Readonly<Record<SpokiTemplateKind, string>> = {
   REMINDER_PREVIOUS_DAY: 'SPOKI_SECRET_REMINDER_PREVIOUS_DAY',
   REMINDER_SAME_DAY: 'SPOKI_SECRET_REMINDER_SAME_DAY',
+  ARRIVAL_CONFIRMED: 'SPOKI_SECRET_ARRIVAL_CONFIRMED',
+  LATE_CONFIRMED: 'SPOKI_SECRET_LATE_CONFIRMED',
+  ABSENT_CONFIRMED: 'SPOKI_SECRET_ABSENT_CONFIRMED',
   CHECK_IN_STARTED: 'SPOKI_SECRET_CHECK_IN_STARTED',
   CHECK_IN_COMPLETED: 'SPOKI_SECRET_CHECK_IN_COMPLETED',
   CONFIRMATION: 'SPOKI_SECRET_CONFIRMATION',
@@ -82,15 +105,51 @@ export const SPOKI_SECRET_ENV_KEYS: Readonly<Record<SpokiTemplateKind, string>> 
   CANCELLATION: 'SPOKI_SECRET_CANCELLATION',
 };
 
-/** Variabile d'ambiente con l'id del template Meta per l'invio via API; null se il template va via automazione. */
+/**
+ * Variabile d'ambiente con l'id del template Meta per l'invio via API; null per i template che
+ * non hanno un invio via API previsto.
+ */
 export const SPOKI_TEMPLATE_ID_ENV_KEYS: Readonly<Record<SpokiTemplateKind, string | null>> = {
-  REMINDER_PREVIOUS_DAY: null,
-  REMINDER_SAME_DAY: null,
+  REMINDER_PREVIOUS_DAY: 'SPOKI_TEMPLATE_REMINDER_D1_ID',
+  REMINDER_SAME_DAY: 'SPOKI_TEMPLATE_SAME_DAY_ID',
+  ARRIVAL_CONFIRMED: 'SPOKI_TEMPLATE_ARRIVED_REPLY_ID',
+  LATE_CONFIRMED: 'SPOKI_TEMPLATE_LATE_REPLY_ID',
+  ABSENT_CONFIRMED: 'SPOKI_TEMPLATE_ABSENT_REPLY_ID',
   CHECK_IN_STARTED: 'SPOKI_TEMPLATE_WELCOME_ID',
   CHECK_IN_COMPLETED: 'SPOKI_TEMPLATE_COMPLETE_ID',
   CONFIRMATION: null,
   TURN_APPROACHING: null,
   CANCELLATION: null,
+};
+
+/** Payload tecnici dei pulsanti rapidi: sono quelli che Spoki rimanda nel webhook `message.inbound`. */
+export const SPOKI_QUICK_REPLY_PAYLOADS = [
+  'ACTION_ARRIVED',
+  'ACTION_LATE',
+  'ACTION_ABSENT',
+] as const;
+
+export type SpokiQuickReplyPayload = (typeof SPOKI_QUICK_REPLY_PAYLOADS)[number];
+
+/** Un pulsante rapido del template: ordine, etichetta (come nel template Meta) e payload. */
+export interface SpokiQuickReply {
+  readonly order: number;
+  readonly label: string;
+  readonly payload: SpokiQuickReplyPayload;
+}
+
+/**
+ * Pulsanti per template. Il promemoria del giorno stesso ne ha tre: il cliente tocca e Spoki
+ * rimanda il payload, che il webhook traduce in «arrivato», «in ritardo», «assente».
+ */
+export const SPOKI_QUICK_REPLIES: Readonly<
+  Partial<Record<SpokiTemplateKind, readonly SpokiQuickReply[]>>
+> = {
+  REMINDER_SAME_DAY: [
+    { order: 0, label: 'SONO_ARRIVATO', payload: 'ACTION_ARRIVED' },
+    { order: 1, label: 'IN_RITARDO', payload: 'ACTION_LATE' },
+    { order: 2, label: 'NON_POSSO_VENIRE', payload: 'ACTION_ABSENT' },
+  ],
 };
 
 /** Indirizzo ufficiale delle API Spoki (percorsi `/api/1/…`); sovrascrivibile con SPOKI_API_BASE_URL. */
@@ -130,7 +189,7 @@ export interface SpokiCustomFields {
   readonly time: string;
   /** Data dell'appuntamento, "GG/MM/AAAA" (serve al promemoria del giorno prima). */
   readonly date: string;
-  /** Link personale al portale cliente: `${PUBLIC_BASE_URL}/portal?targa=${plate}&t=<token>`. */
+  /** Smart link personale al portale cliente: `${PUBLIC_BASE_URL}/portal/<token>`. */
   readonly portal_url: string;
 }
 
@@ -157,6 +216,12 @@ export interface SpokiSendMetadata {
   readonly correlation_id: string;
 }
 
+/** Pulsante nel payload di invio: ordine e payload che tornerà nel webhook. */
+export interface SpokiSendButton {
+  readonly order: number;
+  readonly payload: string;
+}
+
 /** Payload di `POST /api/1/messages/send/` per un template approvato (formato Spoki). */
 export interface SpokiTemplateSendPayload {
   readonly type: 'Template';
@@ -170,6 +235,8 @@ export interface SpokiTemplateSendPayload {
   /** Spoki accetta l'e-mail vuota: si manda sempre, come nell'automazione. */
   readonly email: string;
   readonly custom_fields: SpokiCustomFields;
+  /** Pulsanti rapidi con il payload da ricevere nel webhook; solo per i template che li hanno. */
+  readonly buttons?: readonly SpokiSendButton[];
   readonly metadata: SpokiSendMetadata;
 }
 
@@ -187,6 +254,25 @@ export type SpokiTransport =
       readonly templateId: string | null;
       readonly payload: SpokiTemplateSendPayload;
     };
+
+/**
+ * Quale trasporto usa un template: l'id del template se configurato, altrimenti l'URL
+ * dell'automazione se configurato; senza nessuno dei due, quello che la configurazione prevede
+ * (l'id se il template ha una variabile SPOKI_TEMPLATE_*_ID, altrimenti l'automazione).
+ */
+export function resolveTransportKind(
+  kind: SpokiTemplateKind,
+  templateId: string | null,
+  url: string | null,
+): 'TEMPLATE' | 'AUTOMATION' {
+  if (templateId !== null) {
+    return 'TEMPLATE';
+  }
+  if (url !== null) {
+    return 'AUTOMATION';
+  }
+  return SPOKI_TEMPLATE_ID_ENV_KEYS[kind] !== null ? 'TEMPLATE' : 'AUTOMATION';
+}
 
 /**
  * Regola unica del guardrail: la chiamata HTTP verso Spoki è ammessa solo con `mode = live` E

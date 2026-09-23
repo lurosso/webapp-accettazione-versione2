@@ -28,8 +28,12 @@ export type NotificationKind =
   | 'REMINDER_SAME_DAY'
   | 'CHECK_IN_STARTED'
   | 'CHECK_IN_COMPLETED'
-  /** Risposta automatica a chi ha toccato «Arrivato»: codice in coda e link al tracciamento. */
+  /** Risposta automatica a chi ha toccato «Sono arrivato»: codice in coda e smart link al tracciamento. */
   | 'ARRIVAL_CONFIRMED'
+  /** Risposta automatica a chi ha toccato «In ritardo»: l'accettazione è avvisata. */
+  | 'LATE_CONFIRMED'
+  /** Risposta automatica a chi ha toccato «Non posso venire»: prenotazione annullata, il BDC richiama. */
+  | 'ABSENT_CONFIRMED'
   | 'BOOKING_CONFIRMED'
   | 'TURN_APPROACHING'
   | 'YOUR_TURN'

@@ -1,14 +1,19 @@
 // Risposte del cliente su WhatsApp (modulo C, lato in entrata).
 //
-// Il messaggio del mattino porta tre risposte rapide — «Arrivato», «In ritardo», «Assente» — e
-// Spoki ce le rimanda su un webhook. Qui quelle tre parole diventano tre fatti dell'officina:
+// Il messaggio del mattino porta tre pulsanti rapidi — «Sono arrivato», «In ritardo», «Non posso
+// venire» — e Spoki ce li rimanda su un webhook con il loro payload (ACTION_ARRIVED, ACTION_LATE,
+// ACTION_ABSENT); chi risponde scrivendo (SMS di ripiego) usa le parole o il numero dell'opzione.
+// Qui quei tre gesti diventano tre fatti dell'officina, ognuno con la sua risposta automatica:
 //
-// - ARRIVATO   → la pratica resta in coda, ma si annota l'ora dell'arrivo e il cliente riceve
-//                subito codice e link alla pagina di tracciamento (niente più QR da inquadrare);
+// - ARRIVATO   → la pratica resta in coda al suo posto, ma si annota l'ora dell'arrivo («in fila
+//                dalle …» in dashboard) e il cliente riceve subito codice e smart link personale
+//                al tracciamento (niente più QR da inquadrare);
 // - IN RITARDO → la stessa segnalazione del portale: l'arrivo atteso si sposta e la dashboard
-//                mostra l'avviso ambra, senza toccare l'ordine della coda;
-// - ASSENTE    → il cliente dice che non viene: la pratica diventa NO_SHOW e il BDC la trova nel
-//                proprio elenco per richiamarlo e riprogrammare l'appuntamento su Infinity.
+//                mostra l'avviso ambra, senza toccare l'ordine della coda; il cliente riceve la
+//                conferma che l'accettazione è stata avvisata;
+// - ASSENTE    → il cliente dice che non viene: la pratica diventa NO_SHOW (lo slot in coda si
+//                libera) e il BDC la trova nel proprio elenco per richiamarlo e riprogrammare
+//                l'appuntamento su Infinity; il cliente riceve la conferma dell'annullamento.
 //
 // Tutto passa dai casi d'uso esistenti (portale e coda): questo servizio traduce, non decide.
 // Un messaggio che non corrisponde a nessuna delle tre risposte viene ignorato senza errori: sul
@@ -16,6 +21,7 @@
 import type { Appointment } from '@/domain/entities/appointment';
 import { isInQueue } from '@/domain/entities/appointment';
 import type { Brand } from '@/domain/entities/brand';
+import type { NotificationKind } from '@/domain/entities/notification';
 import { domainError, type DomainError } from '@/domain/errors';
 import { err, ok, type Result } from '@/domain/result';
 import { parsePhoneE164, type PhoneE164 } from '@/domain/value-objects/phone';
@@ -34,14 +40,26 @@ export type CustomerReply = 'ARRIVED' | 'LATE' | 'ABSENT';
 /** Motivo registrato sulla pratica quando è il cliente a dichiararsi assente. */
 export const CUSTOMER_ABSENT_REASON = 'Il cliente ha risposto «Assente» al messaggio WhatsApp';
 
+/** Payload tecnici dei tre pulsanti rapidi del template Spoki, come tornano nel webhook. */
+export const QUICK_REPLY_BY_PAYLOAD: Readonly<Record<string, CustomerReply>> = {
+  ACTION_ARRIVED: 'ARRIVED',
+  ACTION_LATE: 'LATE',
+  ACTION_ABSENT: 'ABSENT',
+};
+
 /**
- * Riconosce la risposta del cliente. Spoki può mandare l'etichetta del pulsante, il testo scritto
- * a mano (sull'SMS di ripiego si risponde scrivendo) o il numero dell'opzione: si accettano tutte
- * e tre le forme, senza accenti e senza distinzione fra maiuscole e minuscole.
+ * Riconosce la risposta del cliente. Spoki manda il payload del pulsante (ACTION_ARRIVED,
+ * ACTION_LATE, ACTION_ABSENT) o la sua etichetta; chi scrive a mano (sull'SMS di ripiego) usa le
+ * parole o il numero dell'opzione: si accettano tutte le forme, senza accenti e senza distinzione
+ * fra maiuscole e minuscole.
  */
 export function parseCustomerReply(raw: string | null | undefined): CustomerReply | null {
   if (raw === null || raw === undefined) {
     return null;
+  }
+  const payload = QUICK_REPLY_BY_PAYLOAD[raw.trim().toUpperCase()];
+  if (payload !== undefined) {
+    return payload;
   }
   const testo = raw
     .normalize('NFD')
@@ -53,13 +71,19 @@ export function parseCustomerReply(raw: string | null | undefined): CustomerRepl
   if (testo === '') {
     return null;
   }
-  if (/\b(arrivat[oa]|sono qui|sono arrivat[oa]|presente|arrived)\b/.test(testo) || testo === '1') {
+  if (
+    /\b(arrivat[oa]|sono qui|sono arrivat[oa]|presente|arrived|action arrived)\b/.test(testo) ||
+    testo === '1'
+  ) {
     return 'ARRIVED';
   }
-  if (/\b(in ritardo|ritardo|tardi|late)\b/.test(testo) || testo === '2') {
+  if (/\b(in ritardo|ritardo|tardi|late|action late)\b/.test(testo) || testo === '2') {
     return 'LATE';
   }
-  if (/\b(assente|non vengo|non posso|annull\w*|disdi\w*|no show)\b/.test(testo) || testo === '3') {
+  if (
+    /\b(assente|non vengo|non posso|annull\w*|disdi\w*|no show|action absent)\b/.test(testo) ||
+    testo === '3'
+  ) {
     return 'ABSENT';
   }
   return null;
@@ -83,7 +107,7 @@ export interface InboundResult {
   readonly appointment: Appointment;
   /** True quando la risposta non ha cambiato nulla perché era già stata registrata. */
   readonly repeated: boolean;
-  /** True se al cliente è partita (o è stata messa in coda) la risposta con codice e link. */
+  /** True se al cliente è partita (o è stata messa in coda) la risposta automatica. */
   readonly replySent: boolean;
 }
 
@@ -127,7 +151,7 @@ export class WhatsAppInboundService {
       case 'ARRIVED':
         return this.registerArrival(appointment, message.correlationId ?? null);
       case 'LATE':
-        return this.registerLate(appointment);
+        return this.registerLate(appointment, message.correlationId ?? null);
       case 'ABSENT':
         return this.registerAbsent(appointment, message.correlationId ?? null);
     }
@@ -155,7 +179,11 @@ export class WhatsAppInboundService {
         replySent: false,
       });
     }
-    const replySent = await this.sendArrivalReply(esito.value.appointment, correlationId);
+    const replySent = await this.sendReply(
+      esito.value.appointment,
+      'ARRIVAL_CONFIRMED',
+      correlationId,
+    );
     return ok({
       reply: 'ARRIVED',
       appointment: esito.value.appointment,
@@ -164,20 +192,29 @@ export class WhatsAppInboundService {
     });
   }
 
-  /** «In ritardo»: la stessa segnalazione del portale, con i suoi limiti e il suo evento. */
-  private async registerLate(a: Appointment): Promise<Result<InboundResult, DomainError>> {
+  /**
+   * «In ritardo»: la stessa segnalazione del portale, con i suoi limiti e il suo evento; al primo
+   * tocco il cliente riceve la conferma che l'accettazione è stata avvisata.
+   */
+  private async registerLate(
+    a: Appointment,
+    correlationId: string | null,
+  ): Promise<Result<InboundResult, DomainError>> {
     const prima = a.customerLateNoticeAt;
-    const esito = await this.deps.portal.reportDelay({ plate: a.vehicle.plate });
+    const esito = await this.deps.portal.reportDelay(
+      { plate: a.vehicle.plate },
+      undefined,
+      'WHATSAPP',
+    );
     if (!esito.ok) {
       return esito;
     }
     const corrente = (await this.deps.appointments.findById(a.id)) ?? a;
-    return ok({
-      reply: 'LATE',
-      appointment: corrente,
-      repeated: prima !== null && corrente.customerLateNoticeAt === prima,
-      replySent: false,
-    });
+    const repeated = prima !== null && corrente.customerLateNoticeAt === prima;
+    const replySent = repeated
+      ? false
+      : await this.sendReply(corrente, 'LATE_CONFIRMED', correlationId);
+    return ok({ reply: 'LATE', appointment: corrente, repeated, replySent });
   }
 
   /**
@@ -206,11 +243,19 @@ export class WhatsAppInboundService {
       return esito;
     }
     this.logger.info(`cliente assente per sua segnalazione: ${a.code}`, { appointmentId: a.id });
-    return ok({ reply: 'ABSENT', appointment: esito.value, repeated: false, replySent: false });
+    const replySent = await this.sendReply(esito.value, 'ABSENT_CONFIRMED', correlationId);
+    return ok({ reply: 'ABSENT', appointment: esito.value, repeated: false, replySent });
   }
 
-  /** Risposta al cliente con il codice e il link di tracciamento; un guasto qui non annulla l'arrivo. */
-  private async sendArrivalReply(a: Appointment, correlationId: string | null): Promise<boolean> {
+  /**
+   * Risposta automatica al cliente (codice e smart link, ritardo registrato, annullamento);
+   * un guasto qui non annulla il fatto già registrato sulla pratica.
+   */
+  private async sendReply(
+    a: Appointment,
+    kind: Extract<NotificationKind, 'ARRIVAL_CONFIRMED' | 'LATE_CONFIRMED' | 'ABSENT_CONFIRMED'>,
+    correlationId: string | null,
+  ): Promise<boolean> {
     const brands: readonly Brand[] = await this.deps.referenceData.listBrands();
     const brand = brands.find((b) => b.id === a.brandId);
     if (brand === undefined) {
@@ -221,7 +266,7 @@ export class WhatsAppInboundService {
       const run = await this.deps.orchestrator.sendReminder({
         appointment: a,
         brand,
-        kind: 'ARRIVAL_CONFIRMED',
+        kind,
         correlationId: correlationId ?? this.deps.ids.next(),
       });
       // Consegnato su WhatsApp, ripiegato su SMS o già mandato: per il cliente è partita.
@@ -231,8 +276,9 @@ export class WhatsAppInboundService {
         run.outcome.kind === 'ALREADY_PROCESSED'
       );
     } catch (cause) {
-      this.logger.error('risposta di conferma non inviata', {
+      this.logger.error('risposta automatica non inviata', {
         code: a.code,
+        kind,
         errore: cause instanceof Error ? cause.message : String(cause),
       });
       return false;
