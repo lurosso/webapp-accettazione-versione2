@@ -600,7 +600,8 @@ contatto `ACC_CODICE`, `ACC_TARGA`, `ACC_DATA` (GG/MM/AAAA), `ACC_ORA`, `ACC_GIO
 (AAAA-MM-GG, campo data per le automazioni a data), `ACC_LINK` (smart link personale) e
 `ACC_PROMEMORIA` (`DA_INVIARE` dopo il promemoria del giorno prima, `INVIATO` dopo qualunque
 messaggio del giorno stesso): così le automazioni di Spoki hanno tutto quello che serve anche quando
-il server dell'officina non risponde.
+il server dell'officina non risponde. Campi, template, automazioni e configurazione dell'account
+(`npm run spoki:setup`) sono in [`docs/SPOKI.md`](docs/SPOKI.md).
 
 **Demo interna.** Dal 2026-09-24 i test su WhatsApp sono solo interni. Anche con `SPOKI_MODE=live` e
 il blocco tolto, un WhatsApp reale parte **solo** verso i numeri di `SPOKI_ALLOWED_RECIPIENTS` (i
@@ -1067,4 +1068,5 @@ tests/              Test unitari, di contratto e di integrazione (Vitest)
 - [`docs/DESIGN_SYSTEM.md`](docs/DESIGN_SYSTEM.md): colore, densità, primitivi e regole dell'interfaccia — da leggere prima di scrivere una schermata nuova.
 - [`docs/AUDIT_PRODUZIONE.md`](docs/AUDIT_PRODUZIONE.md): cosa manca per la produzione, casi limite non coperti, passo successivo raccomandato.
 - [`docs/INFINITY_ODBC.md`](docs/INFINITY_ODBC.md): integrazione con il database Infinity via ODBC (mappatura delle tabelle, limiti riscontrati, passaggio a `infinity01`).
+- [`docs/SPOKI.md`](docs/SPOKI.md): WhatsApp che regge anche a server giù — campi del contatto, template, automazioni Spoki, webhook, `npm run spoki:setup` e prova della demo interna.
 - [`CLAUDE.md`](CLAUDE.md): regole di sviluppo e priorità.

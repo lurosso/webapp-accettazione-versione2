@@ -82,7 +82,7 @@ export const NOTIFICATION_TEMPLATES: Readonly<Record<NotificationKind, Notificat
   CHECK_IN_STARTED: {
     spokiTemplateKey: 'check_in_started_v1',
     render: (v) =>
-      `Buongiorno ${v.firstName}, la sua vettura ${v.plate} è in accettazione presso Autoclub Group (pratica ${v.code}). Segua lo stato in tempo reale dal suo link personale: ${v.portalUrl}`,
+      `Buongiorno ${v.firstName}, la sua vettura ${v.plate} è in accettazione presso Autoclub Group (pratica ${v.code}). Segua lo stato in tempo reale dal suo link personale: ${v.portalUrl} Grazie per averci scelto.`,
   },
   CHECK_IN_COMPLETED: {
     spokiTemplateKey: 'check_in_completed_v1',
@@ -92,7 +92,7 @@ export const NOTIFICATION_TEMPLATES: Readonly<Record<NotificationKind, Notificat
   ARRIVAL_CONFIRMED: {
     spokiTemplateKey: 'arrival_confirmed_v1',
     render: (v) =>
-      `Perfetto! Sei stato inserito in fila con il codice ${v.code}. Puoi monitorare l'attesa in tempo reale da questo link personalizzato: ${v.portalUrl}`,
+      `Perfetto! Sei stato inserito in fila con il codice ${v.code}. Puoi monitorare l'attesa in tempo reale da questo link personalizzato: ${v.portalUrl} Ti chiameremo con il tuo codice.`,
   },
   LATE_CONFIRMED: {
     spokiTemplateKey: 'late_confirmed_v1',

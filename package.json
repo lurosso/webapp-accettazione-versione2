@@ -21,6 +21,7 @@
     "infinity:check": "vitest run tests/integration/infinity-odbc.test.ts --reporter=verbose",
     "seed:credenziali": "node scripts/genera-credenziali.mjs",
     "rotte": "node scripts/mappa-rotte.mjs",
+    "spoki:setup": "node scripts/spoki-setup.mjs",
     "postinstall": "prisma generate",
     "db:generate": "prisma generate",
     "db:migrate": "prisma migrate deploy",
