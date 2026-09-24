@@ -4,6 +4,7 @@
 // della coda vive in memoria nel processo (InMemoryStore su globalThis, vedi ARCHITECTURE.md §6.1).
 import type { NextConfig } from 'next';
 import { devOrigins } from './src/config/dev-origins';
+import { PROXY_CLIENT_MAX_BODY_BYTES } from './src/config/request-limits';
 
 /**
  * Intestazioni di sicurezza fisse su ogni risposta. La Content-Security-Policy NON sta qui: ha
@@ -36,6 +37,11 @@ const nextConfig: NextConfig = {
   // runtime dal processo Node solo quando INFINITY_PROVIDER=real.
   // Stessa cosa per SQLite: `better-sqlite3` è nativo e l'adapter Prisma lo richiede a runtime.
   serverExternalPackages: ['odbc', 'better-sqlite3', '@prisma/adapter-better-sqlite3'],
+  experimental: {
+    // Il proxy copia il corpo delle richieste fino a questa soglia e oltre TRONCA in silenzio: con i
+    // 10 MB di default un video del check-in più grande arrivava monco alla rotta dei media.
+    proxyClientMaxBodySize: PROXY_CLIENT_MAX_BODY_BYTES,
+  },
   async headers() {
     return [{ source: '/:path*', headers: SECURITY_HEADERS }];
   },
