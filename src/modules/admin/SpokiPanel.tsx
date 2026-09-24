@@ -170,7 +170,7 @@ export function SpokiPanel({ timeZone }: SpokiPanelProps) {
 
           {/* Configurazione */}
           <div className="grid gap-3 sm:grid-cols-2">
-            <div className="rounded-lg border border-slate-200 bg-slate-50 p-3">
+            <div className="min-w-0 rounded-lg border border-slate-200 bg-slate-50 p-3">
               <p className="text-xs font-semibold tracking-wide text-slate-500 uppercase">
                 Chiave API (SPOKI_API_KEY) e orari
               </p>
@@ -201,13 +201,13 @@ export function SpokiPanel({ timeZone }: SpokiPanelProps) {
                 Webhook degli esiti (Spoki → Integrazioni → Webhook, eventi{' '}
                 <span className="font-mono">message.outbound</span> e{' '}
                 <span className="font-mono">message.inbound</span>, versione 2):{' '}
-                <span className="font-mono">{data.webhookUrl}</span>
+                <span className="font-mono break-all">{data.webhookUrl}</span>
                 {data.webhookSecretConfigured
                   ? ' · firma verificata con SPOKI_WEBHOOK_SECRET'
                   : ' · SPOKI_WEBHOOK_SECRET assente: gli esiti non vengono accettati'}
               </p>
             </div>
-            <div className="rounded-lg border border-slate-200 bg-slate-50 p-3">
+            <div className="min-w-0 rounded-lg border border-slate-200 bg-slate-50 p-3">
               <p className="text-xs font-semibold tracking-wide text-slate-500 uppercase">
                 Automazioni e template
               </p>
@@ -216,12 +216,12 @@ export function SpokiPanel({ timeZone }: SpokiPanelProps) {
                   <li key={t.kind} className="flex flex-wrap items-center justify-between gap-2">
                     <span>
                       {t.label}{' '}
-                      <span className="font-mono text-xs text-slate-500">
+                      <span className="font-mono text-xs break-all text-slate-500">
                         {t.transport === 'AUTOMATION' ? t.urlEnvKey : t.templateEnvKey}
                       </span>
                     </span>
                     {t.transport === 'AUTOMATION' ? (
-                      <span className="flex gap-1">
+                      <span className="flex flex-wrap gap-1">
                         <Badge
                           tone={t.urlConfigured ? 'success' : 'warning'}
                           title={t.urlPreview ?? undefined}
@@ -233,7 +233,7 @@ export function SpokiPanel({ timeZone }: SpokiPanelProps) {
                         </Badge>
                       </span>
                     ) : (
-                      <span className="flex gap-1">
+                      <span className="flex flex-wrap gap-1">
                         <Badge tone={t.templateConfigured ? 'success' : 'warning'}>
                           {t.templateConfigured
                             ? `template ${t.templateId ?? ''}`
@@ -406,9 +406,9 @@ export function SpokiPanel({ timeZone }: SpokiPanelProps) {
                 <span className="font-mono">SPOKI_TEMPLATE_COMPLETE_ID</span> a check-in concluso.
               </li>
               <li>
-                Gli esiti tornano su <span className="font-mono">{data.webhookUrl}</span> firmati
-                con <span className="font-mono">X-Spoki-Signature</span> (HMAC-SHA256 del corpo,
-                segreto <span className="font-mono">SPOKI_WEBHOOK_SECRET</span>): inviato,
+                Gli esiti tornano su <span className="font-mono break-all">{data.webhookUrl}</span>{' '}
+                firmati con <span className="font-mono">X-Spoki-Signature</span> (HMAC-SHA256 del
+                corpo, segreto <span className="font-mono">SPOKI_WEBHOOK_SECRET</span>): inviato,
                 consegnato, letto o fallito compaiono sulla pratica in coda e in archivio.
               </li>
               <li>
