@@ -125,6 +125,9 @@ export function createExternalServices(env: AppEnv, deps: ExternalServiceDeps): 
             mode: env.spokiMode,
             // GUARDRAIL: con il blocco attivo nessuna chiamata HTTP parte, nemmeno in live.
             safetyLock: env.spokiSafetyLock,
+            // Demo interna: finché SPOKI_PUBLIC_SENDS è spento ricevono davvero solo questi numeri.
+            allowedRecipients: env.spokiAllowedRecipients,
+            publicSends: env.spokiPublicSends,
             apiKey: env.spokiApiKey,
             apiBaseUrl: env.spokiApiBaseUrl,
             urls: {

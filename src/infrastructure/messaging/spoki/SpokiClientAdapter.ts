@@ -19,6 +19,7 @@ import type { ISpokiActivityLog } from '@/services/interfaces/ISpokiActivityLog'
 import type { SpokiMode } from '@/services/interfaces/provider-kinds';
 import {
   deliveryBlockReason,
+  recipientBlockReason,
   maskForLog,
   payloadForLog,
   spokiSendUrl,
@@ -37,6 +38,10 @@ export interface SpokiClientAdapterConfig {
   /** Base delle API Spoki (per l'invio dei template via API). */
   readonly apiBaseUrl: string;
   readonly timeoutMs: number;
+  /** Demo interna: numeri che ricevono davvero (E.164). Assente = nessuno, se `publicSends` è spento. */
+  readonly allowedRecipients?: readonly string[];
+  /** true = invii reali a tutti; assente/false = solo ai numeri della lista interna. */
+  readonly publicSends?: boolean;
 }
 
 export interface SpokiClientAdapterDeps {
@@ -62,7 +67,7 @@ export interface TriggerResult {
   readonly messageId: string;
   readonly acceptedAt: IsoDateTime;
   /** Motivo per cui la chiamata NON è partita; null se è stata fatta davvero. */
-  readonly blockedBy: 'SIMULATION' | 'SAFETY_LOCK' | null;
+  readonly blockedBy: 'SIMULATION' | 'SAFETY_LOCK' | 'DEMO_ALLOWLIST' | null;
 }
 
 /** Descrizione dell'indirizzo chiamato, per il registro (anche quando non configurato). */
@@ -95,7 +100,14 @@ export class SpokiClientAdapter {
   }
 
   async trigger(input: TriggerInput): Promise<ProviderResult<TriggerResult>> {
-    const blocco = deliveryBlockReason(this.config.mode, this.config.safetyLock);
+    const blocco =
+      deliveryBlockReason(this.config.mode, this.config.safetyLock) ??
+      // Demo interna: anche con il live acceso, un cliente fuori dalla lista non riceve niente.
+      recipientBlockReason(
+        input.transport.payload.phone,
+        this.config.allowedRecipients ?? [],
+        this.config.publicSends === true,
+      );
     if (blocco !== null) {
       return this.simulate(input, blocco);
     }
@@ -108,11 +120,16 @@ export class SpokiClientAdapter {
    */
   private simulate(
     input: TriggerInput,
-    blockedBy: 'SIMULATION' | 'SAFETY_LOCK',
+    blockedBy: 'SIMULATION' | 'SAFETY_LOCK' | 'DEMO_ALLOWLIST',
   ): ProviderResult<TriggerResult> {
     const acceptedAt = this.deps.clock.nowIso();
     const messageId = `sim-${this.deps.ids.next()}`;
-    const etichetta = blockedBy === 'SAFETY_LOCK' ? 'BLOCCATO (safety lock)' : 'SIMULAZIONE';
+    const etichetta =
+      blockedBy === 'SAFETY_LOCK'
+        ? 'BLOCCATO (safety lock)'
+        : blockedBy === 'DEMO_ALLOWLIST'
+          ? 'DEMO INTERNA (numero fuori dalla lista)'
+          : 'SIMULAZIONE';
     const target = describeTarget(input.transport, this.config.apiBaseUrl);
     this.logger.info(`${etichetta} ${input.kind} → ${maskForLog(input.transport.payload.phone)}`, {
       trasporto: input.transport.kind,

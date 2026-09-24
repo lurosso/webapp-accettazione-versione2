@@ -4,6 +4,7 @@
 // da uno schema Zod che esporta gli stessi tipi.
 // Non importa nulla dai factory né dai mock: i tipi condivisi vivono in services/interfaces.
 
+import { parsePhoneE164 } from '@/domain/value-objects/phone';
 import type {
   CrmMockMode,
   InfinityMockMode,
@@ -72,6 +73,17 @@ export interface AppEnv {
    * parte verso un telefono reale, qualunque sia la modalità. Va tolto esplicitamente.
    */
   readonly spokiSafetyLock: boolean;
+  /**
+   * SPOKI_ALLOWED_RECIPIENTS: numeri interni (E.164, separati da virgola) a cui un WhatsApp reale può
+   * arrivare durante la demo. Finché SPOKI_PUBLIC_SENDS non è true, anche con Spoki in live e il
+   * blocco tolto, verso tutti gli altri numeri l'invio resta simulato e registrato.
+   */
+  readonly spokiAllowedRecipients: readonly string[];
+  /**
+   * SPOKI_PUBLIC_SENDS (predefinito false): true apre gli invii reali a tutti i clienti. Si accende
+   * solo quando il committente decide di uscire dalla demo interna.
+   */
+  readonly spokiPublicSends: boolean;
   /**
    * SPOKI_OVERRIDE_CONSENT (predefinito false): i promemoria sono comunicazioni di servizio
    * sull'appuntamento già preso, quindi con true si tenta WhatsApp anche senza il consenso esplicito
@@ -364,6 +376,30 @@ function pickEnum<T extends string>(
   return found;
 }
 
+/**
+ * Elenco di numeri in E.164 (separati da virgola, spazi e trattini ammessi): quelli non validi si
+ * scartano con un avviso, così un refuso non apre gli invii a un numero sbagliato.
+ */
+function pickPhoneList(source: EnvSource, key: string, warn: EnvWarning): readonly string[] {
+  const raw = source[key];
+  if (raw === undefined || raw.trim() === '') {
+    return [];
+  }
+  const numeri: string[] = [];
+  for (const parte of raw
+    .split(',')
+    .map((p) => p.trim())
+    .filter((p) => p.length > 0)) {
+    const numero = parsePhoneE164(parte);
+    if (numero.ok) {
+      numeri.push(numero.value);
+    } else {
+      warn(`${key}: numero non valido ignorato (${parte.slice(0, 4)}…).`);
+    }
+  }
+  return [...new Set(numeri)];
+}
+
 function pickStringOrNull(source: EnvSource, key: string): string | null {
   const raw = source[key];
   return raw === undefined || raw.trim() === '' ? null : raw.trim();
@@ -482,6 +518,9 @@ export function parseEnv(
     spokiMode: pickSpokiMode(source, spokiEnabled, spokiApiKey, warn),
     // Predefinito TRUE: il blocco si toglie solo per scelta esplicita, mai per dimenticanza.
     spokiSafetyLock: pickBool(source, 'SPOKI_SAFETY_LOCK', true, warn),
+    spokiAllowedRecipients: pickPhoneList(source, 'SPOKI_ALLOWED_RECIPIENTS', warn),
+    // Predefinito FALSE: la demo è interna finché il committente non dice altrimenti.
+    spokiPublicSends: pickBool(source, 'SPOKI_PUBLIC_SENDS', false, warn),
     spokiOverrideConsent: pickBool(source, 'SPOKI_OVERRIDE_CONSENT', false, warn),
     spokiApiKey,
     spokiApiBaseUrl: pickString(source, 'SPOKI_API_BASE_URL', DEFAULT_SPOKI_API_BASE_URL).replace(

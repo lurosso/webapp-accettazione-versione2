@@ -24,7 +24,7 @@ export interface SpokiActivityEntry {
    * Perché la chiamata HTTP NON è partita: `SIMULATION` (SPOKI_MODE diverso da live) o
    * `SAFETY_LOCK` (blocco di sicurezza attivo). null quando la chiamata è stata fatta davvero.
    */
-  readonly blockedBy: 'SIMULATION' | 'SAFETY_LOCK' | null;
+  readonly blockedBy: 'SIMULATION' | 'SAFETY_LOCK' | 'DEMO_ALLOWLIST' | null;
   readonly outcome: {
     readonly ok: boolean;
     readonly httpStatus: number | null;

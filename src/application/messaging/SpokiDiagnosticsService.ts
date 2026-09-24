@@ -88,6 +88,14 @@ export interface SpokiOverview {
   /** True solo con provider real, modalità live e blocco tolto. */
   readonly liveDeliveryAllowed: boolean;
   readonly blockReason: SpokiBlockReason;
+  /**
+   * Demo interna: con `publicSends` spento, anche in live ricevono davvero solo i numeri della lista
+   * (mascherati qui: il pannello li mostra, non li espone).
+   */
+  readonly demo: {
+    readonly publicSends: boolean;
+    readonly allowedRecipientsMasked: readonly string[];
+  };
   readonly apiKeyConfigured: boolean;
   readonly apiKeyMasked: string | null;
   readonly templates: readonly SpokiTemplateStatus[];
@@ -126,6 +134,9 @@ export interface SpokiDiagnosticsConfig {
   };
   /** SPOKI_OVERRIDE_CONSENT (facoltativo nei test). */
   readonly consentOverride?: boolean;
+  /** SPOKI_ALLOWED_RECIPIENTS e SPOKI_PUBLIC_SENDS (facoltativi nei test: demo senza numeri). */
+  readonly allowedRecipients?: readonly string[];
+  readonly publicSends?: boolean;
   readonly apiKey: string | null;
   readonly reminders: {
     readonly previousDay: SpokiReminderTemplateConfig;
@@ -263,6 +274,12 @@ export class SpokiDiagnosticsService {
       webhookUrl: `${c.publicBaseUrl}/api/v1/webhooks/spoki`,
       consentOverride: c.consentOverride === true,
       liveDeliveryAllowed: blockReason === null,
+      demo: {
+        publicSends: c.publicSends === true,
+        allowedRecipientsMasked: (c.allowedRecipients ?? []).map((n) =>
+          n.length > 6 ? `${n.slice(0, 3)}…${n.slice(-3)}` : '…',
+        ),
+      },
       blockReason,
       apiKeyConfigured: c.apiKey !== null,
       apiKeyMasked: c.apiKey === null ? null : maskKey(c.apiKey),

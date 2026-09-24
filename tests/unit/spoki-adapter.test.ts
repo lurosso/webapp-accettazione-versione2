@@ -93,7 +93,10 @@ function setup(
   return { service, activityLog, clock };
 }
 
-/** Configurazione che PUÒ inviare davvero: live, blocco tolto, URL e segreti presenti. */
+/**
+ * Configurazione che PUÒ inviare davvero a chiunque: live, blocco tolto, URL e segreti presenti e
+ * invii aperti al pubblico (`publicSends`). Senza quest'ultimo è la demo interna (vedi sotto).
+ */
 const LIVE_SBLOCCATO: Partial<SpokiServiceConfig> = {
   mode: 'live',
   safetyLock: false,
@@ -101,6 +104,7 @@ const LIVE_SBLOCCATO: Partial<SpokiServiceConfig> = {
   urls: URLS,
   secrets: SECRETS,
   templates: TEMPLATES,
+  publicSends: true,
 };
 
 const richiesta = (overrides: Partial<SpokiSendRequestDto> = {}): SpokiSendRequestDto => ({
@@ -552,5 +556,58 @@ describe('SpokiService live con blocco tolto', () => {
       );
       expect(rete.calls[1]?.url).toBe(URLS.REMINDER_SAME_DAY);
     });
+  });
+});
+
+describe('Demo interna: WhatsApp reali solo ai numeri della lista', () => {
+  const DEMO: Partial<SpokiServiceConfig> = {
+    ...LIVE_SBLOCCATO,
+    publicSends: false,
+    allowedRecipients: ['+393331234567'],
+  };
+  const ok200 = () =>
+    new Response(JSON.stringify({ id: 'wa-1' }), {
+      status: 200,
+      headers: { 'content-type': 'application/json' },
+    });
+
+  it('a un numero interno il messaggio parte davvero', async () => {
+    const { calls, impl } = fakeFetch(ok200);
+    const { service, activityLog } = setup(DEMO, impl);
+    const r = await service.sendTemplateMessage(richiesta());
+    expect(r.ok).toBe(true);
+    expect(calls).toHaveLength(1);
+    expect(activityLog.list()[0]?.blockedBy).toBeNull();
+  });
+
+  it('a un cliente fuori dalla lista resta simulato: nessuna chiamata, registro «demo»', async () => {
+    const { calls, impl } = fakeFetch(ok200);
+    const { service, activityLog } = setup(DEMO, impl);
+    const r = await service.sendTemplateMessage(
+      richiesta({ to: '+393339999999' as PhoneE164, idempotencyKey: 'app-2:K:2026-09-11:WA:1' }),
+    );
+    expect(r.ok).toBe(true);
+    expect(calls).toHaveLength(0);
+    expect(activityLog.list()[0]?.blockedBy).toBe('DEMO_ALLOWLIST');
+  });
+
+  it('con la lista vuota e il pubblico chiuso non parte niente; con il pubblico aperto parte', async () => {
+    const vuota = fakeFetch(ok200);
+    const chiusa = setup({ ...LIVE_SBLOCCATO, publicSends: false }, vuota.impl);
+    await chiusa.service.sendTemplateMessage(richiesta());
+    expect(vuota.calls).toHaveLength(0);
+
+    const aperta = fakeFetch(ok200);
+    const pubblico = setup({ ...LIVE_SBLOCCATO, publicSends: true }, aperta.impl);
+    await pubblico.service.sendTemplateMessage(richiesta());
+    expect(aperta.calls).toHaveLength(1);
+  });
+
+  it('la regola del blocco di sicurezza viene prima: con il lock nessuno riceve, nemmeno in lista', async () => {
+    const { calls, impl } = fakeFetch(ok200);
+    const { service, activityLog } = setup({ ...DEMO, safetyLock: true }, impl);
+    await service.sendTemplateMessage(richiesta());
+    expect(calls).toHaveLength(0);
+    expect(activityLog.list()[0]?.blockedBy).toBe('SAFETY_LOCK');
   });
 });

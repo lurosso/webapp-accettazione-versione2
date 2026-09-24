@@ -184,6 +184,10 @@ export interface SpokiServiceConfig {
   readonly templates: Readonly<Record<SpokiTemplateKind, string | null>>;
   /** Tempo massimo per una chiamata live. */
   readonly timeoutMs: number;
+  /** Numeri interni della demo (E.164): gli unici che ricevono davvero, finché `publicSends` è false. */
+  readonly allowedRecipients?: readonly string[];
+  /** true = invii reali a tutti i clienti (fine della demo interna). Predefinito false. */
+  readonly publicSends?: boolean;
 }
 
 /** Campi dinamici del messaggio, come li vedono l'automazione o il template Spoki. */
@@ -287,6 +291,21 @@ export function resolveTransportKind(
  */
 export function canDeliverLive(mode: SpokiMode, safetyLock: boolean): boolean {
   return mode === 'live' && !safetyLock;
+}
+
+/**
+ * Demo interna: con `publicSends` spento un WhatsApp reale parte solo verso un numero della lista.
+ * null = può partire; 'DEMO_ALLOWLIST' = resta simulato (destinatario fuori dalla lista interna).
+ */
+export function recipientBlockReason(
+  phone: string,
+  allowedRecipients: readonly string[],
+  publicSends: boolean,
+): 'DEMO_ALLOWLIST' | null {
+  if (publicSends) {
+    return null;
+  }
+  return allowedRecipients.includes(phone) ? null : 'DEMO_ALLOWLIST';
 }
 
 /** Motivo per cui la chiamata non parte (null se può partire). */

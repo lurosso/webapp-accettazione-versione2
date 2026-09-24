@@ -115,6 +115,11 @@ export function SpokiPanel({ timeZone }: SpokiPanelProps) {
             <Badge tone={data.liveDeliveryAllowed ? 'success' : 'neutral'}>
               {data.liveDeliveryAllowed ? 'INVII REALI ABILITATI' : 'nessun invio reale'}
             </Badge>
+            <Badge tone={data.demo.publicSends ? 'danger' : 'info'} data-testid="spoki-demo">
+              {data.demo.publicSends
+                ? 'APERTO AL PUBBLICO'
+                : `DEMO INTERNA · ${data.demo.allowedRecipientsMasked.length} numeri ammessi`}
+            </Badge>
             <Badge
               tone={data.webhookSecretConfigured ? 'success' : 'warning'}
               data-testid="spoki-webhook"
@@ -333,7 +338,9 @@ export function SpokiPanel({ timeZone }: SpokiPanelProps) {
                             ? 'INVIATO'
                             : e.blockedBy === 'SAFETY_LOCK'
                               ? 'bloccato · safety lock'
-                              : 'simulato'}
+                              : e.blockedBy === 'DEMO_ALLOWLIST'
+                                ? 'demo · numero fuori lista'
+                                : 'simulato'}
                         </Badge>
                         <span className="font-semibold">{e.templateKind}</span>
                         <span className="font-mono text-slate-600">{e.phoneMasked}</span>

@@ -571,6 +571,13 @@ simulazione qualunque cosa dica `SPOKI_MODE`, e il log lo dice all'avvio. Con il
 apre alcuna connessione: formatta il payload nel formato Spoki (`secret`, `phone` in E.164,
 `first_name`, `last_name`, `email`, `custom_fields` con `code`, `plate`, `time`, `date`,
 `portal_url`), lo scrive nel log e nel registro del pannello, e risponde come se fosse andato.
+
+**Demo interna.** Dal 2026-09-24 i test su WhatsApp sono solo interni. Anche con `SPOKI_MODE=live` e
+il blocco tolto, un WhatsApp reale parte **solo** verso i numeri di `SPOKI_ALLOWED_RECIPIENTS` (i
+telefoni di prova, in E.164, separati da virgola); per ogni altro cliente l'invio resta simulato, con
+la voce «demo · numero fuori lista» nel registro di _Amministrazione › Sistema › Spoki_. Il pannello
+mostra «DEMO INTERNA · N numeri ammessi», e il log di avvio lo ripete. Si apre al pubblico solo con
+`SPOKI_PUBLIC_SENDS=true`, quando lo decide il committente.
 Il file `.env.local` di sviluppo tiene `SPOKI_PROVIDER=real`, `SPOKI_MODE=simulation`,
 `SPOKI_SAFETY_LOCK=true` con gli URL e i segreti delle due automazioni
 (`SPOKI_URL_REMINDER_PREVIOUS_DAY`, `SPOKI_SECRET_REMINDER_PREVIOUS_DAY`,

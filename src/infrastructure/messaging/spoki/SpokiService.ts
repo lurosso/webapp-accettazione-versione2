@@ -83,6 +83,8 @@ export class SpokiService implements ISpokiService {
         apiKey: config.apiKey,
         apiBaseUrl: config.apiBaseUrl,
         timeoutMs: config.timeoutMs,
+        allowedRecipients: config.allowedRecipients ?? [],
+        publicSends: config.publicSends === true,
       },
       {
         clock: deps.clock,

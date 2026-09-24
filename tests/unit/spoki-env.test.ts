@@ -145,3 +145,22 @@ describe('SPOKI_MAX_EARLY_ARRIVAL_MINUTES: finestra dell’arrivo prematuro', ()
     ).toBe('4005');
   });
 });
+
+describe('Demo interna: SPOKI_ALLOWED_RECIPIENTS e SPOKI_PUBLIC_SENDS', () => {
+  it('di default nessun numero ammesso e invii al pubblico chiusi', () => {
+    const env = parseEnv({}, muto);
+    expect(env.spokiAllowedRecipients).toEqual([]);
+    expect(env.spokiPublicSends).toBe(false);
+  });
+
+  it('i numeri si normalizzano in E.164, senza doppioni; quelli non validi si scartano con avviso', () => {
+    const avvisi: string[] = [];
+    const env = parseEnv(
+      { SPOKI_ALLOWED_RECIPIENTS: ' 333 123 4567, +39 333 1234567 ,0039 347 0000000, ciao ' },
+      (m) => avvisi.push(m),
+    );
+    expect(env.spokiAllowedRecipients).toEqual(['+393331234567', '+393470000000']);
+    expect(avvisi.some((m) => m.includes('SPOKI_ALLOWED_RECIPIENTS'))).toBe(true);
+    expect(parseEnv({ SPOKI_PUBLIC_SENDS: 'true' }, muto).spokiPublicSends).toBe(true);
+  });
+});

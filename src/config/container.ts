@@ -265,6 +265,8 @@ export function createContainer(overrides: ContainerOverrides = {}): Container {
         checkInCompleted: env.spokiTemplateCompleteId,
       },
       consentOverride: env.spokiOverrideConsent,
+      allowedRecipients: env.spokiAllowedRecipients,
+      publicSends: env.spokiPublicSends,
       apiKey: env.spokiApiKey,
       reminders: {
         previousDay: {
@@ -509,6 +511,19 @@ export function createContainer(overrides: ContainerOverrides = {}): Container {
     reminderPreviousDayHourLocal: env.reminderPreviousDayHourLocal,
     reminderSameDayHourLocal: env.reminderSameDayHourLocal,
   });
+
+  // Demo interna: detto all'avvio, così nessuno pensa di aver aperto gli invii al pubblico.
+  if (env.spokiProvider === 'real' && env.spokiMode === 'live' && !env.spokiSafetyLock) {
+    if (env.spokiPublicSends) {
+      logger.warn(
+        '[Messaggi] SPOKI_PUBLIC_SENDS=true: i WhatsApp reali partono verso TUTTI i clienti.',
+      );
+    } else {
+      logger.warn(
+        `[Messaggi] DEMO INTERNA: WhatsApp reali solo verso ${env.spokiAllowedRecipients.length} numeri di SPOKI_ALLOWED_RECIPIENTS; per tutti gli altri clienti l'invio resta simulato.`,
+      );
+    }
+  }
 
   logger.info('[Container] inizializzato', {
     servicesProvider: env.servicesProvider,
