@@ -124,7 +124,7 @@ export const ROTTE = [
     path: '/sistema',
     area: AREE[5],
     descrizione:
-      "Diagnostica: porte esterne (Infinity, Spoki, SMS, CRM), storage dei media, rete, sincronizzazione, con «Segnala ad Admin» su ogni riga e segnalazione libera (anche stampanti e hardware); per l'amministratore anche la coda di uscita verso il CRM.",
+      "Accettatore: solo «Segnala un problema» (ticket all'amministratore, con categorie in parole semplici). Amministratore: diagnostica di porte esterne, storage dei media, rete e sincronizzazione con «Segnala ad Admin», segnalazione libera e coda di uscita verso il CRM.",
     accesso: ACCESSO.banco,
   },
   // Display
@@ -449,7 +449,7 @@ export const ROTTE = [
     area: AREE[13],
     descrizione:
       'Diagnostica della pagina Sistema: porte esterne, storage dei media (sonda e spazio libero) e ultima sincronizzazione, ogni riga con stato e codice da segnalare.',
-    accesso: ACCESSO.banco,
+    accesso: ACCESSO.admin,
   },
   {
     path: '/api/v1/system/alerts',

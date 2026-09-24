@@ -34,13 +34,19 @@ export interface HeaderProps {
 }
 
 /** Voci di navigazione: i permessi arrivano da `AREA_ROLES`, non duplicati qui. */
-const NAV: readonly { href: string; label: string; area: ProtectedArea }[] = [
+const NAV: readonly {
+  href: string;
+  label: string;
+  area: ProtectedArea;
+  /** Etichetta per chi non amministra, se diversa (la stessa pagina mostra cose diverse). */
+  labelBanco?: string;
+}[] = [
   { href: '/accettazione', label: 'Accettazione', area: 'accettazione' },
   { href: '/accettazione/archivio', label: 'Archivio', area: 'accettazione' },
   { href: '/check-in', label: 'Check-in', area: 'check-in' },
   { href: '/comunicazioni', label: 'Comunicazioni', area: 'comunicazioni' },
   { href: '/admin', label: 'Admin', area: 'admin' },
-  { href: '/sistema', label: 'Sistema', area: 'sistema' },
+  { href: '/sistema', label: 'Sistema', area: 'sistema', labelBanco: 'Segnala un problema' },
 ];
 
 function WorkshopClock({ timeZone }: { readonly timeZone: string }) {
@@ -126,7 +132,7 @@ export function Header({ displayName, role, workstationLabel, deskLabel, timeZon
                     : 'text-white/75',
                 )}
               >
-                {item.label}
+                {role !== 'ADMIN' && item.labelBanco !== undefined ? item.labelBanco : item.label}
               </TransitionLink>
             ))}
           </nav>

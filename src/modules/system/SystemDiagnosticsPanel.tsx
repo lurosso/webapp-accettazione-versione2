@@ -1,9 +1,10 @@
 'use client';
 
-// La diagnostica della pagina Sistema, com'è vista da chi sta al banco: una riga per componente
-// (Infinity, Spoki, SMS, CRM, storage dei media, sincronizzazione, rete), con stato, dettaglio,
-// codice e — accanto a ognuna — «Segnala ad Admin». Sotto, una segnalazione libera per quello
-// che nessun controllo vede: la stampante, il tablet, il lettore del QR.
+// La diagnostica della pagina Sistema, per l'amministratore: una riga per componente (Infinity,
+// Spoki, SMS, CRM, storage dei media, sincronizzazione, rete), con stato, dettaglio, codice e —
+// accanto a ognuna — «Segnala ad Admin». Sotto, la segnalazione libera per quello che nessun
+// controllo vede. Dal 2026-09-24 l'accettatore non la vede: al banco resta solo il ticket
+// (`ProblemReportForm`), perché lo stato delle porte non gli dice cosa fare.
 //
 // La rete la misura il browser intorno alla chiamata di diagnostica: `navigator.onLine` dice se
 // c'è un collegamento, la latenza dice se è utilizzabile. Il server non può saperlo al posto suo.
@@ -22,11 +23,11 @@ import { Panel, PanelHeader } from '@/components/ui/panel';
 import { TableSkeleton } from '@/components/ui/skeleton';
 import {
   SYSTEM_ALERT_COMPONENT_LABELS,
-  SYSTEM_ALERT_COMPONENTS,
   type SystemAlertComponent,
 } from '@/domain/entities/system-alert';
 import { ApiError, fetchSystemDiagnostics, postSystemAlert } from '@/lib/api-client/client';
 import { formatDateTimeIt } from '@/lib/dates';
+import { ProblemReportForm } from './ProblemReportForm';
 
 export interface SystemDiagnosticsPanelProps {
   readonly timeZone: string;
@@ -117,8 +118,6 @@ export function SystemDiagnosticsPanel({ timeZone }: SystemDiagnosticsPanelProps
     () => true,
   );
   const [inviata, setInviata] = useState<{ code: string; component: string } | null>(null);
-  const [componente, setComponente] = useState<SystemAlertComponent>('HARDWARE');
-  const [testo, setTesto] = useState('');
 
   const diagnostica = useQuery<Diagnostica>({
     queryKey: ['system-diagnostics'],
@@ -135,7 +134,6 @@ export function SystemDiagnosticsPanel({ timeZone }: SystemDiagnosticsPanelProps
       postSystemAlert(body),
     onSuccess: (r) => {
       setInviata({ code: r.alert.code, component: r.alert.component });
-      setTesto('');
     },
   });
 
@@ -222,63 +220,7 @@ export function SystemDiagnosticsPanel({ timeZone }: SystemDiagnosticsPanelProps
         )}
       </Panel>
 
-      <Panel>
-        <PanelHeader
-          title="Segnala un’altra disfunzione"
-          description="Per quello che nessun controllo vede: stampanti, tablet, lettore del QR, cavi. Scrivi cosa succede; chi sei e da quale postazione lo aggiunge il sistema."
-        />
-        <form
-          className="flex flex-col gap-3"
-          onSubmit={(event) => {
-            event.preventDefault();
-            if (testo.trim() === '') {
-              return;
-            }
-            segnala.mutate({
-              code: `${componente}-MANUALE`,
-              component: componente,
-              message: testo.trim(),
-            });
-          }}
-        >
-          <div className="flex flex-wrap items-end gap-4">
-            <label className="flex w-64 flex-col gap-1.5">
-              <span className="testo-nota text-ink-soft font-semibold">Componente</span>
-              <select
-                value={componente}
-                onChange={(event) => setComponente(event.target.value as SystemAlertComponent)}
-                data-testid="segnalazione-componente"
-                className="controllo border-line bg-surface text-ink testo-corpo focus-anello rounded-md border px-3"
-              >
-                {SYSTEM_ALERT_COMPONENTS.map((c) => (
-                  <option key={c} value={c}>
-                    {SYSTEM_ALERT_COMPONENT_LABELS[c]}
-                  </option>
-                ))}
-              </select>
-            </label>
-            <label className="flex min-w-[16rem] flex-1 flex-col gap-1.5">
-              <span className="testo-nota text-ink-soft font-semibold">Cosa succede</span>
-              <textarea
-                value={testo}
-                onChange={(event) => setTesto(event.target.value)}
-                maxLength={500}
-                rows={2}
-                placeholder="es. La stampante dello sportello B non stampa la ricevuta"
-                data-testid="segnalazione-testo"
-                className="border-line bg-surface text-ink testo-corpo focus-anello placeholder:text-ink-muted min-h-11 rounded-md border px-3 py-2"
-              />
-            </label>
-            <Button
-              type="submit"
-              disabled={segnala.isPending || testo.trim() === ''}
-              data-testid="segnalazione-invia"
-            >
-              {segnala.isPending ? 'Invio…' : 'Invia ad Admin'}
-            </Button>
-          </div>
-        </form>
-      </Panel>
+      <ProblemReportForm variante="tecnico" />
     </div>
   );
 }

@@ -1,14 +1,18 @@
-// Pagina Sistema (area autenticata): la diagnostica di tutto quello che può fermare l'officina —
-// porte esterne, storage dei media, sincronizzazione, rete — con «Segnala ad Admin» accanto a
-// ogni riga e una segnalazione libera per stampanti e hardware; per chi amministra, anche la
-// coda di uscita verso il CRM. La diagnostica è un pannello client che si rilegge da solo: qui
-// il server risolve sessione e configurazione, e dice se il container non si costruisce.
+// Pagina Sistema (area autenticata).
+// - Accettatore: solo «Segnala un problema», il ticket verso l'amministratore. Dal 2026-09-24 lo
+//   stato delle porte e le spiegazioni tecniche non stanno più qui: al banco non dicono cosa fare.
+// - Amministratore: la diagnostica di tutto quello che può fermare l'officina — porte esterne,
+//   storage dei media, sincronizzazione, rete — con «Segnala ad Admin» accanto a ogni riga, la
+//   segnalazione libera e la coda di uscita verso il CRM. La diagnostica è un pannello client che
+//   si rilegge da solo: qui il server risolve sessione e configurazione, e dice se il container
+//   non si costruisce.
 import type { Metadata } from 'next';
 import { isStartupError } from '@/application/health/check-health';
 import { getContainer } from '@/config/container';
 import { requireArea } from '@/app/_server/session';
 import { canAccess } from '@/lib/navigation';
 import { CrmOutboxTable } from '@/modules/crm/CrmOutboxTable';
+import { ProblemReportForm } from '@/modules/system/ProblemReportForm';
 import { SystemDiagnosticsPanel } from '@/modules/system/SystemDiagnosticsPanel';
 
 export const dynamic = 'force-dynamic';
@@ -32,6 +36,13 @@ function loadPageData(): PageData {
 
 export default async function SistemaPage() {
   const session = await requireArea('sistema', '/sistema');
+  if (!canAccess('admin', session.role)) {
+    return (
+      <div className="mx-auto flex max-w-3xl flex-col gap-6">
+        <ProblemReportForm variante="banco" />
+      </div>
+    );
+  }
   const data = loadPageData();
   const timeZone = data.kind === 'ok' ? data.timeZone : 'Europe/Rome';
 
@@ -62,13 +73,7 @@ export default async function SistemaPage() {
         <SystemDiagnosticsPanel timeZone={timeZone} />
       )}
 
-      {canAccess('admin', session.role) ? (
-        <CrmOutboxTable timeZone={timeZone} />
-      ) : (
-        <p className="text-sm text-slate-500">
-          La coda di uscita verso il CRM è visibile agli amministratori.
-        </p>
-      )}
+      <CrmOutboxTable timeZone={timeZone} />
     </div>
   );
 }
