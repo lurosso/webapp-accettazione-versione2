@@ -75,23 +75,23 @@ export async function POST(request: NextRequest, context: RouteContext): Promise
   };
   const queue = container.queueService;
   const { action } = parsed.data;
-  // Annullare una pratica non è un'azione da banco: la decide un responsabile o un amministratore.
-  if (action === 'cancel' && !canAccess('manager', session.role)) {
+  // Annullare una pratica non è un'azione da banco: la decide l'amministratore.
+  if (action === 'cancel' && !canAccess('admin', session.role)) {
     return forbiddenResponse(
-      "L'annullamento di una pratica è riservato a responsabili e amministratori.",
+      "L'annullamento di una pratica è riservato all'amministratore.",
     );
   }
   // Rimettere in coda una pratica presa in carico svuota operatore e sportello: non è più un
   // pulsante da banco (tolto dalla riga il 2026-09-17), la fa l'assistenza in amministrazione.
-  if (action === 'release' && !canAccess('manager', session.role)) {
+  if (action === 'release' && !canAccess('admin', session.role)) {
     return forbiddenResponse(
-      'Il rilascio di una pratica in carico è riservato a responsabili e amministratori (pannello di assistenza).',
+      "Il rilascio di una pratica in carico è riservato all'amministratore (pannello di assistenza).",
     );
   }
-  // Confermare una chiusura d'ufficio è dire "il veicolo era stato accettato": lo dice un responsabile.
-  if (action === 'confirm-auto-close' && !canAccess('manager', session.role)) {
+  // Confermare una chiusura d'ufficio è dire "il veicolo era stato accettato": lo dice l'amministratore.
+  if (action === 'confirm-auto-close' && !canAccess('admin', session.role)) {
     return forbiddenResponse(
-      "La conferma di una chiusura d'ufficio è riservata a responsabili e amministratori.",
+      "La conferma di una chiusura d'ufficio è riservata all'amministratore.",
     );
   }
 

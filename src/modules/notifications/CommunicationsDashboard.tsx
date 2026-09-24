@@ -84,7 +84,7 @@ export function CommunicationsDashboard({
         ? comando.error.message
         : 'Il comando non è arrivato al server: riprova fra poco.';
   const inCorso = comando.isPending ? comando.variables.jobId : null;
-  const privilegiato = session.role === 'SUPERVISOR' || session.role === 'ADMIN';
+  const privilegiato = session.role === 'ADMIN';
 
   const data = query.data;
 

@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { BdcLeadService } from '@/application/crm/BdcLeadService';
 import { QueueService, type ActionContext } from '@/application/queue/QueueService';
-import { asOperatorId, asWorkstationId, type CrmOutboxEventId } from '@/domain/ids';
+import { asOperatorId, asWorkstationId } from '@/domain/ids';
 import type { Appointment } from '@/domain/entities/appointment';
 import { buildTestEnv, makeAppointment, TEST_DATE } from '../helpers/fixtures';
 
@@ -42,10 +42,20 @@ async function insert(env: ReturnType<typeof buildTestEnv>, a: Appointment): Pro
   return r.value;
 }
 
-/** Operatore del BDC che chiude i lead (nel seed è un responsabile). */
-const BDC = { operatorId: asOperatorId('op-supervisor') };
+describe('Assenti come lead al CRM del BDC', () => {
+  it('ogni assente parte da solo verso il CRM, senza che nessuno lo inoltri', async () => {
+    const { env, queueService, ctx } = setup();
+    const a = await insert(env, makeAppointment());
+    await queueService.markNoShow(
+      { appointmentId: a.id, expectedVersion: 1, reason: 'Non si è presentato' },
+      ctx,
+    );
+    expect(env.crm.received).toHaveLength(1);
+    expect(env.crm.received[0]).toMatchObject({ code: a.code });
+  });
+});
 
-describe('BdcLeadService: lead da ricontattare', () => {
+describe('BdcLeadService: assenti e anomalie della giornata (vista amministratore)', () => {
   it('un cliente segnato assente diventa un lead con i dati per telefonargli', async () => {
     const { env, queueService, bdc, ctx } = setup();
     const a = await insert(env, makeAppointment());
@@ -79,88 +89,6 @@ describe('BdcLeadService: lead da ricontattare', () => {
     expect(view.leads).toHaveLength(0);
   });
 
-  it('"segna come ricontattato" chiude il lead con operatore, ora ed esito', async () => {
-    const { env, queueService, bdc, ctx } = setup();
-    const a = await insert(env, makeAppointment());
-    await queueService.markNoShow({ appointmentId: a.id, expectedVersion: 1 }, ctx);
-    const aperti = await bdc.listLeads({ businessDate: TEST_DATE });
-    const eventId = aperti.leads[0]?.eventId as CrmOutboxEventId;
-
-    const r = await bdc.markContacted({ eventId, note: 'Richiama lunedì mattina' }, BDC);
-    expect(r.ok).toBe(true);
-    if (r.ok) {
-      expect(r.value.handled).toBe(true);
-      expect(r.value.handledByName).toBe('Giulia Ferrari');
-      expect(r.value.handledNote).toBe('Richiama lunedì mattina');
-      expect(r.value.handledAt).toBe(env.clock.nowIso());
-    }
-
-    // Sparisce dai lead aperti, ma resta consultabile con i già gestiti.
-    expect((await bdc.listLeads({ businessDate: TEST_DATE })).leads).toHaveLength(0);
-    const conChiusi = await bdc.listLeads({ businessDate: TEST_DATE, includeHandled: true });
-    expect(conChiusi.leads).toHaveLength(1);
-    expect(conChiusi.openCount).toBe(0);
-    expect(conChiusi.handledCount).toBe(1);
-  });
-
-  it('chiudere due volte lo stesso lead non sovrascrive il primo ricontatto', async () => {
-    const { env, queueService, bdc, ctx } = setup();
-    const a = await insert(env, makeAppointment());
-    await queueService.markNoShow({ appointmentId: a.id, expectedVersion: 1 }, ctx);
-    const eventId = (await bdc.listLeads({ businessDate: TEST_DATE })).leads[0]
-      ?.eventId as CrmOutboxEventId;
-
-    await bdc.markContacted({ eventId, note: 'Primo tentativo andato a buon fine' }, BDC);
-    const secondo = await bdc.markContacted(
-      { eventId, note: 'Nota di un altro operatore' },
-      { operatorId: asOperatorId('op-advisor-2') },
-    );
-    expect(secondo.ok).toBe(true);
-    if (secondo.ok) {
-      expect(secondo.value.handledNote).toBe('Primo tentativo andato a buon fine');
-      expect(secondo.value.handledByName).toBe('Giulia Ferrari');
-    }
-  });
-
-  it('un lead chiuso per sbaglio si riporta fra quelli da fare', async () => {
-    const { env, queueService, bdc, ctx } = setup();
-    const a = await insert(env, makeAppointment());
-    await queueService.markNoShow({ appointmentId: a.id, expectedVersion: 1 }, ctx);
-    const eventId = (await bdc.listLeads({ businessDate: TEST_DATE })).leads[0]
-      ?.eventId as CrmOutboxEventId;
-    await bdc.markContacted({ eventId, note: 'Chiuso per sbaglio scorrendo la lista' }, BDC);
-    expect((await bdc.listLeads({ businessDate: TEST_DATE })).openCount).toBe(0);
-
-    const riaperto = await bdc.reopenLead(eventId, BDC);
-    expect(riaperto.ok).toBe(true);
-    if (riaperto.ok) {
-      expect(riaperto.value.handled).toBe(false);
-      // Sparisce anche chi l'aveva chiuso: la riga torna com'era prima del tocco.
-      expect(riaperto.value.handledAt).toBeNull();
-      expect(riaperto.value.handledByName).toBeNull();
-      expect(riaperto.value.handledNote).toBeNull();
-    }
-    const dopo = await bdc.listLeads({ businessDate: TEST_DATE });
-    expect(dopo.openCount).toBe(1);
-    expect(dopo.handledCount).toBe(0);
-
-    // Riaprire un lead già aperto non è un errore: torna com'è.
-    const ancora = await bdc.reopenLead(eventId, BDC);
-    expect(ancora.ok && ancora.value.handled).toBe(false);
-  });
-
-  it('un lead inesistente restituisce NOT_FOUND senza lanciare', async () => {
-    const { bdc } = setup();
-    const r = await bdc.markContacted(
-      { eventId: 'evento-mai-esistito' as CrmOutboxEventId, note: null },
-      BDC,
-    );
-    expect(r.ok).toBe(false);
-    if (!r.ok) {
-      expect(r.error.code).toBe('NOT_FOUND');
-    }
-  });
-
   it('il filtro per giornata esclude le assenze di altri giorni', async () => {
     const { env, queueService, bdc, ctx } = setup();
     const a = await insert(env, makeAppointment());
@@ -171,7 +99,7 @@ describe('BdcLeadService: lead da ricontattare', () => {
     expect((await bdc.listLeads({ businessDate: null })).leads).toHaveLength(1);
   });
 
-  it('con il CRM guasto il lead c’è comunque e si può chiudere: il BDC non aspetta il CRM', async () => {
+  it('con il CRM guasto l’assente resta in coda di uscita e l’amministratore lo vede', async () => {
     const env = buildTestEnv();
     const { CrmServiceMock } = await import('@/services/mocks/CrmServiceMock');
     const { CrmNotifier } = await import('@/application/crm/CrmNotifier');
@@ -216,14 +144,8 @@ describe('BdcLeadService: lead da ricontattare', () => {
 
     const view = await bdc.listLeads({ businessDate: TEST_DATE });
     // Il finto CRM rifiuta con un errore definitivo: la consegna è abbandonata, non in attesa.
-    // Al BDC non cambia nulla: il lead resta da lavorare.
+    // Resta visibile (e rinviabile dal pannello Sistema dell'amministratore).
     expect(view.leads[0]?.deliveryStatus).toBe('FAILED');
     expect(view.leads[0]?.handled).toBe(false);
-
-    const chiuso = await bdc.markContacted(
-      { eventId: view.leads[0]?.eventId as CrmOutboxEventId, note: null },
-      BDC,
-    );
-    expect(chiuso.ok && chiuso.value.handled).toBe(true);
   });
 });

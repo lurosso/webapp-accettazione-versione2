@@ -238,7 +238,7 @@ describe('Terzo «Salta»: la serie è consecutiva e si riapre', () => {
     expect(view.leads[0]?.handled).toBe(false);
   });
 
-  it('chiusa dal BDC, il quarto salto della stessa serie non la riapre', async () => {
+  it('chiusa a mano, il quarto salto della stessa serie non la riapre', async () => {
     const s = setup();
     const a = await insert(s.env, makeAppointment());
     const saltata = await salta(s, a, 3);
@@ -246,10 +246,12 @@ describe('Terzo «Salta»: la serie è consecutiva e si riapre', () => {
     if (lead === undefined) {
       throw new Error('anomalia assente');
     }
-    await s.bdc.markContacted(
-      { eventId: lead.eventId as never, note: 'Al telefono: è in sala' },
-      { operatorId: asOperatorId('op-supervisor') },
-    );
+    // Chiusa a mano (dal CRM o dall'assistenza): l'evento in coda di uscita è MANUAL.
+    const evento = await s.env.crmOutbox.findById(lead.eventId as never);
+    if (evento === null) {
+      throw new Error('evento assente');
+    }
+    await s.env.crmOutbox.update({ ...evento, status: 'MANUAL', handledNote: 'Verificato' });
     await salta(s, saltata, 1);
     expect((await s.bdc.listLeads({ businessDate: TEST_DATE })).openCount).toBe(0);
   });

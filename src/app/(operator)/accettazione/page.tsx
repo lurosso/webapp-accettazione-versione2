@@ -42,7 +42,7 @@ export default async function AccettazionePage({ searchParams }: PageProps) {
   // si mostra solo secondo UI_MANUAL_INTAKE (managers | all).
   const manualIntakeEnabled =
     container.env.uiManualIntake === 'all' ||
-    (container.env.uiManualIntake === 'managers' && canAccess('manager', session.role));
+    (container.env.uiManualIntake === 'managers' && canAccess('admin', session.role));
 
   return (
     <Suspense fallback={<p className="text-sm text-slate-500">Caricamento della coda…</p>}>

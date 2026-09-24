@@ -145,7 +145,7 @@ export interface NotificationRetrySummary {
 export interface CommunicationActor {
   readonly operatorId: OperatorId;
   readonly displayName: string;
-  /** Amministratori e responsabili possono rilasciare la presa in carico di un collega. */
+  /** L'amministratore può rilasciare la presa in carico di un collega. */
   readonly privileged: boolean;
 }
 
@@ -639,7 +639,7 @@ export class NotificationOrchestrator {
     return ok(salvato);
   }
 
-  /** Lascia la presa in carico: chi l'aveva presa, oppure un responsabile o un amministratore. */
+  /** Lascia la presa in carico: chi l'aveva presa, oppure l'amministratore. */
   async release(
     jobId: NotificationJobId,
     actor: CommunicationActor,
@@ -662,7 +662,7 @@ export class NotificationOrchestrator {
       return err(
         domainError(
           'INVALID_TRANSITION',
-          `La comunicazione è in carico a ${job.claimedByName ?? 'un collega'}: la rilascia lui, un responsabile o un amministratore.`,
+          `La comunicazione è in carico a ${job.claimedByName ?? 'un collega'}: la rilascia lui o l'amministratore.`,
         ),
       );
     }

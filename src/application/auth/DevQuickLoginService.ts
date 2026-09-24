@@ -30,7 +30,7 @@ export interface QuickLoginProfile {
   readonly label: string;
   readonly description: string;
   readonly role: OperatorRole;
-  /** Sportello dell'accettatore; null per amministratore e responsabile (tutti gli sportelli). */
+  /** Sportello dell'accettatore; null per l'amministratore (tutti gli sportelli). */
   readonly deskCode: string | null;
   readonly username: string;
 }
@@ -59,7 +59,7 @@ export class DevQuickLoginService {
     this.logger = deps.logger.child('[QuickLogin]');
   }
 
-  /** Amministratore, responsabile/BDC e un accettatore per ogni sportello attivo. */
+  /** Amministratore e un accettatore per ogni sportello attivo. */
   async profiles(): Promise<readonly QuickLoginProfile[]> {
     const desks = (await this.deps.referenceData.listDesks()).filter((d) => d.isActive);
     return [
@@ -70,14 +70,6 @@ export class DevQuickLoginService {
         role: 'ADMIN',
         deskCode: null,
         username: `${DEV_USERNAME_PREFIX}admin`,
-      },
-      {
-        id: 'bdc',
-        label: 'Responsabile / BDC',
-        description: 'Cruscotto BDC, chiusura giornata, report',
-        role: 'SUPERVISOR',
-        deskCode: null,
-        username: `${DEV_USERNAME_PREFIX}bdc`,
       },
       ...desks.map((d) => ({
         id: `accettatore-${d.code.toLowerCase()}`,

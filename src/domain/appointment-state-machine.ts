@@ -1,6 +1,6 @@
 // State machine della pratica: tabella esplicita delle transizioni ammesse.
 // L'unica transizione "privilegiata" è NO_SHOW → WAITING (arrivo in ritardo, azione
-// `reopen`), riservata ai ruoli SUPERVISOR/ADMIN: il controllo del ruolo avviene nel
+// `reopen`), riservata a chi ne ha il permesso: il controllo del ruolo avviene nel
 // servizio applicativo (QueueService), non qui. COMPLETED e CANCELLED sono terminali.
 // Azioni corrispondenti alle transizioni: take (→ IN_PROGRESS), skip (→ SKIPPED),
 // restore (SKIPPED → WAITING), complete (→ COMPLETED), release (IN_PROGRESS → WAITING),

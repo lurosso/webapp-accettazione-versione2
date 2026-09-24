@@ -55,7 +55,7 @@ export interface OperatorsPanelProps {
   readonly currentOperatorId: string;
 }
 
-const RUOLI: readonly OperatorRole[] = ['ADVISOR', 'SUPERVISOR', 'ADMIN', 'KIOSK'];
+const RUOLI: readonly OperatorRole[] = ['ADVISOR', 'ADMIN', 'KIOSK'];
 
 /** Dove si trova una persona in questo momento, ricavato dal monitoraggio degli sportelli. */
 interface Postazione {

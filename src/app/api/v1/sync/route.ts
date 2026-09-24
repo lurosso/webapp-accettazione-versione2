@@ -1,5 +1,5 @@
 // POST /api/v1/sync: sincronizzazione manuale dell'agenda Infinity per la giornata corrente.
-// Regola: SUPERVISOR/ADMIN sempre; ADVISOR solo come "Riprova" quando l'ultima sync è fallita o
+// Regola: ADMIN sempre; ADVISOR solo come "Riprova" quando l'ultima sync è fallita o
 // manca del tutto (fallback: l'officina non deve dipendere da chi è di turno).
 import { NextResponse, type NextRequest } from 'next/server';
 import { readApiSession } from '@/app/_server/session';
@@ -14,9 +14,9 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
   if (session === null) {
     return unauthorizedResponse();
   }
-  // Chi può chiederla: responsabili e amministratore sempre, accettatori come «Riprova». Nessun
-  // altro ruolo (un account kiosk non ha motivo di interrogare Infinity).
-  if (!canAccess('manager', session.role) && !canAccess('accettazione', session.role)) {
+  // Chi può chiederla: l'amministratore sempre, gli accettatori come «Riprova». Nessun altro ruolo
+  // (un account kiosk non ha motivo di interrogare Infinity).
+  if (!canAccess('admin', session.role) && !canAccess('accettazione', session.role)) {
     return forbiddenResponse('La sincronizzazione non è disponibile per questo ruolo.');
   }
   const container = getContainer();
@@ -25,7 +25,7 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
     const latest = await container.syncService.getLatestRun(today);
     if (latest !== null && latest.status !== 'FAILED') {
       return forbiddenResponse(
-        'La sincronizzazione di oggi è già stata eseguita: solo un responsabile può ripeterla.',
+        "La sincronizzazione di oggi è già stata eseguita: solo l'amministratore può ripeterla.",
       );
     }
   }

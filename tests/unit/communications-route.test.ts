@@ -1,5 +1,5 @@
 // GET /api/v1/notifications e POST /api/v1/notifications/[id]/actions dal punto di vista di chi
-// lavora la schermata Comunicazioni: sessione obbligatoria, banco e BDC ammessi, comandi validati,
+// lavora la schermata Comunicazioni: sessione obbligatoria, banco e amministratore ammessi, comandi validati,
 // «Prendo io» esclusivo e chiusura con l'esito. Container isolato al posto di quello globale.
 import { NextRequest } from 'next/server';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
@@ -105,7 +105,7 @@ beforeAll(async () => {
   setContainerForTests(container);
   cookie['banco'] = await accedi('mario.rossi', 'ws-p1');
   cookie['collega'] = await accedi('laura.bianchi', 'ws-p2');
-  cookie['bdc'] = await accedi('responsabile', 'ws-p4');
+  cookie['admin'] = await accedi('admin', 'ws-p4');
 });
 
 afterAll(() => {
@@ -118,9 +118,9 @@ describe('Rotte della schermata Comunicazioni', () => {
     expect((await POST(...comando(null, 'qualunque', { action: 'claim' }))).status).toBe(401);
   });
 
-  it('il banco e il BDC vedono il messaggio in riprova con i conteggi', async () => {
+  it('il banco e l’amministratore vedono il messaggio in riprova con i conteggi', async () => {
     const job = await messaggioFallito();
-    for (const chi of ['banco', 'bdc']) {
+    for (const chi of ['banco', 'admin']) {
       const r = await GET(lettura(chi));
       expect(r.status).toBe(200);
       const vista = (await r.json()) as {
@@ -165,11 +165,11 @@ describe('Rotte della schermata Comunicazioni', () => {
     expect(riga.status).toBe('MANUAL_CONFIRMED');
     expect(riga.manualOutcomeLabel).toBe('Cliente chiamato al telefono');
 
-    const gestite = (await (await GET(lettura('bdc', '?vista=gestite'))).json()) as {
+    const gestite = (await (await GET(lettura('admin', '?vista=gestite'))).json()) as {
       rows: { jobId: string }[];
     };
     expect(gestite.rows.map((r) => r.jobId)).toContain(job.id);
-    const aperte = (await (await GET(lettura('bdc'))).json()) as { rows: { jobId: string }[] };
+    const aperte = (await (await GET(lettura('admin'))).json()) as { rows: { jobId: string }[] };
     expect(aperte.rows.map((r) => r.jobId)).not.toContain(job.id);
   });
 });

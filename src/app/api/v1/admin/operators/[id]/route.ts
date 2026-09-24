@@ -18,7 +18,7 @@ export const dynamic = 'force-dynamic';
 const UpdateBody = z
   .object({
     displayName: z.string().trim().min(1).max(80).optional(),
-    role: z.enum(['ADVISOR', 'SUPERVISOR', 'ADMIN', 'KIOSK']).optional(),
+    role: z.enum(['ADVISOR', 'ADMIN', 'KIOSK']).optional(),
     deskIds: z.array(z.string().trim().min(1)).max(20).optional(),
     defaultWorkstationId: z.string().trim().min(1).nullable().optional(),
     isActive: z.boolean().optional(),

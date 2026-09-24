@@ -11,7 +11,6 @@ import {
 describe('homePathForRole', () => {
   it('ogni ruolo ha la propria area: nessuno viene mandato in accettazione per forza', () => {
     expect(homePathForRole('ADVISOR')).toBe('/accettazione');
-    expect(homePathForRole('SUPERVISOR')).toBe('/manager');
     expect(homePathForRole('ADMIN')).toBe('/admin');
   });
 });
@@ -21,17 +20,11 @@ describe('canAccess', () => {
     expect(canAccess('accettazione', 'ADVISOR')).toBe(true);
     expect(canAccess('check-in', 'ADVISOR')).toBe(true);
     expect(canAccess('sistema', 'ADVISOR')).toBe(true);
-    expect(canAccess('manager', 'ADVISOR')).toBe(false);
     expect(canAccess('admin', 'ADVISOR')).toBe(false);
   });
 
-  it('il responsabile entra nella sua area ma non in amministrazione', () => {
-    expect(canAccess('manager', 'SUPERVISOR')).toBe(true);
-    expect(canAccess('admin', 'SUPERVISOR')).toBe(false);
-  });
-
   it("l'amministratore entra ovunque", () => {
-    for (const area of ['accettazione', 'manager', 'admin', 'sistema'] as const) {
+    for (const area of ['accettazione', 'admin', 'sistema', 'comunicazioni'] as const) {
       expect(canAccess(area, 'ADMIN')).toBe(true);
     }
   });
@@ -39,7 +32,7 @@ describe('canAccess', () => {
 
 describe('safeInternalPath', () => {
   it('accetta solo percorsi interni', () => {
-    expect(safeInternalPath('/manager', '/')).toBe('/manager');
+    expect(safeInternalPath('/comunicazioni', '/')).toBe('/comunicazioni');
     expect(safeInternalPath(['/admin'], '/')).toBe('/admin');
   });
 
@@ -71,13 +64,13 @@ describe('destinationAfterPasswordChange', () => {
     expect(destinationAfterPasswordChange('/accettazione?view=global', 'ADVISOR')).toBe(
       '/accettazione?view=global',
     );
-    expect(destinationAfterPasswordChange(['/manager'], 'SUPERVISOR')).toBe('/manager');
+    expect(destinationAfterPasswordChange(['/comunicazioni'], 'ADVISOR')).toBe('/comunicazioni');
   });
 
   it('senza destinazione va alla home del ruolo, mai restando sul cambio password o sul login', () => {
     expect(destinationAfterPasswordChange(undefined, 'ADVISOR')).toBe('/accettazione');
     expect(destinationAfterPasswordChange('/', 'ADMIN')).toBe('/admin');
-    expect(destinationAfterPasswordChange('/cambia-password', 'SUPERVISOR')).toBe('/manager');
+    expect(destinationAfterPasswordChange('/cambia-password', 'ADVISOR')).toBe('/accettazione');
     expect(destinationAfterPasswordChange('/cambia-password?next=%2Fadmin', 'ADMIN')).toBe(
       '/admin',
     );

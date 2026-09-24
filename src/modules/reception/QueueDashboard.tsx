@@ -598,7 +598,7 @@ export function QueueDashboard({
         }
         onClose={() => setSelectedId(null)}
         actionPending={selectedRow !== null && actions.pendingId === selectedRow.appointment.id}
-        canConfirmAutoClose={canAccess('manager', session.role)}
+        canConfirmAutoClose={canAccess('admin', session.role)}
         // In sola lettura il pannello resta consultabile ma senza comandi: si guarda, non si agisce.
         onAction={
           readOnly

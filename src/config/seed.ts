@@ -183,17 +183,6 @@ function buildDemoSeedData(): SeedData {
       mustChangePassword: false,
     },
     {
-      id: asOperatorId('op-supervisor'),
-      username: 'responsabile',
-      displayName: 'Giulia Ferrari',
-      role: 'SUPERVISOR',
-      deskIds: desks.map((d) => d.id),
-      defaultWorkstationId: asWorkstationId('ws-p1'),
-      passwordHash: DEMO_PASSWORD_HASH,
-      isActive: true,
-      mustChangePassword: false,
-    },
-    {
       id: asOperatorId('op-advisor-1'),
       username: 'mario.rossi',
       displayName: 'Mario Rossi',

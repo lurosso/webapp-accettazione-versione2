@@ -15,7 +15,7 @@ import { canAccess } from '@/lib/navigation';
 
 export const dynamic = 'force-dynamic';
 
-const Role = z.enum(['ADVISOR', 'SUPERVISOR', 'ADMIN', 'KIOSK']);
+const Role = z.enum(['ADVISOR', 'ADMIN', 'KIOSK']);
 
 const CreateBody = z.object({
   username: z.string().trim().min(3).max(64),

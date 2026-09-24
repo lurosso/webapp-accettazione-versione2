@@ -1,6 +1,6 @@
 // POST /api/v1/notifications/[id]/actions — i comandi della schermata Comunicazioni:
 // - `claim`: «Prendo io», il contatto è mio e i colleghi lo vedono;
-// - `release`: lo lascio (chi l'aveva preso, oppure un responsabile o un amministratore);
+// - `release`: lo lascio (chi l'aveva preso, oppure l'amministratore);
 // - `retry`: riprova l'invio adesso (il guasto del provider è passato, il numero è stato corretto);
 // - `confirm`: ho contattato il cliente, registro l'esito e chiudo la segnalazione.
 import { NextResponse, type NextRequest } from 'next/server';
@@ -59,7 +59,7 @@ export async function POST(request: NextRequest, context: RouteContext): Promise
     {
       operatorId: session.operatorId,
       displayName: session.displayName,
-      privileged: session.role === 'SUPERVISOR' || session.role === 'ADMIN',
+      privileged: session.role === 'ADMIN',
     },
   );
   if (!esito.ok) {

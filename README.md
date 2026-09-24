@@ -184,7 +184,7 @@ solo account `admin` con password provvisoria da cambiare al primo accesso, acce
 `/admin`.
 
 **Accesso veloce (solo sviluppo).** Fuori dalla produzione la pagina di login mostra un riquadro
-ambra con un pulsante per profilo: Amministratore, Responsabile / BDC e un Accettatore per ogni
+ambra con un pulsante per profilo: Amministratore e un Accettatore per ogni
 sportello. Un tocco crea al primo uso l'account `dev.*` corrispondente (password casuale, mai
 comunicata) ed entra senza credenziali: serve a cambiare ruolo in fretta durante il debug e dopo ogni
 riavvio, quando lo store in memoria si azzera. Si governa con `DEV_QUICK_LOGIN` (acceso di default
@@ -194,7 +194,6 @@ in sviluppo, ignorato con `NODE_ENV=production`); la rotta `POST /api/v1/auth/qu
 | Utente          | Ruolo          | Sportello abituale                           |
 | --------------- | -------------- | -------------------------------------------- |
 | `admin`         | Amministratore | tutti                                        |
-| `responsabile`  | Responsabile   | tutti                                        |
 | `mario.rossi`   | Accettatore    | Sportello B · FCA (Fiat, Lancia, Jeep, Alfa) |
 | `laura.bianchi` | Accettatore    | Sportello C · PSA (Peugeot, Citroën, Opel)   |
 | `andrea.conti`  | Accettatore    | Sportello D · PSA                            |
@@ -203,20 +202,20 @@ Gli account si gestiscono da `/admin` (vedi sotto): l'amministratore ne crea di 
 li disattiva e azzera le password senza toccare il seed. Esiste anche il ruolo **Kiosk** per gli
 account dei dispositivi, che atterrano sul tabellone e non entrano nell'area operatore.
 
-**Chi vede cosa.** Dal 2026-09-17 i ruoli stanno in recinti espliciti, elencati in un solo posto
-(`AREA_ROLES` in `src/lib/navigation.ts`), che valgono per le pagine, per il menu e per le API:
+**Chi vede cosa.** I ruoli stanno in recinti espliciti, elencati in un solo posto (`AREA_ROLES` in
+`src/lib/navigation.ts`), che valgono per le pagine, per il menu e per le API:
 
-| Ruolo                  | Dove entra                                       |
-| ---------------------- | ------------------------------------------------ |
-| **Accettatore**        | Coda, archivio, check-in, Sistema                |
-| **Responsabile / BDC** | Solo il cruscotto BDC (`/manager`, alias `/bdc`) |
-| **Amministratore**     | Tutto                                            |
-| **Kiosk**              | Solo il tabellone della sala                     |
+| Ruolo              | Dove entra                                                           |
+| ------------------ | -------------------------------------------------------------------- |
+| **Accettatore**    | Coda, archivio, check-in, Comunicazioni, Sistema (solo segnalazioni) |
+| **Amministratore** | Tutto                                                                |
+| **Kiosk**          | Solo il tabellone della sala                                         |
 
-Il BDC vive in un silos: se apre `/accettazione`, `/check-in` o `/sistema` viene riportato al proprio
-cruscotto, e le stesse rotte chiamate via API rispondono 403. Non è sfiducia, è responsabilità: la
-coda la governano gli accettatori al banco, e una pratica presa in carico da chi sta al telefono è
-una pratica che nessuno sta accettando.
+Dal 2026-09-24 il BDC **non usa l'app**: il ruolo Responsabile/BDC e il suo cruscotto non esistono
+più, e gli account che l'avevano sono stati disattivati. Ogni assente — segnato al banco, dichiarato
+dal cliente su WhatsApp o rimasto in coda alla chiusura della giornata — parte da solo come **lead
+verso il CRM del BDC**, dalla coda di uscita con riprova automatica. Chiusura della giornata, sync
+forzata, annullo e rilascio delle pratiche sono dell'amministratore.
 
 Al login si sceglie una sola cosa, lo **Sportello** (A, B, C o D): ogni voce porta con sé la propria
 area per marchio e i marchi serviti ("Sportello A · FCA", con i badge Fiat, Lancia, Jeep e Alfa
@@ -235,8 +234,7 @@ anche il server, quindi due login sullo stesso posto non passano nemmeno chiaman
 | `/sistema`               | Responsabile / IT  | disponibile | Stato delle porte esterne (Infinity, Spoki, SMS Hosting, CRM) e, per gli amministratori, la coda di uscita verso il CRM con "Forza riprova"                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                       |
 | `/cliente` (`/qr`)       | Cliente (QR)       | disponibile | Ricerca per targa e stato del turno in tempo reale: codice, clienti in attesa, messaggio per stato; nessuna autenticazione e nessun dato personale                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                |
 | `/display/sala-attesa`   | Sala d'attesa      | disponibile | Tabellone stile ufficio pubblico: codici chiamati con la lettera dello sportello a cui presentarsi e prossimi turni                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                               |
-| `/manager`               | BDC / Responsabile | disponibile | Cruscotto del back office: clienti segnati assenti da ricontattare, con telefono richiamabile e chiusura del lead con esito; da qui si esegue anche la chiusura di giornata                                                                                                                                                                                                                                                                                                                                                                                                                                                                       |
-| `/comunicazioni`         | Responsabile       | pianificato | Registro degli invii WhatsApp e SMS con conferma manuale (l'invio automatico funziona già)                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                        |
+| `/comunicazioni`         | Accettatore, Admin | disponibile | Messaggi al cliente non arrivati: in riprova automatica, da contattare a mano, senza numero; presa in carico, riprova ed esito del contatto                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                       |
 | `/display/A` … `/D`      | Monitor            | disponibile | Schermo a tutto campo per i monitor sopra i quattro sportelli: lettera, codice e targa in servizio, oppure invito verde ad avanzare; si aggiorna ogni 2 secondi                                                                                                                                                                                                                                                                                                                                                                                                                                                                                   |
 | `/check-in`              | Tablet             | disponibile | Check-in veicolo a tutto schermo, senza l'intestazione del sito: le pratiche del proprio sportello in due schede grandi, foto a slot con «+ Foto» e «Video» (mai obbligatori), note con annotazioni rapide, comandi fissi in basso (il vecchio `/tablet` rimanda qui)                                                                                                                                                                                                                                                                                                                                                                             |
 | `/accettazione/archivio` | Accettatore        | disponibile | Archivio delle ispezioni: ricerca per targa o codice, schede con le foto per categoria; i file oltre la retention risultano eliminati ma la scheda resta                                                                                                                                                                                                                                                                                                                                                                                                                                                                                          |
@@ -245,7 +243,7 @@ anche il server, quindi due login sullo stesso posto non passano nemmeno chiaman
 API principali (JSON, autenticate via cookie di sessione): `GET /api/v1/queue`,
 `POST /api/v1/appointments/{id}/actions`, `POST /api/v1/appointments/{id}/media` (foto, multipart),
 `POST /api/v1/appointments/{id}/check-in`, `POST /api/v1/sync`, `POST /api/v1/auth/login`,
-`GET /api/v1/crm/leads` e `POST /api/v1/crm/leads/{id}/contacted` (responsabile e amministratore),
+`GET /api/v1/crm/leads` (assenti e anomalie, amministratore),
 `POST /api/v1/system/close-day` (chiusura giornata), `GET /api/v1/crm/outbox` e
 `POST /api/v1/crm/outbox/{id}/retry` (amministratore), `GET /api/v1/inspections/archive?q=` (archivio),
 `GET|POST /api/v1/admin/operators`, `PATCH /api/v1/admin/operators/{id}`,
@@ -383,7 +381,7 @@ toccabile per aprire il dettaglio.
 ### Tablet e iPad: bersagli e larghezze
 
 I controlli principali rispettano il bersaglio minimo di 44×44 px: campi di testo e menu a tendina
-(44 px), voci di navigazione e «Esci» nell'header, pulsanti di azione delle righe e del cruscotto BDC,
+(44 px), voci di navigazione e «Esci» nell'header, pulsanti di azione delle righe,
 caselle di spunta da 24 px con etichette alte 44 px. A 768 px (iPad verticale) e 1024 px
 (orizzontale) la pagina non scorre mai in orizzontale: le tabelle larghe scorrono dentro il proprio
 riquadro e la coda nasconde le colonne Sportello e Operatore sotto i 1024 px (si leggono nel
@@ -398,37 +396,27 @@ arrivano da Infinity (una sola può superare le venti righe) si fermano a due ri
 Senza quel limite una riga sola occupava mezzo schermo e spingeva fuori vista tutte le altre. I badge «In diretta» e «Dati non aggiornati» stanno nella barra dei comandi, che va a
 capo invece di sovrapporsi.
 
-### Provare il cruscotto BDC
+### I lead al BDC
 
-Il cruscotto BDC è **l'elenco dei clienti da richiamare**: chi non si è presentato, da richiamare e
-da riprogrammare su Infinity, e — dal 2026-09-23 — chi è stato **saltato tre volte** al banco
-(«Verificare presenza», vedi sotto). Niente statistiche, niente medie, niente grafici e nemmeno la
-chiusura di giornata: stanno tutti in Amministrazione. Serve un account con ruolo responsabile: `responsabile` / `demo`. Dalla dashboard
-di accettazione segna assente un cliente del blocco **In ritardo / assenti**, poi apri
-<http://localhost:3000/manager>: la riga compare subito nel cruscotto con nome, numero richiamabile
-con un tocco, targa, veicolo, motivo e ora dell'assenza. **Gestito / riprogrammato** chiude il lead quando
-l'appuntamento è di nuovo in agenda su Infinity, e la riga esce dall'elenco delle chiamate da fare.
-Chiede un secondo tocco ("Confermi? Esce dalla lista"), perché la lista si scorre con il telefono in
-mano e il primo tocco parte da solo; la richiesta decade da sola dopo qualche secondo. Con **Con
-nota** si aggiunge l'esito, per esempio "richiama lunedì". La spunta _Mostra anche i già gestiti_ fa
-rivedere chi ha chiuso e quando, e da lì **Riporta fra i da fare** rimette il cliente in elenco:
-serve dopo un tocco sbagliato o una riprogrammazione che poi salta.
-
-La chiusura del lead è indipendente dal CRM: con `MOCK_CRM_MODE=error` la riga dice "CRM non
-raggiungibile", ma il BDC può comunque telefonare e chiudere: l'evento resta in coda per il rinvio.
+Il BDC lavora nel proprio CRM, non nell'app. Ogni cliente che non si presenta diventa un lead
+**da solo**: quando l'accettatore lo segna assente dal blocco **In ritardo / assenti**, quando il
+cliente tocca «Non posso venire» su WhatsApp, o quando la chiusura della giornata trova qualcuno
+ancora in coda. L'evento entra nella coda di uscita e parte verso il CRM, con riprova automatica se
+il CRM non risponde (`MOCK_CRM_MODE=error` per provarlo); l'amministratore vede lo stato di ogni
+consegna in _Sistema_ e gli assenti e le anomalie della giornata in _Monitoraggio operativo_. Oggi il
+CRM è simulato: per il vivo servono indirizzo e autenticazione del CRM del BDC.
 
 **Il terzo «Salta».** Quando la stessa pratica viene saltata per la terza volta di fila (fra un
 salto e l'altro c'è «Ripristina»; la presa in carico interrompe la serie), il sistema registra
-un'anomalia sulla pratica, «Cliente saltato 3 volte - Verificare presenza»: arriva nel cruscotto BDC
-con il segno _Verificare presenza_, nel pannello **Anomalie di oggi** dell'amministratore
+un'anomalia sulla pratica, «Cliente saltato 3 volte - Verificare presenza»: arriva al CRM del BDC,
+nel pannello **Anomalie di oggi** dell'amministratore
 (_Monitoraggio operativo_) e al CRM come evento `ANOMALY`/`EXCESSIVE_SKIPS`. Una sola per pratica e
 giornata; la riga della coda dice «saltata 3 volte · verificare presenza». Se poi il cliente viene
-preso in carico, l'anomalia si chiude da sola («Cliente presente»): il BDC non telefona a chi è già al
-banco.
+preso in carico, l'anomalia si chiude da sola («Cliente presente»).
 
 ### Provare la schermata Comunicazioni
 
-<http://localhost:3000/comunicazioni> (accettatori, BDC, amministratore) elenca i **messaggi al
+<http://localhost:3000/comunicazioni> (accettatori e amministratore) elenca i **messaggi al
 cliente che non sono arrivati** negli ultimi sette giorni, con il testo del messaggio (quello da
 dire al telefono), il numero da chiamare con un tocco e l'ultimo errore dei provider. Ogni riga dice
 cosa sta facendo il sistema:
@@ -440,7 +428,7 @@ cosa sta facendo il sistema:
 - **Senza numero**: in agenda non c'è un telefono, il cliente va informato di persona.
 
 **Prendo io** mette il proprio nome sulla riga (un collega non può prenderla; la rilascia chi l'ha
-presa, un responsabile o un amministratore), **Riprova invio** ripercorre subito WhatsApp e SMS,
+presa o l'amministratore), **Riprova invio** ripercorre subito WhatsApp e SMS,
 **Registra esito** chiude la segnalazione con l'esito (cliente chiamato al telefono, informato di
 persona, non raggiungibile, numero errato, altro) e una nota facoltativa. La vista **Gestite** mostra
 chi ha chiuso cosa e quando. Per provarla con i mock: un cliente il cui telefono finisce per **8**
@@ -569,7 +557,7 @@ risponde 404. Ogni risposta diventa un fatto dell'officina:
 | -------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
 | **Sono arrivato** (`ACTION_ARRIVED`)   | Si annota l'ora dell'arrivo («in fila dalle …» in dashboard), la pratica resta al suo posto in coda e parte la risposta con codice e smart link `/portal/<token>`. Con più di `SPOKI_MAX_EARLY_ARRIVAL_MINUTES` (60) di anticipo la pratica non si tocca e il cliente riceve «È ancora un po' presto…: ripremi al massimo 60 minuti prima dell'orario» |
 | **In ritardo** (`ACTION_LATE`)         | Come il pulsante del portale: l'arrivo atteso si sposta di 10 minuti, la dashboard mostra l'avviso ambra e il cliente riceve la conferma                                                                                                                                                                                                               |
-| **Non posso venire** (`ACTION_ABSENT`) | La pratica diventa assente (lo slot in coda si libera), finisce nel cruscotto BDC con scritto che è stato il cliente a dirlo, e il cliente riceve la conferma                                                                                                                                                                                          |
+| **Non posso venire** (`ACTION_ABSENT`) | La pratica diventa assente (lo slot in coda si libera), parte come lead verso il CRM del BDC con scritto che è stato il cliente a dirlo, e il cliente riceve la conferma                                                                                                                                                                               |
 
 Il webhook è prudente per costruzione: un testo che non è una delle tre risposte, o un numero senza
 pratica in agenda oggi, riceve `200 {"handled": false}` e non tocca niente — sul numero
@@ -667,7 +655,7 @@ ignorata) — si confrontano a tempo costante, con un tetto sui tentativi fallit
 Sull'area operatore: ogni API richiede sessione **e ruolo** (gli account KIOSK dei dispositivi non
 passano da nessuna API tranne quelle di autenticazione), una sola sessione è valida per operatore
 (login, cambio password e logout invalidano i token precedenti), una pratica in carico la completa
-solo chi l'ha in carico o un responsabile. Le richieste che cambiano stato devono partire dalla
+solo chi l'ha in carico o l'amministratore. Le richieste che cambiano stato devono partire dalla
 nostra origine (`Sec-Fetch-Site`/`Origin` verificati nel proxy oltre a `SameSite=Lax`). Foto e
 video si accettano solo con il check-in aperto, solo se i **primi byte** sono davvero un'immagine o
 un video ammessi (un `.exe` rinominato `.jpg` è rifiutato qualunque cosa dichiari), sotto un
@@ -683,12 +671,10 @@ chiuso e le decisioni ancora da prendere, è in `docs/SECURITY_AUDIT_2026-09-21.
 ## Fine giornata e coda verso il CRM
 
 **Chiusura giornata.** A officina chiusa l'amministratore preme _Esegui chiusura giornata_ nella
-vista **Amministrazione**, accanto alle statistiche, e conferma. Dal 2026-09-17 il comando non sta
-più nel cruscotto BDC: chiudere la giornata è un atto di supervisione, e chi telefona ai clienti
-assenti quella lista se la ritrova già fatta. Chi era ancora in coda viene segnato **assente** e compare subito fra i
-lead da ricontattare (con l'evento verso il CRM); le accettazioni rimaste **in carico** vengono
+vista **Amministrazione**, accanto alle statistiche, e conferma. Chi era ancora in coda viene
+segnato **assente** e parte subito come lead verso il CRM del BDC; le accettazioni rimaste **in carico** vengono
 chiuse **d'ufficio**: risultano completate ma "da confermare", perché a quell'ora un veicolo in
-carico è quasi sempre stato accettato senza il tocco finale. La mattina dopo il responsabile le
+carico è quasi sempre stato accettato senza il tocco finale. La mattina dopo l'amministratore le
 trova segnate in coda, nel dettaglio e nel CSV; le conferma ("Conferma chiusura", e il CRM riceve
 il check-in) oppure un operatore le riapre e conclude il giro. Le pratiche già completate non si
 toccano. Monitor e tabellone tornano vuoti da soli: le loro viste
@@ -826,7 +812,7 @@ annullate. Accanto a ogni media c'è su quante pratiche è calcolata: una media 
 
 Dal 2026-09-17 i numeri della giornata sono **riservati all'amministratore**, insieme
 all'esportazione CSV: `GET /api/v1/reports/daily` e la sua variante CSV rispondono 403 a chiunque
-altro, responsabile compreso. Al BDC serve sapere chi richiamare adesso, non la media di attesa.
+altro.
 
 **Esporta report CSV** scarica il dettaglio di tutte le pratiche della giornata (codice, orari,
 targa, veicolo, cliente, sportello, accettazione, stato, operatore, minuti di attesa e di
@@ -856,25 +842,23 @@ per i cron esterni.
 
 ### Dashboard accettazione e postazioni operatore
 
-| Rotta                    | Metodo | Descrizione                                                                                                                                                                                                     | Accesso                                                           |
-| ------------------------ | ------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------- |
-| `/accettazione`          | pagina | Coda della giornata per sportello e vista globale: prendi in carico, salta, completa, riattiva, inserimento manuale, riprova sync. Con ?sola-lettura=1 (solo amministratore) diventa monitoraggio senza azioni. | Accettatore e Amministratore (il BDC resta sul proprio cruscotto) |
-| `/accettazione/archivio` | pagina | Archivio dei check-in con foto e video: ricerca per targa o codice pratica.                                                                                                                                     | Accettatore e Amministratore (il BDC resta sul proprio cruscotto) |
+| Rotta                    | Metodo | Descrizione                                                                                                                                                                                                     | Accesso                      |
+| ------------------------ | ------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------- |
+| `/accettazione`          | pagina | Coda della giornata per sportello e vista globale: prendi in carico, salta, completa, riattiva, inserimento manuale, riprova sync. Con ?sola-lettura=1 (solo amministratore) diventa monitoraggio senza azioni. | Accettatore e Amministratore |
+| `/accettazione/archivio` | pagina | Archivio dei check-in con foto e video: ricerca per targa o codice pratica.                                                                                                                                     | Accettatore e Amministratore |
 
 ### Tablet e check-in veicolo
 
-| Rotta       | Metodo | Descrizione                                                                                                                                                                    | Accesso                                                           |
-| ----------- | ------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ----------------------------------------------------------------- |
-| `/check-in` | pagina | Vista tablet a tutto schermo: pratiche in attesa del mio sportello, prese in carico, video obbligatorio e foto facoltative, conclusione con conferma. Da PC rimanda alla coda. | Accettatore e Amministratore (il BDC resta sul proprio cruscotto) |
-| `/tablet`   | pagina | Vecchio indirizzo del tablet: rimanda a /check-in conservando la pratica richiesta.                                                                                            | Accettatore e Amministratore (il BDC resta sul proprio cruscotto) |
+| Rotta       | Metodo | Descrizione                                                                                                                                                                    | Accesso                      |
+| ----------- | ------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ---------------------------- |
+| `/check-in` | pagina | Vista tablet a tutto schermo: pratiche in attesa del mio sportello, prese in carico, video obbligatorio e foto facoltative, conclusione con conferma. Da PC rimanda alla coda. | Accettatore e Amministratore |
+| `/tablet`   | pagina | Vecchio indirizzo del tablet: rimanda a /check-in conservando la pratica richiesta.                                                                                            | Accettatore e Amministratore |
 
-### Manager e BDC
+### Comunicazioni
 
-| Rotta            | Metodo | Descrizione                                                                                                                                                                                                                 | Accesso                                   |
-| ---------------- | ------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------- |
-| `/bdc`           | pagina | Alias dell'indirizzo usato dal reparto: rimanda al cruscotto BDC (/manager).                                                                                                                                                | Manager e Amministratore                  |
-| `/manager`       | pagina | Cruscotto BDC: i clienti assenti da ricontattare e riprogrammare su Infinity e quelli saltati tre volte al banco, di cui verificare la presenza.                                                                            | Manager e Amministratore                  |
-| `/comunicazioni` | pagina | Comunicazioni: i messaggi al cliente non arrivati — in riprova automatica (con l’ora del prossimo tentativo), da contattare a mano, senza numero — con «Prendo io», «Riprova invio» e la chiusura con l’esito del contatto. | Accettatore, Manager/BDC e Amministratore |
+| Rotta            | Metodo | Descrizione                                                                                                                                                                                                                 | Accesso                      |
+| ---------------- | ------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------- |
+| `/comunicazioni` | pagina | Comunicazioni: i messaggi al cliente non arrivati — in riprova automatica (con l’ora del prossimo tentativo), da contattare a mano, senza numero — con «Prendo io», «Riprova invio» e la chiusura con l’esito del contatto. | Accettatore e Amministratore |
 
 ### Amministrazione e configurazione
 
@@ -885,9 +869,9 @@ per i cron esterni.
 
 ### Sistema e diagnostica
 
-| Rotta      | Metodo | Descrizione                                                                                                                                                                                                                                           | Accesso                                                           |
-| ---------- | ------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------- |
-| `/sistema` | pagina | Diagnostica: porte esterne (Infinity, Spoki, SMS, CRM), storage dei media, rete, sincronizzazione, con «Segnala ad Admin» su ogni riga e segnalazione libera (anche stampanti e hardware); per l'amministratore anche la coda di uscita verso il CRM. | Accettatore e Amministratore (il BDC resta sul proprio cruscotto) |
+| Rotta      | Metodo | Descrizione                                                                                                                                                                                                                                           | Accesso                      |
+| ---------- | ------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------- |
+| `/sistema` | pagina | Diagnostica: porte esterne (Infinity, Spoki, SMS, CRM), storage dei media, rete, sincronizzazione, con «Segnala ad Admin» su ogni riga e segnalazione libera (anche stampanti e hardware); per l'amministratore anche la coda di uscita verso il CRM. | Accettatore e Amministratore |
 
 ### Display di sala e monitor delle campate
 
@@ -920,16 +904,16 @@ per i cron esterni.
 
 | Rotta                                     | Metodo    | Descrizione                                                                                                                                                                                     | Accesso                                                                                                |
 | ----------------------------------------- | --------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------ |
-| `/api/v1/queue`                           | GET       | Coda della giornata (`?date=&deskId=&view=desk oppure global`): righe arricchite, sportelli senza il token dei monitor, ultima sync, dati di riferimento. Polling della dashboard e del tablet. | Accettatore e Amministratore (il BDC resta sul proprio cruscotto)                                      |
-| `/api/v1/appointments`                    | POST      | Inserimento manuale di una pratica (cliente senza appuntamento) nella coda di oggi.                                                                                                             | Accettatore e Amministratore (il BDC resta sul proprio cruscotto)                                      |
+| `/api/v1/queue`                           | GET       | Coda della giornata (`?date=&deskId=&view=desk oppure global`): righe arricchite, sportelli senza il token dei monitor, ultima sync, dati di riferimento. Polling della dashboard e del tablet. | Accettatore e Amministratore                                                                           |
+| `/api/v1/appointments`                    | POST      | Inserimento manuale di una pratica (cliente senza appuntamento) nella coda di oggi.                                                                                                             | Accettatore e Amministratore                                                                           |
 | `/api/v1/appointments/:id/actions`        | POST      | Azioni sulla pratica: take, skip, complete, release, restore, no-show, reactivate, cancel, confirm-auto-close (con `expectedVersion`, 409 sui conflitti).                                       | Accettatore e Amministratore; `cancel`, `release` e `confirm-auto-close` solo Manager e Amministratore |
-| `/api/v1/appointments/:id/check-in`       | POST      | Conclude l'accettazione dal tablet: note dell'ispezione, chiusura pratica (serve il video del veicolo, le foto no), notifica al CRM.                                                            | Accettatore e Amministratore (il BDC resta sul proprio cruscotto)                                      |
-| `/api/v1/appointments/:id/media`          | GET, POST | Media dell'ispezione: elenco (GET) e caricamento multipart di una foto o di un video dal tablet (POST, campo `foto`, `categoria` facoltativa).                                                  | Accettatore e Amministratore (il BDC resta sul proprio cruscotto)                                      |
-| `/api/v1/appointments/:id/media/:mediaId` | DELETE    | Elimina (DELETE) una foto o un video acquisiti per sbaglio durante il check-in: solo con la pratica in carico, dopo il fascicolo è sigillato (409).                                             | Accettatore e Amministratore (il BDC resta sul proprio cruscotto)                                      |
-| `/api/v1/media/:key`                      | GET       | Rilegge una foto o un video dell'ispezione dallo storage.                                                                                                                                       | Accettatore e Amministratore (il BDC resta sul proprio cruscotto)                                      |
-| `/api/v1/inspections/archive`             | GET       | Storico dei check-in con i media acquisiti (`?q=` targa o codice; vuoto = ultimi cinquanta).                                                                                                    | Accettatore e Amministratore (il BDC resta sul proprio cruscotto)                                      |
-| `/api/v1/events/stream`                   | GET       | Eventi in tempo reale (SSE) per l'area operatore: segnala cosa è cambiato, i dati si rileggono dagli endpoint.                                                                                  | Sessione operatore (Accettatore, Manager, Amministratore)                                              |
-| `/api/v1/sync`                            | POST      | Sincronizzazione manuale dell'agenda Infinity di oggi.                                                                                                                                          | Manager e Amministratore; Accettatore solo come «Riprova» dopo una sync fallita o assente              |
+| `/api/v1/appointments/:id/check-in`       | POST      | Conclude l'accettazione dal tablet: note dell'ispezione, chiusura pratica (serve il video del veicolo, le foto no), notifica al CRM.                                                            | Accettatore e Amministratore                                                                           |
+| `/api/v1/appointments/:id/media`          | GET, POST | Media dell'ispezione: elenco (GET) e caricamento multipart di una foto o di un video dal tablet (POST, campo `foto`, `categoria` facoltativa).                                                  | Accettatore e Amministratore                                                                           |
+| `/api/v1/appointments/:id/media/:mediaId` | DELETE    | Elimina (DELETE) una foto o un video acquisiti per sbaglio durante il check-in: solo con la pratica in carico, dopo il fascicolo è sigillato (409).                                             | Accettatore e Amministratore                                                                           |
+| `/api/v1/media/:key`                      | GET       | Rilegge una foto o un video dell'ispezione dallo storage.                                                                                                                                       | Accettatore e Amministratore                                                                           |
+| `/api/v1/inspections/archive`             | GET       | Storico dei check-in con i media acquisiti (`?q=` targa o codice; vuoto = ultimi cinquanta).                                                                                                    | Accettatore e Amministratore                                                                           |
+| `/api/v1/events/stream`                   | GET       | Eventi in tempo reale (SSE) per l'area operatore: segnala cosa è cambiato, i dati si rileggono dagli endpoint.                                                                                  | Sessione operatore (Accettatore, Amministratore)                                                       |
+| `/api/v1/sync`                            | POST      | Sincronizzazione manuale dell'agenda Infinity di oggi.                                                                                                                                          | Amministratore; Accettatore solo come «Riprova» dopo una sync fallita o assente                        |
 
 ### API: pubbliche (portale cliente, monitor, tabellone)
 
@@ -944,18 +928,16 @@ per i cron esterni.
 | `/api/v1/public/display`       | GET    | Stato del monitor di uno sportello (`?campata=A`, `?bay=`, `?bayCode=`): solo lettera, codice e targa.                                                                                                                                                                            | Pubblico · token del monitor (`?token=`, obbligatorio con DISPLAY_TOKEN_REQUIRED=true)                                                                               |
 | `/api/v1/public/events/stream` | GET    | Eventi in tempo reale (SSE) per monitor e tabellone: solo il tipo di evento, senza identificativi.                                                                                                                                                                                | Pubblico                                                                                                                                                             |
 
-### API: manager, report e BDC
+### API: report, lead e comunicazioni
 
-| Rotta                               | Metodo | Descrizione                                                                                                                                    | Accesso                                   |
-| ----------------------------------- | ------ | ---------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------- |
-| `/api/v1/reports/daily`             | GET    | Indicatori della giornata (`?giornata=`): attesa media, durata, esiti.                                                                         | Solo Amministratore                       |
-| `/api/v1/reports/daily/csv`         | GET    | Riepilogo dettagliato della giornata in CSV (con BOM per Excel).                                                                               | Solo Amministratore                       |
-| `/api/v1/notifications`             | GET    | Schermata Comunicazioni: messaggi al cliente non arrivati degli ultimi giorni, con i conteggi (`?vista=gestite` per quelli chiusi a mano).     | Accettatore, Manager/BDC e Amministratore |
-| `/api/v1/notifications/:id/actions` | POST   | Comandi su un messaggio non arrivato: `claim` (prendo io), `release`, `retry` (riprova invio), `confirm` (esito del contatto e chiusura).      | Accettatore, Manager/BDC e Amministratore |
-| `/api/v1/crm/leads`                 | GET    | Clienti da ricontattare per il BDC (`?giornata=&gestiti=1`, `tipo=assenti` o `tipo=anomalie`): assenti e clienti saltati tre volte da cercare. | Manager e Amministratore                  |
-| `/api/v1/crm/leads/:id/reopen`      | POST   | Riporta un lead chiuso fra quelli da ricontattare (tocco sbagliato o riprogrammazione saltata).                                                | Manager e Amministratore                  |
-| `/api/v1/crm/leads/:id/contacted`   | POST   | Il BDC dichiara di aver ricontattato il cliente (chi, esito).                                                                                  | Manager e Amministratore                  |
-| `/api/v1/system/close-day`          | POST   | Chiusura della giornata: chi è in coda diventa assente (lead BDC), chi è in carico viene chiuso d'ufficio.                                     | Manager e Amministratore                  |
+| Rotta                               | Metodo | Descrizione                                                                                                                                                         | Accesso                      |
+| ----------------------------------- | ------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------- |
+| `/api/v1/reports/daily`             | GET    | Indicatori della giornata (`?giornata=`): attesa media, durata, esiti.                                                                                              | Solo Amministratore          |
+| `/api/v1/reports/daily/csv`         | GET    | Riepilogo dettagliato della giornata in CSV (con BOM per Excel).                                                                                                    | Solo Amministratore          |
+| `/api/v1/notifications`             | GET    | Schermata Comunicazioni: messaggi al cliente non arrivati degli ultimi giorni, con i conteggi (`?vista=gestite` per quelli chiusi a mano).                          | Accettatore e Amministratore |
+| `/api/v1/notifications/:id/actions` | POST   | Comandi su un messaggio non arrivato: `claim` (prendo io), `release`, `retry` (riprova invio), `confirm` (esito del contatto e chiusura).                           | Accettatore e Amministratore |
+| `/api/v1/crm/leads`                 | GET    | Assenti e anomalie della giornata per il pannello «Anomalie di oggi» (`?giornata=&gestiti=1`, `tipo=assenti` o `tipo=anomalie`); al BDC arrivano come lead nel CRM. | Solo Amministratore          |
+| `/api/v1/system/close-day`          | POST   | Chiusura della giornata: chi è in coda diventa assente (lead al CRM del BDC), chi è in carico viene chiuso d'ufficio.                                               | Solo Amministratore          |
 
 ### API: amministrazione
 
@@ -974,14 +956,14 @@ per i cron esterni.
 
 ### API: sistema e cron
 
-| Rotta                                 | Metodo    | Descrizione                                                                                                                                                                                                            | Accesso                                                           |
-| ------------------------------------- | --------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------- |
-| `/api/v1/system/diagnostics`          | GET       | Diagnostica della pagina Sistema: porte esterne, storage dei media (sonda e spazio libero) e ultima sincronizzazione, ogni riga con stato e codice da segnalare.                                                       | Accettatore e Amministratore (il BDC resta sul proprio cruscotto) |
-| `/api/v1/system/alerts`               | GET, POST | Segnalazioni di disfunzione: POST da qualunque operatore (codice, componente, messaggio; chi e da quale postazione dalla sessione); GET per l'amministratore con riepilogo per stato (`?risolte=1` include le chiuse). | Sessione operatore (Accettatore, Manager, Amministratore)         |
-| `/api/v1/system/alerts/:id`           | PATCH     | Cambio di stato di una segnalazione (nuova → in gestione → risolta, con riapertura) e nota.                                                                                                                            | Solo Amministratore                                               |
-| `/api/v1/system/cron/reminders`       | POST      | Promemoria ai clienti (`?kind=previous-day oppure same-day`) per un cron esterno; stesso servizio dello scheduler interno.                                                                                             | Amministratore oppure intestazione `x-cron-secret`                |
-| `/api/v1/system/cron/crm-retry`       | POST      | Svuotamento della coda di uscita verso il CRM (rinvii) per un cron esterno.                                                                                                                                            | Amministratore oppure intestazione `x-cron-secret`                |
-| `/api/v1/system/cron/media-retention` | POST      | Eliminazione dei file di foto e video oltre la retention per un cron esterno.                                                                                                                                          | Amministratore oppure intestazione `x-cron-secret`                |
+| Rotta                                 | Metodo    | Descrizione                                                                                                                                                                                                            | Accesso                                            |
+| ------------------------------------- | --------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------- |
+| `/api/v1/system/diagnostics`          | GET       | Diagnostica della pagina Sistema: porte esterne, storage dei media (sonda e spazio libero) e ultima sincronizzazione, ogni riga con stato e codice da segnalare.                                                       | Accettatore e Amministratore                       |
+| `/api/v1/system/alerts`               | GET, POST | Segnalazioni di disfunzione: POST da qualunque operatore (codice, componente, messaggio; chi e da quale postazione dalla sessione); GET per l'amministratore con riepilogo per stato (`?risolte=1` include le chiuse). | Sessione operatore (Accettatore, Amministratore)   |
+| `/api/v1/system/alerts/:id`           | PATCH     | Cambio di stato di una segnalazione (nuova → in gestione → risolta, con riapertura) e nota.                                                                                                                            | Solo Amministratore                                |
+| `/api/v1/system/cron/reminders`       | POST      | Promemoria ai clienti (`?kind=previous-day oppure same-day`) per un cron esterno; stesso servizio dello scheduler interno.                                                                                             | Amministratore oppure intestazione `x-cron-secret` |
+| `/api/v1/system/cron/crm-retry`       | POST      | Svuotamento della coda di uscita verso il CRM (rinvii) per un cron esterno.                                                                                                                                            | Amministratore oppure intestazione `x-cron-secret` |
+| `/api/v1/system/cron/media-retention` | POST      | Eliminazione dei file di foto e video oltre la retention per un cron esterno.                                                                                                                                          | Amministratore oppure intestazione `x-cron-secret` |
 
 <!-- mappa-rotte:fine -->
 

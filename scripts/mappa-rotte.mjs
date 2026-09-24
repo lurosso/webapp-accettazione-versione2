@@ -19,11 +19,10 @@ const ACCESSO = {
   webhook:
     'Pubblico · firma HMAC `X-Spoki-Signature` o segreto condiviso (`SPOKI_WEBHOOK_SECRET`; risposte piatte con `SPOKI_INBOUND_SECRET`); 404 con `MESSAGING_STANDBY=true`',
   monitor: 'Pubblico · token del monitor (`?token=`, obbligatorio con DISPLAY_TOKEN_REQUIRED=true)',
-  sessione: 'Sessione operatore (Accettatore, Manager, Amministratore)',
-  comunicazioni: 'Accettatore, Manager/BDC e Amministratore',
-  banco: 'Accettatore e Amministratore (il BDC resta sul proprio cruscotto)',
+  sessione: 'Sessione operatore (Accettatore, Amministratore)',
+  comunicazioni: 'Accettatore e Amministratore',
+  banco: 'Accettatore e Amministratore',
   sessioneProvvisoria: 'Sessione operatore, anche con password provvisoria',
-  manager: 'Manager e Amministratore',
   admin: 'Solo Amministratore',
   cron: 'Amministratore oppure intestazione `x-cron-secret`',
 };
@@ -33,7 +32,7 @@ export const AREE = [
   'Accesso e sessione',
   'Dashboard accettazione e postazioni operatore',
   'Tablet e check-in veicolo',
-  'Manager e BDC',
+  'Comunicazioni',
   'Amministrazione e configurazione',
   'Sistema e diagnostica',
   'Display di sala e monitor delle campate',
@@ -41,7 +40,7 @@ export const AREE = [
   'API: autenticazione',
   'API: coda e pratiche',
   'API: pubbliche (portale cliente, monitor, tabellone)',
-  'API: manager, report e BDC',
+  'API: report, lead e comunicazioni',
   'API: amministrazione',
   'API: sistema e cron',
 ];
@@ -97,20 +96,6 @@ export const ROTTE = [
     descrizione:
       'Vecchio indirizzo del tablet: rimanda a /check-in conservando la pratica richiesta.',
     accesso: ACCESSO.banco,
-  },
-  // Manager
-  {
-    path: '/bdc',
-    area: AREE[3],
-    descrizione: "Alias dell'indirizzo usato dal reparto: rimanda al cruscotto BDC (/manager).",
-    accesso: ACCESSO.manager,
-  },
-  {
-    path: '/manager',
-    area: AREE[3],
-    descrizione:
-      'Cruscotto BDC: i clienti assenti da ricontattare e riprogrammare su Infinity e quelli saltati tre volte al banco, di cui verificare la presenza.',
-    accesso: ACCESSO.manager,
   },
   {
     path: '/comunicazioni',
@@ -292,7 +277,7 @@ export const ROTTE = [
     area: AREE[9],
     descrizione: "Sincronizzazione manuale dell'agenda Infinity di oggi.",
     accesso:
-      'Manager e Amministratore; Accettatore solo come «Riprova» dopo una sync fallita o assente',
+      'Amministratore; Accettatore solo come «Riprova» dopo una sync fallita o assente',
   },
   // API pubbliche
   {
@@ -381,28 +366,15 @@ export const ROTTE = [
     path: '/api/v1/crm/leads',
     area: AREE[11],
     descrizione:
-      'Clienti da ricontattare per il BDC (`?giornata=&gestiti=1`, `tipo=assenti` o `tipo=anomalie`): assenti e clienti saltati tre volte da cercare.',
-    accesso: ACCESSO.manager,
-  },
-  {
-    path: '/api/v1/crm/leads/:id/reopen',
-    area: AREE[11],
-    descrizione:
-      'Riporta un lead chiuso fra quelli da ricontattare (tocco sbagliato o riprogrammazione saltata).',
-    accesso: ACCESSO.manager,
-  },
-  {
-    path: '/api/v1/crm/leads/:id/contacted',
-    area: AREE[11],
-    descrizione: 'Il BDC dichiara di aver ricontattato il cliente (chi, esito).',
-    accesso: ACCESSO.manager,
+      'Assenti e anomalie della giornata per il pannello «Anomalie di oggi» (`?giornata=&gestiti=1`, `tipo=assenti` o `tipo=anomalie`); al BDC arrivano come lead nel CRM.',
+    accesso: ACCESSO.admin,
   },
   {
     path: '/api/v1/system/close-day',
     area: AREE[11],
     descrizione:
-      "Chiusura della giornata: chi è in coda diventa assente (lead BDC), chi è in carico viene chiuso d'ufficio.",
-    accesso: ACCESSO.manager,
+      "Chiusura della giornata: chi è in coda diventa assente (lead al CRM del BDC), chi è in carico viene chiuso d'ufficio.",
+    accesso: ACCESSO.admin,
   },
   // API admin
   {

@@ -5,23 +5,30 @@
 // (l'amministratore iniziale, gli account di sviluppo) vengono scritti; da lì in avanti il database
 // è la verità e il seed non lo tocca più. Farlo qui, e non nel container, perché il container è
 // sincrono e il database no: ogni metodo aspetta `pronto` prima di leggere.
-import type { Operator } from '@/domain/entities/operator';
+import { OPERATOR_ROLES, type Operator, type OperatorRole } from '@/domain/entities/operator';
 import type { DeskId, OperatorId, WorkstationId } from '@/domain/ids';
 import type { Operator as Row } from '@/generated/prisma/client';
 import type { IOperatorRepository } from '../interfaces/IOperatorRepository';
 import type { Db } from './client';
 import { fromJson, toJson } from './json';
 
+/** Un ruolo che il dominio non conosce più (es. SUPERVISOR, tolto il 2026-09-24) non entra. */
+function isKnownRole(role: string): role is OperatorRole {
+  return (OPERATOR_ROLES as readonly string[]).includes(role);
+}
+
 function toEntity(r: Row): Operator {
+  const ruolo = isKnownRole(r.role) ? r.role : null;
   return {
     id: r.id as OperatorId,
     username: r.username,
     displayName: r.displayName,
-    role: r.role as Operator['role'],
+    // Ruolo sconosciuto: account disattivato da accettatore, mai un ruolo inventato.
+    role: ruolo ?? 'ADVISOR',
     deskIds: fromJson<DeskId[]>(r.deskIdsJson, 'deskIdsJson'),
     defaultWorkstationId: r.defaultWorkstationId as WorkstationId | null,
     passwordHash: r.passwordHash,
-    isActive: r.isActive,
+    isActive: ruolo !== null && r.isActive,
     mustChangePassword: r.mustChangePassword,
   };
 }

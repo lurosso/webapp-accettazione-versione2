@@ -1,8 +1,8 @@
 // GET /api/v1/crm/leads — clienti da ricontattare per il BDC (modulo F).
 // Parametri: `giornata=YYYY-MM-DD` (default: oggi), `gestiti=1` per vedere anche quelli chiusi e
 // `tipo=assenti|anomalie` per uno solo dei due elenchi (default: entrambi).
-// Riservata a SUPERVISOR e ADMIN: contiene nomi e numeri di telefono di clienti che non si sono
-// presentati, dati che non devono girare oltre chi li deve lavorare.
+// Riservata all'amministratore (pannello «Anomalie di oggi»): contiene nomi e numeri di telefono.
+// Dal 2026-09-24 il BDC non usa l'app: assenti e anomalie gli arrivano come lead nel suo CRM.
 import { NextResponse, type NextRequest } from 'next/server';
 import { readApiSession } from '@/app/_server/session';
 import { getContainer } from '@/config/container';
@@ -16,8 +16,8 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
   if (session === null) {
     return unauthorizedResponse();
   }
-  if (!canAccess('manager', session.role)) {
-    return forbiddenResponse('Il cruscotto BDC è riservato a responsabili e amministratori.');
+  if (!canAccess('admin', session.role)) {
+    return forbiddenResponse("L'elenco di assenti e anomalie è riservato all'amministratore.");
   }
 
   const container = getContainer();

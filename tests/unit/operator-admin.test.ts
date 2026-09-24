@@ -22,7 +22,7 @@ describe('OperatorAdminService: elenco e creazione', () => {
   it('elenca tutti gli operatori con i codici degli sportelli, senza hash delle password', async () => {
     const { admin } = setup();
     const elenco = await admin.list();
-    expect(elenco.length).toBeGreaterThanOrEqual(5);
+    expect(elenco.length).toBeGreaterThanOrEqual(4);
     const mario = elenco.find((o) => o.username === 'mario.rossi');
     expect(mario?.role).toBe('ADVISOR');
     expect(mario?.mustChangePassword).toBe(false);
@@ -108,13 +108,13 @@ describe('OperatorAdminService: modifica e sicurezza', () => {
     const { admin } = setup();
     const r = await admin.update(
       asOperatorId('op-advisor-1'),
-      { displayName: 'Mario Rossi Senior', role: 'SUPERVISOR', deskIds: ['desk-s1', 'desk-s2'] },
+      { displayName: 'Mario Rossi Senior', role: 'ADMIN', deskIds: ['desk-s1', 'desk-s2'] },
       AMMINISTRATORE,
     );
     expect(r.ok).toBe(true);
     if (r.ok) {
       expect(r.value.displayName).toBe('Mario Rossi Senior');
-      expect(r.value.role).toBe('SUPERVISOR');
+      expect(r.value.role).toBe('ADMIN');
       expect(r.value.deskCodes).toEqual(['FCA', 'PSA']);
     }
   });

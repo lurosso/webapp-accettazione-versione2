@@ -6,7 +6,6 @@ import { cn } from '@/lib/utils/cn';
 
 export const ROLE_LABELS: Record<OperatorRole, string> = {
   ADVISOR: 'Accettatore',
-  SUPERVISOR: 'Manager',
   ADMIN: 'Amministratore',
   KIOSK: 'Kiosk',
 };

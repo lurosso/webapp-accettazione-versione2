@@ -37,9 +37,7 @@ const PROTECTED_PAGE_PREFIXES = [
   '/tablet',
   '/check-in',
   '/sistema',
-  '/manager',
   '/admin',
-  '/bdc',
   '/comunicazioni',
   '/cambia-password',
 ];

@@ -15,7 +15,7 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
   if (session === null) {
     return unauthorizedResponse();
   }
-  if (!canAccess('sistema', session.role) && !canAccess('manager', session.role)) {
+  if (!canAccess('sistema', session.role)) {
     return forbiddenResponse('La diagnostica è riservata al personale di accettazione.');
   }
   const container = getContainer();

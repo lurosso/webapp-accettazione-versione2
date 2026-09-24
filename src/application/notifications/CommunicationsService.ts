@@ -143,7 +143,7 @@ export class CommunicationsService {
     actor: CommunicationActor,
   ): Promise<Result<CommunicationRowView, DomainError>> {
     // «Prendo io» vale: riprovare o chiudere il contatto preso da un collega è suo compito, salvo
-    // un responsabile o un amministratore (che può anche rilasciarlo).
+    // l'amministratore (che può anche rilasciarlo).
     if (command.action === 'retry' || command.action === 'confirm') {
       const job = await this.deps.notifications.findJobById(jobId);
       if (

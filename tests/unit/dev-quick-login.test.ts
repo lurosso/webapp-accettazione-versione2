@@ -28,12 +28,11 @@ function setup() {
 }
 
 describe('Accesso veloce di sviluppo (DEV_QUICK_LOGIN)', () => {
-  it('propone amministratore, responsabile e un accettatore per ogni sportello attivo', async () => {
+  it('propone amministratore e un accettatore per ogni sportello attivo (niente più BDC)', async () => {
     const { env, quick } = setup();
     const profili = await quick.profiles();
     expect(profili.map((p) => p.id)).toEqual([
       'admin',
-      'bdc',
       ...env.seed.desks.map((d) => `accettatore-${d.code.toLowerCase()}`),
     ]);
     expect(profili.every((p) => p.username.startsWith(DEV_USERNAME_PREFIX))).toBe(true);

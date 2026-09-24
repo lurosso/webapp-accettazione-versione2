@@ -3,16 +3,16 @@
 import type { DeskId, OperatorId, WorkstationId } from '../ids';
 
 /**
- * Ruoli: ADVISOR (accettatore) opera sulla coda; SUPERVISOR (manager) forza stati, riapre no-show,
- * conferma i fallback manuali e lavora il cruscotto BDC; ADMIN gestisce operatori, assistenza e
- * pagina Sistema; KIOSK è l'account di un dispositivo (monitor, tabellone): entra e viene portato
- * agli schermi pubblici, non ha accesso a nessuna area operatore.
- * I codici restano quelli dell'analisi; a schermo si leggono Accettatore, Manager, Amministratore, Kiosk.
+ * Ruoli: ADVISOR (accettatore) opera sulla coda; ADMIN gestisce operatori, assistenza, chiusura
+ * della giornata e pagina Sistema, e può tutto ciò che può l'accettatore; KIOSK è l'account di un
+ * dispositivo (monitor, tabellone): entra e viene portato agli schermi pubblici, non ha accesso a
+ * nessuna area operatore. A schermo si leggono Accettatore, Amministratore, Kiosk.
+ * Il ruolo SUPERVISOR (responsabile/BDC) è stato tolto il 2026-09-24: il BDC lavora nel proprio CRM.
  */
-export type OperatorRole = 'ADVISOR' | 'SUPERVISOR' | 'ADMIN' | 'KIOSK';
+export type OperatorRole = 'ADVISOR' | 'ADMIN' | 'KIOSK';
 
 /** Elenco unico dei ruoli: lo usano il JWT di sessione e gli schemi delle API. */
-export const OPERATOR_ROLES: readonly OperatorRole[] = ['ADVISOR', 'SUPERVISOR', 'ADMIN', 'KIOSK'];
+export const OPERATOR_ROLES: readonly OperatorRole[] = ['ADVISOR', 'ADMIN', 'KIOSK'];
 
 export function isOperatorRole(value: unknown): value is OperatorRole {
   return typeof value === 'string' && (OPERATOR_ROLES as readonly string[]).includes(value);

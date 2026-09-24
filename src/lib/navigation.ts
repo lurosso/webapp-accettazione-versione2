@@ -1,6 +1,6 @@
 // Destinazioni dell'area operatore in base al ruolo. Un solo punto di verità, usato dalla radice
-// del sito e dal login: senza questo, un responsabile o un amministratore finirebbe sempre sulla
-// dashboard dell'accettatore, come se non avesse una propria area.
+// del sito e dal login: senza questo, un amministratore finirebbe sempre sulla dashboard
+// dell'accettatore, come se non avesse una propria area.
 import type { OperatorRole } from '@/domain/entities/operator';
 
 /** Pagina iniziale di ogni ruolo dopo il login o aprendo la radice del sito. */
@@ -8,8 +8,6 @@ export function homePathForRole(role: OperatorRole): string {
   switch (role) {
     case 'ADMIN':
       return '/admin';
-    case 'SUPERVISOR':
-      return '/manager';
     case 'ADVISOR':
       return '/accettazione';
     case 'KIOSK':
@@ -34,29 +32,23 @@ export function checkInPath(appointmentId: string): string {
 export const CHECK_IN_PARAM = 'pratica';
 
 /** Aree protette dell'applicazione. */
-export type ProtectedArea =
-  'accettazione' | 'check-in' | 'manager' | 'admin' | 'sistema' | 'comunicazioni';
+export type ProtectedArea = 'accettazione' | 'check-in' | 'admin' | 'sistema' | 'comunicazioni';
 
 /**
  * Ruoli ammessi su ciascuna area; un solo elenco, usato dalle pagine, dalla navigazione e dalle
  * rotte API. Cambiare qui cambia ovunque: è il punto in cui si legge chi vede cosa.
  *
- * Dal 2026-09-17 il BDC (SUPERVISOR) vive in un recinto: solo il proprio cruscotto degli assenti.
- * Non è una questione di fiducia ma di responsabilità — la coda la governano gli accettatori al
- * banco, e una pratica presa in carico da chi sta al telefono è una pratica che nessuno sta
- * accettando. L'amministratore resta l'unico che vede tutto, perché deve poter controllare.
- *
- * Dal 2026-09-23 l'eccezione è la schermata Comunicazioni: i messaggi al cliente non arrivati li
- * può richiamare chiunque sia libero — il banco tra un cliente e l'altro, il BDC che sta già al
- * telefono. Lì non si tocca la coda: si telefona e si registra l'esito.
+ * Dal 2026-09-24 il BDC non usa più l'app: gli assenti gli arrivano come lead nel suo CRM, e il
+ * ruolo Responsabile/BDC (SUPERVISOR) non esiste più. Restano l'accettatore, che governa la coda
+ * al banco, e l'amministratore, l'unico che vede tutto perché deve poter controllare (chiusura
+ * della giornata, sync forzata, assistenza, statistiche).
  */
 export const AREA_ROLES: Record<ProtectedArea, readonly OperatorRole[]> = {
   accettazione: ['ADVISOR', 'ADMIN'],
   'check-in': ['ADVISOR', 'ADMIN'],
-  manager: ['SUPERVISOR', 'ADMIN'],
   admin: ['ADMIN'],
   sistema: ['ADVISOR', 'ADMIN'],
-  comunicazioni: ['ADVISOR', 'SUPERVISOR', 'ADMIN'],
+  comunicazioni: ['ADVISOR', 'ADMIN'],
 };
 
 /** True se il ruolo può accedere all'area. */

@@ -445,12 +445,12 @@ export class QueueService {
     const a = current.value;
     const altrui = a.operatorId !== null && a.operatorId !== ctx.operatorId;
     const privilegiato =
-      ctx.actorKind === 'SYSTEM' || ctx.role === 'ADMIN' || ctx.role === 'SUPERVISOR';
+      ctx.actorKind === 'SYSTEM' || ctx.role === 'ADMIN';
     if (altrui && !privilegiato) {
       return err(
         domainError(
           'INVALID_TRANSITION',
-          'La pratica è in carico a un altro accettatore: la completa lui, un responsabile o un amministratore.',
+          "La pratica è in carico a un altro accettatore: la completa lui o l'amministratore.",
           { operatorId: a.operatorId },
         ),
       );

@@ -2,11 +2,10 @@
 
 // Chiusura della giornata operativa, nella vista di amministrazione.
 //
-// È l'azione più distruttiva dell'applicazione: chi era ancora in coda diventa assente (e finisce
-// nel cruscotto BDC con l'evento verso il CRM), chi era ancora in carico viene chiuso d'ufficio.
-// Per questo dal 2026-09-17 sta qui, accanto alle statistiche e al report della giornata, e non
-// più nel cruscotto BDC: chiudere la giornata è un atto di supervisione, non il lavoro di chi
-// telefona ai clienti assenti, che quella lista se la ritrova davanti già fatta.
+// È l'azione più distruttiva dell'applicazione: chi era ancora in coda diventa assente (e parte
+// come lead verso il CRM del BDC), chi era ancora in carico viene chiuso d'ufficio. Sta qui,
+// accanto alle statistiche e al report della giornata: chiudere la giornata è un atto di
+// supervisione, e dal 2026-09-24 il BDC non usa l'app — la lista degli assenti gli arriva nel CRM.
 //
 // Due passaggi obbligati, come prima: un pulsante rosso e una conferma che elenca per iscritto
 // cosa succede. Nessuno deve scoprire dopo che cosa ha premuto.
@@ -16,7 +15,6 @@ import { Button } from '@/components/ui/button';
 import { Notice } from '@/components/ui/notice';
 import { Dialog } from '@/components/ui/dialog';
 import { Panel, PanelHeader } from '@/components/ui/panel';
-import { bdcKeys } from '@/hooks/useBdcLeads';
 import { ApiError, postCloseDay } from '@/lib/api-client/client';
 import { queueKeys } from '@/lib/api-client/query-keys';
 
@@ -51,7 +49,8 @@ export function CloseDayPanel({ businessDate }: CloseDayPanelProps) {
       setEsito(`Giornata ${r.businessDate} chiusa: ${parti.join(', ')}.`);
       setConferma(false);
       await Promise.all([
-        queryClient.invalidateQueries({ queryKey: bdcKeys.all }),
+        // Assenti e anomalie di oggi (pannello «Anomalie di oggi») si rileggono.
+        queryClient.invalidateQueries({ queryKey: ['bdc-leads'] }),
         queryClient.invalidateQueries({ queryKey: queueKeys.all }),
       ]);
     } catch (cause) {
@@ -118,7 +117,7 @@ export function CloseDayPanel({ businessDate }: CloseDayPanelProps) {
         <ul className="flex list-disc flex-col gap-1 pl-5 text-sm text-slate-700">
           <li>
             I clienti ancora <strong>in coda</strong> vengono segnati <strong>assenti</strong> e
-            compaiono nel cruscotto BDC come lead da ricontattare, con l&apos;evento verso il CRM.
+            partono come lead da ricontattare verso il CRM del BDC.
           </li>
           <li>
             Le accettazioni ancora <strong>in carico</strong> vengono chiuse d&apos;ufficio: non

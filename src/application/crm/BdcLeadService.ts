@@ -1,18 +1,15 @@
-// Cruscotto del BDC (modulo F): i clienti che non si sono presentati diventano lead da
-// ricontattare. La fonte è la coda di uscita verso il CRM, non una tabella parallela: l'evento che
-// il CRM riceve e la riga che il BDC lavora sono lo stesso fatto, così non possono divergere.
+// Assenti e anomalie della giornata, letti dalla coda di uscita verso il CRM (modulo F).
 //
-// La chiusura del lead è deliberatamente indipendente dalla consegna al CRM: se il CRM è giù
-// l'evento resta da rinviare, ma il BDC ha comunque telefonato al cliente e deve poterlo dire.
-// Per questo "ricontattato" scrive lo stato `MANUAL`, che vale sia come esito del lavoro del BDC
-// sia come "non ritentare più" per lo svuotamento automatico (M6-T02).
+// Dal 2026-09-24 il BDC non usa l'app: ogni assente (segnato al banco, dichiarato dal cliente su
+// WhatsApp o rimasto in coda alla chiusura della giornata) e ogni anomalia partono da soli come
+// lead verso il suo CRM (`CrmNotifier`, con riprova). Qui resta la lettura di quella stessa coda
+// per l'amministratore — il pannello «Anomalie di oggi» — così quello che vede e quello che il CRM
+// riceve sono lo stesso fatto e non possono divergere.
 import type { Appointment } from '@/domain/entities/appointment';
 import type { CrmEventType, CrmOutboxEvent } from '@/domain/entities/crm-outbox-event';
 import { customerFullName } from '@/domain/entities/customer';
-import { domainError, type DomainError } from '@/domain/errors';
-import { asCrmOutboxEventId, type CrmOutboxEventId, type OperatorId } from '@/domain/ids';
+import type { OperatorId } from '@/domain/ids';
 import type { BdcLeadsView, BdcLeadView } from '@/domain/read-models';
-import { err, ok, type Result } from '@/domain/result';
 import type {
   IAppointmentRepository,
   ICrmOutboxRepository,
@@ -40,29 +37,14 @@ export interface ListLeadsInput {
   readonly types?: readonly CrmEventType[];
 }
 
-export interface MarkContactedInput {
-  readonly eventId: CrmOutboxEventId;
-  /** Esito della telefonata, scritto dal BDC. */
-  readonly note: string | null;
-}
-
 /**
  * Eventi che diventano lead per il BDC: gli assenti e, dal 2026-09-23, le anomalie di flusso sulla
  * pratica (il cliente saltato tre volte, da cercare: «Verificare presenza»).
  */
 const LEAD_TYPES: readonly CrmEventType[] = ['NO_SHOW', 'ANOMALY'];
 
-function textOf(payload: Readonly<Record<string, unknown>>, key: string): string | null {
-  const value = payload[key];
-  return typeof value === 'string' && value.trim().length > 0 ? value : null;
-}
-
 export class BdcLeadService {
-  private readonly logger: ILogger;
-
-  constructor(private readonly deps: BdcLeadServiceDeps) {
-    this.logger = deps.logger.child('[BDC]');
-  }
+  constructor(private readonly deps: BdcLeadServiceDeps) {}
 
   /** Lead del BDC, dai più recenti ai più vecchi; quelli ancora aperti restano in cima. */
   async listLeads(input: ListLeadsInput = {}): Promise<BdcLeadsView> {
@@ -107,78 +89,6 @@ export class BdcLeadService {
       openCount: dellaGiornata.filter((l) => !l.handled).length,
       handledCount: dellaGiornata.filter((l) => l.handled).length,
     };
-  }
-
-  /**
-   * "Gestito / riprogrammato": chiude il lead con il nome di chi ha telefonato e l'esito. Il BDC
-   * lo preme quando l'appuntamento è di nuovo in agenda su Infinity: da lì in poi la riga esce
-   * dall'elenco delle chiamate da fare, che è il senso del cruscotto.
-   * È volutamente idempotente — due operatori del BDC che premono insieme non devono litigare,
-   * il primo ricontatto registrato resta quello buono.
-   */
-  async markContacted(
-    input: MarkContactedInput,
-    actor: { readonly operatorId: OperatorId },
-  ): Promise<Result<BdcLeadView, DomainError>> {
-    const evento = await this.deps.outbox.findById(input.eventId);
-    if (evento === null) {
-      return err(domainError('NOT_FOUND', `Lead non trovato: ${input.eventId}.`));
-    }
-    if (evento.status === 'MANUAL') {
-      return ok(await this.toLead(evento));
-    }
-
-    const nota = input.note?.trim();
-    const aggiornato = await this.deps.outbox.update({
-      ...evento,
-      status: 'MANUAL',
-      // Nessun altro rinvio automatico: il cliente è già stato ricontattato a voce.
-      nextAttemptAt: null,
-      handledAt: this.deps.clock.nowIso(),
-      handledByOperatorId: actor.operatorId,
-      handledNote: nota === undefined || nota.length === 0 ? null : nota,
-    });
-    this.logger.info(`lead ricontattato: ${textOf(evento.payload, 'code') ?? evento.id}`, {
-      eventId: evento.id,
-      operatorId: actor.operatorId,
-    });
-    return ok(await this.toLead(aggiornato));
-  }
-
-  /**
-   * "Riportalo fra i da fare": annulla la chiusura di un lead. Serve dopo un tocco sbagliato — su
-   * un telefono, scorrendo l'elenco con la cornetta in mano, succede — e dopo una riprogrammazione
-   * che poi salta. Il lead torna dov'era: lo stato tecnico della consegna al CRM è di nuovo quello
-   * che aveva (inviato se era partito, in attesa se no) e il nome di chi l'aveva chiuso sparisce.
-   *
-   * Non fa ripartire nessun rinvio automatico: il CRM ha già ricevuto l'evento, o non lo riceverà
-   * comunque; qui si sta solo rimettendo una riga nella lista delle telefonate da fare.
-   */
-  async reopenLead(
-    eventId: string,
-    actor: { readonly operatorId: OperatorId },
-  ): Promise<Result<BdcLeadView, DomainError>> {
-    const evento = await this.deps.outbox.findById(asCrmOutboxEventId(eventId));
-    if (evento === null) {
-      return err(domainError('NOT_FOUND', `Lead non trovato: ${eventId}.`));
-    }
-    if (evento.status !== 'MANUAL') {
-      // Non era chiuso: niente da riaprire, e nessun errore da mostrare al BDC.
-      return ok(await this.toLead(evento));
-    }
-    const aggiornato = await this.deps.outbox.update({
-      ...evento,
-      status: evento.sentAt === null ? 'PENDING' : 'SENT',
-      nextAttemptAt: null,
-      handledAt: null,
-      handledByOperatorId: null,
-      handledNote: null,
-    });
-    this.logger.info(`lead riaperto: ${textOf(evento.payload, 'code') ?? evento.id}`, {
-      eventId: evento.id,
-      operatorId: actor.operatorId,
-    });
-    return ok(await this.toLead(aggiornato));
   }
 
   /** Evento in coda + pratica → riga del cruscotto. */

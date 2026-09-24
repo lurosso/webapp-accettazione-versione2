@@ -1,9 +1,9 @@
 // POST /api/v1/system/close-day — chiusura della giornata operativa.
 // A officina chiusa non deve restare nulla di aperto: chi era ancora in coda diventa assente
-// (lead per il BDC, con evento al CRM), chi era ancora in carico viene annullato. Monitor e
+// (lead per il BDC nel suo CRM), chi era ancora in carico viene annullato. Monitor e
 // tabellone si svuotano da soli, perché le loro viste derivano dalle pratiche aperte.
 //
-// Riservata a SUPERVISOR e ADMIN: è l'azione più distruttiva dell'applicazione.
+// Riservata all'amministratore: è l'azione più distruttiva dell'applicazione.
 import { NextResponse, type NextRequest } from 'next/server';
 import { correlationIdFrom, readApiSession } from '@/app/_server/session';
 import type { ActionContext } from '@/application/queue/QueueService';
@@ -33,9 +33,9 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
   if (session === null) {
     return unauthorizedResponse();
   }
-  if (!canAccess('manager', session.role)) {
+  if (!canAccess('admin', session.role)) {
     return forbiddenResponse(
-      'La chiusura della giornata è riservata a responsabili e amministratori.',
+      "La chiusura della giornata è riservata all'amministratore.",
     );
   }
 
