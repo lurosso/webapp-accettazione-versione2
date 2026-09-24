@@ -19,6 +19,8 @@ const UpdateBody = z
   .object({
     displayName: z.string().trim().min(1).max(80).optional(),
     role: z.enum(['ADVISOR', 'ADMIN', 'KIOSK']).optional(),
+    /** Matricola Infinity; null o stringa vuota = scollegare. */
+    infinityAdvisorCode: z.string().trim().max(20).nullable().optional(),
     deskIds: z.array(z.string().trim().min(1)).max(20).optional(),
     defaultWorkstationId: z.string().trim().min(1).nullable().optional(),
     isActive: z.boolean().optional(),

@@ -181,6 +181,7 @@ function buildDemoSeedData(): SeedData {
       passwordHash: DEMO_PASSWORD_HASH,
       isActive: true,
       mustChangePassword: false,
+      infinityAdvisorCode: null,
     },
     {
       id: asOperatorId('op-advisor-1'),
@@ -192,6 +193,7 @@ function buildDemoSeedData(): SeedData {
       passwordHash: DEMO_PASSWORD_HASH,
       isActive: true,
       mustChangePassword: false,
+      infinityAdvisorCode: '101',
     },
     {
       id: asOperatorId('op-advisor-2'),
@@ -203,6 +205,7 @@ function buildDemoSeedData(): SeedData {
       passwordHash: DEMO_PASSWORD_HASH,
       isActive: true,
       mustChangePassword: false,
+      infinityAdvisorCode: '102',
     },
     {
       id: asOperatorId('op-advisor-3'),
@@ -214,6 +217,7 @@ function buildDemoSeedData(): SeedData {
       passwordHash: DEMO_PASSWORD_HASH,
       isActive: true,
       mustChangePassword: false,
+      infinityAdvisorCode: '103',
     },
   ];
 
@@ -320,6 +324,7 @@ function buildRealSeedData(options: SeedOptions): SeedData {
       isActive: true,
       // La password provvisoria la conosce anche chi l'ha generata: va cambiata al primo accesso.
       mustChangePassword: true,
+      infinityAdvisorCode: null,
     },
   ];
 

@@ -572,6 +572,9 @@ describe('Infinity ODBC: mappatura del planning', () => {
       whatsappOptIn: null,
     });
     expect(a?.serviceDescription).toBe('TAGLIANDO DI MANUTENZIONE · 6338 - SW RADIO');
+    // L'accettatore a cui Infinity ha assegnato la prenotazione: «Le mie prenotazioni».
+    expect(a?.advisorCode).toBe('102');
+    expect(a?.advisorName).toBe('GIUSEPPE BRINDICCI');
     expect(a?.cancelled).toBe(false);
 
     expect(b?.brandCode).toBe('ALFA_ROMEO');

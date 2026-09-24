@@ -229,7 +229,14 @@ export function AppointmentRow({
       </TableCell>
       <TableCell className="hidden xl:table-cell">
         {row.operatorName === null ? (
-          <span className="text-ink-muted">—</span>
+          a.assignedAdvisor !== null ? (
+            // Nessuno l'ha ancora presa: si legge a chi l'ha assegnata Infinity.
+            <span className="text-ink-muted testo-nota" title="Accettatore assegnato in Infinity">
+              assegnata a {a.assignedAdvisor.name ?? `matricola ${a.assignedAdvisor.code}`}
+            </span>
+          ) : (
+            <span className="text-ink-muted">—</span>
+          )
         ) : (
           <OperatorChip
             displayName={row.operatorName}

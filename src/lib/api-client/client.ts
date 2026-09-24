@@ -13,6 +13,7 @@ import type {
   UpdateOperatorInput,
 } from '@/application/admin/OperatorAdminService';
 import type { AssistanceView } from '@/application/admin/AssistanceService';
+import type { InfinityAdvisorView } from '@/application/admin/InfinityAdvisorDirectory';
 import type {
   SpokiOverview,
   SpokiTestKind,
@@ -598,6 +599,13 @@ export interface AdminOperatorsResponse {
     readonly name: string;
     readonly deskId: string;
   }[];
+}
+
+/** GET /api/v1/admin/infinity-advisors: matricole degli accettatori viste nel planning. */
+export function fetchInfinityAdvisors(): Promise<{
+  readonly advisors: readonly InfinityAdvisorView[];
+}> {
+  return apiFetch('/api/v1/admin/infinity-advisors');
 }
 
 export function fetchAdminOperators(): Promise<AdminOperatorsResponse> {

@@ -66,6 +66,9 @@ model Appointment {
   whatsappKind         String?
   whatsappAt           String?
   whatsappMessageId    String?
+  /// Accettatore assegnato in Infinity (matricola ripulita e nome): «Le mie prenotazioni».
+  assignedAdvisorCode  String?
+  assignedAdvisorName  String?
   lastSyncRunId        String?
   version              Int
   createdAt            String
@@ -74,6 +77,7 @@ model Appointment {
   @@unique([businessDate, code])
   @@unique([businessDate, externalRef])
   @@index([businessDate, status])
+  @@index([businessDate, assignedAdvisorCode])
   @@index([plate])
   @@index([code])
 }
@@ -121,6 +125,8 @@ model Operator {
   passwordHash         String
   isActive             Boolean
   mustChangePassword   Boolean
+  /// Matricola dell'accettatore in Infinity (o_operai.matricola): lega l'account alle sue prenotazioni.
+  infinityAdvisorCode  String?
 }
 
 model SyncRun {

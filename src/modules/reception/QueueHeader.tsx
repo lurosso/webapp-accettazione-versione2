@@ -4,7 +4,8 @@
 //
 // Erano un menu a tendina e due pulsanti che si accendevano a vicenda («Vista globale», poi
 // «Torna al mio sportello»): tre comandi per una scelta sola, e l'etichetta che cambiava sotto il
-// dito. Adesso sono schede — il mio sportello, tutti — e si vede quale è attiva senza leggere.
+// dito. Adesso sono schede — le mie prenotazioni, il mio sportello, tutti — e si vede quale è
+// attiva senza leggere. «Le mie» sono quelle che Infinity assegna all'accettatore (dal 2026-09-24).
 // (Fino al 2026-09-24 c'era anche «Riconsegne»: tolta, non serviva all'accettazione.)
 //
 // Sotto, i quattro numeri della giornata. Erano una frase («24 in coda, 0 in carico, 0
@@ -15,7 +16,7 @@ import { Button } from '@/components/ui/button';
 import { Select } from '@/components/ui/select';
 import { cn } from '@/lib/utils/cn';
 
-export type QueueView = 'desk' | 'global';
+export type QueueView = 'mine' | 'desk' | 'global';
 
 export interface QueueCounter {
   readonly etichetta: string;
@@ -34,6 +35,8 @@ export interface QueueHeaderProps {
   readonly title: string;
   readonly subtitle: string;
   readonly view: QueueView;
+  /** Le prenotazioni dell'accettatore collegato; null finché la coda non è arrivata. */
+  readonly mine?: { readonly linked: boolean; readonly openCount: number } | null;
   readonly counters: readonly QueueCounter[];
   readonly onView: (view: QueueView) => void;
   /**
@@ -132,6 +135,7 @@ export function QueueHeader({
   title,
   subtitle,
   view,
+  mine = null,
   counters,
   onView,
   deskPicker = null,
@@ -156,8 +160,14 @@ export function QueueHeader({
         <div
           role="tablist"
           aria-label="Quale coda"
-          className="bg-surface-sunken flex min-w-0 flex-1 gap-1 rounded-lg p-1"
+          // Tre schede: sugli schermi stretti (iPad in verticale) vanno a capo invece di allargare
+          // la pagina e far comparire lo scorrimento orizzontale.
+          className="bg-surface-sunken flex min-w-0 flex-1 flex-wrap gap-1 rounded-lg p-1"
         >
+          <Scheda attiva={view === 'mine'} onClick={() => onView('mine')} testId="scheda-mie">
+            Le mie prenotazioni
+            {mine !== null && mine.linked && mine.openCount > 0 ? ` (${mine.openCount})` : ''}
+          </Scheda>
           <Scheda attiva={view === 'desk'} onClick={() => onView('desk')}>
             Il mio sportello
           </Scheda>

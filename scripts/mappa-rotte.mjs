@@ -213,7 +213,7 @@ export const ROTTE = [
     path: '/api/v1/queue',
     area: AREE[9],
     descrizione:
-      'Coda della giornata (`?date=&deskId=&view=desk oppure global`): righe arricchite, sportelli senza il token dei monitor, ultima sync, dati di riferimento. Polling della dashboard e del tablet.',
+      "Coda della giornata (`?date=&deskId=&view=mine`, `desk` o `global`): con `mine` le prenotazioni che Infinity assegna all'accettatore collegato (matricola dell'account); righe arricchite, sportelli senza il token dei monitor, ultima sync, dati di riferimento. Polling della dashboard e del tablet.",
     accesso: ACCESSO.banco,
   },
   {
@@ -276,8 +276,7 @@ export const ROTTE = [
     path: '/api/v1/sync',
     area: AREE[9],
     descrizione: "Sincronizzazione manuale dell'agenda Infinity di oggi.",
-    accesso:
-      'Amministratore; Accettatore solo come «Riprova» dopo una sync fallita o assente',
+    accesso: 'Amministratore; Accettatore solo come «Riprova» dopo una sync fallita o assente',
   },
   // API pubbliche
   {
@@ -389,6 +388,13 @@ export const ROTTE = [
     area: AREE[12],
     descrizione:
       'Conservazione dei media di una pratica (PATCH): vincolo legale e chiusura della commessa. Finché la commessa è aperta o c’è un vincolo, foto e video non scadono.',
+    accesso: ACCESSO.admin,
+  },
+  {
+    path: '/api/v1/admin/infinity-advisors',
+    area: AREE[12],
+    descrizione:
+      'Matricole degli accettatori viste nel planning di Infinity (ultimi 14 giorni e prossimi 7), con nome, numero di prenotazioni e account già collegato: per scrivere la matricola sugli account.',
     accesso: ACCESSO.admin,
   },
   {

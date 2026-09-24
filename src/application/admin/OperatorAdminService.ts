@@ -12,6 +12,11 @@ import type { Operator, OperatorRole } from '@/domain/entities/operator';
 import { domainError, type DomainError } from '@/domain/errors';
 import { asDeskId, asOperatorId, asWorkstationId, type OperatorId } from '@/domain/ids';
 import { err, ok, type Result } from '@/domain/result';
+import {
+  ADVISOR_CODE_PATTERN,
+  normalizeAdvisorCode,
+  sameAdvisorCode,
+} from '@/domain/value-objects/advisor-code';
 import { MIN_PASSWORD_LENGTH } from '@/config/constants';
 import { generateTemporaryPassword, hashPassword } from '@/lib/hash-password';
 import type { IOperatorRepository, IReferenceDataRepository } from '@/repositories/interfaces';
@@ -37,6 +42,8 @@ export interface OperatorView {
   readonly isActive: boolean;
   /** True finché l'operatore non ha sostituito la password iniziale o provvisoria. */
   readonly mustChangePassword: boolean;
+  /** Matricola dell'accettatore in Infinity: lega l'account a «Le mie prenotazioni». */
+  readonly infinityAdvisorCode: string | null;
 }
 
 export interface CreateOperatorInput {
@@ -46,6 +53,8 @@ export interface CreateOperatorInput {
   readonly deskIds: readonly string[];
   readonly defaultWorkstationId: string | null;
   readonly password: string;
+  /** Matricola Infinity dell'accettatore; null o assente = non collegato. */
+  readonly infinityAdvisorCode?: string | null | undefined;
 }
 
 export interface UpdateOperatorInput {
@@ -54,6 +63,8 @@ export interface UpdateOperatorInput {
   readonly deskIds?: readonly string[] | undefined;
   readonly defaultWorkstationId?: string | null | undefined;
   readonly isActive?: boolean | undefined;
+  /** Matricola Infinity; null = scollegare, assente = non cambiare. */
+  readonly infinityAdvisorCode?: string | null | undefined;
 }
 
 export interface ResetPasswordResult {
@@ -119,6 +130,10 @@ export class OperatorAdminService {
     if (!riferimenti.ok) {
       return riferimenti;
     }
+    const matricola = await this.validateAdvisorCode(input.infinityAdvisorCode ?? null, null);
+    if (!matricola.ok) {
+      return matricola;
+    }
 
     const operator: Operator = {
       id: asOperatorId(this.deps.ids.next()),
@@ -132,6 +147,7 @@ export class OperatorAdminService {
       isActive: true,
       // La password iniziale la conosce anche l'amministratore: va cambiata al primo accesso.
       mustChangePassword: true,
+      infinityAdvisorCode: matricola.value,
     };
     const salvato = await this.deps.operators.insert(operator);
     this.logger.info(`operatore creato: ${username}`, { role: input.role, da: actor.operatorId });
@@ -183,6 +199,13 @@ export class OperatorAdminService {
     if (!riferimenti.ok) {
       return riferimenti;
     }
+    const matricola =
+      input.infinityAdvisorCode === undefined
+        ? ok(corrente.infinityAdvisorCode)
+        : await this.validateAdvisorCode(input.infinityAdvisorCode, id);
+    if (!matricola.ok) {
+      return matricola;
+    }
 
     const aggiornato = await this.deps.operators.update({
       ...corrente,
@@ -196,6 +219,7 @@ export class OperatorAdminService {
             ? null
             : asWorkstationId(input.defaultWorkstationId),
       isActive: input.isActive ?? corrente.isActive,
+      infinityAdvisorCode: matricola.value,
     });
     this.logger.info(`operatore aggiornato: ${aggiornato.username}`, {
       campi: Object.keys(input),
@@ -230,6 +254,39 @@ export class OperatorAdminService {
     });
   }
 
+  /**
+   * La matricola Infinity: ripulita, nella forma ammessa, e di un solo operatore — due account con
+   * la stessa matricola vedrebbero le stesse prenotazioni come proprie, e nessuno saprebbe di chi sono.
+   */
+  private async validateAdvisorCode(
+    raw: string | null,
+    perOperatore: OperatorId | null,
+  ): Promise<Result<string | null, DomainError>> {
+    const code = normalizeAdvisorCode(raw);
+    if (code === null) {
+      return ok(null);
+    }
+    if (!ADVISOR_CODE_PATTERN.test(code)) {
+      return err(
+        domainError(
+          'VALIDATION',
+          'Matricola Infinity non valida: lettere, numeri, punto, trattino, al massimo 20 caratteri.',
+        ),
+      );
+    }
+    const altro = (await this.deps.operators.listAll()).find(
+      (o) => o.id !== perOperatore && sameAdvisorCode(o.infinityAdvisorCode, code),
+    );
+    if (altro !== undefined) {
+      return err(
+        domainError('VALIDATION', `La matricola ${code} è già collegata a ${altro.displayName}.`, {
+          operatore: altro.username,
+        }),
+      );
+    }
+    return ok(code);
+  }
+
   private async validateReferences(
     deskIds: readonly string[],
     workstationId: string | null,
@@ -260,5 +317,6 @@ function toView(o: Operator, desks: readonly { id: string; code: string }[]): Op
     defaultWorkstationId: o.defaultWorkstationId,
     isActive: o.isActive,
     mustChangePassword: o.mustChangePassword,
+    infinityAdvisorCode: o.infinityAdvisorCode,
   };
 }

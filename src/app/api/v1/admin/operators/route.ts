@@ -16,6 +16,8 @@ import { canAccess } from '@/lib/navigation';
 export const dynamic = 'force-dynamic';
 
 const Role = z.enum(['ADVISOR', 'ADMIN', 'KIOSK']);
+/** Matricola Infinity: stringa vuota = non collegato. */
+const AdvisorCode = z.string().trim().max(20).nullable().optional();
 
 const CreateBody = z.object({
   username: z.string().trim().min(3).max(64),
@@ -24,6 +26,7 @@ const CreateBody = z.object({
   deskIds: z.array(z.string().trim().min(1)).max(20).default([]),
   defaultWorkstationId: z.string().trim().min(1).nullable().default(null),
   password: z.string().min(8).max(200),
+  infinityAdvisorCode: AdvisorCode,
 });
 
 export async function GET(request: NextRequest): Promise<NextResponse> {

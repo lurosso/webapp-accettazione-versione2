@@ -2,7 +2,8 @@
 // gli errori di mapping emergono ora, non in M7. Non assegna il codice progressivo
 // (compete al CodeGenerator/QueueService in M1).
 
-import type { AppointmentFlow } from '@/domain/entities/appointment';
+import { normalizeAdvisorCode } from '@/domain/value-objects/advisor-code';
+import type { AppointmentFlow, AssignedAdvisor } from '@/domain/entities/appointment';
 import { FALLBACK_BRAND_CODE, type Brand } from '@/domain/entities/brand';
 import type { Customer } from '@/domain/entities/customer';
 import type { Desk } from '@/domain/entities/desk';
@@ -39,6 +40,8 @@ export interface AppointmentDraft {
   readonly flow: AppointmentFlow;
   /** Ordine di lavoro / commessa in Infinity, se aperto. */
   readonly workOrderRef: string | null;
+  /** Accettatore assegnato in Infinity, se indicato. */
+  readonly assignedAdvisor: AssignedAdvisor | null;
 }
 
 /** Contesto del mapping: dati di riferimento e generatore id. */
@@ -164,6 +167,7 @@ export function mapInfinityAppointment(
     completedInDms: dto.closedInDms,
     flow: dto.flow,
     workOrderRef: dto.workOrderRef,
+    assignedAdvisor: advisorOf(dto),
   });
 }
 
@@ -198,4 +202,14 @@ export function mapInfinityAgenda(
     }
   }
   return ok({ businessDate: agenda.businessDate, drafts, rejected });
+}
+
+/** Accettatore assegnato dal DTO: matricola ripulita e nome; null se la matricola manca. */
+function advisorOf(dto: InfinityAppointmentDto): AssignedAdvisor | null {
+  const code = normalizeAdvisorCode(dto.advisorCode);
+  if (code === null) {
+    return null;
+  }
+  const name = dto.advisorName?.trim() ?? '';
+  return { code, name: name === '' ? null : name };
 }

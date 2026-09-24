@@ -13,6 +13,7 @@ import {
   isWhatsAppDeliveryState,
   type Appointment,
   type WhatsAppDelivery,
+  type AssignedAdvisor,
 } from '@/domain/entities/appointment';
 import type { Customer } from '@/domain/entities/customer';
 import type { Vehicle } from '@/domain/entities/vehicle';
@@ -69,6 +70,10 @@ function toEntity(r: Row): Appointment {
     legalHoldAt: r.legalHoldAt as Appointment['legalHoldAt'],
     legalHoldReason: r.legalHoldReason,
     whatsapp: whatsappFromRow(r),
+    assignedAdvisor:
+      r.assignedAdvisorCode === null
+        ? null
+        : { code: r.assignedAdvisorCode, name: r.assignedAdvisorName },
     lastSyncRunId: r.lastSyncRunId as Appointment['lastSyncRunId'],
     version: r.version,
     createdAt: r.createdAt as Appointment['createdAt'],
@@ -146,6 +151,8 @@ function toRow(a: Appointment): Prisma.AppointmentUncheckedCreateInput {
     orderClosedAt: a.orderClosedAt,
     legalHoldAt: a.legalHoldAt,
     legalHoldReason: a.legalHoldReason,
+    assignedAdvisorCode: a.assignedAdvisor?.code ?? null,
+    assignedAdvisorName: a.assignedAdvisor?.name ?? null,
     lastSyncRunId: a.lastSyncRunId,
     version: a.version,
     createdAt: a.createdAt,
@@ -281,6 +288,9 @@ export class PrismaAppointmentRepository implements IAppointmentRepository {
       whatsappKind: _wk,
       whatsappAt: _wa,
       whatsappMessageId: _wm,
+      // Anche l'accettatore assegnato: lo scrive solo la sync, con `updateAssignedAdvisor`.
+      assignedAdvisorCode: _ac,
+      assignedAdvisorName: _an,
       ...dati
     } = toRow(appointment);
     const aggiornate = await this.db.appointment.updateMany({
@@ -317,6 +327,25 @@ export class PrismaAppointmentRepository implements IAppointmentRepository {
     const aggiornate = await this.db.appointment.updateMany({
       where: { id },
       data: whatsappToColumns(delivery),
+    });
+    if (aggiornate.count === 0) {
+      return null;
+    }
+    const dopo = await this.db.appointment.findUnique({ where: { id } });
+    return dopo === null ? null : toEntity(dopo);
+  }
+
+  async updateAssignedAdvisor(
+    id: AppointmentId,
+    advisor: AssignedAdvisor | null,
+  ): Promise<Appointment | null> {
+    // Nessuna condizione sulla versione e nessun bump: è un dato del gestionale, non lavoro al banco.
+    const aggiornate = await this.db.appointment.updateMany({
+      where: { id },
+      data: {
+        assignedAdvisorCode: advisor?.code ?? null,
+        assignedAdvisorName: advisor?.name ?? null,
+      },
     });
     if (aggiornate.count === 0) {
       return null;

@@ -477,6 +477,18 @@ export function AppointmentDetailPanel({
               <Field label="Accettazione" roomy={modal}>
                 {row.bayCode ?? <span className="text-ink-muted">Nessuna</span>}
               </Field>
+              <Field label="Accettatore assegnato (Infinity)" roomy={modal}>
+                {a.assignedAdvisor === null ? (
+                  <span className="text-ink-muted">Non indicato</span>
+                ) : (
+                  <span>
+                    {a.assignedAdvisor.name ?? 'Accettatore'}{' '}
+                    <span className="text-ink-muted testo-nota font-mono">
+                      matricola {a.assignedAdvisor.code}
+                    </span>
+                  </span>
+                )}
+              </Field>
               <Field label="Presa in carico da" roomy={modal}>
                 {row.operatorName === null ? (
                   <span className="text-ink-muted">Nessuno</span>

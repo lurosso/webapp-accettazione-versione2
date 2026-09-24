@@ -8,12 +8,12 @@ import {
   type Appointment,
   type AppointmentStatus,
 } from '@/domain/entities/appointment';
-import type { AppointmentFlow } from '@/domain/entities/appointment';
 import type { OperatorRole } from '@/domain/entities/operator';
 import type { Bay } from '@/domain/entities/bay';
 import type { Desk } from '@/domain/entities/desk';
 import { MAX_SKIPS_BEFORE_ANOMALY, RELEASING_DISPLAY_MS } from '@/config/constants';
 import { assertTransition } from '@/domain/appointment-state-machine';
+import { normalizeAdvisorCode, sameAdvisorCode } from '@/domain/value-objects/advisor-code';
 import { domainError, type DomainError } from '@/domain/errors';
 import type { AppointmentId, BayId, DeskId, OperatorId, WorkstationId } from '@/domain/ids';
 import type { Workstation } from '@/domain/entities/workstation';
@@ -71,13 +71,16 @@ export interface QueueServiceDeps {
   readonly logger: ILogger;
 }
 
-/** Filtro della dashboard: sportello proprio oppure vista globale di tutta l'accettazione. */
+/**
+ * Filtro della dashboard: le prenotazioni di un accettatore (matricola Infinity, qualunque sia lo
+ * sportello), lo sportello proprio, oppure la vista globale di tutta l'accettazione.
+ */
 export interface QueueQuery {
   readonly businessDate: IsoDate;
   readonly deskId: DeskId | null;
   readonly globalView: boolean;
-  /** INTAKE (default): la coda. RETURN: la scheda Riconsegne, che non è divisa per sportello. */
-  readonly flow?: AppointmentFlow;
+  /** Matricola dell'accettatore: se c'è, solo le prenotazioni che Infinity gli ha assegnato. */
+  readonly advisorCode?: string | null;
 }
 
 /** Chi esegue l'azione (dalla sessione) e con quale correlazione. */
@@ -160,13 +163,17 @@ export class QueueService {
    * (Infinity non sempre indica il deskCode).
    */
   async getQueue(query: QueueQuery): Promise<readonly QueueRowView[]> {
-    const flow = query.flow ?? 'INTAKE';
     const all = await this.deps.appointments.listByDate(query.businessDate, {
       includeCancelled: true,
-      flow,
+      flow: 'INTAKE',
     });
+    const advisorCode = normalizeAdvisorCode(query.advisorCode);
+    if (advisorCode !== null) {
+      // «Le mie prenotazioni»: quelle assegnate in Infinity, su qualunque sportello.
+      return this.enrich(all.filter((a) => sameAdvisorCode(a.assignedAdvisor?.code, advisorCode)));
+    }
     const desk =
-      flow === 'RETURN' || query.globalView || query.deskId === null
+      query.globalView || query.deskId === null
         ? null
         : await this.deps.referenceData.findDeskById(query.deskId);
     const visible = desk === null ? all : all.filter((a) => this.belongsToDesk(a, desk));
@@ -444,8 +451,7 @@ export class QueueService {
     }
     const a = current.value;
     const altrui = a.operatorId !== null && a.operatorId !== ctx.operatorId;
-    const privilegiato =
-      ctx.actorKind === 'SYSTEM' || ctx.role === 'ADMIN';
+    const privilegiato = ctx.actorKind === 'SYSTEM' || ctx.role === 'ADMIN';
     if (altrui && !privilegiato) {
       return err(
         domainError(

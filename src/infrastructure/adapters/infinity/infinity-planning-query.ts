@@ -719,6 +719,9 @@ export function toAppointmentDto(
     closedInDms: !r.annullata && r.chiusa,
     flow: 'INTAKE',
     workOrderRef: workOrderRefOf(r),
+    // L'accettatore a cui il gestionale ha assegnato la prenotazione: «Le mie prenotazioni».
+    advisorCode: r.accettatoreCodice,
+    advisorName: r.accettatoreNome,
     updatedAt: r.dataModifica ?? fetchedAt,
   };
 }

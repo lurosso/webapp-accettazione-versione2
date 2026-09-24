@@ -10,8 +10,11 @@ import type { DeskId } from '@/domain/ids';
 import type { BayOccupancyOptionView, QueueRowView } from '@/domain/read-models';
 import type { IsoDate, IsoDateTime } from '@/domain/value-objects/iso-date';
 
-/** Vista della dashboard: il proprio sportello oppure tutta l'accettazione. */
-export type QueueView = 'desk' | 'global';
+/**
+ * Vista della dashboard: le prenotazioni assegnate a me in Infinity, il mio sportello oppure tutta
+ * l'accettazione.
+ */
+export type QueueView = 'mine' | 'desk' | 'global';
 
 /** Risposta di GET /api/v1/queue. */
 export interface QueueResponse {
@@ -19,7 +22,12 @@ export interface QueueResponse {
   readonly serverTime: IsoDateTime;
   readonly timeZone: string;
   readonly view: QueueView;
-  /** Sportello filtrato (vista sportello) o null (vista globale). */
+  /**
+   * L'accettatore collegato e le sue prenotazioni: `linked` = l'account ha una matricola Infinity;
+   * `openCount` = sue pratiche ancora da lavorare oggi (in coda o in carico), per la scheda.
+   */
+  readonly mine: { readonly linked: boolean; readonly openCount: number };
+  /** Sportello filtrato (vista sportello) o null (vista globale o «le mie»). */
   readonly deskId: DeskId | null;
   readonly rows: readonly QueueRowView[];
   /** Sportelli con la pratica che li occupa; senza il token del monitor, che è un segreto kiosk. */

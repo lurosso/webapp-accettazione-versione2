@@ -18,6 +18,7 @@
 import { useMemo, useState } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import type { StuckAppointmentView } from '@/application/admin/AssistanceService';
+import type { InfinityAdvisorView } from '@/application/admin/InfinityAdvisorDirectory';
 import type {
   CreateOperatorInput,
   OperatorView,
@@ -45,6 +46,7 @@ import {
   ApiError,
   fetchAdminOperators,
   fetchAssistance,
+  fetchInfinityAdvisors,
   patchAdminOperator,
   postAdminOperator,
   postAdminResetPassword,
@@ -70,6 +72,8 @@ interface FormState {
   readonly deskIds: readonly string[];
   readonly defaultWorkstationId: string;
   readonly password: string;
+  /** Matricola Infinity dell'accettatore; vuota = non collegato. */
+  readonly infinityAdvisorCode: string;
 }
 
 const FORM_VUOTO: FormState = {
@@ -79,6 +83,7 @@ const FORM_VUOTO: FormState = {
   deskIds: [],
   defaultWorkstationId: '',
   password: '',
+  infinityAdvisorCode: '',
 };
 
 export function OperatorsPanel({ currentOperatorId }: OperatorsPanelProps) {
@@ -94,6 +99,12 @@ export function OperatorsPanel({ currentOperatorId }: OperatorsPanelProps) {
     refetchInterval: 10_000,
   });
   const [editing, setEditing] = useState<OperatorView | 'nuovo' | null>(null);
+  // Le matricole viste nel planning: servono solo mentre si modifica un account.
+  const matricole = useQuery({
+    queryKey: ['infinity-advisors'] as const,
+    queryFn: fetchInfinityAdvisors,
+    enabled: editing !== null,
+  });
   const [form, setForm] = useState<FormState>(FORM_VUOTO);
   const [errore, setErrore] = useState<string | null>(null);
   const [ricerca, setRicerca] = useState('');
@@ -131,6 +142,7 @@ export function OperatorsPanel({ currentOperatorId }: OperatorsPanelProps) {
             deskIds: op.deskIds,
             defaultWorkstationId: op.defaultWorkstationId ?? '',
             password: '',
+            infinityAdvisorCode: op.infinityAdvisorCode ?? '',
           },
     );
   };
@@ -150,6 +162,8 @@ export function OperatorsPanel({ currentOperatorId }: OperatorsPanelProps) {
           deskIds: form.deskIds,
           defaultWorkstationId: form.defaultWorkstationId === '' ? null : form.defaultWorkstationId,
           password: form.password,
+          infinityAdvisorCode:
+            form.infinityAdvisorCode.trim() === '' ? null : form.infinityAdvisorCode,
         };
         await postAdminOperator(body);
       } else {
@@ -158,6 +172,8 @@ export function OperatorsPanel({ currentOperatorId }: OperatorsPanelProps) {
           role: form.role,
           deskIds: form.deskIds,
           defaultWorkstationId: form.defaultWorkstationId === '' ? null : form.defaultWorkstationId,
+          infinityAdvisorCode:
+            form.infinityAdvisorCode.trim() === '' ? null : form.infinityAdvisorCode,
         };
         await patchAdminOperator(editing.id, body);
       }
@@ -282,6 +298,11 @@ export function OperatorsPanel({ currentOperatorId }: OperatorsPanelProps) {
                         ) : null}
                       </span>
                       <span className="text-ink-muted font-mono text-xs">{op.username}</span>
+                      {op.infinityAdvisorCode !== null ? (
+                        <span className="text-ink-muted testo-nota">
+                          matricola Infinity {op.infinityAdvisorCode}
+                        </span>
+                      ) : null}
                     </span>
                   </TableCell>
                   <TableCell className="whitespace-nowrap">{ROLE_LABELS[op.role]}</TableCell>
@@ -417,6 +438,13 @@ export function OperatorsPanel({ currentOperatorId }: OperatorsPanelProps) {
               ))}
             </Select>
           </div>
+          <MatricolaInfinity
+            value={form.infinityAdvisorCode}
+            onChange={(v) => setForm({ ...form, infinityAdvisorCode: v })}
+            displayName={form.displayName}
+            operatorId={editing === null || editing === 'nuovo' ? null : editing.id}
+            advisors={matricole.data?.advisors ?? null}
+          />
           <fieldset className="flex flex-col gap-1.5">
             <legend className="text-ink-soft mb-1.5 text-sm font-medium">
               Sportelli assegnati
@@ -535,5 +563,79 @@ export function OperatorsPanel({ currentOperatorId }: OperatorsPanelProps) {
         ) : null}
       </Dialog>
     </Panel>
+  );
+}
+
+interface MatricolaInfinityProps {
+  readonly value: string;
+  readonly onChange: (value: string) => void;
+  /** Nome da mostrare dell'account: se coincide con un accettatore del planning, si propone. */
+  readonly displayName: string;
+  readonly operatorId: string | null;
+  /** Matricole viste nel planning; null finché non arrivano. */
+  readonly advisors: readonly InfinityAdvisorView[] | null;
+}
+
+/** Stesso nome a meno di maiuscole, spazi e ordine di nome e cognome. */
+function stessoNome(a: string, b: string): boolean {
+  const parole = (s: string) => s.toUpperCase().split(/\s+/).filter(Boolean).sort().join(' ');
+  return a.trim() !== '' && parole(a) === parole(b);
+}
+
+/**
+ * La matricola dell'accettatore in Infinity: lega l'account alle prenotazioni che il gestionale gli
+ * assegna («Le mie prenotazioni» in dashboard). Si sceglie fra quelle viste nel planning, con il
+ * nome accanto; se il nome dell'account coincide con uno di quei nomi, la si propone con un tocco.
+ */
+function MatricolaInfinity({
+  value,
+  onChange,
+  displayName,
+  operatorId,
+  advisors,
+}: MatricolaInfinityProps) {
+  const scelta = advisors?.find((a) => a.code === value.trim().toUpperCase()) ?? null;
+  const suggerita =
+    value.trim() === ''
+      ? (advisors?.find(
+          (a) => a.linkedTo === null && a.name !== null && stessoNome(a.name, displayName),
+        ) ?? null)
+      : null;
+  return (
+    <div className="flex flex-col gap-1.5">
+      <Label htmlFor="op-matricola">Matricola Infinity (accettatore)</Label>
+      <Input
+        id="op-matricola"
+        value={value}
+        list="matricole-infinity"
+        autoComplete="off"
+        maxLength={20}
+        placeholder="es. 102 — vuoto se non gestisce prenotazioni"
+        onChange={(e) => onChange(e.target.value)}
+      />
+      <datalist id="matricole-infinity">
+        {(advisors ?? []).map((a) => (
+          <option key={a.code} value={a.code}>
+            {`${a.name ?? 'Accettatore'} · ${a.appointments} prenotazioni${a.linkedTo !== null && a.linkedTo.operatorId !== operatorId ? ` · già di ${a.linkedTo.displayName}` : ''}`}
+          </option>
+        ))}
+      </datalist>
+      {suggerita !== null ? (
+        <Button type="button" variant="outline" size="sm" onClick={() => onChange(suggerita.code)}>
+          Usa {suggerita.code} ({suggerita.name}) dal planning
+        </Button>
+      ) : null}
+      <span className="text-ink-muted testo-nota">
+        {value.trim() === ''
+          ? 'Le prenotazioni che Infinity assegna a questa matricola compaiono in «Le mie prenotazioni».'
+          : scelta === null
+            ? advisors === null
+              ? 'Controllo nel planning…'
+              : 'Non compare nel planning delle ultime due settimane: controlla la matricola.'
+            : scelta.linkedTo !== null && scelta.linkedTo.operatorId !== operatorId
+              ? `Già collegata a ${scelta.linkedTo.displayName}: il salvataggio verrà rifiutato.`
+              : `${scelta.name ?? 'Accettatore'} · ${scelta.appointments} prenotazioni nel planning recente.`}
+      </span>
+    </div>
   );
 }

@@ -30,6 +30,7 @@ function toEntity(r: Row): Operator {
     passwordHash: r.passwordHash,
     isActive: ruolo !== null && r.isActive,
     mustChangePassword: r.mustChangePassword,
+    infinityAdvisorCode: r.infinityAdvisorCode,
   };
 }
 
@@ -44,6 +45,7 @@ function toRow(o: Operator): Row {
     passwordHash: o.passwordHash,
     isActive: o.isActive,
     mustChangePassword: o.mustChangePassword,
+    infinityAdvisorCode: o.infinityAdvisorCode,
   };
 }
 

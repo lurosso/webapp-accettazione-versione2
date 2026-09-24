@@ -213,6 +213,7 @@ export function makeAppointment(overrides: Partial<Appointment> = {}): Appointme
     legalHoldAt: null,
     legalHoldReason: null,
     whatsapp: null,
+    assignedAdvisor: null,
     lastSyncRunId: null,
     version: 1,
     createdAt: now,

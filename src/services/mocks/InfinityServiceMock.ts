@@ -270,6 +270,7 @@ export class InfinityServiceMock implements IInfinityService {
           closedInDms: false,
           flow: 'INTAKE',
           workOrderRef: null,
+          ...mockAdvisorFor(desk?.code ?? null, n),
           updatedAt,
         };
         out.push({ dto, cancelOnSecondCall: rng.chance(0.05) });
@@ -320,4 +321,24 @@ export class InfinityServiceMock implements IInfinityService {
     }
     return null;
   }
+}
+
+/**
+ * Accettatore assegnato nell'agenda finta, coerente con gli account demo (matricole 101 Mario
+ * Rossi sullo sportello FCA, 102 Laura Bianchi e 103 Andrea Conti a turno sul PSA). Deciso dallo
+ * sportello e dal progressivo, non dal generatore casuale: così l'agenda di prima resta identica.
+ */
+function mockAdvisorFor(
+  deskCode: string | null,
+  progressivo: number,
+): { readonly advisorCode: string | null; readonly advisorName: string | null } {
+  if (deskCode === 'FCA') {
+    return { advisorCode: '101', advisorName: 'MARIO ROSSI' };
+  }
+  if (deskCode === 'PSA') {
+    return progressivo % 2 === 0
+      ? { advisorCode: '102', advisorName: 'LAURA BIANCHI' }
+      : { advisorCode: '103', advisorName: 'ANDREA CONTI' };
+  }
+  return { advisorCode: null, advisorName: null };
 }

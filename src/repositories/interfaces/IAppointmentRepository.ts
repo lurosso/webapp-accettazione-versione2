@@ -5,6 +5,7 @@ import type {
   AppointmentFlow,
   AppointmentStatus,
   WhatsAppDelivery,
+  AssignedAdvisor,
 } from '@/domain/entities/appointment';
 import type { DomainError } from '@/domain/errors';
 import type { AppointmentId, BrandId, DeskId } from '@/domain/ids';
@@ -83,6 +84,16 @@ export interface IAppointmentRepository {
   updateWhatsAppDelivery(
     id: AppointmentId,
     delivery: WhatsAppDelivery | null,
+  ): Promise<Appointment | null>;
+  /**
+   * Scrive SOLO l'accettatore assegnato in Infinity (dalla sync), senza toccare `version` né
+   * `updatedAt`: è un dato del gestionale, non lavoro al banco, e vale su pratiche in qualunque
+   * stato (anche in carico o completate) senza far scattare conflitti alle postazioni. `update` lo
+   * ignora, così una copia vecchia della pratica non lo riporta indietro. null se non esiste.
+   */
+  updateAssignedAdvisor(
+    id: AppointmentId,
+    advisor: AssignedAdvisor | null,
   ): Promise<Appointment | null>;
   /** Contatore atomico per (giornata, prefisso): il numero restituito non viene mai riutilizzato. */
   reserveNextSequence(businessDate: IsoDate, prefix: string): Promise<number>;

@@ -3,7 +3,7 @@
 // - esistenti in WAITING: aggiornate se cambiate; in altri stati mai toccate;
 // - sparite dall'agenda o annullate: CANCELLED solo se ancora in coda (WAITING/SKIPPED);
 // - agenda parziale: nessuna cancellazione per assenza. Un lock per giornata evita sync parallele.
-import type { Appointment } from '@/domain/entities/appointment';
+import type { Appointment, AssignedAdvisor } from '@/domain/entities/appointment';
 import type { SyncCounters, SyncRun, SyncTrigger } from '@/domain/entities/sync-run';
 import { EMPTY_SYNC_COUNTERS } from '@/domain/entities/sync-run';
 import { asAppointmentId, asSyncRunId, type OperatorId } from '@/domain/ids';
@@ -203,7 +203,17 @@ export class SyncService {
 
     for (const draft of ordered) {
       seen.add(draft.externalRef);
-      const current = byExternalRef.get(draft.externalRef);
+      const esistente = byExternalRef.get(draft.externalRef);
+      // L'accettatore assegnato segue Infinity su pratiche in QUALUNQUE stato (anche in carico o già
+      // completate: «Le mie prenotazioni» della giornata devono essere tutte), con una scrittura che
+      // non tocca la versione e quindi non disturba chi sta lavorando la pratica al banco.
+      const current =
+        esistente !== undefined && !sameAdvisor(esistente.assignedAdvisor, draft.assignedAdvisor)
+          ? ((await this.deps.appointments.updateAssignedAdvisor(
+              esistente.id,
+              draft.assignedAdvisor,
+            )) ?? esistente)
+          : esistente;
       if (current === undefined) {
         if (draft.cancelled) {
           continue; // annullata prima ancora di entrare in coda: non si crea
@@ -330,6 +340,7 @@ export class SyncService {
       legalHoldAt: null,
       legalHoldReason: null,
       whatsapp: null,
+      assignedAdvisor: draft.assignedAdvisor,
       lastSyncRunId: run.id,
       version: 1,
       createdAt: now,
@@ -464,4 +475,9 @@ export class SyncService {
     log(`sync ${status} per ${saved.businessDate}`, { ...counters, errorCode, errorMessage });
     return saved;
   }
+}
+
+/** Stesso accettatore assegnato (matricola e nome), null compreso. */
+function sameAdvisor(a: AssignedAdvisor | null, b: AssignedAdvisor | null): boolean {
+  return (a?.code ?? null) === (b?.code ?? null) && (a?.name ?? null) === (b?.name ?? null);
 }

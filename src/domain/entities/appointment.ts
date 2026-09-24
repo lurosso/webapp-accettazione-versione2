@@ -32,6 +32,13 @@ export type AppointmentSource = 'INFINITY' | 'MANUAL';
  * «in consegna» del planning di Infinity): vive nella scheda Riconsegne, con codici R001…, e non
  * passa dalla coda né dai promemoria dell'appuntamento.
  */
+/** Accettatore assegnato in Infinity: la matricola è la chiave, il nome serve a chi guarda. */
+export interface AssignedAdvisor {
+  /** Matricola ripulita (`normalizeAdvisorCode`). */
+  readonly code: string;
+  readonly name: string | null;
+}
+
 export type AppointmentFlow = 'INTAKE' | 'RETURN';
 
 /**
@@ -149,6 +156,12 @@ export interface Appointment {
    * conflitto né viene sovrascritto da una copia vecchia della pratica.
    */
   readonly whatsapp: WhatsAppDelivery | null;
+  /**
+   * Accettatore a cui Infinity ha assegnato la prenotazione (`accettatore_prenotazione` →
+   * `o_operai`): matricola e nome. È il criterio di «Le mie prenotazioni» in dashboard. null per le
+   * pratiche inserite a mano o se il gestionale non lo indica.
+   */
+  readonly assignedAdvisor: AssignedAdvisor | null;
   /** Ultima sincronizzazione che ha toccato la pratica. */
   readonly lastSyncRunId: SyncRunId | null;
   /** Versione per la concorrenza ottimistica fra postazioni (409 → ConflictDialog). */

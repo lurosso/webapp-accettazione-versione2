@@ -115,7 +115,8 @@ export function QueueDashboard({
 
   // Stato della vista letto dall'URL (fonte di verità), con fallback ai valori iniziali del server.
   const richiesta = searchParams.get('view') ?? initialView;
-  const view: QueueView = richiesta === 'global' ? 'global' : 'desk';
+  const view: QueueView =
+    richiesta === 'global' ? 'global' : richiesta === 'mine' ? 'mine' : 'desk';
   const deskId = searchParams.get('deskId') ?? initialDeskId ?? homeDeskId;
 
   const params: QueueParams = useMemo(
@@ -364,11 +365,13 @@ export function QueueDashboard({
     .filter((b) => b.deskId === bayCorrente?.deskId && b.bay.id !== bayCorrente?.bay.id)
     .map((b) => b.bay.code);
   const deskLabel =
-    view === 'global'
-      ? 'tutti gli sportelli'
-      : bayCorrente === null
-        ? (desks.find((d) => d.id === deskId)?.name ?? 'sportello')
-        : `${bayCorrente.bay.name}${compagni.length > 0 ? ` · coda condivisa con ${compagni.join(' e ')}` : ''}`;
+    view === 'mine'
+      ? 'le prenotazioni assegnate a te in Infinity'
+      : view === 'global'
+        ? 'tutti gli sportelli'
+        : bayCorrente === null
+          ? (desks.find((d) => d.id === deskId)?.name ?? 'sportello')
+          : `${bayCorrente.bay.name}${compagni.length > 0 ? ` · coda condivisa con ${compagni.join(' e ')}` : ''}`;
 
   const outcome = actions.outcome;
   const selectedRow = data?.rows.find((r) => r.appointment.id === selectedId) ?? null;
@@ -383,6 +386,7 @@ export function QueueDashboard({
             : `${formatBusinessDate(data.businessDate)} · ${deskLabel}`
         }
         view={view}
+        mine={data?.mine ?? null}
         counters={contatori}
         onCounter={vaiASezione}
         onView={(prossima) =>
@@ -507,9 +511,13 @@ export function QueueDashboard({
             description={
               lastSync === null
                 ? "L'agenda non è ancora stata sincronizzata con Infinity."
-                : view === 'desk'
-                  ? 'Nessun appuntamento per questo sportello: prova la vista globale.'
-                  : 'Nessun appuntamento in agenda.'
+                : view === 'mine'
+                  ? data.mine.linked
+                    ? 'Oggi Infinity non ti ha assegnato prenotazioni: guarda il tuo sportello o tutti gli sportelli.'
+                    : 'Il tuo account non è ancora collegato alla tua matricola di Infinity: chiedi all’amministratore di collegarla (Amministrazione › Persone e postazioni). Intanto guarda il tuo sportello.'
+                  : view === 'desk'
+                    ? 'Nessun appuntamento per questo sportello: prova la vista globale.'
+                    : 'Nessun appuntamento in agenda.'
             }
             actions={
               <>
@@ -533,7 +541,7 @@ export function QueueDashboard({
             desks={data.desks}
             bays={data.bays}
             homeDeskId={homeDeskId}
-            showDesk={view === 'global' || currentDesk?.id !== homeDeskId}
+            showDesk={view !== 'desk' || currentDesk?.id !== homeDeskId}
             timeZone={data.timeZone}
             serverTime={data.serverTime}
             pendingId={actions.pendingId}

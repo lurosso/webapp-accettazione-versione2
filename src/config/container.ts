@@ -9,6 +9,7 @@ import { CrmNotifier } from '@/application/crm/CrmNotifier';
 import { CrmOutboxService } from '@/application/crm/CrmOutboxService';
 import { CrmRetryScheduler } from '@/application/crm/CrmRetryScheduler';
 import { AssistanceService } from '@/application/admin/AssistanceService';
+import { InfinityAdvisorDirectory } from '@/application/admin/InfinityAdvisorDirectory';
 import { OperatorAdminService } from '@/application/admin/OperatorAdminService';
 import { InspectionArchiveService } from '@/application/media/InspectionArchiveService';
 import { InspectionService } from '@/application/media/InspectionService';
@@ -86,6 +87,8 @@ export interface Container {
   readonly inspectionService: InspectionService;
   readonly inspectionArchiveService: InspectionArchiveService;
   readonly operatorAdminService: OperatorAdminService;
+  /** Matricole degli accettatori viste nel planning, per collegarle agli account. */
+  readonly infinityAdvisorDirectory: InfinityAdvisorDirectory;
   readonly assistanceService: AssistanceService;
   readonly dailyReportService: DailyReportService;
   readonly messagingPolicy: CustomerMessagingPolicy;
@@ -442,6 +445,11 @@ export function createContainer(overrides: ContainerOverrides = {}): Container {
     ids,
     logger,
   });
+  const infinityAdvisorDirectory = new InfinityAdvisorDirectory({
+    appointments: repos.appointments,
+    operators: repos.operators,
+    clock,
+  });
 
   const assistanceService = new AssistanceService({
     appointments: repos.appointments,
@@ -566,6 +574,7 @@ export function createContainer(overrides: ContainerOverrides = {}): Container {
     inspectionService,
     inspectionArchiveService,
     operatorAdminService,
+    infinityAdvisorDirectory,
     assistanceService,
     dailyReportService,
     messagingPolicy,

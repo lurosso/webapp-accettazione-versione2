@@ -36,4 +36,9 @@ export interface Operator {
    * quello. Torna false al primo cambio riuscito.
    */
   readonly mustChangePassword: boolean;
+  /**
+   * Matricola dell'accettatore in Infinity (`o_operai.matricola`), impostata dall'amministratore:
+   * le prenotazioni assegnate a quella matricola sono «Le mie prenotazioni». null = non collegato.
+   */
+  readonly infinityAdvisorCode: string | null;
 }

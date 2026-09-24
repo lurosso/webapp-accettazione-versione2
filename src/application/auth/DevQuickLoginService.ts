@@ -143,6 +143,7 @@ export class DevQuickLoginService {
       passwordHash: hashPassword(randomBytes(24).toString('hex')),
       isActive: true,
       mustChangePassword: false,
+      infinityAdvisorCode: null,
     });
   }
 }

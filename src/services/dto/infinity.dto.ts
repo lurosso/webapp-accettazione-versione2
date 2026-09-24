@@ -40,6 +40,10 @@ export interface InfinityAppointmentDto {
   readonly flow: 'INTAKE' | 'RETURN';
   /** Ordine di lavoro / commessa in Infinity ("LO01 266158/2026"); null finché non è aperto. */
   readonly workOrderRef: string | null;
+  /** Matricola dell'accettatore assegnato (`accettatore_prenotazione`); assente = non indicato. */
+  readonly advisorCode?: string | null;
+  /** Nome dell'accettatore assegnato (`o_operai.nome`). */
+  readonly advisorName?: string | null;
   readonly updatedAt: string;
 }
 
@@ -93,6 +97,8 @@ export function isInfinityAppointmentDto(v: unknown): v is InfinityAppointmentDt
     typeof v['closedInDms'] === 'boolean' &&
     (v['flow'] === 'INTAKE' || v['flow'] === 'RETURN') &&
     (v['workOrderRef'] === null || typeof v['workOrderRef'] === 'string') &&
+    (v['advisorCode'] === undefined || isStringOrNull(v['advisorCode'])) &&
+    (v['advisorName'] === undefined || isStringOrNull(v['advisorName'])) &&
     typeof v['updatedAt'] === 'string'
   );
 }

@@ -86,7 +86,9 @@ export function Dialog({
         aria-labelledby="dialog-title"
         tabIndex={-1}
         className={cn(
-          'animate-finestra bg-surface focus-anello w-full max-w-lg rounded-2xl p-6 shadow-2xl sm:p-7',
+          // Mai più alta dello schermo: su un iPad in orizzontale, con la tastiera aperta, il piede
+          // con i comandi (Salva, Annulla) resta raggiungibile scorrendo dentro la finestra.
+          'animate-finestra bg-surface focus-anello max-h-[calc(100dvh-2rem)] w-full max-w-lg overflow-y-auto rounded-2xl p-6 shadow-2xl sm:p-7',
           className,
         )}
         onClick={(event) => event.stopPropagation()}

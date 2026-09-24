@@ -63,7 +63,10 @@ afterAll(async () => {
 describe('PrismaAppointmentRepository', () => {
   it('inserisce, ritrova per id, codice, riferimento e targa, e la giornata è ordinata', async () => {
     const repo = new PrismaAppointmentRepository(db, clock);
-    const a = makeAppointment({ businessDate: '2026-09-21' as IsoDate });
+    const a = makeAppointment({
+      businessDate: '2026-09-21' as IsoDate,
+      assignedAdvisor: { code: '102', name: 'GIUSEPPE BRINDICCI' },
+    });
     const b = makeAppointment({ businessDate: '2026-09-21' as IsoDate });
     expect((await repo.insert(a)).ok).toBe(true);
     expect((await repo.insert(b)).ok).toBe(true);
@@ -77,6 +80,12 @@ describe('PrismaAppointmentRepository', () => {
     // Cliente e veicolo tornano interi dalle colonne JSON.
     expect((await repo.findById(a.id))?.customer).toEqual(a.customer);
     expect((await repo.findById(a.id))?.vehicle).toEqual(a.vehicle);
+    // L'accettatore assegnato in Infinity torna com'era; senza, resta null.
+    expect((await repo.findById(a.id))?.assignedAdvisor).toEqual({
+      code: '102',
+      name: 'GIUSEPPE BRINDICCI',
+    });
+    expect((await repo.findById(b.id))?.assignedAdvisor).toBeNull();
 
     const giornata = await repo.listByDate(a.businessDate);
     expect(giornata.map((x) => x.id)).toEqual([a.id, b.id]);
@@ -252,17 +261,24 @@ describe('PrismaOperatorRepository', () => {
       passwordHash: 'hash-iniziale',
       isActive: true,
       mustChangePassword: true,
+      infinityAdvisorCode: null,
     };
     const primo = new PrismaOperatorRepository(db, [seme]);
     expect((await primo.findByUsername('admin'))?.passwordHash).toBe('hash-iniziale');
 
-    await primo.update({ ...seme, passwordHash: 'hash-nuovo', mustChangePassword: false });
+    await primo.update({
+      ...seme,
+      passwordHash: 'hash-nuovo',
+      mustChangePassword: false,
+      infinityAdvisorCode: '101',
+    });
 
     // Un nuovo repository con lo stesso seed (un riavvio): la tabella non è vuota, il seed non tocca.
     const dopoRiavvio = new PrismaOperatorRepository(db, [seme]);
     const letto = await dopoRiavvio.findById(seme.id);
     expect(letto?.passwordHash).toBe('hash-nuovo');
     expect(letto?.mustChangePassword).toBe(false);
+    expect(letto?.infinityAdvisorCode).toBe('101');
     expect((await dopoRiavvio.listAll()).length).toBe(1);
   });
 });
@@ -350,6 +366,25 @@ describe('PrismaSystemAlertRepository', () => {
     ).toEqual(['al-2', 'al-1']);
     expect((await repo.list({ limit: 1 })).map((a) => a.id)).toEqual(['al-3']);
     expect(await repo.countByStatus()).toEqual({ NEW: 2, IN_PROGRESS: 0, RESOLVED: 1 });
+  });
+});
+
+describe('Prisma: accettatore assegnato in Infinity', () => {
+  it('updateAssignedAdvisor scrive solo le due colonne, senza versione; update non le sovrascrive', async () => {
+    const repo = new PrismaAppointmentRepository(db, clock);
+    const inserita = await repo.insert(makeAppointment({ status: 'IN_PROGRESS' }));
+    if (!inserita.ok) {
+      throw new Error(inserita.error.message);
+    }
+    const a = inserita.value;
+    const assegnata = await repo.updateAssignedAdvisor(a.id, { code: '102', name: 'ACCETTATORE' });
+    expect(assegnata?.assignedAdvisor).toEqual({ code: '102', name: 'ACCETTATORE' });
+    expect(assegnata?.version).toBe(a.version);
+    // Il banco salva una copia vecchia (senza accettatore): l'assegnazione resta.
+    const salvata = await repo.update({ ...a, notes: 'nota del banco' }, a.version);
+    expect(salvata.ok && salvata.value.assignedAdvisor?.code).toBe('102');
+    expect(await repo.updateAssignedAdvisor(a.id, null)).toMatchObject({ assignedAdvisor: null });
+    expect(await repo.updateAssignedAdvisor('inesistente' as never, null)).toBeNull();
   });
 });
 
