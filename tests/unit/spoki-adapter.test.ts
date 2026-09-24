@@ -119,6 +119,7 @@ const richiesta = (overrides: Partial<SpokiSendRequestDto> = {}): SpokiSendReque
     plate: 'AB123CD',
     scheduledTime: '09:30',
     scheduledDate: '11/09/2026',
+    scheduledDay: '2026-09-11',
     brandName: 'Fiat',
     portalUrl: 'https://officina.example/portal?targa=AB123CD',
     text: 'Buongiorno Mario, le ricordiamo…',
@@ -181,11 +182,13 @@ describe('SpokiService in simulazione (blocco predefinito)', () => {
       first_name: 'Mario',
       last_name: 'Rossi',
       custom_fields: {
-        code: 'F012',
-        plate: 'AB123CD',
-        time: '09:30',
-        date: '11/09/2026',
-        portal_url: 'https://officina.example/portal?targa=AB123CD',
+        ACC_CODICE: 'F012',
+        ACC_TARGA: 'AB123CD',
+        ACC_DATA: '11/09/2026',
+        ACC_ORA: '09:30',
+        ACC_GIORNO: '2026-09-11',
+        ACC_LINK: 'https://officina.example/portal?targa=AB123CD',
+        ACC_PROMEMORIA: 'INVIATO',
       },
     });
     // Nel registro il segreto è mascherato e il numero non compare fuori dal payload.
@@ -253,7 +256,10 @@ describe('SpokiService in simulazione (blocco predefinito)', () => {
       template: 3068,
       language: 'IT',
       phone: '+393331234567',
-      custom_fields: { code: 'F012', portal_url: 'https://officina.example/portal?targa=AB123CD' },
+      custom_fields: {
+        ACC_CODICE: 'F012',
+        ACC_LINK: 'https://officina.example/portal?targa=AB123CD',
+      },
       metadata: {
         idempotency_key: 'app-1:CHECK_IN_STARTED:2026-09-11:WA:1',
         template_kind: 'CHECK_IN_STARTED',
@@ -274,11 +280,13 @@ describe('SpokiService in simulazione (blocco predefinito)', () => {
       last_name: 'Rossi',
       email: '',
       custom_fields: {
-        code: 'F012',
-        plate: 'AB123CD',
-        time: '09:30',
-        date: '11/09/2026',
-        portal_url: 'https://officina.example/portal?targa=AB123CD',
+        ACC_CODICE: 'F012',
+        ACC_TARGA: 'AB123CD',
+        ACC_DATA: '11/09/2026',
+        ACC_ORA: '09:30',
+        ACC_GIORNO: '2026-09-11',
+        ACC_LINK: 'https://officina.example/portal?targa=AB123CD',
+        ACC_PROMEMORIA: 'INVIATO',
       },
       metadata: {
         idempotency_key: 'app-1:REMINDER_SAME_DAY:2026-09-11:WA:1',
@@ -296,7 +304,7 @@ describe('SpokiService in simulazione (blocco predefinito)', () => {
   });
 
   it('il payload segue il formato Spoki: secret, phone E.164, nome, cognome, e-mail e custom_fields', () => {
-    const p = buildWebhookPayload(richiesta(), 'segreto-x');
+    const p = buildWebhookPayload(richiesta(), 'REMINDER_PREVIOUS_DAY', 'segreto-x');
     expect(p).toEqual({
       secret: 'segreto-x',
       phone: '+393331234567',
@@ -304,14 +312,20 @@ describe('SpokiService in simulazione (blocco predefinito)', () => {
       last_name: 'Rossi',
       email: '',
       custom_fields: {
-        code: 'F012',
-        plate: 'AB123CD',
-        time: '09:30',
-        date: '11/09/2026',
-        portal_url: 'https://officina.example/portal?targa=AB123CD',
+        ACC_CODICE: 'F012',
+        ACC_TARGA: 'AB123CD',
+        ACC_DATA: '11/09/2026',
+        ACC_ORA: '09:30',
+        ACC_GIORNO: '2026-09-11',
+        ACC_LINK: 'https://officina.example/portal?targa=AB123CD',
+        // Il promemoria del giorno prima arma la rete di sicurezza del mattino.
+        ACC_PROMEMORIA: 'DA_INVIARE',
       },
     });
-    expect(buildWebhookPayload(richiesta(), null).secret).toBe('');
+    expect(buildWebhookPayload(richiesta(), 'REMINDER_SAME_DAY', null).secret).toBe('');
+    expect(
+      buildWebhookPayload(richiesta(), 'REMINDER_SAME_DAY', null).custom_fields.ACC_PROMEMORIA,
+    ).toBe('INVIATO');
   });
 });
 
@@ -356,11 +370,13 @@ describe('SpokiService live con blocco tolto', () => {
     expect(body['secret']).toBe(SECRETS.REMINDER_PREVIOUS_DAY);
     expect(body['phone']).toBe('+393331234567');
     expect(body['custom_fields']).toEqual({
-      code: 'F012',
-      plate: 'AB123CD',
-      time: '09:30',
-      date: '11/09/2026',
-      portal_url: 'https://officina.example/portal?targa=AB123CD',
+      ACC_CODICE: 'F012',
+      ACC_TARGA: 'AB123CD',
+      ACC_DATA: '11/09/2026',
+      ACC_ORA: '09:30',
+      ACC_GIORNO: '2026-09-11',
+      ACC_LINK: 'https://officina.example/portal?targa=AB123CD',
+      ACC_PROMEMORIA: 'DA_INVIARE',
     });
     // In live la consegna non è nota finché Spoki non lo dice: resta SENT.
     const stato = await service.getDeliveryStatus('wa-42');

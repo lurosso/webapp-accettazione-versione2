@@ -377,6 +377,7 @@ export class SpokiDiagnosticsService {
       code: 'F999',
       scheduledTime: '09:30',
       scheduledDate: formatBusinessDateIt(giornata),
+      scheduledDay: giornata,
       plate: 'AB123CD',
       brandName: 'Autoclub Group',
       portalUrl: buildPortalUrl(this.deps.config.publicBaseUrl, 'AB123CD'),

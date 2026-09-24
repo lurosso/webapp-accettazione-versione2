@@ -30,12 +30,14 @@ import type { ISpokiService } from '@/services/interfaces/ISpokiService';
 import { SpokiClientAdapter, type FetchLike } from './SpokiClientAdapter';
 import {
   canDeliverLive,
+  reminderStateAfter,
   resolveTransportKind,
   SPOKI_ACTIVE_TEMPLATE_KINDS,
   SPOKI_QUICK_REPLIES,
   SPOKI_TEMPLATE_ID_ENV_KEYS,
   SPOKI_TEMPLATE_KINDS,
   TEMPLATE_KIND_BY_KEY,
+  type SpokiCustomFields,
   type SpokiServiceConfig,
   type SpokiTemplateKind,
   type SpokiTemplateSendPayload,
@@ -161,7 +163,7 @@ export class SpokiService implements ISpokiService {
     return {
       kind: 'AUTOMATION',
       url: this.config.urls[kind],
-      payload: buildWebhookPayload(request, this.config.secrets[kind]),
+      payload: buildWebhookPayload(request, kind, this.config.secrets[kind]),
     };
   }
 
@@ -269,11 +271,12 @@ export class SpokiService implements ISpokiService {
 
 /**
  * Dalle variabili dell'orchestratore al payload dell'automazione Spoki (formato del fornitore):
- * `phone` in E.164, nome e cognome, e-mail se nota, e i campi dinamici in `custom_fields`
- * (`code` F041, `plate`, `time` HH:mm, `date` GG/MM/AAAA, `portal_url` con il token personale).
+ * `phone` in E.164, nome e cognome, e-mail se nota, e i campi del contatto in `custom_fields`
+ * (codici `ACC_*`, vedi `SPOKI_CUSTOM_FIELD_CODES`).
  */
 export function buildWebhookPayload(
   request: SpokiSendRequestDto,
+  kind: SpokiTemplateKind,
   secret: string | null,
 ): SpokiWebhookPayload {
   const v = request.variables;
@@ -283,7 +286,7 @@ export function buildWebhookPayload(
     first_name: v['firstName'] ?? '',
     last_name: v['lastName'] ?? '',
     email: v['email'] ?? '',
-    custom_fields: customFieldsOf(request),
+    custom_fields: customFieldsOf(request, kind),
   };
 }
 
@@ -309,7 +312,7 @@ export function buildTemplateSendPayload(
     first_name: v['firstName'] ?? '',
     last_name: v['lastName'] ?? '',
     email: v['email'] ?? '',
-    custom_fields: customFieldsOf(request),
+    custom_fields: customFieldsOf(request, kind),
     ...(pulsanti === undefined
       ? {}
       : { buttons: pulsanti.map((b) => ({ order: b.order, payload: b.payload })) }),
@@ -321,13 +324,19 @@ export function buildTemplateSendPayload(
   };
 }
 
-function customFieldsOf(request: SpokiSendRequestDto): SpokiWebhookPayload['custom_fields'] {
+/**
+ * I campi del contatto: Spoki li salva sul contatto a ogni invio, così template, automazioni e
+ * webhook dell'automazione li ritrovano anche quando il server dell'officina non risponde.
+ */
+function customFieldsOf(request: SpokiSendRequestDto, kind: SpokiTemplateKind): SpokiCustomFields {
   const v = request.variables;
   return {
-    code: v['code'] ?? '',
-    plate: v['plate'] ?? '',
-    time: v['scheduledTime'] ?? '',
-    date: v['scheduledDate'] ?? '',
-    portal_url: v['portalUrl'] ?? '',
+    ACC_CODICE: v['code'] ?? '',
+    ACC_TARGA: v['plate'] ?? '',
+    ACC_DATA: v['scheduledDate'] ?? '',
+    ACC_ORA: v['scheduledTime'] ?? '',
+    ACC_GIORNO: v['scheduledDay'] ?? '',
+    ACC_LINK: v['portalUrl'] ?? '',
+    ACC_PROMEMORIA: reminderStateAfter(kind),
   };
 }

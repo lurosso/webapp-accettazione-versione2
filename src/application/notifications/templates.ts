@@ -32,6 +32,8 @@ export interface TemplateVars {
   readonly scheduledTime: string;
   /** Data locale "GG/MM/AAAA" dell'appuntamento. */
   readonly scheduledDate: string;
+  /** Giorno dell'appuntamento "AAAA-MM-GG" (campo data di Spoki, per le automazioni a data). */
+  readonly scheduledDay: string;
   readonly plate: string;
   readonly brandName: string;
   /** Link al portale cliente per seguire la coda (smart link /portal/<token> o /portal?targa=…), già assoluto. */
@@ -158,6 +160,7 @@ export function buildTemplateVars(
     code: appointment.code,
     scheduledTime: localTimeHHmm(scheduled, timeZone),
     scheduledDate: formatBusinessDateIt(toBusinessDate(scheduled, timeZone)),
+    scheduledDay: toBusinessDate(scheduled, timeZone),
     plate: appointment.vehicle.plate,
     brandName: brand.name,
     portalUrl: buildPortalUrl(publicBaseUrl, appointment.vehicle.plate, portalToken),

@@ -77,7 +77,7 @@ describe('Promemoria: variabili e testi', () => {
 });
 
 describe('Promemoria: dal record della pratica al payload Spoki, passando dal servizio reale bloccato', () => {
-  it('il payload ha phone E.164, first_name e custom_fields code/plate/time/date/portal_url', async () => {
+  it('il payload ha phone E.164, first_name e i campi del contatto ACC_* nel formato Spoki', async () => {
     const env = buildTestEnv();
     const clock = new TestClock();
     const ids = new SequentialIdGenerator('p');
@@ -162,11 +162,12 @@ describe('Promemoria: dal record della pratica al payload Spoki, passando dal se
       last_name: 'Bianchi',
       email: 'anna@esempio.it',
       custom_fields: {
-        code: a.code,
-        plate: a.vehicle.plate,
-        time: '09:30',
-        date: '11/09/2026',
-        portal_url: `https://officina.example/portal?targa=${a.vehicle.plate}`,
+        ACC_CODICE: a.code,
+        ACC_TARGA: a.vehicle.plate,
+        ACC_DATA: '11/09/2026',
+        ACC_ORA: '09:30',
+        ACC_GIORNO: '2026-09-11',
+        ACC_LINK: `https://officina.example/portal?targa=${a.vehicle.plate}`,
       },
     });
   });

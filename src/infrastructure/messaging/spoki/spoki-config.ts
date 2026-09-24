@@ -190,18 +190,48 @@ export interface SpokiServiceConfig {
   readonly publicSends?: boolean;
 }
 
-/** Campi dinamici del messaggio, come li vedono l'automazione o il template Spoki. */
-export interface SpokiCustomFields {
+/**
+ * I campi personalizzati del contatto che l'app scrive in Spoki a ogni invio. Spoki li identifica
+ * con un codice MAIUSCOLO e li richiama come `%%CODICE%%` nei template, nelle automazioni e nei
+ * webhook (documentazione API ufficiale): il prefisso `ACC_` li separa dai campi che l'account usa
+ * per altro (marketing, altri reparti). Stesso elenco in `scripts/spoki-spec.mjs`, che li crea
+ * nell'account; un test controlla che i due elenchi coincidano.
+ */
+export const SPOKI_CUSTOM_FIELD_CODES = [
   /** Codice della pratica in coda (es. F041). */
-  readonly code: string;
+  'ACC_CODICE',
   /** Targa del veicolo. */
-  readonly plate: string;
+  'ACC_TARGA',
+  /** Data dell'appuntamento da leggere, "GG/MM/AAAA". */
+  'ACC_DATA',
   /** Orario dell'appuntamento, "HH:mm" locale (es. 09:30). */
-  readonly time: string;
-  /** Data dell'appuntamento, "GG/MM/AAAA" (serve al promemoria del giorno prima). */
-  readonly date: string;
+  'ACC_ORA',
+  /** Giorno dell'appuntamento "AAAA-MM-GG": campo DATA di Spoki, fa scattare le automazioni a data. */
+  'ACC_GIORNO',
   /** Smart link personale al portale cliente: `${PUBLIC_BASE_URL}/portal/<token>`. */
-  readonly portal_url: string;
+  'ACC_LINK',
+  /** Stato del promemoria del mattino (vedi `SpokiReminderState`). */
+  'ACC_PROMEMORIA',
+] as const;
+
+export type SpokiCustomFieldCode = (typeof SPOKI_CUSTOM_FIELD_CODES)[number];
+
+/** Campi dinamici del messaggio, come li vedono l'automazione o il template Spoki. */
+export type SpokiCustomFields = Readonly<Record<SpokiCustomFieldCode, string>>;
+
+/**
+ * `ACC_PROMEMORIA`, lo stato del promemoria del mattino sul contatto. Lo legge la rete di sicurezza
+ * in Spoki: se all'ora prevista vale ancora `DA_INVIARE`, il server non l'ha mandato e ci pensa
+ * l'automazione.
+ * - `DA_INVIARE`: scritto dal promemoria del giorno prima (domani il cliente lo aspetta);
+ * - `INVIATO`: scritto da qualunque messaggio del giorno stesso (il promemoria o le risposte);
+ * - `NON_SERVE`: scritto dall'app quando la pratica non deve riceverlo (annullata, già arrivata).
+ */
+export type SpokiReminderState = 'DA_INVIARE' | 'INVIATO' | 'NON_SERVE';
+
+/** Lo stato del promemoria del mattino che un invio lascia sul contatto. */
+export function reminderStateAfter(kind: SpokiTemplateKind): SpokiReminderState {
+  return kind === 'REMINDER_PREVIOUS_DAY' ? 'DA_INVIARE' : 'INVIATO';
 }
 
 /** Payload inviato all'automazione Spoki, nel formato documentato dal fornitore. */

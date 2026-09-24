@@ -386,7 +386,7 @@ export function SpokiPanel({ timeZone }: SpokiPanelProps) {
                 <span className="font-mono">POST /api/1/messages/send/</span>, intestazione{' '}
                 <span className="font-mono">X-Spoki-Api-Key</span>) con l&apos;id del template
                 approvato: <span className="font-mono">SPOKI_TEMPLATE_WELCOME_ID</span> alla presa
-                in carico (con <span className="font-mono">portal_url</span> personale) e{' '}
+                in carico (con <span className="font-mono">ACC_LINK</span> personale) e{' '}
                 <span className="font-mono">SPOKI_TEMPLATE_COMPLETE_ID</span> a check-in concluso.
               </li>
               <li>
@@ -399,7 +399,7 @@ export function SpokiPanel({ timeZone }: SpokiPanelProps) {
                 Ogni automazione Spoki riceve un POST JSON nel formato del fornitore:{' '}
                 <span className="font-mono">
                   {
-                    '{ secret, phone, first_name, last_name, email, custom_fields: { code, plate, time, date, portal_url } }'
+                    '{ secret, phone, first_name, last_name, email, custom_fields: { ACC_CODICE, ACC_TARGA, ACC_DATA, ACC_ORA, ACC_GIORNO, ACC_LINK, ACC_PROMEMORIA } }'
                   }
                 </span>
                 . Il segreto è quello della singola automazione (
