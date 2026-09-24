@@ -577,6 +577,16 @@ attive) nemmeno la stessa tocca arrivata dal webhook V2, mentre un messaggio scr
 all'app. Spoki genera un segreto `whsec_…` per ogni webhook V2 (uno per `message.inbound`, uno per
 `message.outbound`): `SPOKI_WEBHOOK_SECRET` li accetta separati da virgola.
 
+**Rete di sicurezza del mattino.** Il promemoria del giorno lo manda l'app alle
+`REMINDER_SAME_DAY_HOUR_LOCAL`. Se a quell'ora il server è giù, lo manda Spoki: un'automazione con
+trigger sulla data del campo `ACC_GIORNO` parte alle `SPOKI_SAFETY_NET_TIME` (per esempio 08:30) e
+scrive solo ai contatti che hanno ancora `ACC_PROMEMORIA = DA_INVIARE`. Perché non raddoppi e non
+scriva a chi non deve, l'app — quando c'è — dopo il suo promemoria scrive `NON_SERVE` sui contatti
+che hanno avuto il promemoria del giorno prima su WhatsApp ma non quello di oggi (annullati, già
+arrivati o in carico, promemoria finito sull'SMS), con `POST /api/1/contacts/sync/` e gli stessi
+blocchi degli invii; e dall'ora della rete in poi non manda più il promemoria del giorno, nemmeno
+rimettendosi in pari dopo un riavvio. Vuota (predefinito) = rete spenta, tutto come prima.
+
 **Guardrail anti-invio.** Nessun cliente reale riceve un WhatsApp finché `SPOKI_ENABLED` non è
 `true` con `SPOKI_API_KEY` presente, `SPOKI_MODE` non è `live` **e** `SPOKI_SAFETY_LOCK` non è
 `false` (predefinito `true`). Con l'interruttore spento o senza chiave la modalità effettiva è la

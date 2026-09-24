@@ -20,7 +20,11 @@ import type {
   SendReceipt,
 } from '@/services/interfaces/common';
 import { providerError } from '@/services/interfaces/common';
-import type { SpokiSendRequestDto } from '@/services/dto/spoki.dto';
+import type {
+  SpokiContactUpdateDto,
+  SpokiContactUpdateReceipt,
+  SpokiSendRequestDto,
+} from '@/services/dto/spoki.dto';
 import { parseSpokiWebhookBody, type SpokiWebhookEvent } from '@/services/dto/spoki-webhook.dto';
 import type { IClock } from '@/services/interfaces/IClock';
 import type { IIdGenerator } from '@/services/interfaces/IIdGenerator';
@@ -165,6 +169,19 @@ export class SpokiService implements ISpokiService {
       url: this.config.urls[kind],
       payload: buildWebhookPayload(request, kind, this.config.secrets[kind]),
     };
+  }
+
+  async updateContactFields(
+    request: SpokiContactUpdateDto,
+    options?: CallOptions,
+  ): Promise<ProviderResult<SpokiContactUpdateReceipt>> {
+    const esito = await this.adapter.updateContact({
+      phone: request.to,
+      customFields: request.fields,
+      correlationId: request.correlationId,
+      options,
+    });
+    return esito.ok ? ok({ updated: esito.value.updated }) : esito;
   }
 
   async getDeliveryStatus(

@@ -5,7 +5,11 @@ import { err, ok } from '@/domain/result';
 import type { Result } from '@/domain/result';
 import type { IsoDateTime } from '@/domain/value-objects/iso-date';
 import { lastDigit, maskPhone } from '@/domain/value-objects/phone';
-import type { SpokiSendRequestDto } from '../dto/spoki.dto';
+import type {
+  SpokiContactUpdateDto,
+  SpokiContactUpdateReceipt,
+  SpokiSendRequestDto,
+} from '../dto/spoki.dto';
 import { parseSpokiWebhookBody, type SpokiWebhookEvent } from '../dto/spoki-webhook.dto';
 import type {
   CallOptions,
@@ -61,12 +65,33 @@ export class SpokiServiceMock implements ISpokiService {
   private readonly logger: ILogger;
   private readonly receipts = new Map<string, SendReceipt>();
   private readonly deliveries = new Map<string, DeliveryRecord>();
+  private readonly aggiornamentiContatto: SpokiContactUpdateDto[] = [];
 
   constructor(
     private readonly options: SpokiMockOptions,
     private readonly deps: SpokiMockDeps,
   ) {
     this.logger = deps.logger.child('[MOCK][Spoki]');
+  }
+
+  /** Aggiornamenti dei campi del contatto ricevuti (per i test), dal più vecchio. */
+  get contactUpdates(): readonly SpokiContactUpdateDto[] {
+    return this.aggiornamentiContatto;
+  }
+
+  async updateContactFields(
+    request: SpokiContactUpdateDto,
+    options?: CallOptions,
+  ): Promise<ProviderResult<SpokiContactUpdateReceipt>> {
+    if (isAborted(options?.signal)) {
+      return err(providerError('SPOKI', 'TIMEOUT', 'Richiesta annullata dal chiamante.', true));
+    }
+    this.aggiornamentiContatto.push({ ...request, fields: { ...request.fields } });
+    this.logger.debug(`contatto ${maskPhone(request.to)} aggiornato`, {
+      campi: Object.keys(request.fields),
+      correlationId: request.correlationId,
+    });
+    return ok({ updated: true });
   }
 
   async sendTemplateMessage(

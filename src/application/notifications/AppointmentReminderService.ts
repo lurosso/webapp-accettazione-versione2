@@ -23,6 +23,7 @@ import type { IIdGenerator } from '@/services/interfaces/IIdGenerator';
 import type { ILogger } from '@/services/interfaces/ILogger';
 import type { SyncService } from '../sync/SyncService';
 import type { NotificationOrchestrator, NotificationOutcome } from './NotificationOrchestrator';
+import type { ReminderSafetyNet } from './ReminderSafetyNet';
 
 /** I due promemoria del perimetro attuale. */
 export type ReminderKind = Extract<NotificationKind, 'REMINDER_PREVIOUS_DAY' | 'REMINDER_SAME_DAY'>;
@@ -67,6 +68,11 @@ export interface AppointmentReminderServiceDeps {
   readonly enabled: boolean;
   /** True solo con Spoki reale, in live e senza blocco di sicurezza. */
   readonly liveDeliveryAllowed: boolean;
+  /**
+   * Rete di sicurezza del mattino in Spoki (SPOKI_SAFETY_NET_TIME): dopo il promemoria del giorno
+   * la si disarma per chi non deve riceverlo, e dalla sua ora in poi il promemoria lo manda lei.
+   */
+  readonly safetyNet?: ReminderSafetyNet;
 }
 
 export class AppointmentReminderService {
@@ -84,7 +90,26 @@ export class AppointmentReminderService {
     if (!this.deps.enabled) {
       return this.skipped('REMINDER_SAME_DAY', businessDate, null, correlationId);
     }
-    return this.dispatch('REMINDER_SAME_DAY', businessDate, null, correlationId);
+    const rete = this.deps.safetyNet;
+    if (rete !== undefined && rete.handedOver(businessDate)) {
+      // Il server si è rimesso in pari dopo l'ora della rete: il promemoria l'ha già mandato Spoki
+      // a chi lo aspettava, un secondo invio dall'app sarebbe un doppione.
+      const motivo = `dalle ${rete.time ?? ''} il promemoria del giorno lo manda la rete di sicurezza Spoki`;
+      this.logger.warn(`giorno stesso: ${motivo}`, { businessDate, correlationId });
+      return this.skipped('REMINDER_SAME_DAY', businessDate, null, correlationId, motivo);
+    }
+    const summary = await this.dispatch('REMINDER_SAME_DAY', businessDate, null, correlationId);
+    if (rete !== undefined) {
+      try {
+        await rete.disarm(businessDate, correlationId);
+      } catch (cause) {
+        this.logger.warn('rete di sicurezza non disarmata', {
+          errore: cause instanceof Error ? cause.message : String(cause),
+          correlationId,
+        });
+      }
+    }
+    return summary;
   }
 
   /**

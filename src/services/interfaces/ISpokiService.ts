@@ -1,7 +1,11 @@
 // Porta verso Spoki (WhatsApp Business): invio template e tracciamento consegna.
 
 import type { Result } from '@/domain/result';
-import type { SpokiSendRequestDto } from '../dto/spoki.dto';
+import type {
+  SpokiContactUpdateDto,
+  SpokiContactUpdateReceipt,
+  SpokiSendRequestDto,
+} from '../dto/spoki.dto';
 import type { SpokiWebhookEvent } from '../dto/spoki-webhook.dto';
 import type {
   CallOptions,
@@ -20,6 +24,14 @@ export interface ISpokiService {
     request: SpokiSendRequestDto,
     options?: CallOptions,
   ): Promise<ProviderResult<SendReceipt>>;
+  /**
+   * Aggiorna i campi personalizzati del contatto senza mandare messaggi. Stessi blocchi dell'invio
+   * (simulazione, blocco di sicurezza, demo interna): bloccato = `updated: false`, non un errore.
+   */
+  updateContactFields(
+    request: SpokiContactUpdateDto,
+    options?: CallOptions,
+  ): Promise<ProviderResult<SpokiContactUpdateReceipt>>;
   /** Stato di consegna di un messaggio già accettato. */
   getDeliveryStatus(
     providerMessageId: string,

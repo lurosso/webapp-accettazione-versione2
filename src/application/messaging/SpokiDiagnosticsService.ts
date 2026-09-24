@@ -106,6 +106,8 @@ export interface SpokiOverview {
   readonly publicBaseUrl: string;
   readonly reminderPreviousDayHourLocal: string;
   readonly reminderSameDayHourLocal: string;
+  /** SPOKI_SAFETY_NET_TIME: ora della rete di sicurezza in Spoki; null = spenta. */
+  readonly safetyNetTime: string | null;
   readonly remindersEnabled: boolean;
   /** MESSAGING_STANDBY: l'integrazione con il cliente è in pausa, di proposito. */
   readonly standby: boolean;
@@ -153,6 +155,8 @@ export interface SpokiDiagnosticsConfig {
   readonly publicBaseUrl: string;
   readonly reminderPreviousDayHourLocal: string;
   readonly reminderSameDayHourLocal: string;
+  /** SPOKI_SAFETY_NET_TIME (facoltativo nei test: spenta). */
+  readonly safetyNetTime?: string | null;
   readonly remindersEnabled: boolean;
   /** MESSAGING_STANDBY (facoltativo nei test). */
   readonly standby?: boolean;
@@ -345,6 +349,7 @@ export class SpokiDiagnosticsService {
       publicBaseUrl: c.publicBaseUrl,
       reminderPreviousDayHourLocal: c.reminderPreviousDayHourLocal,
       reminderSameDayHourLocal: c.reminderSameDayHourLocal,
+      safetyNetTime: c.safetyNetTime ?? null,
       remindersEnabled: c.remindersEnabled,
       standby: c.standby === true,
       log: this.deps.activityLog.list(limit),

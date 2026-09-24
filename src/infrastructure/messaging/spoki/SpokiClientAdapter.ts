@@ -15,13 +15,17 @@ import { providerError } from '@/services/interfaces/common';
 import type { IClock } from '@/services/interfaces/IClock';
 import type { IIdGenerator } from '@/services/interfaces/IIdGenerator';
 import type { ILogger } from '@/services/interfaces/ILogger';
-import type { ISpokiActivityLog } from '@/services/interfaces/ISpokiActivityLog';
+import type {
+  ISpokiActivityLog,
+  SpokiActivityEntry,
+} from '@/services/interfaces/ISpokiActivityLog';
 import type { SpokiMode } from '@/services/interfaces/provider-kinds';
 import {
   deliveryBlockReason,
   recipientBlockReason,
   maskForLog,
   payloadForLog,
+  spokiContactSyncUrl,
   spokiSendUrl,
   type SpokiTemplateKind,
   type SpokiTransport,
@@ -70,6 +74,31 @@ export interface TriggerResult {
   readonly blockedBy: 'SIMULATION' | 'SAFETY_LOCK' | 'DEMO_ALLOWLIST' | null;
 }
 
+export interface ContactUpdateInput {
+  readonly phone: string;
+  /** Campi del contatto per codice Spoki (MAIUSCOLO). */
+  readonly customFields: Readonly<Record<string, string>>;
+  readonly correlationId: string;
+  readonly options?: CallOptions | undefined;
+}
+
+export interface ContactUpdateResult {
+  /** True se Spoki ha aggiornato davvero il contatto; false se la chiamata è rimasta bloccata. */
+  readonly updated: boolean;
+  readonly blockedBy: TriggerResult['blockedBy'];
+}
+
+type BlockReason = NonNullable<TriggerResult['blockedBy']>;
+
+/** Etichetta del blocco per log e registro. */
+function blockLabel(blockedBy: BlockReason): string {
+  return blockedBy === 'SAFETY_LOCK'
+    ? 'BLOCCATO (safety lock)'
+    : blockedBy === 'DEMO_ALLOWLIST'
+      ? 'DEMO INTERNA (numero fuori dalla lista)'
+      : 'SIMULAZIONE';
+}
+
 /** Descrizione dell'indirizzo chiamato, per il registro (anche quando non configurato). */
 function describeTarget(transport: SpokiTransport, apiBaseUrl: string): string | null {
   if (transport.kind === 'AUTOMATION') {
@@ -100,18 +129,109 @@ export class SpokiClientAdapter {
   }
 
   async trigger(input: TriggerInput): Promise<ProviderResult<TriggerResult>> {
-    const blocco =
-      deliveryBlockReason(this.config.mode, this.config.safetyLock) ??
-      // Demo interna: anche con il live acceso, un cliente fuori dalla lista non riceve niente.
-      recipientBlockReason(
-        input.transport.payload.phone,
-        this.config.allowedRecipients ?? [],
-        this.config.publicSends === true,
-      );
+    const blocco = this.blockReasonFor(input.transport.payload.phone);
     if (blocco !== null) {
       return this.simulate(input, blocco);
     }
     return this.callLive(input);
+  }
+
+  /**
+   * Aggiorna i campi personalizzati di un contatto (`POST /api/1/contacts/sync/`) senza mandare
+   * messaggi. Stessi blocchi dell'invio: in simulazione, con il blocco di sicurezza o per un numero
+   * fuori dalla lista della demo la chiamata non parte e resta nel registro.
+   */
+  async updateContact(input: ContactUpdateInput): Promise<ProviderResult<ContactUpdateResult>> {
+    const url = spokiContactSyncUrl(this.config.apiBaseUrl);
+    const payload = { phone: input.phone, custom_fields: { ...input.customFields } };
+    const voce = (
+      blockedBy: TriggerResult['blockedBy'],
+      outcome: SpokiActivityEntry['outcome'],
+    ): void => {
+      this.deps.activityLog.record({
+        at: this.deps.clock.nowIso(),
+        mode: this.config.mode,
+        templateKind: 'CONTACT',
+        templateKey: 'contacts_sync',
+        url,
+        phoneMasked: maskForLog(input.phone),
+        payload,
+        blockedBy,
+        outcome,
+        correlationId: input.correlationId,
+      });
+    };
+    const blocco = this.blockReasonFor(input.phone);
+    if (blocco !== null) {
+      this.logger.info(`${blockLabel(blocco)} CONTACT → ${maskForLog(input.phone)}`, {
+        campi: payload.custom_fields,
+        correlationId: input.correlationId,
+        bloccatoDa: blocco,
+      });
+      voce(blocco, { ok: true, httpStatus: 200, messageId: null, error: null });
+      return ok({ updated: false, blockedBy: blocco });
+    }
+    const fallito = (error: ProviderError, httpStatus: number | null) => {
+      this.logger.warn(`CONTACT → ${maskForLog(input.phone)} FALLITO`, {
+        code: error.code,
+        retryable: error.retryable,
+        message: error.message,
+        correlationId: input.correlationId,
+      });
+      voce(null, {
+        ok: false,
+        httpStatus,
+        messageId: null,
+        error: `${error.code}: ${error.message}`,
+      });
+      return err(error);
+    };
+    if (this.config.apiKey === null) {
+      return fallito(
+        providerError(
+          'SPOKI',
+          'AUTH',
+          'Chiave API Spoki mancante (SPOKI_API_KEY): impossibile aggiornare il contatto.',
+          false,
+        ),
+        null,
+      );
+    }
+    const risposta = await this.postJson(
+      url,
+      {
+        'content-type': 'application/json',
+        accept: 'application/json',
+        'x-correlation-id': input.correlationId,
+        'x-spoki-api-key': this.config.apiKey,
+      },
+      JSON.stringify(payload),
+      input.options,
+    );
+    if (!risposta.ok) {
+      return fallito(risposta.error, null);
+    }
+    if (!risposta.value.ok) {
+      return fallito(
+        this.errorForStatus(risposta.value.status, risposta.value.text),
+        risposta.value.status,
+      );
+    }
+    voce(null, { ok: true, httpStatus: risposta.value.status, messageId: null, error: null });
+    return ok({ updated: true, blockedBy: null });
+  }
+
+  /** Perché una chiamata verso questo numero non può partire; null se può. */
+  private blockReasonFor(phone: string): BlockReason | null {
+    return (
+      deliveryBlockReason(this.config.mode, this.config.safetyLock) ??
+      // Demo interna: anche con il live acceso, un cliente fuori dalla lista non riceve niente.
+      recipientBlockReason(
+        phone,
+        this.config.allowedRecipients ?? [],
+        this.config.publicSends === true,
+      )
+    );
   }
 
   /**
@@ -124,12 +244,7 @@ export class SpokiClientAdapter {
   ): ProviderResult<TriggerResult> {
     const acceptedAt = this.deps.clock.nowIso();
     const messageId = `sim-${this.deps.ids.next()}`;
-    const etichetta =
-      blockedBy === 'SAFETY_LOCK'
-        ? 'BLOCCATO (safety lock)'
-        : blockedBy === 'DEMO_ALLOWLIST'
-          ? 'DEMO INTERNA (numero fuori dalla lista)'
-          : 'SIMULAZIONE';
+    const etichetta = blockLabel(blockedBy);
     const target = describeTarget(input.transport, this.config.apiBaseUrl);
     this.logger.info(`${etichetta} ${input.kind} → ${maskForLog(input.transport.payload.phone)}`, {
       trasporto: input.transport.kind,
@@ -169,13 +284,59 @@ export class SpokiClientAdapter {
       );
     }
     const { url, headers, body } = preparata.value;
+    const risposta = await this.postJson(url, headers, body, input.options, fetchImpl);
+    if (!risposta.ok) {
+      return this.fail(input, risposta.error, null);
+    }
+    const { status, text: testo } = risposta.value;
+    if (!risposta.value.ok) {
+      return this.fail(input, this.errorForStatus(status, testo), status);
+    }
+    const messageId = this.extractMessageId(testo) ?? `spoki-${this.deps.ids.next()}`;
+    const acceptedAt = this.deps.clock.nowIso();
+    this.logger.info(`${input.kind} → ${maskForLog(input.transport.payload.phone)} accettato`, {
+      trasporto: input.transport.kind,
+      status,
+      messageId,
+      correlationId: input.correlationId,
+    });
+    this.deps.activityLog.record({
+      at: acceptedAt,
+      mode: 'live',
+      templateKind: input.kind,
+      templateKey: input.templateKey,
+      url: describeTarget(input.transport, this.config.apiBaseUrl),
+      phoneMasked: maskForLog(input.transport.payload.phone),
+      payload: payloadForLog(input.transport.payload),
+      blockedBy: null,
+      outcome: { ok: true, httpStatus: status, messageId, error: null },
+      correlationId: input.correlationId,
+    });
+    return ok({ httpStatus: status, messageId, acceptedAt, blockedBy: null });
+  }
 
+  /**
+   * POST JSON con il tempo massimo configurato (o quello del chiamante) e l'annullamento del
+   * chiamante. Una risposta HTTP qualsiasi è un successo del trasporto (lo stato lo giudica chi
+   * chiama); rete giù e tempo scaduto diventano errori ritentabili.
+   */
+  private async postJson(
+    url: string,
+    headers: Record<string, string>,
+    body: string,
+    options: CallOptions | undefined,
+    fetchImpl: FetchLike | undefined = this.deps.fetchImpl,
+  ): Promise<
+    ProviderResult<{ readonly ok: boolean; readonly status: number; readonly text: string }>
+  > {
+    if (fetchImpl === undefined) {
+      return err(
+        providerError('SPOKI', 'UNAVAILABLE', 'Nessun client HTTP disponibile per Spoki.', false),
+      );
+    }
     const controller = new AbortController();
-    const timer = setTimeout(
-      () => controller.abort(),
-      input.options?.timeoutMs ?? this.config.timeoutMs,
-    );
-    input.options?.signal?.addEventListener('abort', () => controller.abort(), { once: true });
+    const timer = setTimeout(() => controller.abort(), options?.timeoutMs ?? this.config.timeoutMs);
+    options?.signal?.addEventListener('abort', () => controller.abort(), { once: true });
     try {
       const response = await fetchImpl(url, {
         method: 'POST',
@@ -183,35 +344,11 @@ export class SpokiClientAdapter {
         body,
         signal: controller.signal,
       });
-      const testo = await response.text().catch(() => '');
-      if (!response.ok) {
-        return this.fail(input, this.errorForStatus(response.status, testo), response.status);
-      }
-      const messageId = this.extractMessageId(testo) ?? `spoki-${this.deps.ids.next()}`;
-      const acceptedAt = this.deps.clock.nowIso();
-      this.logger.info(`${input.kind} → ${maskForLog(input.transport.payload.phone)} accettato`, {
-        trasporto: input.transport.kind,
-        status: response.status,
-        messageId,
-        correlationId: input.correlationId,
-      });
-      this.deps.activityLog.record({
-        at: acceptedAt,
-        mode: 'live',
-        templateKind: input.kind,
-        templateKey: input.templateKey,
-        url: describeTarget(input.transport, this.config.apiBaseUrl),
-        phoneMasked: maskForLog(input.transport.payload.phone),
-        payload: payloadForLog(input.transport.payload),
-        blockedBy: null,
-        outcome: { ok: true, httpStatus: response.status, messageId, error: null },
-        correlationId: input.correlationId,
-      });
-      return ok({ httpStatus: response.status, messageId, acceptedAt, blockedBy: null });
+      const text = await response.text().catch(() => '');
+      return ok({ ok: response.ok, status: response.status, text });
     } catch (cause) {
       const timeout = cause instanceof Error && cause.name === 'AbortError';
-      return this.fail(
-        input,
+      return err(
         providerError(
           'SPOKI',
           timeout ? 'TIMEOUT' : 'NETWORK',
@@ -221,7 +358,6 @@ export class SpokiClientAdapter {
           true,
           cause,
         ),
-        null,
       );
     } finally {
       clearTimeout(timer);

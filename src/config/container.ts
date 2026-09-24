@@ -15,6 +15,7 @@ import { InspectionArchiveService } from '@/application/media/InspectionArchiveS
 import { InspectionService } from '@/application/media/InspectionService';
 import { DailyReportService } from '@/application/reporting/DailyReportService';
 import { AppointmentReminderService } from '@/application/notifications/AppointmentReminderService';
+import { ReminderSafetyNet } from '@/application/notifications/ReminderSafetyNet';
 import { CommunicationsService } from '@/application/notifications/CommunicationsService';
 import { CustomerMessagingPolicy } from '@/application/notifications/CustomerMessagingPolicy';
 import { NotificationOrchestrator } from '@/application/notifications/NotificationOrchestrator';
@@ -280,6 +281,7 @@ export function createContainer(overrides: ContainerOverrides = {}): Container {
       publicBaseUrl: env.publicBaseUrl,
       reminderPreviousDayHourLocal: env.reminderPreviousDayHourLocal,
       reminderSameDayHourLocal: env.reminderSameDayHourLocal,
+      safetyNetTime: env.spokiSafetyNetTime,
       remindersEnabled: env.remindersEnabled && !env.messagingStandby,
       standby: env.messagingStandby,
     },
@@ -487,6 +489,16 @@ export function createContainer(overrides: ContainerOverrides = {}): Container {
 
   // I due promemoria ai clienti (giorno prima, giorno stesso): passano dall'orchestratore, quindi
   // dal guardrail Spoki; li lancia lo scheduler alle ore configurate o il cron esterno.
+  const reminderSafetyNet = new ReminderSafetyNet({
+    appointments: repos.appointments,
+    notifications: repos.notifications,
+    spoki: external.spoki,
+    clock,
+    logger,
+    time: env.spokiSafetyNetTime,
+    timeZone: env.timeZone,
+  });
+
   const appointmentReminderService = new AppointmentReminderService({
     appointments: repos.appointments,
     referenceData: repos.referenceData,
@@ -497,6 +509,7 @@ export function createContainer(overrides: ContainerOverrides = {}): Container {
     logger,
     enabled: env.remindersEnabled && !env.messagingStandby,
     liveDeliveryAllowed: spokiLiveDeliveryAllowed,
+    safetyNet: reminderSafetyNet,
   });
 
   const syncScheduler = new SyncScheduler({

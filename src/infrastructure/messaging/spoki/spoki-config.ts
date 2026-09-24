@@ -20,7 +20,10 @@
 // `SPOKI_SAFETY_LOCK` è attivo (predefinito). Con `SPOKI_ENABLED=false` (predefinito) o senza
 // chiave API la configurazione stessa forza `simulation` (vedi `config/env.ts`). In tutti questi
 // casi il payload viene solo formattato, scritto nei log e nel registro del pannello admin.
+import type { SpokiReminderState } from '@/services/dto/spoki.dto';
 import type { SpokiMode } from '@/services/interfaces/provider-kinds';
+
+export type { SpokiReminderState };
 
 /** I template del progetto. */
 export type SpokiTemplateKind =
@@ -165,6 +168,9 @@ export const SPOKI_DEFAULT_API_BASE_URL = 'https://api.spoki.com';
 /** Percorso dell'invio di un template via API. */
 export const SPOKI_SEND_PATH = '/api/1/messages/send/';
 
+/** Percorso di «crea o aggiorna contatto» (campi personalizzati compresi). */
+export const SPOKI_CONTACT_SYNC_PATH = '/api/1/contacts/sync/';
+
 export interface SpokiServiceConfig {
   readonly mode: SpokiMode;
   /**
@@ -218,16 +224,6 @@ export type SpokiCustomFieldCode = (typeof SPOKI_CUSTOM_FIELD_CODES)[number];
 
 /** Campi dinamici del messaggio, come li vedono l'automazione o il template Spoki. */
 export type SpokiCustomFields = Readonly<Record<SpokiCustomFieldCode, string>>;
-
-/**
- * `ACC_PROMEMORIA`, lo stato del promemoria del mattino sul contatto. Lo legge la rete di sicurezza
- * in Spoki: se all'ora prevista vale ancora `DA_INVIARE`, il server non l'ha mandato e ci pensa
- * l'automazione.
- * - `DA_INVIARE`: scritto dal promemoria del giorno prima (domani il cliente lo aspetta);
- * - `INVIATO`: scritto da qualunque messaggio del giorno stesso (il promemoria o le risposte);
- * - `NON_SERVE`: scritto dall'app quando la pratica non deve riceverlo (annullata, già arrivata).
- */
-export type SpokiReminderState = 'DA_INVIARE' | 'INVIATO' | 'NON_SERVE';
 
 /** Lo stato del promemoria del mattino che un invio lascia sul contatto. */
 export function reminderStateAfter(kind: SpokiTemplateKind): SpokiReminderState {
@@ -352,6 +348,11 @@ export function deliveryBlockReason(
 /** URL completo dell'invio via API a partire dalla base configurata. */
 export function spokiSendUrl(apiBaseUrl: string): string {
   return `${apiBaseUrl.replace(/\/+$/, '')}${SPOKI_SEND_PATH}`;
+}
+
+/** URL completo dell'aggiornamento di un contatto. */
+export function spokiContactSyncUrl(apiBaseUrl: string): string {
+  return `${apiBaseUrl.replace(/\/+$/, '')}${SPOKI_CONTACT_SYNC_PATH}`;
 }
 
 /** Ultime quattro cifre visibili: basta per riconoscere il numero nel registro. */

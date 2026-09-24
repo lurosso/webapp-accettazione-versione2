@@ -157,6 +157,13 @@ export interface AppEnv {
   readonly remindersEnabled: boolean;
   readonly reminderPreviousDayHourLocal: string;
   readonly reminderSameDayHourLocal: string;
+  /**
+   * SPOKI_SAFETY_NET_TIME, ora locale "HH:mm" della rete di sicurezza in Spoki (automazione a data
+   * sul campo ACC_GIORNO che manda il promemoria del giorno a chi ha ancora ACC_PROMEMORIA =
+   * DA_INVIARE). Da quell'ora l'app non manda più il promemoria del giorno. null = rete spenta
+   * (predefinito); deve essere dopo REMINDER_SAME_DAY_HOUR_LOCAL, altrimenti si spegne con un avviso.
+   */
+  readonly spokiSafetyNetTime: string | null;
   /** Indirizzo pubblico del portale cliente, usato nei link dei messaggi. */
   readonly publicBaseUrl: string;
   readonly smsProvider: ProviderKind;
@@ -490,6 +497,38 @@ function pickHourLocal(source: EnvSource, key: string, fallback: string, warn: E
   return raw;
 }
 
+/** Ora "HH:mm" facoltativa: vuota = null; non valida = null con avviso. */
+function pickHourLocalOrNull(source: EnvSource, key: string, warn: EnvWarning): string | null {
+  const raw = pickStringOrNull(source, key);
+  if (raw === null) {
+    return null;
+  }
+  if (!/^([01]\d|2[0-3]):[0-5]\d$/.test(raw)) {
+    warn(`${key}="${raw}" non è un orario HH:mm: ignorato.`);
+    return null;
+  }
+  return raw;
+}
+
+/**
+ * La rete di sicurezza deve scattare DOPO il promemoria del giorno: prima, l'app lascerebbe sempre
+ * il promemoria a Spoki senza averci provato.
+ */
+function pickSafetyNetTime(
+  source: EnvSource,
+  sameDayHour: string,
+  warn: EnvWarning,
+): string | null {
+  const ora = pickHourLocalOrNull(source, 'SPOKI_SAFETY_NET_TIME', warn);
+  if (ora !== null && ora <= sameDayHour) {
+    warn(
+      `SPOKI_SAFETY_NET_TIME=${ora} non è dopo il promemoria del giorno (${sameDayHour}): rete di sicurezza spenta.`,
+    );
+    return null;
+  }
+  return ora;
+}
+
 /**
  * Legge una zona IANA e la valida con `Intl.DateTimeFormat`: un valore errato farebbe
  * lanciare RangeError alla prima `toBusinessDate` (crash all'avvio), quindi si ricade sul default.
@@ -534,6 +573,12 @@ export function parseEnv(
   const spokiApiKey = pickStringOrNull(source, 'SPOKI_API_KEY');
 
   const webhookSecrets = pickWebhookSecrets(source, warn);
+  const sameDayHour = pickHourLocal(
+    source,
+    'REMINDER_SAME_DAY_HOUR_LOCAL',
+    DEFAULT_REMINDER_SAME_DAY_HOUR,
+    warn,
+  );
   return {
     servicesProvider,
     infinityProvider: perPort('INFINITY_PROVIDER'),
@@ -580,12 +625,8 @@ export function parseEnv(
       DEFAULT_REMINDER_PREVIOUS_DAY_HOUR,
       warn,
     ),
-    reminderSameDayHourLocal: pickHourLocal(
-      source,
-      'REMINDER_SAME_DAY_HOUR_LOCAL',
-      DEFAULT_REMINDER_SAME_DAY_HOUR,
-      warn,
-    ),
+    reminderSameDayHourLocal: sameDayHour,
+    spokiSafetyNetTime: pickSafetyNetTime(source, sameDayHour, warn),
     spokiUrlConfirmation: pickStringOrNull(source, 'SPOKI_URL_CONFIRMATION'),
     spokiUrlTurnApproaching: pickStringOrNull(source, 'SPOKI_URL_TURN_APPROACHING'),
     spokiUrlCancellation: pickStringOrNull(source, 'SPOKI_URL_CANCELLATION'),

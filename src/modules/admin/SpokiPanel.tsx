@@ -182,6 +182,14 @@ export function SpokiPanel({ timeZone }: SpokiPanelProps) {
                 <span className="font-mono">{data.reminderPreviousDayHourLocal}</span>
                 {' · '}giorno stesso alle{' '}
                 <span className="font-mono">{data.reminderSameDayHourLocal}</span>
+                {data.safetyNetTime === null ? (
+                  ' · rete di sicurezza Spoki spenta'
+                ) : (
+                  <>
+                    {' · '}rete di sicurezza Spoki alle{' '}
+                    <span className="font-mono">{data.safetyNetTime}</span>
+                  </>
+                )}
                 {data.remindersEnabled ? '' : ' · promemoria programmati DISATTIVATI'}
               </p>
               <p className="mt-1 text-xs text-slate-500">
