@@ -254,6 +254,8 @@ export function createContainer(overrides: ContainerOverrides = {}): Container {
       mode: env.spokiMode,
       safetyLock: env.spokiSafetyLock,
       webhookSecretConfigured: env.spokiWebhookSecret !== null,
+      webhookSecretsCount: env.spokiWebhookSecrets.length,
+      repliesByAutomation: env.spokiRepliesByAutomation,
       templateIds: {
         reminderPreviousDay: env.spokiTemplateReminderD1Id,
         reminderSameDay: env.spokiTemplateSameDayId,
@@ -417,6 +419,7 @@ export function createContainer(overrides: ContainerOverrides = {}): Container {
     ids,
     logger,
     maxEarlyArrivalMinutes: env.spokiMaxEarlyArrivalMinutes,
+    repliesByAutomation: env.spokiRepliesByAutomation,
   });
 
   const inspectionService = new InspectionService({

@@ -564,6 +564,19 @@ pratica in agenda oggi, riceve `200 {"handled": false}` e non tocca niente — s
 dell'officina arriva di tutto, e un «grazie» non deve segnare nessuno come assente. Un secondo
 tocco sullo stesso pulsante non sposta l'ora già registrata e non manda un secondo messaggio.
 
+**Risposte affidate a Spoki.** Perché il cliente abbia una risposta anche quando il server
+dell'officina non risponde, ai tre pulsanti possono rispondere le **automazioni Spoki**: al tocco
+l'automazione chiama questa rotta dal suo passo «webhook» (forma piatta con `source: "automation"`,
+`x-spoki-secret`), la rotta registra il fatto come sopra e restituisce `esito` (`ARRIVATO`,
+`TROPPO_PRESTO`, `GIA_REGISTRATO`, `RITARDO`, `ASSENTE`, `NESSUNA_PRATICA`,
+`NON_RICONOSCIUTO`) e `risposta`, il testo che spetta al cliente (codice e smart link, «troppo
+presto», conferme), che Spoki salva nei campi del contatto e consegna. Se la rotta non risponde,
+l'automazione manda il suo testo di riserva. Una chiamata dell'automazione non fa mai partire un
+messaggio dall'app; con `SPOKI_REPLIES_BY_AUTOMATION=true` (da accendere quando le automazioni sono
+attive) nemmeno la stessa tocca arrivata dal webhook V2, mentre un messaggio scritto a mano resta
+all'app. Spoki genera un segreto `whsec_…` per ogni webhook V2 (uno per `message.inbound`, uno per
+`message.outbound`): `SPOKI_WEBHOOK_SECRET` li accetta separati da virgola.
+
 **Guardrail anti-invio.** Nessun cliente reale riceve un WhatsApp finché `SPOKI_ENABLED` non è
 `true` con `SPOKI_API_KEY` presente, `SPOKI_MODE` non è `live` **e** `SPOKI_SAFETY_LOCK` non è
 `false` (predefinito `true`). Con l'interruttore spento o senza chiave la modalità effettiva è la

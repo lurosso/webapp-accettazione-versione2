@@ -116,6 +116,7 @@ beforeAll(() => {
   container = createContainer({
     env: {
       spokiWebhookSecret: SEGRETO_WEBHOOK,
+      spokiWebhookSecrets: [SEGRETO_WEBHOOK],
       spokiInboundSecret: SEGRETO_INBOUND,
       messagingStandby: false,
       messagingTriggersEnabled: false,
@@ -281,6 +282,7 @@ describe('Webhook Spoki: esiti di consegna firmati', () => {
     const senzaWebhook = createContainer({
       env: {
         spokiWebhookSecret: null,
+        spokiWebhookSecrets: [],
         spokiInboundSecret: SEGRETO_INBOUND,
         messagingStandby: false,
         messagingTriggersEnabled: false,
@@ -304,7 +306,12 @@ describe('Webhook Spoki: esiti di consegna firmati', () => {
       );
       // Numero senza pratica: la rotta è viva e risponde handled:false, non 404.
       expect(risposta.status).toBe(200);
-      expect(await risposta.json()).toEqual({ handled: false, reason: 'NOT_FOUND' });
+      expect(await risposta.json()).toEqual({
+        handled: false,
+        reason: 'NOT_FOUND',
+        esito: 'NESSUNA_PRATICA',
+        risposta: '',
+      });
     } finally {
       setContainerForTests(container);
     }

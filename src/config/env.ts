@@ -126,6 +126,18 @@ export interface AppEnv {
    * (`x-spoki-secret`). Senza, gli esiti non vengono accettati (404).
    */
   readonly spokiWebhookSecret: string | null;
+  /**
+   * Tutti i segreti dei webhook V2 (SPOKI_WEBHOOK_SECRET, separati da virgola): Spoki genera un
+   * `whsec_…` per ogni webhook e ogni webhook ha un solo evento (`message.inbound`,
+   * `message.outbound`), quindi i segreti sono di norma due. Il primo è `spokiWebhookSecret`.
+   */
+  readonly spokiWebhookSecrets: readonly string[];
+  /**
+   * SPOKI_REPLIES_BY_AUTOMATION (predefinito false): true quando le automazioni Spoki dei tre pulsanti
+   * sono attive. Rispondono loro al cliente, anche a server giù; l'app registra il fatto e restituisce
+   * all'automazione il testo della conferma, ma non la manda di suo.
+   */
+  readonly spokiRepliesByAutomation: boolean;
   /** URL e segreti delle automazioni dei due promemoria (giorno prima, giorno stesso). */
   readonly spokiUrlReminderPreviousDay: string | null;
   readonly spokiUrlReminderSameDay: string | null;
@@ -291,18 +303,29 @@ function pickSpokiMode(
 }
 
 /** SPOKI_WEBHOOK_SECRET: accettato solo se abbastanza lungo da essere un segreto. */
-function pickWebhookSecret(source: EnvSource, warn: EnvWarning): string | null {
+/**
+ * SPOKI_WEBHOOK_SECRET: uno o più segreti separati da virgola (uno per webhook V2). Quelli troppo
+ * corti si scartano con un avviso: un segreto indovinabile aprirebbe l'agenda a chiunque.
+ */
+function pickWebhookSecrets(source: EnvSource, warn: EnvWarning): readonly string[] {
   const valore = pickStringOrNull(source, 'SPOKI_WEBHOOK_SECRET');
   if (valore === null) {
-    return null;
+    return [];
   }
-  if (valore.length < MIN_WEBHOOK_SECRET_LENGTH) {
-    warn(
-      `SPOKI_WEBHOOK_SECRET troppo corto (${valore.length} caratteri, minimo ${MIN_WEBHOOK_SECRET_LENGTH}): ignorato, gli esiti di consegna non vengono accettati.`,
-    );
-    return null;
+  const segreti: string[] = [];
+  for (const parte of valore
+    .split(',')
+    .map((p) => p.trim())
+    .filter((p) => p.length > 0)) {
+    if (parte.length < MIN_WEBHOOK_SECRET_LENGTH) {
+      warn(
+        `SPOKI_WEBHOOK_SECRET: un segreto è troppo corto (${parte.length} caratteri, minimo ${MIN_WEBHOOK_SECRET_LENGTH}): ignorato.`,
+      );
+      continue;
+    }
+    segreti.push(parte);
   }
-  return valore;
+  return [...new Set(segreti)];
 }
 const SEED_PROFILES: readonly SeedProfile[] = ['demo', 'real'];
 const MANUAL_INTAKE_UI: readonly ManualIntakeUi[] = ['none', 'managers', 'all'];
@@ -510,6 +533,7 @@ export function parseEnv(
   const spokiEnabled = pickBool(source, 'SPOKI_ENABLED', false, warn);
   const spokiApiKey = pickStringOrNull(source, 'SPOKI_API_KEY');
 
+  const webhookSecrets = pickWebhookSecrets(source, warn);
   return {
     servicesProvider,
     infinityProvider: perPort('INFINITY_PROVIDER'),
@@ -541,7 +565,9 @@ export function parseEnv(
       DEFAULT_MAX_EARLY_ARRIVAL_MINUTES,
       warn,
     ),
-    spokiWebhookSecret: pickWebhookSecret(source, warn),
+    spokiWebhookSecret: webhookSecrets[0] ?? null,
+    spokiWebhookSecrets: webhookSecrets,
+    spokiRepliesByAutomation: pickBool(source, 'SPOKI_REPLIES_BY_AUTOMATION', false, warn),
     spokiUrlReminderPreviousDay: pickStringOrNull(source, 'SPOKI_URL_REMINDER_PREVIOUS_DAY'),
     spokiUrlReminderSameDay: pickStringOrNull(source, 'SPOKI_URL_REMINDER_SAME_DAY'),
     spokiSecretReminderPreviousDay: pickStringOrNull(source, 'SPOKI_SECRET_REMINDER_PREVIOUS_DAY'),

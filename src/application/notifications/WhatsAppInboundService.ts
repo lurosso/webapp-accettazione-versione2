@@ -18,6 +18,13 @@
 //                libera) e il BDC la trova nel proprio elenco per richiamarlo e riprogrammare
 //                l'appuntamento su Infinity; il cliente riceve la conferma dell'annullamento.
 //
+// CHI RISPONDE. Con le automazioni Spoki dei pulsanti attive (SPOKI_REPLIES_BY_AUTOMATION=true) la
+// conferma al cliente la manda Spoki, anche quando questo server non risponde: l'app registra il
+// fatto e restituisce all'automazione il testo che spetta al cliente (`replyText`, con codice e link
+// personale, o il messaggio «troppo presto»), che Spoki consegna; se il server è giù, l'automazione
+// manda il suo testo di riserva. Una chiamata che arriva dall'automazione (`channel: AUTOMATION`)
+// non fa mai partire una risposta dall'app, qualunque sia l'interruttore.
+//
 // Tutto passa dai casi d'uso esistenti (portale e coda): questo servizio traduce, non decide.
 // Un messaggio che non corrisponde a nessuna delle tre risposte viene ignorato senza errori: sul
 // numero dell'officina arriva di tutto, e un «grazie» non deve segnare nessuno come assente.
@@ -40,6 +47,21 @@ import type { NotificationOrchestrator } from './NotificationOrchestrator';
 
 /** Le tre risposte previste dal messaggio WhatsApp. */
 export type CustomerReply = 'ARRIVED' | 'LATE' | 'ABSENT';
+
+/** I messaggi con cui si risponde al cliente. */
+export type ReplyKind = Extract<
+  NotificationKind,
+  'ARRIVAL_CONFIRMED' | 'LATE_CONFIRMED' | 'ABSENT_CONFIRMED' | 'ARRIVAL_TOO_EARLY'
+>;
+
+/** Da dove arriva la risposta del cliente. */
+export type InboundChannel =
+  /** Webhook V2 di Spoki (`message.inbound`). */
+  | 'EVENT'
+  /** Passo «webhook» di un'automazione Spoki: al cliente risponde l'automazione. */
+  | 'AUTOMATION'
+  /** Forma piatta per prove manuali. */
+  | 'MANUAL';
 
 /** Motivo registrato sulla pratica quando è il cliente a dichiararsi assente. */
 export const CUSTOMER_ABSENT_REASON = 'Il cliente ha risposto «Assente» al messaggio WhatsApp';
@@ -105,6 +127,11 @@ export interface WhatsAppInboundServiceDeps {
   readonly logger: ILogger;
   /** Finestra di anticipo massimo per «Sono arrivato» (SPOKI_MAX_EARLY_ARRIVAL_MINUTES); predefinito 60. */
   readonly maxEarlyArrivalMinutes?: number;
+  /**
+   * SPOKI_REPLIES_BY_AUTOMATION: true = ai pulsanti risponde l'automazione Spoki, l'app non manda la
+   * conferma nemmeno quando la tocca arriva dal webhook V2. Predefinito false.
+   */
+  readonly repliesByAutomation?: boolean;
 }
 
 /** Com'è andata la risposta del cliente, per la risposta al webhook e per i log. */
@@ -120,6 +147,12 @@ export interface InboundResult {
    * il messaggio che spiega quando ripremere. Falso per tutte le altre risposte.
    */
   readonly premature: boolean;
+  /** Chi risponde al cliente: l'app (orchestratore) o l'automazione Spoki. */
+  readonly replyBy: 'APP' | 'SPOKI';
+  /** Il messaggio che spetta al cliente, anche quando lo consegna Spoki; null se non ce n'è. */
+  readonly replyKind: ReplyKind | null;
+  /** Il testo di quel messaggio (codice, orario, link personale); null se non ce n'è. */
+  readonly replyText: string | null;
 }
 
 /** Messaggio in entrata, già estratto dal corpo del webhook. */
@@ -129,7 +162,20 @@ export interface InboundMessage {
   /** Codice della pratica, se il provider lo rimanda: toglie ogni ambiguità sul numero. */
   readonly code?: string | null;
   readonly correlationId?: string | null;
+  /** Da dove arriva; predefinito `EVENT`. */
+  readonly channel?: InboundChannel;
+  /** True quando il cliente ha toccato un pulsante (payload del pulsante rapido), non scritto a mano. */
+  readonly viaButton?: boolean;
 }
+
+/** Com'è andata la risposta automatica: partita dall'app, oppure solo preparata per Spoki. */
+interface ReplyOutcome {
+  readonly sent: boolean;
+  readonly kind: ReplyKind | null;
+  readonly text: string | null;
+}
+
+const NESSUNA_RISPOSTA: ReplyOutcome = { sent: false, kind: null, text: null };
 
 export class WhatsAppInboundService {
   private readonly logger: ILogger;
@@ -158,13 +204,22 @@ export class WhatsAppInboundService {
       return err(domainError('NOT_FOUND', 'Nessuna pratica in agenda oggi per questo numero.'));
     }
 
+    // Ai pulsanti risponde Spoki se la chiamata viene dall'automazione, oppure se le automazioni dei
+    // pulsanti sono attive e il cliente ha toccato un pulsante (non scritto a mano: quello resta
+    // all'app, perché nessuna automazione lo intercetta).
+    const replyBy: 'APP' | 'SPOKI' =
+      message.channel === 'AUTOMATION' ||
+      (this.deps.repliesByAutomation === true && message.viaButton === true)
+        ? 'SPOKI'
+        : 'APP';
+    const correlationId = message.correlationId ?? null;
     switch (reply) {
       case 'ARRIVED':
-        return this.registerArrival(appointment, message.correlationId ?? null);
+        return this.registerArrival(appointment, correlationId, replyBy);
       case 'LATE':
-        return this.registerLate(appointment, message.correlationId ?? null);
+        return this.registerLate(appointment, correlationId, replyBy);
       case 'ABSENT':
-        return this.registerAbsent(appointment, message.correlationId ?? null);
+        return this.registerAbsent(appointment, correlationId, replyBy);
     }
   }
 
@@ -176,6 +231,7 @@ export class WhatsAppInboundService {
   private async registerArrival(
     a: Appointment,
     correlationId: string | null,
+    replyBy: 'APP' | 'SPOKI',
   ): Promise<Result<InboundResult, DomainError>> {
     // GUARDRAIL: troppo presto rispetto all'orario? Niente fila, niente codice: solo il messaggio
     // che dice quando ripremere. «In ritardo» e «Non posso venire» non passano di qui.
@@ -189,37 +245,28 @@ export class WhatsAppInboundService {
           finestraMinuti: this.maxEarlyMinutes(),
         },
       );
-      const replySent = await this.sendReply(a, 'ARRIVAL_TOO_EARLY', correlationId, {
+      const r = await this.reply(a, 'ARRIVAL_TOO_EARLY', correlationId, replyBy, {
         dedupeSuffix: this.deps.clock.nowIso().slice(0, 16),
       });
-      return ok({ reply: 'ARRIVED', appointment: a, repeated: false, replySent, premature: true });
+      return ok(result('ARRIVED', a, { repeated: false, premature: true }, replyBy, r));
     }
     const esito = await this.deps.portal.registerArrival({ plate: a.vehicle.plate }, 'WHATSAPP');
     if (!esito.ok) {
       return esito;
     }
+    const corrente = esito.value.appointment;
     if (!esito.value.registered) {
-      // Arrivo già registrato, o pratica non più in coda: niente da fare e nessun messaggio.
-      return ok({
-        reply: 'ARRIVED',
-        appointment: esito.value.appointment,
-        repeated: true,
-        replySent: false,
-        premature: false,
-      });
+      // Arrivo già registrato, o pratica non più in coda: niente da fare, e l'app non riscrive.
+      // All'automazione Spoki (che risponde a ogni tocco) si ridà codice e link se il cliente è in
+      // fila: la stessa tocca può arrivare prima dal webhook V2 e poi dall'automazione.
+      const r =
+        replyBy === 'SPOKI' && isInQueue(corrente.status) && corrente.customerArrivedAt !== null
+          ? await this.reply(corrente, 'ARRIVAL_CONFIRMED', correlationId, replyBy)
+          : NESSUNA_RISPOSTA;
+      return ok(result('ARRIVED', corrente, { repeated: true, premature: false }, replyBy, r));
     }
-    const replySent = await this.sendReply(
-      esito.value.appointment,
-      'ARRIVAL_CONFIRMED',
-      correlationId,
-    );
-    return ok({
-      reply: 'ARRIVED',
-      appointment: esito.value.appointment,
-      repeated: false,
-      replySent,
-      premature: false,
-    });
+    const r = await this.reply(corrente, 'ARRIVAL_CONFIRMED', correlationId, replyBy);
+    return ok(result('ARRIVED', corrente, { repeated: false, premature: false }, replyBy, r));
   }
 
   private maxEarlyMinutes(): number {
@@ -237,6 +284,7 @@ export class WhatsAppInboundService {
   private async registerLate(
     a: Appointment,
     correlationId: string | null,
+    replyBy: 'APP' | 'SPOKI',
   ): Promise<Result<InboundResult, DomainError>> {
     const prima = a.customerLateNoticeAt;
     const esito = await this.deps.portal.reportDelay(
@@ -249,10 +297,12 @@ export class WhatsAppInboundService {
     }
     const corrente = (await this.deps.appointments.findById(a.id)) ?? a;
     const repeated = prima !== null && corrente.customerLateNoticeAt === prima;
-    const replySent = repeated
-      ? false
-      : await this.sendReply(corrente, 'LATE_CONFIRMED', correlationId);
-    return ok({ reply: 'LATE', appointment: corrente, repeated, replySent, premature: false });
+    // L'app conferma solo il primo avviso; Spoki risponde a ogni tocco, quindi gli si ridà il testo.
+    const r =
+      repeated && replyBy === 'APP'
+        ? NESSUNA_RISPOSTA
+        : await this.reply(corrente, 'LATE_CONFIRMED', correlationId, replyBy);
+    return ok(result('LATE', corrente, { repeated, premature: false }, replyBy, r));
   }
 
   /**
@@ -263,15 +313,14 @@ export class WhatsAppInboundService {
   private async registerAbsent(
     a: Appointment,
     correlationId: string | null,
+    replyBy: 'APP' | 'SPOKI',
   ): Promise<Result<InboundResult, DomainError>> {
     if (a.status === 'NO_SHOW') {
-      return ok({
-        reply: 'ABSENT',
-        appointment: a,
-        repeated: true,
-        replySent: false,
-        premature: false,
-      });
+      const r =
+        replyBy === 'SPOKI'
+          ? await this.reply(a, 'ABSENT_CONFIRMED', correlationId, replyBy)
+          : NESSUNA_RISPOSTA;
+      return ok(result('ABSENT', a, { repeated: true, premature: false }, replyBy, r));
     }
     const ctx: ActionContext = {
       operatorId: SYSTEM_ACTOR_ID,
@@ -287,35 +336,45 @@ export class WhatsAppInboundService {
       return esito;
     }
     this.logger.info(`cliente assente per sua segnalazione: ${a.code}`, { appointmentId: a.id });
-    const replySent = await this.sendReply(esito.value, 'ABSENT_CONFIRMED', correlationId);
-    return ok({
-      reply: 'ABSENT',
-      appointment: esito.value,
-      repeated: false,
-      replySent,
-      premature: false,
-    });
+    const r = await this.reply(esito.value, 'ABSENT_CONFIRMED', correlationId, replyBy);
+    return ok(result('ABSENT', esito.value, { repeated: false, premature: false }, replyBy, r));
   }
 
   /**
-   * Risposta automatica al cliente (codice e smart link, ritardo registrato, annullamento);
-   * un guasto qui non annulla il fatto già registrato sulla pratica.
+   * Risposta automatica al cliente (codice e smart link, ritardo registrato, annullamento, «troppo
+   * presto»): con `replyBy = SPOKI` si prepara solo il testo, che consegna l'automazione; altrimenti
+   * parte dall'orchestratore. Un guasto qui non annulla il fatto già registrato sulla pratica.
    */
-  private async sendReply(
+  private async reply(
     a: Appointment,
-    kind: Extract<
-      NotificationKind,
-      'ARRIVAL_CONFIRMED' | 'LATE_CONFIRMED' | 'ABSENT_CONFIRMED' | 'ARRIVAL_TOO_EARLY'
-    >,
+    kind: ReplyKind,
     correlationId: string | null,
+    replyBy: 'APP' | 'SPOKI',
     options: { readonly dedupeSuffix?: string } = {},
-  ): Promise<boolean> {
+  ): Promise<ReplyOutcome> {
     const brands: readonly Brand[] = await this.deps.referenceData.listBrands();
     const brand = brands.find((b) => b.id === a.brandId);
     if (brand === undefined) {
       this.logger.warn('marchio sconosciuto: nessuna risposta inviata', { code: a.code });
-      return false;
+      return NESSUNA_RISPOSTA;
     }
+    const text = this.deps.orchestrator.renderText(a, brand, kind);
+    if (replyBy === 'SPOKI') {
+      this.logger.info(`pratica ${a.code}: risposta ${kind} affidata all'automazione Spoki`, {
+        appointmentId: a.id,
+      });
+      return { sent: false, kind, text };
+    }
+    return { sent: await this.sendReply(a, brand, kind, correlationId, options), kind, text };
+  }
+
+  private async sendReply(
+    a: Appointment,
+    brand: Brand,
+    kind: ReplyKind,
+    correlationId: string | null,
+    options: { readonly dedupeSuffix?: string },
+  ): Promise<boolean> {
     try {
       const run = await this.deps.orchestrator.sendReminder({
         appointment: a,
@@ -363,5 +422,50 @@ export class WhatsAppInboundService {
     }
     const inCoda = sue.filter((a) => isInQueue(a.status));
     return (inCoda.length > 0 ? inCoda : sue)[0] ?? null;
+  }
+}
+
+/** Il risultato della risposta, con chi risponde e il testo che spetta al cliente. */
+function result(
+  reply: CustomerReply,
+  appointment: Appointment,
+  flags: { readonly repeated: boolean; readonly premature: boolean },
+  replyBy: 'APP' | 'SPOKI',
+  r: ReplyOutcome,
+): InboundResult {
+  return {
+    reply,
+    appointment,
+    repeated: flags.repeated,
+    replySent: r.sent,
+    premature: flags.premature,
+    replyBy,
+    replyKind: r.kind,
+    replyText: r.text,
+  };
+}
+
+/**
+ * L'esito in una parola, per l'automazione Spoki: lo salva in un campo del contatto (mappatura della
+ * risposta del webhook) e sceglie il ramo. Se il server non risponde il campo resta `ATTESA` e
+ * l'automazione manda il suo testo di riserva.
+ */
+export type AutomationOutcome =
+  | 'ARRIVATO'
+  | 'TROPPO_PRESTO'
+  | 'GIA_REGISTRATO'
+  | 'RITARDO'
+  | 'ASSENTE'
+  | 'NESSUNA_PRATICA'
+  | 'NON_RICONOSCIUTO';
+
+export function automationOutcomeOf(r: InboundResult): AutomationOutcome {
+  switch (r.reply) {
+    case 'ARRIVED':
+      return r.premature ? 'TROPPO_PRESTO' : r.repeated ? 'GIA_REGISTRATO' : 'ARRIVATO';
+    case 'LATE':
+      return 'RITARDO';
+    case 'ABSENT':
+      return 'ASSENTE';
   }
 }

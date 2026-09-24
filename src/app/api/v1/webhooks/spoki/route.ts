@@ -5,6 +5,12 @@
 // - i MESSAGGI del cliente (evento V2 `message.inbound`, oppure la forma piatta delle automazioni):
 //   «Arrivato», «In ritardo», «Assente».
 //
+// Le automazioni Spoki dei tre pulsanti (docs/SPOKI.md) chiamano questa rotta dal loro passo
+// «webhook» con `source: "automation"`: al cliente risponde l'automazione, quindi qui si registra il
+// fatto e si restituiscono `esito` (una parola) e `risposta` (il testo che spetta al cliente, con
+// codice e link personale), che Spoki salva nei campi del contatto e consegna. Se questa rotta non
+// risponde, l'automazione manda il suo testo di riserva: il cliente ha comunque una risposta.
+//
 // Endpoint PUBBLICO, senza sessione. Due modi di autenticare, a tempo costante:
 // - gli eventi V2 portano la firma `X-Spoki-Signature: t=…,v2=HMAC-SHA256(SPOKI_WEBHOOK_SECRET,
 //   "t.corpo")`, verificata sul corpo grezzo con una finestra di cinque minuti (anti-replay);
@@ -28,6 +34,10 @@ import { clientIpFrom, hitRateLimit, type RateLimitRule } from '@/lib/http/rate-
 import { secretsMatch } from '@/lib/http/secrets';
 import { verifySpokiSignature } from '@/lib/http/spoki-signature';
 import { looksLikeSpokiEvent } from '@/services/dto/spoki-webhook.dto';
+import {
+  automationOutcomeOf,
+  type InboundChannel,
+} from '@/application/notifications/WhatsAppInboundService';
 
 export const dynamic = 'force-dynamic';
 
@@ -53,7 +63,21 @@ const Risposta = z.object({
   answer: z.string().trim().max(500).optional(),
   code: z.string().trim().max(16).optional(),
   codice: z.string().trim().max(16).optional(),
+  /** "automation" quando chiama il passo «webhook» di un'automazione Spoki. */
+  source: z.string().trim().max(32).optional(),
 });
+
+/**
+ * Un campo che Spoki non ha potuto riempire (il contatto non ha quel campo) resta scritto com'era
+ * nel modello del passo: `%%ACC_CODICE%%` o `{{ contact.phone }}`. Vale come assente.
+ */
+function valore(v: string | undefined): string | undefined {
+  if (v === undefined) {
+    return undefined;
+  }
+  const t = v.trim();
+  return t === '' || /^%%[A-Z0-9_]+%%$/.test(t) || /^\{\{.*\}\}$/.test(t) ? undefined : t;
+}
 
 function nonAttivo(): NextResponse {
   return NextResponse.json(
@@ -62,27 +86,27 @@ function nonAttivo(): NextResponse {
   );
 }
 
-/** Firma V2 valida oppure segreto condiviso uguale a SPOKI_WEBHOOK_SECRET. */
+/**
+ * Firma V2 valida oppure segreto condiviso uguale a uno dei segreti di SPOKI_WEBHOOK_SECRET (Spoki
+ * ne genera uno per webhook, e ogni webhook porta un solo evento). Si provano tutti: il confronto
+ * resta a tempo costante per ciascuno.
+ */
 function autenticaEvento(
   container: Container,
   request: NextRequest,
   rawBody: string,
   bodySecret: string | null,
 ): boolean {
-  const segreto = container.env.spokiWebhookSecret;
-  if (segreto === null) {
-    return false;
+  const firma = request.headers.get('x-spoki-signature');
+  const condiviso = request.headers.get('x-spoki-secret') ?? bodySecret;
+  const adesso = container.clock.now().getTime();
+  let valido = false;
+  for (const segreto of container.env.spokiWebhookSecrets) {
+    const firmaOk = verifySpokiSignature(rawBody, firma, segreto, adesso).ok;
+    const condivisoOk = secretsMatch(condiviso, segreto);
+    valido = valido || firmaOk || condivisoOk;
   }
-  const firma = verifySpokiSignature(
-    rawBody,
-    request.headers.get('x-spoki-signature'),
-    segreto,
-    container.clock.now().getTime(),
-  );
-  if (firma.ok) {
-    return true;
-  }
-  return secretsMatch(request.headers.get('x-spoki-secret') ?? bodySecret, segreto);
+  return valido;
 }
 
 export async function POST(request: NextRequest): Promise<NextResponse> {
@@ -155,6 +179,9 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
             phone: evento.value.from,
             text: evento.value.payload ?? evento.value.text ?? '',
             code: null,
+            channel: 'EVENT',
+            // Il payload c'è solo quando il cliente ha toccato un pulsante del template.
+            viaButton: evento.value.payload !== null,
           },
           correlationId,
           headers,
@@ -181,15 +208,29 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
   if (!secretsMatch(fornito, spokiInboundSecret)) {
     return forbiddenResponse('Segreto del webhook non valido.');
   }
-  const phone = body.phone ?? body.telefono ?? body.from ?? '';
+  const phone = valore(body.phone) ?? valore(body.telefono) ?? valore(body.from) ?? '';
   const text =
-    body.reply ?? body.button ?? body.answer ?? body.text ?? body.testo ?? body.message ?? '';
+    valore(body.reply) ??
+    valore(body.button) ??
+    valore(body.answer) ??
+    valore(body.text) ??
+    valore(body.testo) ??
+    valore(body.message) ??
+    '';
   if (phone === '') {
     return badRequestResponse('Numero di telefono mancante (campo `phone`).');
   }
+  const automazione = body.source?.toLowerCase() === 'automation';
   return rispostaCliente(
     container,
-    { phone, text, code: body.code ?? body.codice ?? null },
+    {
+      phone,
+      text,
+      code: valore(body.code) ?? valore(body.codice) ?? null,
+      channel: automazione ? 'AUTOMATION' : 'MANUAL',
+      // L'automazione parte dal tocco su un pulsante; la forma manuale può essere testo libero.
+      viaButton: automazione,
+    },
     correlationId,
     headers,
   );
@@ -207,30 +248,48 @@ function headersRecord(request: NextRequest): Readonly<Record<string, string>> {
 /** Risposta del cliente («Arrivato», «In ritardo», «Assente») applicata alla pratica. */
 async function rispostaCliente(
   container: Container,
-  input: { readonly phone: string; readonly text: string; readonly code: string | null },
+  input: {
+    readonly phone: string;
+    readonly text: string;
+    readonly code: string | null;
+    readonly channel: InboundChannel;
+    readonly viaButton: boolean;
+  },
   correlationId: string,
   headers: Readonly<Record<string, string>>,
 ): Promise<NextResponse> {
   const esito = await container.whatsAppInboundService.handle({ ...input, correlationId });
   if (!esito.ok) {
     // Testo non riconosciuto o nessuna pratica oggi: non è un guasto e ritentare non aiuta.
+    // All'automazione si dice anche che non c'è niente da rispondere (`risposta` vuota).
     if (esito.error.code === 'VALIDATION' || esito.error.code === 'NOT_FOUND') {
       return NextResponse.json(
-        { handled: false, reason: esito.error.code },
+        {
+          handled: false,
+          reason: esito.error.code,
+          esito: esito.error.code === 'NOT_FOUND' ? 'NESSUNA_PRATICA' : 'NON_RICONOSCIUTO',
+          risposta: '',
+        },
         { status: 200, headers },
       );
     }
     return domainErrorResponse(esito.error, headers);
   }
-  // Al provider torna il minimo indispensabile: nessun nome, nessun telefono, nessuna targa.
+  // Al provider torna il minimo indispensabile: nessun nome, nessun telefono, nessuna targa. Solo
+  // quando risponde Spoki si aggiunge il testo per il cliente (codice e link, che il contatto in
+  // Spoki ha già nei suoi campi).
+  const r = esito.value;
   return NextResponse.json(
     {
       handled: true,
-      reply: esito.value.reply,
-      code: esito.value.appointment.code,
-      repeated: esito.value.repeated,
-      replySent: esito.value.replySent,
-      premature: esito.value.premature,
+      reply: r.reply,
+      code: r.appointment.code,
+      repeated: r.repeated,
+      replySent: r.replySent,
+      premature: r.premature,
+      replyBy: r.replyBy,
+      esito: automationOutcomeOf(r),
+      risposta: r.replyBy === 'SPOKI' ? (r.replyText ?? '') : '',
     },
     { headers },
   );

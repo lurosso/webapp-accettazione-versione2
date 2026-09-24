@@ -124,7 +124,15 @@ export function SpokiPanel({ timeZone }: SpokiPanelProps) {
               tone={data.webhookSecretConfigured ? 'success' : 'warning'}
               data-testid="spoki-webhook"
             >
-              {data.webhookSecretConfigured ? 'webhook esiti: firma ok' : 'webhook esiti: spento'}
+              {data.webhookSecretConfigured
+                ? `webhook V2: ${data.webhookSecretsCount} segret${data.webhookSecretsCount === 1 ? 'o' : 'i'}`
+                : 'webhook esiti: spento'}
+            </Badge>
+            <Badge
+              tone={data.repliesByAutomation ? 'success' : 'neutral'}
+              data-testid="spoki-risposte"
+            >
+              {data.repliesByAutomation ? 'pulsanti: risponde Spoki' : "pulsanti: risponde l'app"}
             </Badge>
           </div>
         ) : null}

@@ -81,6 +81,10 @@ export interface SpokiOverview {
   readonly safetyLock: boolean;
   /** SPOKI_WEBHOOK_SECRET presente: gli esiti di consegna vengono accettati e verificati. */
   readonly webhookSecretConfigured: boolean;
+  /** Quanti segreti V2 sono configurati (di norma due: `message.inbound` e `message.outbound`). */
+  readonly webhookSecretsCount: number;
+  /** SPOKI_REPLIES_BY_AUTOMATION: ai pulsanti rispondono le automazioni Spoki. */
+  readonly repliesByAutomation: boolean;
   /** Indirizzo pubblico a cui puntare i webhook V2 in Spoki (Integrazioni → Webhook). */
   readonly webhookUrl: string;
   /** SPOKI_OVERRIDE_CONSENT: promemoria WhatsApp tentati anche senza opt-in in anagrafica. */
@@ -121,6 +125,10 @@ export interface SpokiDiagnosticsConfig {
   readonly safetyLock: boolean;
   /** SPOKI_WEBHOOK_SECRET presente (facoltativo nei test). */
   readonly webhookSecretConfigured?: boolean;
+  /** Numero di segreti V2 (facoltativo nei test: uno se il segreto c'è). */
+  readonly webhookSecretsCount?: number;
+  /** SPOKI_REPLIES_BY_AUTOMATION (facoltativo nei test: spento). */
+  readonly repliesByAutomation?: boolean;
   /** Id dei template via API (facoltativo nei test); i promemoria con id partono via API. */
   readonly templateIds?: {
     readonly reminderPreviousDay?: string | null;
@@ -271,6 +279,8 @@ export class SpokiDiagnosticsService {
       mode: c.mode,
       safetyLock: c.safetyLock,
       webhookSecretConfigured: c.webhookSecretConfigured === true,
+      webhookSecretsCount: c.webhookSecretsCount ?? (c.webhookSecretConfigured === true ? 1 : 0),
+      repliesByAutomation: c.repliesByAutomation === true,
       webhookUrl: `${c.publicBaseUrl}/api/v1/webhooks/spoki`,
       consentOverride: c.consentOverride === true,
       liveDeliveryAllowed: blockReason === null,

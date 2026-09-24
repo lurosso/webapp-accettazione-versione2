@@ -183,6 +183,23 @@ export class NotificationOrchestrator {
    * Un job IN_FLIGHT più vecchio di `inFlightStaleMs` (crash prima del completamento) viene
    * ripreso: dopo un riavvio nessuna notifica resta bloccata senza fallback.
    */
+  /**
+   * Il testo che il messaggio `kind` ha per questa pratica, con le stesse variabili dell'invio
+   * (codice, orario, smart link personale): serve quando a consegnarlo è un'automazione Spoki.
+   */
+  renderText(appointment: Appointment, brand: Brand, kind: NotificationKind): string {
+    return NOTIFICATION_TEMPLATES[kind].render(
+      buildTemplateVars(
+        appointment,
+        brand,
+        this.deps.timeZone,
+        this.deps.publicBaseUrl ?? '',
+        this.deps.portalToken?.(appointment.id) ?? null,
+        this.deps.maxEarlyArrivalMinutes,
+      ),
+    );
+  }
+
   async sendReminder(input: SendReminderInput): Promise<NotificationRun> {
     const { appointment, brand, kind, correlationId } = input;
     const chiaveBase = buildNotificationIdempotencyKey(
