@@ -26,10 +26,11 @@ const SECURITY_HEADERS = [
 const nextConfig: NextConfig = {
   reactStrictMode: true,
   output: 'standalone',
-  // Il dev server accetta le proprie risorse (HMR, chunk) dagli indirizzi di questa macchina —
-  // così l'iPad in Wi-Fi apre http://<ip-del-pc>:3000 e la pagina si idrata — più quelli in
-  // ALLOWED_DEV_ORIGINS. Senza, la pagina arriva ma i pulsanti non fanno niente e il login non
-  // parte mai. Solo sviluppo: in produzione l'opzione è ignorata.
+  // Il dev server accetta le proprie risorse (HMR, chunk) dagli indirizzi di questa macchina e,
+  // salvo ALLOWED_DEV_ORIGINS_LAN=false, da qualunque indirizzo di rete privata — così l'iPad in
+  // Wi-Fi apre http://<ip-del-pc>:3000 e la pagina si idrata anche se il PC ha cambiato IP dopo
+  // l'avvio — più i nomi in ALLOWED_DEV_ORIGINS. Senza, la pagina arriva ma i pulsanti non fanno
+  // niente e il login non parte mai. Solo sviluppo: in produzione l'opzione è ignorata.
   allowedDevOrigins: [...devOrigins()],
   // Il driver ODBC è un modulo nativo (binario .node): resta fuori dal bundle e viene richiesto a
   // runtime dal processo Node solo quando INFINITY_PROVIDER=real.

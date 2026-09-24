@@ -5,7 +5,13 @@
 // `Secure` fuori dalla produzione (in HTTP semplice verrebbe scartato in silenzio); e il dev server
 // deve accettare le proprie risorse dagli indirizzi della macchina, quali che siano oggi.
 import { describe, expect, it } from 'vitest';
-import { devOriginsFrom } from '@/config/dev-origins';
+import { isCsrfOriginAllowed } from 'next/dist/server/app-render/csrf-protection';
+import {
+  devOrigins,
+  devOriginsFrom,
+  LAN_DEV_ORIGIN_PATTERNS,
+  lanDevOriginsEnabled,
+} from '@/config/dev-origins';
 import { clearedSessionCookieOptions, sessionCookieOptions } from '@/lib/http/session-cookie';
 
 describe('cookie di sessione: uguale da localhost e da un IP di rete', () => {
@@ -76,5 +82,71 @@ describe('origini di sviluppo: gli indirizzi della macchina, quali che siano', (
 
   it('senza schede di rete e senza extra la lista è vuota, non un errore', () => {
     expect(devOriginsFrom({}, undefined)).toEqual([]);
+  });
+});
+
+describe('origini di sviluppo: la rete locale, anche se l’IP cambia a server avviato', () => {
+  // Il confronto è quello di Next (lo stesso che usa il blocco delle risorse di sviluppo): se Next
+  // cambiasse la sintassi dei jolly, questo test lo direbbe prima dell'iPad.
+  const ammessa = (host: string): boolean =>
+    isCsrfOriginAllowed(host, ['**.localhost', 'localhost', ...LAN_DEV_ORIGIN_PATTERNS]);
+
+  it('qualunque indirizzo delle reti private passa, compreso quello preso dopo l’avvio', () => {
+    for (const ip of [
+      '10.50.193.91',
+      '10.40.193.124',
+      '10.0.0.1',
+      '192.168.178.45',
+      '192.168.1.20',
+      '172.16.0.5',
+      '172.31.255.254',
+      'lrossinb.local',
+    ]) {
+      expect(ammessa(ip), ip).toBe(true);
+    }
+  });
+
+  it('un indirizzo pubblico, un sito esterno o un finto sottodominio restano fuori', () => {
+    for (const host of [
+      '8.8.8.8',
+      '172.15.0.1',
+      '172.32.0.1',
+      '11.50.193.91',
+      '192.169.1.1',
+      'evil.example',
+      '10.50.193.91.evil.example',
+      'local',
+    ]) {
+      expect(ammessa(host), host).toBe(false);
+    }
+  });
+
+  it('si spegne solo con un valore esplicito di ALLOWED_DEV_ORIGINS_LAN', () => {
+    expect(lanDevOriginsEnabled(undefined)).toBe(true);
+    expect(lanDevOriginsEnabled('')).toBe(true);
+    expect(lanDevOriginsEnabled('true')).toBe(true);
+    for (const v of ['false', 'FALSE', ' 0 ', 'no', 'off']) {
+      expect(lanDevOriginsEnabled(v), v).toBe(false);
+    }
+  });
+
+  it('devOrigins mette insieme indirizzi rilevati e jolly, e senza jolly restano i soli rilevati', () => {
+    const prima = process.env['ALLOWED_DEV_ORIGINS_LAN'];
+    try {
+      delete process.env['ALLOWED_DEV_ORIGINS_LAN'];
+      const conRete = devOrigins();
+      expect(conRete).toEqual(expect.arrayContaining([...LAN_DEV_ORIGIN_PATTERNS]));
+      process.env['ALLOWED_DEV_ORIGINS_LAN'] = 'false';
+      const senza = devOrigins();
+      for (const p of LAN_DEV_ORIGIN_PATTERNS) {
+        expect(senza).not.toContain(p);
+      }
+    } finally {
+      if (prima === undefined) {
+        delete process.env['ALLOWED_DEV_ORIGINS_LAN'];
+      } else {
+        process.env['ALLOWED_DEV_ORIGINS_LAN'] = prima;
+      }
+    }
   });
 });
