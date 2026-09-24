@@ -5,7 +5,7 @@
 // Variabili: INFINITY_ODBC_DSN (obbligatoria con INFINITY_PROVIDER=real), INFINITY_DB_TYPE
 // (default sql_anywhere_12), INFINITY_ODBC_UID, INFINITY_ODBC_PWD, INFINITY_DB_SCHEMA (default DBA),
 // INFINITY_BOOKING_DOC_TYPES (default PR01, separati da virgola), INFINITY_PLANNING_SOURCE
-// (auto | procedure | tables), INFINITY_SEDE (codice sede per la procedura), INFINITY_INCLUDE_WORK_ORDERS,
+// (auto | procedure | tables), INFINITY_SEDE (codice sede per la procedura),
 // INFINITY_ODBC_LOGIN_TIMEOUT_SEC, INFINITY_ODBC_QUERY_TIMEOUT_SEC.
 import { ConfigurationError } from '@/domain/errors';
 import type { EnvSource } from './env';
@@ -31,7 +31,6 @@ export interface InfinityRealConfig {
   readonly bookingDocTypes: readonly string[];
   readonly planningSource: InfinityPlanningSource;
   readonly sede: string | null;
-  readonly includeWorkOrders: boolean;
   readonly timeZone: string;
   readonly loginTimeoutSec: number;
   readonly queryTimeoutSec: number;
@@ -52,20 +51,6 @@ function enumValue<T extends string>(
     throw new ConfigurationError(`${key}="${raw}" non valido; ammessi: ${allowed.join(', ')}.`);
   }
   return found;
-}
-
-function boolValue(source: EnvSource, key: string, fallback: boolean): boolean {
-  const raw = trimmed(source, key)?.toLowerCase() ?? null;
-  if (raw === null) {
-    return fallback;
-  }
-  if (raw === 'true' || raw === '1' || raw === 'yes') {
-    return true;
-  }
-  if (raw === 'false' || raw === '0' || raw === 'no') {
-    return false;
-  }
-  throw new ConfigurationError(`${key}="${raw}" non è un booleano (true/false).`);
 }
 
 function trimmed(source: EnvSource, key: string): string | null {
@@ -136,7 +121,6 @@ export function resolveInfinityRealConfig(
     bookingDocTypes: docTypes,
     planningSource: enumValue(source, 'INFINITY_PLANNING_SOURCE', PLANNING_SOURCES, 'auto'),
     sede,
-    includeWorkOrders: boolValue(source, 'INFINITY_INCLUDE_WORK_ORDERS', true),
     timeZone,
     loginTimeoutSec: positiveInt(source, 'INFINITY_ODBC_LOGIN_TIMEOUT_SEC', 10),
     queryTimeoutSec: positiveInt(source, 'INFINITY_ODBC_QUERY_TIMEOUT_SEC', 60),

@@ -284,7 +284,6 @@ export class InfinityServiceOdbc implements IInfinityService {
       tempi: parseTempoRows(tempoRows),
       phones: parsePhoneRows(phoneRows),
       businessDate,
-      includeWorkOrders: this.config.includeWorkOrders,
     });
   }
 
@@ -476,7 +475,6 @@ export class InfinityServiceOdbc implements IInfinityService {
     const docTypes = this.config.bookingDocTypes;
     const sql = planningProcedureSql(this.config.schema, docTypes.length, plate !== null, {
       withCustomer,
-      includeWorkOrders: this.config.includeWorkOrders,
     });
     const risultati: OdbcRow[] = [];
     for (const sede of sedi) {

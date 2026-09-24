@@ -293,16 +293,6 @@ sono su rete interna. L'obbligatorietà è prevista con l'hardening. Nel profilo
 derivano dalla lettera: dopo questo cambio vanno riletti con `npm run seed:credenziali` e
 riscritti negli URL dei kiosk.
 
-### Riconsegne dei veicoli
-
-Le commesse «in consegna» del planning di Infinity (righe `L`, `tipo R`: il veicolo torna al
-cliente a fine lavori) entrano come flusso **RETURN**, con codici `R001…` e una numerazione
-propria, e non passano dalla coda, dai monitor, dai promemoria né dal portale. Si vedono nella
-scheda **Riconsegne (N)** della dashboard: ora prevista, targa, veicolo e cliente, commessa e stato
-in officina (Accettata, In lavorazione, Collaudato…), stato della riconsegna. Quando Infinity segna
-la commessa consegnata la riga diventa «Riconsegnata». `INFINITY_INCLUDE_WORK_ORDERS=false` le
-esclude del tutto.
-
 ### Inserimento manuale e BDC
 
 Il pulsante «Pratica manuale» resta nel codice e nell'API, ma l'inserimento avviene a monte in
@@ -313,7 +303,7 @@ responsabili e amministratori, `all` per tutti).
 
 In `/accettazione/archivio` la ricerca per targa (o per codice) elenca **ogni ingresso** del
 veicolo su tutte le giornate, dal più recente, con data e ora, stato, commessa, lavorazioni e le
-foto se ci sono; anche le riconsegne, segnate con il badge. Senza ricerca restano gli ultimi
+foto se ci sono (anche le riconsegne importate fino al 2026-09-24, segnate con il badge). Senza ricerca restano gli ultimi
 check-in fotografici.
 
 ### Provare il check-in veicolo dal tablet

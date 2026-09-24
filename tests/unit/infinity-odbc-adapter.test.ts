@@ -37,7 +37,6 @@ const CONFIG: InfinityOdbcConfig = {
   bookingDocTypes: ['PR01'],
   planningSource: 'auto',
   sede: null,
-  includeWorkOrders: false,
   timeZone: 'Europe/Rome',
   loginTimeoutSec: 5,
   queryTimeoutSec: 30,
@@ -368,7 +367,7 @@ describe('Infinity ODBC: configurazione', () => {
       tabelle,
       planningProcedureSql('DBA', 1),
       planningTablesSql('DBA', 3, true),
-      planningProcedureSql('DBA', 1, false, { withCustomer: false, includeWorkOrders: true }),
+      planningProcedureSql('DBA', 1, false, { withCustomer: false }),
       planningTablesSql('DBA', 2, true, { withCustomer: false }),
     ]) {
       expect(sql).not.toMatch(/\b(insert|update|delete|drop|alter)\b/i);
@@ -414,21 +413,20 @@ describe('Infinity ODBC: configurazione', () => {
       sql.indexOf('JOIN DBA.tipi_doc td'),
     );
     expect(planningTablesSql('DBA', 1)).toContain('p.tipo_doc AS tipo_doc, td.descrizione');
-    expect(planningProcedureSql('DBA', 2, false, { includeWorkOrders: true })).toContain(
-      "WHERE (tab.genere_doc = 'L' OR COALESCE(p.tipo_doc, tab.tipo_doc) IN (?, ?))",
+    expect(planningProcedureSql('DBA', 2, false)).toContain(
+      'WHERE COALESCE(p.tipo_doc, tab.tipo_doc) IN (?, ?)',
     );
   });
 });
 
 describe('Infinity ODBC: mappatura del planning', () => {
-  function records(rows: readonly OdbcRow[] = RIGHE_PLANNING, includeWorkOrders = false) {
+  function records(rows: readonly OdbcRow[] = RIGHE_PLANNING) {
     return toPlanningRecords({
       rows,
       lines: parseLineRows(RIGHE_LAVORAZIONI),
       tempi: parseTempoRows(RIGHE_TEMPI),
       phones: parsePhoneRows(RIGHE_TELEFONI),
       businessDate: GIORNATA,
-      includeWorkOrders,
     });
   }
 
@@ -545,12 +543,9 @@ describe('Infinity ODBC: mappatura del planning', () => {
     expect(primo?.genereDoc).toBe('L');
   });
 
-  it('le commesse senza prenotazione entrano solo se richiesto', () => {
+  it('le commesse senza prenotazione (le vecchie riconsegne) restano sempre fuori', () => {
     const soloCommessa: OdbcRow = { ...RIGA_COMMESSA, id_documento: null, num_doc: 500 };
     expect(records([soloCommessa])).toHaveLength(0);
-    const con = records([soloCommessa], true);
-    expect(con).toHaveLength(1);
-    expect(con[0]?.idDocumento).toBe(90001);
   });
 
   it("produce il DTO dell'agenda nella stessa forma del mock, con le cancellate segnate", () => {

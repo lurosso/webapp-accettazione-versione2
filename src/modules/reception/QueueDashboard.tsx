@@ -29,7 +29,6 @@ import { AppointmentDetailPanel } from './AppointmentDetailPanel';
 import { NewWalkInDialog } from './NewWalkInDialog';
 import { QueueTable } from './QueueTable';
 import { sportelloLabel } from './desk-labels';
-import { ReturnsTable } from './ReturnsTable';
 import { StatusBadge } from './StatusBadge';
 import { SyncBanner } from './SyncBanner';
 import type { AppointmentAction, QueueParams, QueueView } from './types';
@@ -116,8 +115,7 @@ export function QueueDashboard({
 
   // Stato della vista letto dall'URL (fonte di verità), con fallback ai valori iniziali del server.
   const richiesta = searchParams.get('view') ?? initialView;
-  const view: QueueView =
-    richiesta === 'global' ? 'global' : richiesta === 'returns' ? 'returns' : 'desk';
+  const view: QueueView = richiesta === 'global' ? 'global' : 'desk';
   const deskId = searchParams.get('deskId') ?? initialDeskId ?? homeDeskId;
 
   const params: QueueParams = useMemo(
@@ -378,16 +376,13 @@ export function QueueDashboard({
   return (
     <div className="flex flex-col gap-4">
       <QueueHeader
-        title={view === 'returns' ? 'Riconsegne veicoli' : 'Coda accettazione'}
+        title="Coda accettazione"
         subtitle={
           data === undefined
             ? 'Caricamento…'
-            : `${formatBusinessDate(data.businessDate)} · ${
-                view === 'returns' ? 'commesse in consegna, fuori dalla coda' : deskLabel
-              }`
+            : `${formatBusinessDate(data.businessDate)} · ${deskLabel}`
         }
         view={view}
-        returnsCount={data?.returnsCount ?? 0}
         counters={contatori}
         onCounter={vaiASezione}
         onView={(prossima) =>
@@ -504,22 +499,7 @@ export function QueueDashboard({
         </Alert>
       ) : null}
 
-      {data !== undefined && view === 'returns' ? (
-        data.rows.length === 0 ? (
-          <EmptyState
-            size="page"
-            title="Nessuna riconsegna prevista oggi"
-            description="Le commesse in consegna arrivano dal planning di Infinity con la sincronizzazione."
-          />
-        ) : (
-          <ReturnsTable
-            rows={data.rows}
-            brands={data.brands}
-            timeZone={data.timeZone}
-            serverTime={data.serverTime}
-          />
-        )
-      ) : data !== undefined ? (
+      {data !== undefined ? (
         data.rows.length === 0 ? (
           <EmptyState
             size="page"

@@ -116,7 +116,6 @@ const DEBITO_TAVOLOZZA = [
   'src/modules/reception/NewWalkInDialog.tsx',
   'src/modules/reception/NotificationBadge.tsx',
   'src/modules/reception/QueueDashboard.tsx',
-  'src/modules/reception/ReturnsTable.tsx',
   'src/modules/reception/SyncBanner.tsx',
 ] as const;
 
@@ -169,7 +168,6 @@ const DEBITO_MISURE = [
   'src/modules/reception/NotificationBadge.tsx',
   'src/modules/reception/QueueDashboard.tsx',
   'src/modules/reception/QueueTable.tsx',
-  'src/modules/reception/ReturnsTable.tsx',
   'src/modules/reception/StatusBadge.tsx',
   'src/modules/reception/SyncBanner.tsx',
 ] as const;

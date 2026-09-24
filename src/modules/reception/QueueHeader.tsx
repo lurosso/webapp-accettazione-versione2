@@ -4,8 +4,8 @@
 //
 // Erano un menu a tendina e due pulsanti che si accendevano a vicenda («Vista globale», poi
 // «Torna al mio sportello»): tre comandi per una scelta sola, e l'etichetta che cambiava sotto il
-// dito. Adesso sono tre schede — la mia, tutte, riconsegne — e si vede quale è attiva senza
-// leggere, che è come funziona una scelta fra tre cose.
+// dito. Adesso sono schede — il mio sportello, tutti — e si vede quale è attiva senza leggere.
+// (Fino al 2026-09-24 c'era anche «Riconsegne»: tolta, non serviva all'accettazione.)
 //
 // Sotto, i quattro numeri della giornata. Erano una frase («24 in coda, 0 in carico, 0
 // completate»): una frase si legge, quattro numeri si guardano. Ognuno ha la riga di colore del
@@ -15,7 +15,7 @@ import { Button } from '@/components/ui/button';
 import { Select } from '@/components/ui/select';
 import { cn } from '@/lib/utils/cn';
 
-export type QueueView = 'desk' | 'global' | 'returns';
+export type QueueView = 'desk' | 'global';
 
 export interface QueueCounter {
   readonly etichetta: string;
@@ -34,7 +34,6 @@ export interface QueueHeaderProps {
   readonly title: string;
   readonly subtitle: string;
   readonly view: QueueView;
-  readonly returnsCount: number;
   readonly counters: readonly QueueCounter[];
   readonly onView: (view: QueueView) => void;
   /**
@@ -133,7 +132,6 @@ export function QueueHeader({
   title,
   subtitle,
   view,
-  returnsCount,
   counters,
   onView,
   deskPicker = null,
@@ -165,13 +163,6 @@ export function QueueHeader({
           </Scheda>
           <Scheda attiva={view === 'global'} onClick={() => onView('global')}>
             Tutti gli sportelli
-          </Scheda>
-          <Scheda
-            attiva={view === 'returns'}
-            onClick={() => onView('returns')}
-            testId="scheda-riconsegne"
-          >
-            Riconsegne {returnsCount > 0 ? `(${returnsCount})` : ''}
           </Scheda>
         </div>
         {/* Il menu degli sportelli resta, ma solo dove serve: dentro la scheda del proprio. */}

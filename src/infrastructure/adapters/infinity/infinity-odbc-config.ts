@@ -45,8 +45,6 @@ export interface InfinityOdbcConfig {
   readonly planningSource: InfinityPlanningSource;
   /** Codice sede per la procedura (`tipi_doc.sede_cont`, es. "01"); null = ricavato dai tipi documento. */
   readonly sede: string | null;
-  /** Includere anche le commesse in consegna (genere L) oltre alle prenotazioni (genere Z). */
-  readonly includeWorkOrders: boolean;
   /** Fuso dell'officina: data + ora della prenotazione sono orari locali senza offset. */
   readonly timeZone: string;
   readonly loginTimeoutSec: number;

@@ -44,14 +44,11 @@ export interface InfinityTempoIncarico {
 
 /** Una prenotazione del planning con tutti i campi che servono all'accettazione. */
 export interface InfinityPlanningRecord {
-  /** 'Z' prenotazione, 'L' commessa (veicolo in officina con consegna prevista). */
-  readonly genereDoc: 'Z' | 'L';
   /**
-   * ACCETTAZIONE: prenotazione in entrata (anche se già trasformata in commessa). RICONSEGNA: riga
-   * `L` senza prenotazione, cioè una commessa con consegna prevista nella giornata: il veicolo
-   * torna al cliente. Nel planning di Infinity queste righe hanno `tipo = 'R'`.
+   * 'Z' prenotazione, 'L' la stessa prenotazione già trasformata in commessa. Le commesse senza
+   * prenotazione (le riconsegne) non entrano più: dal 2026-09-24 la sezione Riconsegne non esiste.
    */
-  readonly flusso: 'ACCETTAZIONE' | 'RICONSEGNA';
+  readonly genereDoc: 'Z' | 'L';
   readonly idDocumento: number;
   /** Commessa aperta dalla prenotazione, se già esiste. */
   readonly idCommessa: number | null;
@@ -118,8 +115,6 @@ function placeholders(n: number): string {
 export interface PlanningSqlOptions {
   /** false = nessun join su clienti/contatti (vista negata): stesse colonne cliente, a NULL. Default true. */
   readonly withCustomer?: boolean;
-  /** true = anche le commesse senza prenotazione (genere L). Default false. */
-  readonly includeWorkOrders?: boolean;
 }
 
 /**
@@ -207,9 +202,7 @@ export function planningProcedureSql(
 ): string {
   const withCustomer = options.withCustomer !== false;
   const doc = (col: string): string => `COALESCE(p.${col}, tab.${col})`;
-  const tipoDoc = `${doc('tipo_doc')} IN (${placeholders(docTypesCount)})`;
-  const filtro =
-    options.includeWorkOrders === true ? `(tab.genere_doc = 'L' OR ${tipoDoc})` : tipoDoc;
+  const filtro = `${doc('tipo_doc')} IN (${placeholders(docTypesCount)})`;
   return `
 SELECT
   tab.genere_doc, tab.id_documento, tab.id_commessa, tab.tipo AS tipo_riga,
@@ -477,8 +470,6 @@ export interface PlanningRecordsInput {
   readonly phones: readonly PhoneRow[];
   /** Giornata richiesta: la prenotazione la eredita anche se il driver la restituisce in altro formato. */
   readonly businessDate: IsoDate;
-  /** Tenere anche le commesse senza prenotazione (genere L). Default false. */
-  readonly includeWorkOrders?: boolean;
 }
 
 /**
@@ -518,18 +509,17 @@ export function toPlanningRecords(input: PlanningRecordsInput): readonly Infinit
     if (numDoc === null || idCliente === null || tipoDoc === null) {
       continue;
     }
-    if (idDocumento === null && (idCommessa === null || input.includeWorkOrders !== true)) {
+    // Una commessa senza prenotazione è una riconsegna: fuori, la sezione non esiste più.
+    if (idDocumento === null) {
       continue;
     }
     const genereDoc: 'Z' | 'L' = text(row['genere_doc'])?.toUpperCase() === 'L' ? 'L' : 'Z';
-    const flusso: InfinityPlanningRecord['flusso'] =
-      idDocumento === null ? 'RICONSEGNA' : 'ACCETTAZIONE';
     const idClienteGenerico = integer(row['id_cliente_generico']);
     const clienteGenerico = idClienteGenerico !== null && idClienteGenerico === idCliente;
     const noteCliente = text(row['note_cliente']);
     const ragioneSociale = text(row['cliente']);
     const cliente = clienteGenerico ? (noteCliente ?? ragioneSociale) : ragioneSociale;
-    const chiaveDoc = idDocumento ?? (idCommessa as number);
+    const chiaveDoc = idDocumento;
     const lavorazioni = lavorazioniPer.get(chiaveDoc) ?? [];
     const tempi = tempiPer.get(chiaveDoc) ?? [];
     const oreLavorazioni = input.lines
@@ -557,7 +547,6 @@ export function toPlanningRecords(input: PlanningRecordsInput): readonly Infinit
 
     const record: InfinityPlanningRecord = {
       genereDoc,
-      flusso,
       idDocumento: chiaveDoc,
       idCommessa,
       tipoDoc,
@@ -612,7 +601,7 @@ export function toPlanningRecords(input: PlanningRecordsInput): readonly Infinit
       tempoStimatoOre,
       dataModifica: timestampIso(row['data_modifica']) ?? timestampIso(row['data_creazione']),
     };
-    const chiave = idDocumento === null ? `COM-${idCommessa}` : `PRE-${idDocumento}`;
+    const chiave = `PRE-${idDocumento}`;
     const esistente = perChiave.get(chiave);
     if (esistente === undefined || (esistente.idCommessa === null && idCommessa !== null)) {
       perChiave.set(chiave, record);
@@ -647,32 +636,16 @@ export function brandCodeFromDescription(descrizione: string | null): string {
   return BRAND_BY_DESCRIPTION[normalizzata] ?? normalizzata.replace(/ /g, '_');
 }
 
-/** Stati della commessa che dicono «veicolo già riconsegnato al cliente» (off_stati_doc 16 e 17). */
-const STATI_CONSEGNATA = new Set([16, 17]);
-
 /** Riferimento dell'ordine di lavoro per la pratica: quello di Infinity, altrimenti la commessa. */
 function workOrderRefOf(r: InfinityPlanningRecord): string | null {
   if (r.ordineLavoro !== null) {
     return r.ordineLavoro;
   }
-  if (r.idCommessa === null) {
-    return null;
-  }
-  return r.flusso === 'RICONSEGNA'
-    ? `${r.tipoDoc} ${r.numDoc}/${r.anno ?? '?'}`
-    : `commessa n. ${r.idCommessa}`;
+  return r.idCommessa === null ? null : `commessa n. ${r.idCommessa}`;
 }
 
 /** Descrizione della lavorazione per la coda: righe richieste, poi tipi di incarico, poi note. */
 function serviceDescriptionOf(r: InfinityPlanningRecord): string | null {
-  if (r.flusso === 'RICONSEGNA') {
-    // Per la riconsegna conta lo stato della commessa in officina, non le lavorazioni richieste.
-    // Le note delle commesse sono codici interni del gestionale (non testo per il cliente): via.
-    const parti = ['Riconsegna veicolo', r.statoDocDescrizione].filter(
-      (p): p is string => p !== null && p.trim() !== '',
-    );
-    return parti.join(' · ').slice(0, 500);
-  }
   const testo =
     r.lavorazioni.length > 0
       ? r.lavorazioni.join(' · ')
@@ -723,10 +696,8 @@ export function toAppointmentDto(
   fetchedAt: IsoDateTime,
 ): InfinityAppointmentDto {
   const nome = customerNameOf(r);
-  const riconsegna = r.flusso === 'RICONSEGNA';
   return {
-    // Le riconsegne sono commesse: id proprio (COM-), così non collidono con le prenotazioni (PRE-).
-    externalId: riconsegna ? `COM-${r.idDocumento}` : `PRE-${r.idDocumento}`,
+    externalId: `PRE-${r.idDocumento}`,
     scheduledAt: buildLocalDateTime(r.dataPrenotazione, r.oraPrenotazione, timeZone),
     brandCode: brandCodeFromDescription(r.marcaDescrizione),
     plate: r.targa ?? '',
@@ -745,13 +716,8 @@ export function toAppointmentDto(
     deskCode: null,
     cancelled: r.annullata,
     // «Chiusa in ODL»: il veicolo è già stato accettato in Infinity (ordine di lavoro aperto).
-    // Per una riconsegna, «chiusa» vuol dire veicolo già consegnato (stato 16/17 o commessa chiusa).
-    closedInDms:
-      !r.annullata &&
-      (riconsegna
-        ? r.chiusa || (r.statoDocId !== null && STATI_CONSEGNATA.has(r.statoDocId))
-        : r.chiusa),
-    flow: riconsegna ? 'RETURN' : 'INTAKE',
+    closedInDms: !r.annullata && r.chiusa,
+    flow: 'INTAKE',
     workOrderRef: workOrderRefOf(r),
     updatedAt: r.dataModifica ?? fetchedAt,
   };

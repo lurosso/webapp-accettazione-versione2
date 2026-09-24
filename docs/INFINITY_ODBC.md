@@ -28,19 +28,18 @@ tempi, modello) sono gli stessi per entrambe.
 
 ## 2. Configurazione (`.env.local`)
 
-| Variabile                                                             | Default           | Significato                                                                                                                                                                                            |
-| --------------------------------------------------------------------- | ----------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| `INFINITY_PROVIDER`                                                   | `mock`            | `real` attiva l'adapter ODBC (richiede `SESSION_SECRET` e un seed senza credenziali demo).                                                                                                             |
-| `INFINITY_ODBC_DSN`                                                   | —                 | Nome del DSN ODBC di sistema. **Prova: `Infinity02`. Produzione: `Infinity01`.** Obbligatorio con `real`.                                                                                              |
-| `INFINITY_DB_TYPE`                                                    | `sql_anywhere_12` | Motore; oggi l'unico supportato.                                                                                                                                                                       |
-| `INFINITY_ODBC_UID` / `INFINITY_ODBC_PWD`                             | vuoti             | Solo se il DSN non memorizza le credenziali. Mai nel repository.                                                                                                                                       |
-| `INFINITY_ODBC_EXTRA`                                                 | vuoto             | Attributi ODBC appesi alla stringa di connessione, prevalgono sul DSN (es. `Host=10.10.193.18:2638` per correggere una porta).                                                                         |
-| `INFINITY_DB_SCHEMA`                                                  | `DBA`             | Proprietario delle tabelle applicative.                                                                                                                                                                |
-| `INFINITY_BOOKING_DOC_TYPES`                                          | `PR01`            | Tipi documento (`tipi_doc.codice`) che valgono come prenotazione, separati da virgola.                                                                                                                 |
-| `INFINITY_PLANNING_SOURCE`                                            | `auto`            | `auto` \| `procedure` \| `tables` (vedi §1).                                                                                                                                                           |
-| `INFINITY_SEDE`                                                       | vuoto             | Codice sede per la procedura (`tipi_doc.sede_cont`, es. `01` = Bari). Vuoto = ricavato dai tipi documento.                                                                                             |
-| `INFINITY_INCLUDE_WORK_ORDERS`                                        | `true`            | Le commesse in consegna (righe `L`, `tipo R` del planning: il veicolo torna al cliente) entrano come flusso RETURN, fuori dalla coda, nella scheda «Riconsegne» con codici `R001…`. `false` le ignora. |
-| `INFINITY_ODBC_LOGIN_TIMEOUT_SEC` / `INFINITY_ODBC_QUERY_TIMEOUT_SEC` | `10` / `60`       | Tempi massimi.                                                                                                                                                                                         |
+| Variabile                                                             | Default           | Significato                                                                                                                    |
+| --------------------------------------------------------------------- | ----------------- | ------------------------------------------------------------------------------------------------------------------------------ |
+| `INFINITY_PROVIDER`                                                   | `mock`            | `real` attiva l'adapter ODBC (richiede `SESSION_SECRET` e un seed senza credenziali demo).                                     |
+| `INFINITY_ODBC_DSN`                                                   | —                 | Nome del DSN ODBC di sistema. **Prova: `Infinity02`. Produzione: `Infinity01`.** Obbligatorio con `real`.                      |
+| `INFINITY_DB_TYPE`                                                    | `sql_anywhere_12` | Motore; oggi l'unico supportato.                                                                                               |
+| `INFINITY_ODBC_UID` / `INFINITY_ODBC_PWD`                             | vuoti             | Solo se il DSN non memorizza le credenziali. Mai nel repository.                                                               |
+| `INFINITY_ODBC_EXTRA`                                                 | vuoto             | Attributi ODBC appesi alla stringa di connessione, prevalgono sul DSN (es. `Host=10.10.193.18:2638` per correggere una porta). |
+| `INFINITY_DB_SCHEMA`                                                  | `DBA`             | Proprietario delle tabelle applicative.                                                                                        |
+| `INFINITY_BOOKING_DOC_TYPES`                                          | `PR01`            | Tipi documento (`tipi_doc.codice`) che valgono come prenotazione, separati da virgola.                                         |
+| `INFINITY_PLANNING_SOURCE`                                            | `auto`            | `auto` \| `procedure` \| `tables` (vedi §1).                                                                                   |
+| `INFINITY_SEDE`                                                       | vuoto             | Codice sede per la procedura (`tipi_doc.sede_cont`, es. `01` = Bari). Vuoto = ricavato dai tipi documento.                     |
+| `INFINITY_ODBC_LOGIN_TIMEOUT_SEC` / `INFINITY_ODBC_QUERY_TIMEOUT_SEC` | `10` / `60`       | Tempi massimi.                                                                                                                 |
 
 Il DSN `Infinity02` rilevato sul PC di sviluppo: driver `SQL Anywhere 12`
 (`C:\Program Files\SQL Anywhere 12\Bin64\dbodbc12.dll`), host `10.10.193.18:2639`, server
@@ -298,8 +297,8 @@ Da tenere presente:
 - le righe `L` della procedura (`tipo = 'R'`, 33 il 2026-09-16 a Bari) sono le **riconsegne**:
   commesse con consegna prevista nella giornata, con stato in officina (10 Accettata, 11 In
   lavorazione, 13 Collaudato, 15 Fatturato non consegnato, 17 Fatturato/consegnato). Dal
-  2026-09-16 entrano come flusso RETURN (`externalId` `COM-<id_commessa>`, codici `R001…`) e
-  stanno nella scheda «Riconsegne» della dashboard, fuori dalla coda; le righe `Z` con `tipo`
+  2026-09-16 al 2026-09-24 sono entrate come flusso RETURN (scheda «Riconsegne», codici `R001…`);
+  dal 2026-09-24 la sezione non esiste più e l'adapter le scarta sempre; le righe `Z` con `tipo`
   `A`/`C` sono invece prenotazioni ancora appuntamento (A) o già trasformate in commessa (C).
 
 ## 9. File

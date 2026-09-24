@@ -32,8 +32,7 @@ export default async function AccettazionePage({ searchParams }: PageProps) {
   );
   const homeDeskId = workstation?.deskId ?? session.deskIds[0] ?? null;
   const richiesta = single(params['view']);
-  const initialView: QueueView =
-    richiesta === 'global' ? 'global' : richiesta === 'returns' ? 'returns' : 'desk';
+  const initialView: QueueView = richiesta === 'global' ? 'global' : 'desk';
   const initialDeskId = single(params['deskId']) ?? homeDeskId;
   // Monitoraggio dell'amministratore: `?sola-lettura=1` guarda senza toccare, `?monitor=` dice
   // cosa si sta guardando. Solo l'amministratore ci arriva, dal proprio pannello.
