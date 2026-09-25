@@ -69,6 +69,9 @@ model Appointment {
   /// Accettatore assegnato in Infinity (matricola ripulita e nome): «Le mie prenotazioni».
   assignedAdvisorCode  String?
   assignedAdvisorName  String?
+  /// Riconsegna prevista secondo Infinity: giorno AAAA-MM-GG e ora HH:mm (facoltativa).
+  expectedDeliveryDate String?
+  expectedDeliveryTime String?
   lastSyncRunId        String?
   version              Int
   createdAt            String

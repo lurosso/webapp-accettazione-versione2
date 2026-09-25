@@ -271,6 +271,7 @@ export class InfinityServiceMock implements IInfinityService {
           flow: 'INTAKE',
           workOrderRef: null,
           ...mockAdvisorFor(desk?.code ?? null, n),
+          ...mockDeliveryFor(businessDate, n),
           updatedAt,
         };
         out.push({ dto, cancelOnSecondCall: rng.chance(0.05) });
@@ -328,6 +329,26 @@ export class InfinityServiceMock implements IInfinityService {
  * Rossi sullo sportello FCA, 102 Laura Bianchi e 103 Andrea Conti a turno sul PSA). Deciso dallo
  * sportello e dal progressivo, non dal generatore casuale: così l'agenda di prima resta identica.
  */
+/**
+ * Riconsegna prevista finta, ricavata dal progressivo (niente estrazioni casuali in più, così il
+ * resto dell'agenda generata non cambia): come nel planning vero, di solito in giornata nel
+ * pomeriggio, una volta su tre il giorno dopo a mezzogiorno.
+ */
+function mockDeliveryFor(
+  businessDate: string,
+  n: number,
+): { readonly expectedDeliveryDate: string; readonly expectedDeliveryTime: string } {
+  if (n % 3 === 0) {
+    const giorno = new Date(`${businessDate}T12:00:00Z`);
+    giorno.setUTCDate(giorno.getUTCDate() + 1);
+    return {
+      expectedDeliveryDate: giorno.toISOString().slice(0, 10),
+      expectedDeliveryTime: '12:00',
+    };
+  }
+  return { expectedDeliveryDate: businessDate, expectedDeliveryTime: '17:00' };
+}
+
 function mockAdvisorFor(
   deskCode: string | null,
   progressivo: number,

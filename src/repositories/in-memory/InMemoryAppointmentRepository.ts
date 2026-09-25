@@ -1,7 +1,12 @@
 // Repository delle pratiche su Map: copie immutabili in uscita, versioning ottimistico,
 // contatore codici atomico nel singolo processo.
 
-import type { Appointment, WhatsAppDelivery, AssignedAdvisor } from '@/domain/entities/appointment';
+import type {
+  Appointment,
+  WhatsAppDelivery,
+  AssignedAdvisor,
+  ExpectedDelivery,
+} from '@/domain/entities/appointment';
 import type { DomainError } from '@/domain/errors';
 import { domainError } from '@/domain/errors';
 import type { AppointmentId } from '@/domain/ids';
@@ -196,6 +201,7 @@ export class InMemoryAppointmentRepository implements IAppointmentRepository {
       whatsapp: current.whatsapp,
       // Idem l'accettatore assegnato: lo scrive solo la sync, con `updateAssignedAdvisor`.
       assignedAdvisor: current.assignedAdvisor,
+      expectedDelivery: current.expectedDelivery,
       version: current.version + 1,
       updatedAt: this.clock.nowIso(),
     };
@@ -227,6 +233,22 @@ export class InMemoryAppointmentRepository implements IAppointmentRepository {
     const next: Appointment = {
       ...current,
       assignedAdvisor: advisor === null ? null : { ...advisor },
+    };
+    this.map.set(id, next);
+    return clone(next);
+  }
+
+  async updateExpectedDelivery(
+    id: AppointmentId,
+    delivery: ExpectedDelivery | null,
+  ): Promise<Appointment | null> {
+    const current = this.map.get(id);
+    if (current === undefined) {
+      return null;
+    }
+    const next: Appointment = {
+      ...current,
+      expectedDelivery: delivery === null ? null : { ...delivery },
     };
     this.map.set(id, next);
     return clone(next);

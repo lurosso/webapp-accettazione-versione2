@@ -6,6 +6,7 @@ import type {
   AppointmentStatus,
   WhatsAppDelivery,
   AssignedAdvisor,
+  ExpectedDelivery,
 } from '@/domain/entities/appointment';
 import type { DomainError } from '@/domain/errors';
 import type { AppointmentId, BrandId, DeskId } from '@/domain/ids';
@@ -94,6 +95,14 @@ export interface IAppointmentRepository {
   updateAssignedAdvisor(
     id: AppointmentId,
     advisor: AssignedAdvisor | null,
+  ): Promise<Appointment | null>;
+  /**
+   * Scrive SOLO la riconsegna prevista secondo Infinity (dalla sync), come `updateAssignedAdvisor`:
+   * senza versione né `updatedAt`, su pratiche in qualunque stato. `update` la ignora.
+   */
+  updateExpectedDelivery(
+    id: AppointmentId,
+    delivery: ExpectedDelivery | null,
   ): Promise<Appointment | null>;
   /** Contatore atomico per (giornata, prefisso): il numero restituito non viene mai riutilizzato. */
   reserveNextSequence(businessDate: IsoDate, prefix: string): Promise<number>;

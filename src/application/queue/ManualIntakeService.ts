@@ -178,6 +178,7 @@ export class ManualIntakeService {
       whatsapp: null,
       // Nasce al banco, fuori dal gestionale: nessun accettatore assegnato da Infinity.
       assignedAdvisor: null,
+      expectedDelivery: null,
       lastSyncRunId: null,
       version: 1,
       createdAt: now,

@@ -3,7 +3,11 @@
 // (compete al CodeGenerator/QueueService in M1).
 
 import { normalizeAdvisorCode } from '@/domain/value-objects/advisor-code';
-import type { AppointmentFlow, AssignedAdvisor } from '@/domain/entities/appointment';
+import type {
+  AppointmentFlow,
+  AssignedAdvisor,
+  ExpectedDelivery,
+} from '@/domain/entities/appointment';
 import { FALLBACK_BRAND_CODE, type Brand } from '@/domain/entities/brand';
 import type { Customer } from '@/domain/entities/customer';
 import type { Desk } from '@/domain/entities/desk';
@@ -42,6 +46,8 @@ export interface AppointmentDraft {
   readonly workOrderRef: string | null;
   /** Accettatore assegnato in Infinity, se indicato. */
   readonly assignedAdvisor: AssignedAdvisor | null;
+  /** Riconsegna prevista in Infinity, se indicata. */
+  readonly expectedDelivery: ExpectedDelivery | null;
 }
 
 /** Contesto del mapping: dati di riferimento e generatore id. */
@@ -168,6 +174,7 @@ export function mapInfinityAppointment(
     flow: dto.flow,
     workOrderRef: dto.workOrderRef,
     assignedAdvisor: advisorOf(dto),
+    expectedDelivery: deliveryOf(dto),
   });
 }
 
@@ -205,6 +212,16 @@ export function mapInfinityAgenda(
 }
 
 /** Accettatore assegnato dal DTO: matricola ripulita e nome; null se la matricola manca. */
+/** Riconsegna prevista: serve un giorno valido; l'ora, se non è "HH:mm", si lascia fuori. */
+function deliveryOf(dto: InfinityAppointmentDto): ExpectedDelivery | null {
+  const date = dto.expectedDeliveryDate?.trim() ?? '';
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) {
+    return null;
+  }
+  const time = dto.expectedDeliveryTime?.trim() ?? '';
+  return { date: date as IsoDate, time: /^([01]\d|2[0-3]):[0-5]\d$/.test(time) ? time : null };
+}
+
 function advisorOf(dto: InfinityAppointmentDto): AssignedAdvisor | null {
   const code = normalizeAdvisorCode(dto.advisorCode);
   if (code === null) {

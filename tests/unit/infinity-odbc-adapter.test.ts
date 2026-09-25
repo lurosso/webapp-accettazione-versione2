@@ -51,8 +51,9 @@ const RIGHE_PLANNING: readonly OdbcRow[] = [
     tipo_riga: 'P',
     data_prenotazione: new Date('2023-12-28T00:00:00.000Z'),
     ora_prenotazione: '08:30:00',
-    data_prevcons: null,
-    ora_prevcons: null,
+    // Riconsegna prevista del documento: il giorno dopo nel pomeriggio.
+    data_prevcons: new Date('2023-12-29T00:00:00.000Z'),
+    ora_prevcons: '17:30:00',
     anno: 2023,
     tipo_doc: 'PR01',
     tipo_doc_descr: 'Prenotazione/Preventivo officina Bari',
@@ -575,6 +576,10 @@ describe('Infinity ODBC: mappatura del planning', () => {
     // L'accettatore a cui Infinity ha assegnato la prenotazione: «Le mie prenotazioni».
     expect(a?.advisorCode).toBe('102');
     expect(a?.advisorName).toBe('GIORGIO VERDI');
+    // La riconsegna prevista arriva al DTO: la conferma dell'accettazione la dice al cliente.
+    expect(a?.expectedDeliveryDate).toBe('2023-12-29');
+    expect(a?.expectedDeliveryTime).toBe('17:30');
+    expect(b?.expectedDeliveryDate ?? null).toBeNull();
     expect(a?.cancelled).toBe(false);
 
     expect(b?.brandCode).toBe('ALFA_ROMEO');

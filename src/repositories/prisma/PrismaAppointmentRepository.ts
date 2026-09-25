@@ -14,6 +14,7 @@ import {
   type Appointment,
   type WhatsAppDelivery,
   type AssignedAdvisor,
+  type ExpectedDelivery,
 } from '@/domain/entities/appointment';
 import type { Customer } from '@/domain/entities/customer';
 import type { Vehicle } from '@/domain/entities/vehicle';
@@ -74,6 +75,10 @@ function toEntity(r: Row): Appointment {
       r.assignedAdvisorCode === null
         ? null
         : { code: r.assignedAdvisorCode, name: r.assignedAdvisorName },
+    expectedDelivery:
+      r.expectedDeliveryDate === null
+        ? null
+        : { date: r.expectedDeliveryDate as IsoDate, time: r.expectedDeliveryTime },
     lastSyncRunId: r.lastSyncRunId as Appointment['lastSyncRunId'],
     version: r.version,
     createdAt: r.createdAt as Appointment['createdAt'],
@@ -153,6 +158,8 @@ function toRow(a: Appointment): Prisma.AppointmentUncheckedCreateInput {
     legalHoldReason: a.legalHoldReason,
     assignedAdvisorCode: a.assignedAdvisor?.code ?? null,
     assignedAdvisorName: a.assignedAdvisor?.name ?? null,
+    expectedDeliveryDate: a.expectedDelivery?.date ?? null,
+    expectedDeliveryTime: a.expectedDelivery?.time ?? null,
     lastSyncRunId: a.lastSyncRunId,
     version: a.version,
     createdAt: a.createdAt,
@@ -291,6 +298,9 @@ export class PrismaAppointmentRepository implements IAppointmentRepository {
       // Anche l'accettatore assegnato: lo scrive solo la sync, con `updateAssignedAdvisor`.
       assignedAdvisorCode: _ac,
       assignedAdvisorName: _an,
+      // Idem la riconsegna prevista: `updateExpectedDelivery`.
+      expectedDeliveryDate: _dd,
+      expectedDeliveryTime: _dt,
       ...dati
     } = toRow(appointment);
     const aggiornate = await this.db.appointment.updateMany({
@@ -345,6 +355,25 @@ export class PrismaAppointmentRepository implements IAppointmentRepository {
       data: {
         assignedAdvisorCode: advisor?.code ?? null,
         assignedAdvisorName: advisor?.name ?? null,
+      },
+    });
+    if (aggiornate.count === 0) {
+      return null;
+    }
+    const dopo = await this.db.appointment.findUnique({ where: { id } });
+    return dopo === null ? null : toEntity(dopo);
+  }
+
+  async updateExpectedDelivery(
+    id: AppointmentId,
+    delivery: ExpectedDelivery | null,
+  ): Promise<Appointment | null> {
+    // Come l'accettatore assegnato: dato del gestionale, nessuna versione.
+    const aggiornate = await this.db.appointment.updateMany({
+      where: { id },
+      data: {
+        expectedDeliveryDate: delivery?.date ?? null,
+        expectedDeliveryTime: delivery?.time ?? null,
       },
     });
     if (aggiornate.count === 0) {

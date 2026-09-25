@@ -22,7 +22,7 @@ import { Button } from '@/components/ui/button';
 import type { RetentionPatchInput } from '@/lib/api-client/client';
 import { Conservazione, RiquadroConservazione } from './RetentionControls';
 import { OperatorChip } from '@/components/shared/OperatorChip';
-import { formatDateTimeIt, localTimeHHmm } from '@/lib/dates';
+import { formatBusinessDateIt, formatDateTimeIt, localTimeHHmm } from '@/lib/dates';
 import { checkInPath } from '@/lib/navigation';
 import { cn } from '@/lib/utils/cn';
 import { MediaGallery } from '@/modules/inspection-media/MediaGallery';
@@ -486,6 +486,16 @@ export function AppointmentDetailPanel({
                     <span className="text-ink-muted testo-nota font-mono">
                       matricola {a.assignedAdvisor.code}
                     </span>
+                  </span>
+                )}
+              </Field>
+              <Field label="Riconsegna prevista (Infinity)" roomy={modal}>
+                {a.expectedDelivery === null ? (
+                  <span className="text-ink-muted">Non indicata</span>
+                ) : (
+                  <span className="tabular-nums">
+                    {formatBusinessDateIt(a.expectedDelivery.date)}
+                    {a.expectedDelivery.time === null ? '' : ` alle ${a.expectedDelivery.time}`}
                   </span>
                 )}
               </Field>

@@ -39,6 +39,16 @@ export interface AssignedAdvisor {
   readonly name: string | null;
 }
 
+/**
+ * Riconsegna prevista del veicolo secondo Infinity (`data_prevcons`/`ora_prevcons` del documento):
+ * la dice al cliente la conferma dell'accettazione («Data prevista di riconsegna»).
+ */
+export interface ExpectedDelivery {
+  readonly date: IsoDate;
+  /** "HH:mm" locale; null se il gestionale indica solo il giorno. */
+  readonly time: string | null;
+}
+
 export type AppointmentFlow = 'INTAKE' | 'RETURN';
 
 /**
@@ -162,6 +172,12 @@ export interface Appointment {
    * pratiche inserite a mano o se il gestionale non lo indica.
    */
   readonly assignedAdvisor: AssignedAdvisor | null;
+  /**
+   * Riconsegna prevista secondo Infinity; null se non indicata. Come l'accettatore assegnato, la
+   * scrive solo la sync (`IAppointmentRepository.updateExpectedDelivery`, senza versione) e
+   * `update` la ignora.
+   */
+  readonly expectedDelivery: ExpectedDelivery | null;
   /** Ultima sincronizzazione che ha toccato la pratica. */
   readonly lastSyncRunId: SyncRunId | null;
   /** Versione per la concorrenza ottimistica fra postazioni (409 → ConflictDialog). */

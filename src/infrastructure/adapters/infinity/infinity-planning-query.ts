@@ -722,6 +722,9 @@ export function toAppointmentDto(
     // L'accettatore a cui il gestionale ha assegnato la prenotazione: «Le mie prenotazioni».
     advisorCode: r.accettatoreCodice,
     advisorName: r.accettatoreNome,
+    // Riconsegna prevista: dal documento (prenotazione, o commessa se già aperta).
+    expectedDeliveryDate: r.dataPrevCons,
+    expectedDeliveryTime: r.oraPrevCons,
     updatedAt: r.dataModifica ?? fetchedAt,
   };
 }

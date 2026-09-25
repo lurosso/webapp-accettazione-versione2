@@ -44,6 +44,10 @@ export interface InfinityAppointmentDto {
   readonly advisorCode?: string | null;
   /** Nome dell'accettatore assegnato (`o_operai.nome`). */
   readonly advisorName?: string | null;
+  /** Giorno previsto di riconsegna "AAAA-MM-GG" (`data_prevcons` del documento); assente = non indicato. */
+  readonly expectedDeliveryDate?: string | null;
+  /** Ora prevista di riconsegna "HH:mm" (`ora_prevcons`). */
+  readonly expectedDeliveryTime?: string | null;
   readonly updatedAt: string;
 }
 
@@ -99,6 +103,8 @@ export function isInfinityAppointmentDto(v: unknown): v is InfinityAppointmentDt
     (v['workOrderRef'] === null || typeof v['workOrderRef'] === 'string') &&
     (v['advisorCode'] === undefined || isStringOrNull(v['advisorCode'])) &&
     (v['advisorName'] === undefined || isStringOrNull(v['advisorName'])) &&
+    (v['expectedDeliveryDate'] === undefined || isStringOrNull(v['expectedDeliveryDate'])) &&
+    (v['expectedDeliveryTime'] === undefined || isStringOrNull(v['expectedDeliveryTime'])) &&
     typeof v['updatedAt'] === 'string'
   );
 }

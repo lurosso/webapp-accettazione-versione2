@@ -214,6 +214,7 @@ export function makeAppointment(overrides: Partial<Appointment> = {}): Appointme
     legalHoldReason: null,
     whatsapp: null,
     assignedAdvisor: null,
+    expectedDelivery: null,
     lastSyncRunId: null,
     version: 1,
     createdAt: now,

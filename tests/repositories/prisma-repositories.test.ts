@@ -386,6 +386,28 @@ describe('Prisma: accettatore assegnato in Infinity', () => {
     expect(await repo.updateAssignedAdvisor(a.id, null)).toMatchObject({ assignedAdvisor: null });
     expect(await repo.updateAssignedAdvisor('inesistente' as never, null)).toBeNull();
   });
+
+  it('updateExpectedDelivery fa lo stesso con la riconsegna prevista', async () => {
+    const repo = new PrismaAppointmentRepository(db, clock);
+    const inserita = await repo.insert(makeAppointment({ status: 'IN_PROGRESS' }));
+    if (!inserita.ok) {
+      throw new Error(inserita.error.message);
+    }
+    const a = inserita.value;
+    expect(a.expectedDelivery).toBeNull();
+    const prevista = await repo.updateExpectedDelivery(a.id, {
+      date: '2026-09-12' as IsoDate,
+      time: '17:30',
+    });
+    expect(prevista?.expectedDelivery).toEqual({ date: '2026-09-12', time: '17:30' });
+    expect(prevista?.version).toBe(a.version);
+    const salvata = await repo.update({ ...a, notes: 'nota del banco' }, a.version);
+    expect(salvata.ok && salvata.value.expectedDelivery?.date).toBe('2026-09-12');
+    expect(
+      await repo.updateExpectedDelivery(a.id, { date: '2026-09-13' as IsoDate, time: null }),
+    ).toMatchObject({ expectedDelivery: { date: '2026-09-13', time: null } });
+    expect(await repo.updateExpectedDelivery(a.id, null)).toMatchObject({ expectedDelivery: null });
+  });
 });
 
 describe('Prisma: ultimo WhatsApp sulla pratica e ricerca del job per id messaggio', () => {

@@ -3,7 +3,7 @@
 // - esistenti in WAITING: aggiornate se cambiate; in altri stati mai toccate;
 // - sparite dall'agenda o annullate: CANCELLED solo se ancora in coda (WAITING/SKIPPED);
 // - agenda parziale: nessuna cancellazione per assenza. Un lock per giornata evita sync parallele.
-import type { Appointment, AssignedAdvisor } from '@/domain/entities/appointment';
+import type { Appointment, AssignedAdvisor, ExpectedDelivery } from '@/domain/entities/appointment';
 import type { SyncCounters, SyncRun, SyncTrigger } from '@/domain/entities/sync-run';
 import { EMPTY_SYNC_COUNTERS } from '@/domain/entities/sync-run';
 import { asAppointmentId, asSyncRunId, type OperatorId } from '@/domain/ids';
@@ -207,13 +207,22 @@ export class SyncService {
       // L'accettatore assegnato segue Infinity su pratiche in QUALUNQUE stato (anche in carico o già
       // completate: «Le mie prenotazioni» della giornata devono essere tutte), con una scrittura che
       // non tocca la versione e quindi non disturba chi sta lavorando la pratica al banco.
-      const current =
+      const conAccettatore =
         esistente !== undefined && !sameAdvisor(esistente.assignedAdvisor, draft.assignedAdvisor)
           ? ((await this.deps.appointments.updateAssignedAdvisor(
               esistente.id,
               draft.assignedAdvisor,
             )) ?? esistente)
           : esistente;
+      // Idem la riconsegna prevista: cambia in Infinity anche a veicolo già accettato.
+      const current =
+        conAccettatore !== undefined &&
+        !sameDelivery(conAccettatore.expectedDelivery, draft.expectedDelivery)
+          ? ((await this.deps.appointments.updateExpectedDelivery(
+              conAccettatore.id,
+              draft.expectedDelivery,
+            )) ?? conAccettatore)
+          : conAccettatore;
       if (current === undefined) {
         if (draft.cancelled) {
           continue; // annullata prima ancora di entrare in coda: non si crea
@@ -341,6 +350,7 @@ export class SyncService {
       legalHoldReason: null,
       whatsapp: null,
       assignedAdvisor: draft.assignedAdvisor,
+      expectedDelivery: draft.expectedDelivery,
       lastSyncRunId: run.id,
       version: 1,
       createdAt: now,
@@ -480,4 +490,9 @@ export class SyncService {
 /** Stesso accettatore assegnato (matricola e nome), null compreso. */
 function sameAdvisor(a: AssignedAdvisor | null, b: AssignedAdvisor | null): boolean {
   return (a?.code ?? null) === (b?.code ?? null) && (a?.name ?? null) === (b?.name ?? null);
+}
+
+/** Stessa riconsegna prevista (giorno e ora), null compreso. */
+function sameDelivery(a: ExpectedDelivery | null, b: ExpectedDelivery | null): boolean {
+  return (a?.date ?? null) === (b?.date ?? null) && (a?.time ?? null) === (b?.time ?? null);
 }
