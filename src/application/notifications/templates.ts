@@ -40,6 +40,41 @@ export interface TemplateVars {
   readonly portalUrl: string;
   /** Minuti di anticipo ammessi per «Sono arrivato» (SPOKI_MAX_EARLY_ARRIVAL_MINUTES), come testo. */
   readonly earlyArrivalWindowMinutes: string;
+  /** Nome e cognome del cliente (o la ragione sociale): il «Gentile …» dei template 📅. */
+  readonly customerName: string;
+  /** Marca e modello del veicolo ("Fiat Panda 1.0 Hybrid"). */
+  readonly vehicleLabel: string;
+  /** Chi ha preso in carico la pratica (o l'accettatore assegnato in Infinity); vuoto se ignoto. */
+  readonly advisorName: string;
+  /** Riconsegna prevista "GG/MM/AAAA" secondo Infinity; vuoto se non indicata. */
+  readonly expectedDeliveryDate: string;
+  /** Ora prevista di riconsegna "HH:mm"; vuoto se non indicata. */
+  readonly expectedDeliveryTime: string;
+  /** Sede da scrivere nei messaggi (SPOKI_LUOGO); vuoto finché non è configurata. */
+  readonly site: string;
+}
+
+/** Dati dei messaggi che non stanno sulla pratica: chi l'ha in carico e la sede. */
+export interface TemplateExtras {
+  readonly advisorName?: string;
+  readonly site?: string;
+}
+
+/**
+ * Un nome scritto tutto maiuscolo, come lo tiene il gestionale ("MARIO ROSSI"), in forma leggibile
+ * ("Mario Rossi"); un nome già scritto con le maiuscole giuste resta com'è.
+ */
+export function readableName(name: string): string {
+  const t = name.trim().replace(/\s+/g, ' ');
+  if (t === '' || t !== t.toUpperCase()) {
+    return t;
+  }
+  return t
+    .toLowerCase()
+    .replace(
+      /(^|[\s'’-])(\p{L})/gu,
+      (_, prima: string, lettera: string) => prima + lettera.toUpperCase(),
+    );
 }
 
 /**
@@ -148,6 +183,7 @@ export function buildTemplateVars(
   publicBaseUrl = '',
   portalToken: string | null = null,
   earlyArrivalWindowMinutes: number = DEFAULT_MAX_EARLY_ARRIVAL_MINUTES,
+  extra: TemplateExtras = {},
 ): TemplateVars {
   const scheduled = new Date(appointment.scheduledAt);
   // Aziende e clienti senza nome (dati reali di Infinity): il saluto usa la ragione sociale, così
@@ -165,5 +201,21 @@ export function buildTemplateVars(
     brandName: brand.name,
     portalUrl: buildPortalUrl(publicBaseUrl, appointment.vehicle.plate, portalToken),
     earlyArrivalWindowMinutes: String(earlyArrivalWindowMinutes),
+    customerName:
+      [appointment.customer.firstName, appointment.customer.lastName]
+        .map((p) => p.trim())
+        .filter((p) => p !== '')
+        .join(' ') || 'Cliente',
+    vehicleLabel: [brand.name, appointment.vehicle.model === 'n/d' ? '' : appointment.vehicle.model]
+      .map((p) => p.trim())
+      .filter((p) => p !== '')
+      .join(' '),
+    advisorName: extra.advisorName?.trim() ?? '',
+    expectedDeliveryDate:
+      appointment.expectedDelivery === null
+        ? ''
+        : formatBusinessDateIt(appointment.expectedDelivery.date),
+    expectedDeliveryTime: appointment.expectedDelivery?.time ?? '',
+    site: extra.site?.trim() ?? '',
   };
 }

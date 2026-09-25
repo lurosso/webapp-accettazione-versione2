@@ -207,6 +207,8 @@ export function createContainer(overrides: ContainerOverrides = {}): Container {
     portalToken: (appointmentId) => portalTokens.forAppointment(appointmentId),
     whatsappConsentOverride: env.spokiOverrideConsent,
     maxEarlyArrivalMinutes: env.spokiMaxEarlyArrivalMinutes,
+    siteName: env.spokiSite ?? '',
+    operators: repos.operators,
     // Il «nuovo tentativo alle…» si promette solo se il temporizzatore della riprova gira davvero.
     autoRetry: env.notificationRetryEnabled && !env.messagingStandby,
     // Ogni job WhatsApp salvato aggiorna lo stato sulla pratica: coda e archivio lo leggono da lì.
@@ -266,7 +268,9 @@ export function createContainer(overrides: ContainerOverrides = {}): Container {
         arrivalTooEarly: env.spokiTemplateEarlyReplyId,
         checkInStarted: env.spokiTemplateWelcomeId,
         checkInCompleted: env.spokiTemplateCompleteId,
+        bookingConfirmed: env.spokiTemplateBookingId,
       },
+      siteName: env.spokiSite,
       consentOverride: env.spokiOverrideConsent,
       allowedRecipients: env.spokiAllowedRecipients,
       publicSends: env.spokiPublicSends,

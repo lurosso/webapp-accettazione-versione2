@@ -1,27 +1,29 @@
 // La specifica di Spoki (scripts/spoki-spec.mjs) e lo script che la applica (scripts/spoki-setup.mjs)
-// senza rete: i campi coincidono con quelli che l'app scrive, i testi dei template sono quelli che
-// l'app manda (anche via SMS) e rispettano i vincoli di Meta, le automazioni hanno la forma
-// documentata da Spoki, il piano riconosce cosa esiste già e .env.local si aggiorna senza perdere
-// niente.
+// senza rete. I messaggi usano i template 📅 dell'account (decisione del committente, 2026-09-25):
+// ogni variabile dei loro testi deve essere un campo che l'app riempie, e nessun campo in più; il
+// template del mattino da creare rispetta i vincoli di Meta; le automazioni hanno la forma
+// documentata da Spoki; il piano riconosce ciò che esiste (anche con nomi doppi) e lo script non può
+// modificare niente di ciò che c'è.
 import { describe, expect, it } from 'vitest';
-import { buildTemplateVars, NOTIFICATION_TEMPLATES } from '@/application/notifications/templates';
-import type { NotificationKind } from '@/domain/entities/notification';
+import { buildTemplateVars } from '@/application/notifications/templates';
 import {
-  SPOKI_CUSTOM_FIELD_CODES,
   SPOKI_QUICK_REPLIES,
+  SPOKI_TEMPLATE_FIELDS,
   SPOKI_TEMPLATE_ID_ENV_KEYS,
-  TEMPLATE_KIND_BY_KEY,
+  templateFieldsFor,
   type SpokiTemplateKind,
 } from '@/infrastructure/messaging/spoki';
 import {
   AUTOMAZIONI,
   CAMPI,
-  CAMPI_SCRITTI_DALL_APP,
+  CAMPI_AUTOMAZIONI,
   ESITO_IN_ATTESA,
   PULSANTI,
+  PULSANTI_PRENOTAZIONE,
   RISERVA,
   TEMPLATE,
-  componi,
+  TEMPLATE_DA_CREARE,
+  TEMPLATE_ESISTENTI,
   corpoAutomazioneRete,
   corpoAutomazioneRisposta,
   corpoTemplate,
@@ -35,39 +37,44 @@ import {
 } from '../../scripts/spoki-setup.mjs';
 import { makeAppointment } from '../helpers/fixtures';
 
+const TUTTI_I_CAMPI = [...CAMPI, ...CAMPI_AUTOMAZIONI];
 const IDS = {
-  campi: Object.fromEntries(CAMPI.map((c, i) => [c.code, 100 + i])),
+  campi: Object.fromEntries(TUTTI_I_CAMPI.map((c, i) => [c.code, 100 + i])),
   template: Object.fromEntries(TEMPLATE.map((t, i) => [t.name, 500 + i])),
 };
 
-describe('Specifica Spoki: campi del contatto', () => {
-  it('i campi che scrive l’app sono quelli della specifica, nello stesso ordine', () => {
-    expect(CAMPI_SCRITTI_DALL_APP).toEqual([...SPOKI_CUSTOM_FIELD_CODES]);
+describe('Template 📅 e campi che l’app riempie', () => {
+  it('ogni template usato dall’app: le sue variabili sono esattamente i campi che l’app manda', () => {
+    const usati = TEMPLATE.filter((t) => t.tipo !== null);
+    expect(usati.map((t) => t.tipo).sort()).toEqual(
+      ['CHECK_IN_STARTED', 'CONFIRMATION', 'REMINDER_PREVIOUS_DAY', 'REMINDER_SAME_DAY'].sort(),
+    );
+    for (const t of usati) {
+      const campiApp = Object.keys(SPOKI_TEMPLATE_FIELDS[t.tipo as SpokiTemplateKind] ?? {});
+      expect([...new Set(variabiliDi(t.testo))].sort()).toEqual(campiApp.sort());
+      // E la variabile d'ambiente con l'id è quella che l'app legge.
+      expect(SPOKI_TEMPLATE_ID_ENV_KEYS[t.tipo as SpokiTemplateKind]).toBe(t.env);
+    }
   });
 
-  it('codici MAIUSCOLI con il prefisso del progetto, nessun doppione, mai un campo riservato', () => {
+  it('i campi dei template sono quelli dell’account (codici esatti, senza doppioni)', () => {
     const codici = CAMPI.map((c) => c.code);
     expect(new Set(codici).size).toBe(codici.length);
-    for (const c of codici) {
-      expect(c).toMatch(/^ACC_[A-Z0-9_]+$/);
+    for (const tabella of Object.values(SPOKI_TEMPLATE_FIELDS)) {
+      for (const codice of Object.keys(tabella ?? {})) {
+        expect(codici).toContain(codice);
+      }
     }
-    // ACC_GIORNO è un campo DATA: fa scattare la rete di sicurezza.
-    expect(CAMPI.find((c) => c.code === 'ACC_GIORNO')?.tipo).toBe(2);
-  });
-});
-
-describe('Specifica Spoki: template', () => {
-  it('un template per ogni messaggio che l’app manda via API, con la variabile d’ambiente giusta', () => {
-    for (const t of TEMPLATE) {
-      expect(SPOKI_TEMPLATE_ID_ENV_KEYS[t.tipo as SpokiTemplateKind]).toBe(t.env);
-      expect(t.name).toMatch(/^acc_[a-z0-9_]+$/);
+    // I campi delle automazioni hanno il prefisso del progetto e non si confondono con quelli.
+    for (const c of CAMPI_AUTOMAZIONI) {
+      expect(c.code).toMatch(/^ACC_[A-Z0-9_]+$/);
     }
-    const conId = Object.entries(SPOKI_TEMPLATE_ID_ENV_KEYS).filter(([, env]) => env !== null);
-    expect(TEMPLATE.map((t) => t.tipo).sort()).toEqual(conId.map(([k]) => k).sort());
   });
 
-  it('il testo, riempito, è quello che l’app manda (il promemoria del giorno ha in più le scelte SMS)', () => {
-    const a = makeAppointment();
+  it('con una pratica vera i campi si riempiono; la sede manca finché non è indicata', () => {
+    const a = makeAppointment({
+      expectedDelivery: { date: '2026-09-11' as never, time: '17:30' },
+    });
     const v = buildTemplateVars(
       a,
       { id: a.brandId, name: 'Fiat' } as never,
@@ -75,70 +82,96 @@ describe('Specifica Spoki: template', () => {
       'https://officina.example',
       'token-di-prova',
       60,
+      { advisorName: 'Laura Bianchi' },
     );
-    const valori: Record<string, string> = {
-      FIRST_NAME: v.firstName,
-      ACC_CODICE: v.code,
-      ACC_TARGA: v.plate,
-      ACC_DATA: v.scheduledDate,
-      ACC_ORA: v.scheduledTime,
-      ACC_GIORNO: v.scheduledDay,
-      ACC_LINK: v.portalUrl,
+    const variabili = v as unknown as Readonly<Record<string, string>>;
+    const accettazione = templateFieldsFor('CHECK_IN_STARTED', variabili);
+    expect(accettazione.missing).toEqual([]);
+    expect(accettazione.fields).toMatchObject({
+      _NOME_ACCETTATORE_: 'Laura Bianchi',
+      _DATA_PREVISTA_: '11/09/2026',
+      _ORA_PREVISTA_: '17:30',
+      _TARGA_: a.vehicle.plate,
+    });
+    expect(accettazione.fields['_MARCA_E_MODELLO_']).toContain('Fiat');
+    // Senza SPOKI_LUOGO il 📅 Reminder 24h non ha la sede: il servizio non lo manda.
+    expect(templateFieldsFor('REMINDER_PREVIOUS_DAY', variabili).missing).toEqual(['LUOGO']);
+    const conSede = buildTemplateVars(
+      a,
+      { id: a.brandId, name: 'Fiat' } as never,
+      'Europe/Rome',
+      '',
+      null,
+      60,
+      { site: 'Autoclub' },
+    );
+    expect(
+      templateFieldsFor('REMINDER_PREVIOUS_DAY', conSede as unknown as Record<string, string>)
+        .missing,
+    ).toEqual([]);
+  });
+});
+
+describe('Il template del mattino da creare', () => {
+  const mattino = TEMPLATE_DA_CREARE[0]!;
+
+  it('vincoli di Meta: niente variabile in testa o in coda, un esempio per ogni variabile', () => {
+    expect(mattino.testo.trim()).not.toMatch(/^%%/);
+    expect(mattino.testo.trim()).not.toMatch(/%%$/);
+    const corpo = corpoTemplate(mattino) as {
+      category: string;
+      templatelocalization_set: {
+        example_custom_fields: Record<string, string>;
+        header_template_component?: { text: string };
+        templatebuttoncomponent_set: { button_type: string; text: string }[];
+      }[];
     };
-    for (const t of TEMPLATE) {
-      const app = NOTIFICATION_TEMPLATES[t.tipo as NotificationKind].render(v);
-      const spoki = componi(t.testo, valori);
-      if (t.tipo === 'REMINDER_SAME_DAY') {
-        expect(app.startsWith(spoki)).toBe(true);
-      } else {
-        expect(spoki).toBe(app);
-      }
-    }
+    expect(corpo.category).toBe('UTILITY');
+    const loc = corpo.templatelocalization_set[0]!;
+    expect(Object.keys(loc.example_custom_fields).sort()).toEqual(
+      [...new Set(variabiliDi(mattino.testo))].sort(),
+    );
+    expect(Object.values(loc.example_custom_fields).every((e) => e !== 'esempio')).toBe(true);
+    expect(loc.header_template_component?.text).toBe('Promemoria Appuntamento Oggi');
+    expect(loc.templatebuttoncomponent_set.map((b) => b.button_type)).toEqual([
+      'quick_reply',
+      'quick_reply',
+      'quick_reply',
+    ]);
   });
 
-  it('vincoli di Meta: niente variabile in testa o in coda, variabili tutte con un esempio', () => {
-    for (const t of TEMPLATE) {
-      expect(t.testo.trim()).not.toMatch(/^%%/);
-      expect(t.testo.trim()).not.toMatch(/%%$/);
-      const corpo = corpoTemplate(t) as {
-        templatelocalization_set: { example_custom_fields: Record<string, string> }[];
-      };
-      const esempi = corpo.templatelocalization_set[0]?.example_custom_fields ?? {};
-      expect(Object.keys(esempi).sort()).toEqual([...new Set(variabiliDi(t.testo))].sort());
-      expect(Object.values(esempi).every((e) => e !== 'esempio')).toBe(true);
-    }
-  });
-
-  it('i tre pulsanti rapidi: testi di al massimo 20 caratteri, stessi payload dell’app', () => {
-    const giorno = TEMPLATE.find((t) => t.tipo === 'REMINDER_SAME_DAY');
-    expect(giorno?.pulsanti).toEqual(['Sono arrivato', 'In ritardo', 'Non posso venire']);
+  it('i tre pulsanti: al massimo 20 caratteri, gli stessi payload che l’app manda', () => {
+    expect(mattino.pulsanti).toEqual(['Sono arrivato', 'Sono in ritardo', 'Non posso venire']);
     expect(PULSANTI.every((p) => p.testo.length <= 20)).toBe(true);
     expect(PULSANTI.map((p) => p.payload)).toEqual(
       SPOKI_QUICK_REPLIES.REMINDER_SAME_DAY?.map((b) => b.payload),
     );
-    const corpo = corpoTemplate(giorno!) as {
-      templatelocalization_set: { templatebuttoncomponent_set: { button_type: string }[] }[];
-    };
-    expect(
-      corpo.templatelocalization_set[0]?.templatebuttoncomponent_set.map((b) => b.button_type),
-    ).toEqual(['quick_reply', 'quick_reply', 'quick_reply']);
-    // Le chiavi dei template dell'app puntano ai tipi della specifica.
-    expect(TEMPLATE_KIND_BY_KEY['reminder_same_day_v1']).toBe('REMINDER_SAME_DAY');
+    // I 📅 hanno «Contattaci» e «Modifica»: l'app manda i loro payload, che la coda ignora.
+    expect(PULSANTI_PRENOTAZIONE.map((p) => p.payload)).toEqual(
+      SPOKI_QUICK_REPLIES.REMINDER_PREVIOUS_DAY?.map((b) => b.payload),
+    );
+    for (const t of TEMPLATE_ESISTENTI) {
+      expect(t.pulsanti).toEqual(['Contattaci', 'Modifica']);
+    }
   });
 });
 
-describe('Specifica Spoki: automazioni', () => {
+describe('Specifica Spoki: automazioni (per quando saranno decise)', () => {
   it('risposta a un pulsante: azzera i campi, chiama l’app con il segreto, testo del server o di riserva', () => {
-    const pulsante = PULSANTI[0]!;
-    const corpo = corpoAutomazioneRisposta(pulsante, {
+    const corpo = corpoAutomazioneRisposta(PULSANTI[0]!, {
       ids: IDS,
       appUrl: 'https://officina.example/',
       inboundSecret: 'segreto-inbound-di-prova-0123456789',
     });
     expect(corpo['name']).toBe(AUTOMAZIONI.arrivato);
     expect(corpo['is_active']).toBe(false);
-    const tipi = corpo.steps.map((s) => s['step_type']);
-    expect(tipi).toEqual(['CustomField', 'CustomField', 'Webhook', 'IfElse', 'FreeMessage']);
+    expect(corpo.steps.map((s) => s['step_type'])).toEqual([
+      'CustomField',
+      'CustomField',
+      'Webhook',
+      'IfElse',
+      'FreeMessage',
+    ]);
     expect(corpo.steps[0]).toMatchObject({
       custom_field: IDS.campi['ACC_ESITO'],
       value: ESITO_IN_ATTESA,
@@ -151,24 +184,24 @@ describe('Specifica Spoki: automazioni', () => {
     };
     expect(webhook.url).toBe('https://officina.example/api/v1/webhooks/spoki');
     expect(webhook.headers['x-spoki-secret']).toBe('segreto-inbound-di-prova-0123456789');
-    // Il corpo del passo è JSON valido, sotto il limite di Spoki, nella forma che la rotta accetta.
     expect(webhook.payload.length).toBeLessThan(4096);
     expect(JSON.parse(webhook.payload)).toEqual({
       source: 'automation',
       phone: '{{ contact.phone }}',
       reply: 'ACTION_ARRIVED',
-      code: '%%ACC_CODICE%%',
     });
     expect(webhook.response_data).toEqual({
       'data.esito': IDS.campi['ACC_ESITO'],
       'data.risposta': IDS.campi['ACC_RISPOSTA'],
     });
     expect(corpo.steps[4]).toMatchObject({ text: RISERVA.arrivato });
-    const ramoServer = (corpo.steps[3] as { step_set: Record<string, unknown>[] }).step_set;
-    expect(ramoServer.at(-1)).toMatchObject({ step_type: 'FreeMessage', text: '%%ACC_RISPOSTA%%' });
+    // Il testo di riserva usa solo campi che esistono.
+    for (const v of variabiliDi(RISERVA.arrivato)) {
+      expect(TUTTI_I_CAMPI.map((c) => c.code)).toContain(v);
+    }
   });
 
-  it('rete di sicurezza: trigger sulla data ACC_GIORNO all’ora indicata, solo con DA_INVIARE', () => {
+  it('rete di sicurezza: trigger sulla data ACC_GIORNO, manda il template del mattino', () => {
     const corpo = corpoAutomazioneRete({ ids: IDS, ora: '08:30' });
     expect(corpo['is_active']).toBe(false);
     expect(corpo['fieldconditionstarter_set']).toEqual([
@@ -180,56 +213,65 @@ describe('Specifica Spoki: automazioni', () => {
         ignore_year: false,
       },
     ]);
-    expect(corpo.steps.map((s) => s['step_type'])).toEqual([
-      'IfElse',
-      'TemplateMessage',
-      'CustomField',
-    ]);
     expect(corpo.steps[1]).toMatchObject({
-      template: IDS.template['acc_promemoria_giorno'],
+      template: IDS.template['📅 Promemoria Appuntamento Oggi'],
       custom_field_values: {
-        '1': `dynamic_field_${IDS.campi['ACC_ORA']}`,
-        '2': `dynamic_field_${IDS.campi['ACC_TARGA']}`,
+        '1': `dynamic_field_${IDS.campi['NOME_CLIENTE']}`,
+        '2': `dynamic_field_${IDS.campi['ORA_PRENOTAZIONE']}`,
       },
-    });
-    expect(corpo.steps[2]).toMatchObject({
-      custom_field: IDS.campi['ACC_PROMEMORIA'],
-      value: 'INVIATO',
     });
   });
 });
 
 describe('spoki:setup senza rete', () => {
-  it('il piano riconosce ciò che esiste (codice e nome) e segnala il resto come mancante', () => {
+  it('riconosce i 📅 (anche con spazi doppi nel nome), preferisce l’approvato fra i doppioni, segnala il resto', () => {
     const piano = pianifica({
       campi: [
-        { id: 7, code: 'acc_codice', field_type: 1 },
-        { id: 8, code: 'ACC_GIORNO', field_type: 1 },
+        { id: 7, code: 'NOME_CLIENTE', field_type: 1 },
+        { id: 8, code: '_TARGA_', field_type: 1 },
       ],
       template: [
+        { id: 454558, name: '📅 Reminder 24h Appuntamento', is_approved: true },
         {
-          id: 91,
-          name: 'acc_promemoria_giorno',
-          templatelocalization_set: [{ language: 'it', status: 'Draft' }],
+          id: 1,
+          name: '📅  Conferma Accettazione',
+          is_approved: false,
+          templatelocalization_set: [{ language: 'it', status: 'DRAFT' }],
         },
+        { id: 454762, name: '📅 Conferma Accettazione', is_approved: true },
       ],
-      automazioni: [{ id: 3, name: AUTOMAZIONI.rete, is_active: true }],
+      automazioni: [],
       webhook: [],
     });
-    expect(piano.campi.find((c) => c.code === 'ACC_CODICE')?.id).toBe(7);
-    // ACC_GIORNO esiste ma come testo: la rete a data non scatterebbe.
-    expect(piano.campi.find((c) => c.code === 'ACC_GIORNO')?.tipoGiusto).toBe(false);
+    expect(piano.campi.find((c) => c.code === 'NOME_CLIENTE')?.id).toBe(7);
     expect(piano.campi.filter((c) => c.id === null)).toHaveLength(CAMPI.length - 2);
-    expect(piano.template.find((t) => t.name === 'acc_promemoria_giorno')).toMatchObject({
-      id: 91,
-      stato: 'DRAFT',
-      env: 'SPOKI_TEMPLATE_SAME_DAY_ID',
+    // Senza --automazioni i campi ACC_* non entrano nel piano.
+    expect(piano.campi.some((c) => c.code.startsWith('ACC_'))).toBe(false);
+    expect(piano.automazioni).toEqual([]);
+    expect(piano.template.find((t) => t.name === '📅 Reminder 24h Appuntamento')).toMatchObject({
+      id: 454558,
+      stato: 'APPROVED',
+      daCreare: false,
+      env: 'SPOKI_TEMPLATE_REMINDER_D1_ID',
     });
-    expect(piano.automazioni.find((a) => a.chiave === 'rete')).toMatchObject({
-      id: 3,
-      attiva: true,
+    expect(piano.template.find((t) => t.name === '📅 Conferma Accettazione')).toMatchObject({
+      id: 454762,
+      stato: 'APPROVED',
+      doppioni: 2,
     });
-    expect(piano.webhook).toEqual([]);
+    expect(piano.template.find((t) => t.name === '📅 Promemoria Appuntamento Oggi')).toMatchObject({
+      id: null,
+      daCreare: true,
+    });
+  });
+
+  it('con --automazioni entrano i campi ACC_* e le quattro automazioni', () => {
+    const piano = pianifica(
+      { campi: [], template: [], automazioni: [], webhook: [] },
+      { automazioni: true },
+    );
+    expect(piano.campi.filter((c) => c.code.startsWith('ACC_'))).toHaveLength(4);
+    expect(piano.automazioni).toHaveLength(4);
   });
 
   it('.env.local: aggiorna le variabili presenti, aggiunge le altre in fondo, lascia intatto il resto', () => {
@@ -273,17 +315,16 @@ describe('spoki:setup non modifica niente di ciò che esiste (regola del committ
       expect(chiamataAmmessa('POST', p)).toBe(true);
     }
     for (const metodo of ['PATCH', 'PUT', 'DELETE']) {
-      expect(chiamataAmmessa(metodo, '/api/1/templates/91/')).toBe(false);
-      expect(chiamataAmmessa(metodo, '/api/1/automations/3/')).toBe(false);
+      expect(chiamataAmmessa(metodo, '/api/1/templates/454558/')).toBe(false);
+      expect(chiamataAmmessa(metodo, '/api/1/automations/566491/')).toBe(false);
     }
-    // POST che non creano: ruotare un segreto, rimandare in bozza, avviare un'automazione.
     expect(chiamataAmmessa('POST', '/api/1/external-webhooks/7/rotate_secret/')).toBe(false);
     expect(chiamataAmmessa('POST', '/api/1/templates/91/back_to_draft/')).toBe(false);
     expect(chiamataAmmessa('POST', '/api/1/contacts/sync/')).toBe(false);
   });
 
-  it('l’approvazione a Meta solo per i template creati in questo giro', () => {
-    expect(chiamataAmmessa('POST', '/api/1/templates/91/submit/')).toBe(false);
+  it('l’approvazione a Meta solo per i template creati in questo giro (mai per un 📅)', () => {
+    expect(chiamataAmmessa('POST', '/api/1/templates/454558/submit/')).toBe(false);
     expect(chiamataAmmessa('POST', '/api/1/templates/91/submit/', new Set(['91']))).toBe(true);
     expect(chiamataAmmessa('POST', '/api/1/templates/92/submit/', new Set(['91']))).toBe(false);
   });

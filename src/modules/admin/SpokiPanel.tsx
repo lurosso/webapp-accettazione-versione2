@@ -220,7 +220,14 @@ export function SpokiPanel({ timeZone }: SpokiPanelProps) {
                         {t.transport === 'AUTOMATION' ? t.urlEnvKey : t.templateEnvKey}
                       </span>
                     </span>
-                    {t.transport === 'AUTOMATION' ? (
+                    {t.transport === 'TEXT' ? (
+                      <span className="flex flex-wrap gap-1">
+                        <Badge tone="info">messaggio libero (dopo il tocco)</Badge>
+                        <Badge tone={data.apiKeyConfigured ? 'success' : 'warning'}>
+                          {data.apiKeyConfigured ? 'via API' : 'serve SPOKI_API_KEY'}
+                        </Badge>
+                      </span>
+                    ) : t.transport === 'AUTOMATION' ? (
                       <span className="flex flex-wrap gap-1">
                         <Badge
                           tone={t.urlConfigured ? 'success' : 'warning'}

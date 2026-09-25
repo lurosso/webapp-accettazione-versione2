@@ -104,6 +104,9 @@ function describeTarget(transport: SpokiTransport, apiBaseUrl: string): string |
   if (transport.kind === 'AUTOMATION') {
     return transport.url;
   }
+  if (transport.kind === 'TEXT') {
+    return `${spokiSendUrl(apiBaseUrl)} · messaggio libero`;
+  }
   return transport.templateId === null
     ? null
     : `${spokiSendUrl(apiBaseUrl)} · template ${transport.templateId}`;
@@ -403,6 +406,24 @@ export class SpokiClientAdapter {
         headers['authorization'] = `Bearer ${this.config.apiKey}`;
       }
       return ok({ url: t.url, headers, body: JSON.stringify(t.payload) });
+    }
+    if (t.kind === 'TEXT') {
+      if (this.config.apiKey === null) {
+        return err(
+          providerError(
+            'SPOKI',
+            'AUTH',
+            `Chiave API Spoki mancante (SPOKI_API_KEY): impossibile mandare il messaggio ${input.kind}.`,
+            false,
+          ),
+        );
+      }
+      headers['x-spoki-api-key'] = this.config.apiKey;
+      return ok({
+        url: spokiSendUrl(this.config.apiBaseUrl),
+        headers,
+        body: JSON.stringify(t.payload),
+      });
     }
     if (t.templateId === null) {
       return err(

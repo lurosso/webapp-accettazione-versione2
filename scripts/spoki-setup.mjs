@@ -1,19 +1,22 @@
 #!/usr/bin/env node
-// Configura l'account Spoki per l'officina, via API REST, con la stessa chiave dell'app
-// (SPOKI_API_KEY in .env.local). Cosa deve esistere sta in scripts/spoki-spec.mjs; perché, in
-// docs/SPOKI.md.
+// Verifica e completa l'account Spoki per l'accettazione, via API REST, con la stessa chiave
+// dell'app (SPOKI_API_KEY in .env.local). Cosa deve esistere sta in scripts/spoki-spec.mjs; perché,
+// in docs/SPOKI.md.
 //
-//   npm run spoki:setup                         controllo: cosa c'è e cosa manca (sola lettura)
-//   npm run spoki:setup -- --apply              crea campi, template (in bozza) e automazioni
-//                                               (disattivate) che mancano
-//   npm run spoki:setup -- --apply --submit     in più chiede a Meta l'approvazione dei template
+//   npm run spoki:setup                         controllo: i template 📅 ci sono e sono approvati?
+//                                               i campi ci sono? cosa manca? (sola lettura)
+//   npm run spoki:setup -- --apply              crea ciò che manca: il template del mattino (in
+//                                               bozza) e gli eventuali campi mancanti
+//   … --submit                                  chiede a Meta l'approvazione dei SOLI template
+//                                               appena creati (di norma lo fa il committente)
+//   … --automazioni                             anche i campi ACC_* e le automazioni (risposte ai
+//                                               pulsanti, rete del mattino): solo quando deciso
 //   … --app-url=https://officina.example        indirizzo pubblico dell'app (predefinito
 //                                               PUBLIC_BASE_URL); serve ad automazioni e webhook
-//   … --webhooks                                crea anche i due webhook V2 (inbound, outbound)
+//   … --webhooks                                controlla (e con --apply crea) i due webhook V2
 //   … --write-env                               scrive in .env.local gli id dei template e i
 //                                               segreti dei webhook creati (mai a schermo)
-//   … --safety-net-time=08:30                   ora della rete di sicurezza (predefinito
-//                                               SPOKI_SAFETY_NET_TIME, altrimenti 08:30)
+//   … --safety-net-time=08:30                   ora della rete di sicurezza
 //
 // Non stampa mai chiave API né segreti. REGOLA DEL COMMITTENTE (2026-09-25): ciò che esiste già
 // nell'account NON si modifica, mai. Lo script legge, crea solo ciò che manca e chiede l'approvazione
@@ -25,12 +28,15 @@ import { fileURLToPath } from 'node:url';
 import {
   AUTOMAZIONI,
   CAMPI,
+  CAMPI_AUTOMAZIONI,
   EVENTI_WEBHOOK,
   PULSANTI,
-  TEMPLATE,
+  TEMPLATE_DA_CREARE,
+  TEMPLATE_ESISTENTI,
   corpoAutomazioneRete,
   corpoAutomazioneRisposta,
   corpoTemplate,
+  stessoNome,
   urlWebhook,
 } from './spoki-spec.mjs';
 
@@ -133,11 +139,12 @@ export function statoTemplate(t) {
 /**
  * Confronta la specifica con quello che l'account ha già. `stato` ha gli elenchi grezzi dell'API
  * (`campi`, `template`, `automazioni`, `webhook`); il piano dice, voce per voce, cosa esiste (con
- * l'id) e cosa manca.
+ * l'id e lo stato) e cosa manca. I campi e le automazioni delle risposte a server giù entrano solo
+ * con `automazioni: true`.
  */
-export function pianifica(stato, { appUrl = null } = {}) {
-  const campi = CAMPI.map((c) => {
-    const trovato = stato.campi.find((x) => String(x.code ?? '').toUpperCase() === c.code);
+export function pianifica(stato, { appUrl = null, automazioni = false } = {}) {
+  const campi = [...CAMPI, ...(automazioni ? CAMPI_AUTOMAZIONI : [])].map((c) => {
+    const trovato = stato.campi.find((x) => String(x.code ?? '') === c.code);
     return {
       code: c.code,
       id: trovato?.id ?? null,
@@ -147,19 +154,29 @@ export function pianifica(stato, { appUrl = null } = {}) {
         Number(trovato.field_type) === c.tipo,
     };
   });
-  const template = TEMPLATE.map((t) => {
-    const trovato = stato.template.find((x) => x.name === t.name);
+  const perNome = (t) => stato.template.filter((x) => stessoNome(x.name, t.name));
+  const template = [
+    ...TEMPLATE_ESISTENTI.map((t) => ({ ...t, daCreare: false })),
+    ...TEMPLATE_DA_CREARE.map((t) => ({ ...t, daCreare: true })),
+  ].map((t) => {
+    const trovati = perNome(t);
+    // Più template con lo stesso nome: si preferisce quello approvato.
+    const trovato = trovati.find((x) => statoTemplate(x) === 'APPROVED') ?? trovati[0] ?? undefined;
     return {
       name: t.name,
       env: t.env,
+      daCreare: t.daCreare,
       id: trovato?.id ?? null,
       stato: trovato === undefined ? null : statoTemplate(trovato),
+      doppioni: trovati.length,
     };
   });
-  const automazioni = Object.entries(AUTOMAZIONI).map(([chiave, nome]) => {
-    const trovata = stato.automazioni.find((x) => x.name === nome);
-    return { chiave, nome, id: trovata?.id ?? null, attiva: trovata?.is_active === true };
-  });
+  const automazioniPiano = automazioni
+    ? Object.entries(AUTOMAZIONI).map(([chiave, nome]) => {
+        const trovata = stato.automazioni.find((x) => x.name === nome);
+        return { chiave, nome, id: trovata?.id ?? null, attiva: trovata?.is_active === true };
+      })
+    : [];
   const webhook =
     appUrl === null
       ? []
@@ -169,7 +186,7 @@ export function pianifica(stato, { appUrl = null } = {}) {
           );
           return { evento, id: trovato?.id ?? null, attivo: trovato?.is_active === true };
         });
-  return { campi, template, automazioni, webhook };
+  return { campi, template, automazioni: automazioniPiano, webhook };
 }
 
 // --- Client API ----------------------------------------------------------------------------------
@@ -236,6 +253,7 @@ function opzioni(argv) {
     apply: argv.includes('--apply'),
     submit: argv.includes('--submit'),
     webhooks: argv.includes('--webhooks'),
+    automazioni: argv.includes('--automazioni'),
     writeEnv: argv.includes('--write-env'),
     appUrl: valore('app-url'),
     ora: valore('safety-net-time'),
@@ -283,17 +301,20 @@ async function main() {
   const stato = {
     campi: await api.tutti('/api/1/custom-fields/'),
     template: await api.tutti('/api/1/templates/'),
-    automazioni: await api.tutti('/api/1/automations/'),
+    automazioni: o.automazioni ? await api.tutti('/api/1/automations/') : [],
     webhook: o.webhooks ? await api.tutti('/api/1/external-webhooks/') : [],
   };
-  const piano = pianifica(stato, { appUrl: o.webhooks && appPubblica ? appUrl : null });
+  const piano = pianifica(stato, {
+    appUrl: o.webhooks && appPubblica ? appUrl : null,
+    automazioni: o.automazioni,
+  });
   const envDaScrivere = {};
   const segretiNuovi = [];
 
   console.log('\nCampi del contatto');
   for (const c of piano.campi) {
     if (c.id === null && o.apply) {
-      const spec = CAMPI.find((x) => x.code === c.code);
+      const spec = [...CAMPI, ...CAMPI_AUTOMAZIONI].find((x) => x.code === c.code);
       const creato = await api.chiama('POST', '/api/1/custom-fields/', {
         label: c.code,
         code: c.code,
@@ -310,10 +331,14 @@ async function main() {
     }
   }
 
-  console.log('\nTemplate (da far approvare a Meta)');
+  console.log('\nTemplate');
   for (const t of piano.template) {
-    const spec = TEMPLATE.find((x) => x.name === t.name);
-    if (t.id === null && o.apply) {
+    const nome = `${t.name}${t.id === null ? '' : ` (id ${t.id})`}${t.doppioni > 1 ? ` · ${t.doppioni} con questo nome` : ''}`;
+    if (!t.daCreare) {
+      // I 📅 si usano come sono: se mancano o non sono approvati lo si dice, non si toccano.
+      riga(t.id === null ? 'MANCA' : t.stato === 'APPROVED' ? 'ok' : (t.stato ?? '?'), nome);
+    } else if (t.id === null && o.apply) {
+      const spec = TEMPLATE_DA_CREARE.find((x) => x.name === t.name);
       const creato = await api.chiama('POST', '/api/1/templates/', corpoTemplate(spec));
       t.id = creato?.id ?? null;
       t.stato = creato === null ? 'DRAFT' : statoTemplate(creato);
@@ -322,25 +347,22 @@ async function main() {
       }
       riga('CREATO', `${t.name} (id ${t.id}, ${t.stato})`);
     } else {
-      riga(
-        t.id === null ? 'MANCA' : (t.stato ?? '?'),
-        `${t.name}${t.id === null ? '' : ` (id ${t.id})`}`,
-      );
+      riga(t.id === null ? 'DA CREARE' : (t.stato ?? '?'), nome);
     }
     // Solo i template appena creati: uno che c'era già (anche in bozza) non si tocca.
     if (t.id !== null && o.submit && creatiOra.has(String(t.id))) {
       await api.chiama('POST', `/api/1/templates/${t.id}/submit/`);
       t.stato = 'INVIATO A META';
       riga('RICHIESTO', `${t.name}: approvazione chiesta a Meta`);
-    } else if (t.id !== null && o.submit) {
-      riga('non toccato', `${t.name}: esisteva già, l'approvazione si chiede da Spoki`);
     }
-    if (t.id !== null) {
+    if (t.id !== null && t.env !== null) {
       envDaScrivere[t.env] = String(t.id);
     }
   }
 
-  console.log('\nAutomazioni');
+  if (o.automazioni) {
+    console.log('\nAutomazioni');
+  }
   const campiId = Object.fromEntries(piano.campi.map((c) => [c.code, c.id]));
   const templateId = Object.fromEntries(piano.template.map((t) => [t.name, t.id]));
   const ids = { campi: campiId, template: templateId };
@@ -360,11 +382,9 @@ async function main() {
     }
     let corpo;
     if (a.chiave === 'rete') {
-      if (
-        templateId.acc_promemoria_giorno === null ||
-        templateId.acc_promemoria_giorno === undefined
-      ) {
-        riga('RIMANDATA', `${a.nome}: manca il template acc_promemoria_giorno`);
+      const mattino = TEMPLATE_DA_CREARE[0].name;
+      if (templateId[mattino] === null || templateId[mattino] === undefined) {
+        riga('RIMANDATA', `${a.nome}: manca il template «${mattino}»`);
         continue;
       }
       corpo = corpoAutomazioneRete({ ids, ora });
@@ -430,12 +450,14 @@ async function main() {
   }
 
   console.log("\nPassi a mano (l'API non li espone), dettagli in docs/SPOKI.md:");
-  console.log('  1. approvazione dei template da parte di Meta (si segue in Spoki → Template);');
   console.log(
-    "  2. nell'editor delle tre automazioni «ACC · Risposta …»: trigger «Messaggio del cliente → clic su un pulsante di un template» sul pulsante giusto di acc_promemoria_giorno, poi Attiva;",
+    "  1. l'approvazione del template del mattino la chiedi tu da Spoki (Template → invia a Meta);",
   );
   console.log(
-    `  3. dopo la prova interna: attiva «${AUTOMAZIONI.rete}», SPOKI_SAFETY_NET_TIME=${ora} e SPOKI_REPLIES_BY_AUTOMATION=true in .env.local.`,
+    '  2. il campo LUOGO (sede) va indicato in SPOKI_LUOGO: finché manca, 📅 Reminder 24h e 📅 Conferma Prenotazione non partono;',
+  );
+  console.log(
+    "  3. le automazioni sui pulsanti si creano con --automazioni quando è deciso; il trigger sul pulsante si sceglie nell'editor.",
   );
 }
 

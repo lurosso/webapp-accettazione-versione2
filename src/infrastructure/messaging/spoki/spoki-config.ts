@@ -14,7 +14,14 @@
 //
 // Per ogni template vince l'id se configurato, altrimenti l'URL dell'automazione; senza nessuno
 // dei due si sceglie in base alla variabile prevista, così in simulazione il registro dice cosa
-// manca.
+// manca. Le risposte ai pulsanti senza un template dedicato partono come MESSAGGIO LIBERO
+// (`type: "Message"`): il cliente ha appena toccato un pulsante, quindi la finestra di 24 ore di
+// WhatsApp è aperta e non serve un template approvato.
+//
+// TEMPLATE 📅 (decisione del committente, 2026-09-25): i messaggi usano i template approvati
+// dell'account che iniziano con 📅, fatti per questo sistema. Ognuno ha i SUOI campi
+// (`SPOKI_TEMPLATE_FIELDS`), con i codici che l'account già usa; un template non parte se uno dei
+// suoi campi è vuoto (Meta non accetta variabili vuote, e un «Sede:» vuoto al cliente non va).
 //
 // GUARDRAIL: nessuna chiamata HTTP parte se `SPOKI_MODE` non è `live` oppure se
 // `SPOKI_SAFETY_LOCK` è attivo (predefinito). Con `SPOKI_ENABLED=false` (predefinito) o senza
@@ -67,6 +74,7 @@ export const SPOKI_ACTIVE_TEMPLATE_KINDS: readonly SpokiTemplateKind[] = [
   'ARRIVAL_TOO_EARLY',
   'CHECK_IN_STARTED',
   'CHECK_IN_COMPLETED',
+  'CONFIRMATION',
 ];
 
 /** Da chiave del template Meta (usata dall'orchestratore) al template Spoki. */
@@ -127,7 +135,7 @@ export const SPOKI_TEMPLATE_ID_ENV_KEYS: Readonly<Record<SpokiTemplateKind, stri
   ARRIVAL_TOO_EARLY: 'SPOKI_TEMPLATE_EARLY_REPLY_ID',
   CHECK_IN_STARTED: 'SPOKI_TEMPLATE_WELCOME_ID',
   CHECK_IN_COMPLETED: 'SPOKI_TEMPLATE_COMPLETE_ID',
-  CONFIRMATION: null,
+  CONFIRMATION: 'SPOKI_TEMPLATE_BOOKING_ID',
   TURN_APPROACHING: null,
   CANCELLATION: null,
 };
@@ -137,6 +145,9 @@ export const SPOKI_QUICK_REPLY_PAYLOADS = [
   'ACTION_ARRIVED',
   'ACTION_LATE',
   'ACTION_ABSENT',
+  // «Contattaci» e «Modifica» dei template 📅: li gestiscono le automazioni Spoki, l'app li ignora.
+  'ACTION_CONTACT',
+  'ACTION_CHANGE',
 ] as const;
 
 export type SpokiQuickReplyPayload = (typeof SPOKI_QUICK_REPLY_PAYLOADS)[number];
@@ -157,8 +168,21 @@ export const SPOKI_QUICK_REPLIES: Readonly<
 > = {
   REMINDER_SAME_DAY: [
     { order: 0, label: 'SONO_ARRIVATO', payload: 'ACTION_ARRIVED' },
-    { order: 1, label: 'IN_RITARDO', payload: 'ACTION_LATE' },
+    { order: 1, label: 'SONO_IN_RITARDO', payload: 'ACTION_LATE' },
     { order: 2, label: 'NON_POSSO_VENIRE', payload: 'ACTION_ABSENT' },
+  ],
+  // I template 📅 hanno «Contattaci» e «Modifica».
+  REMINDER_PREVIOUS_DAY: [
+    { order: 0, label: 'CONTATTACI', payload: 'ACTION_CONTACT' },
+    { order: 1, label: 'MODIFICA', payload: 'ACTION_CHANGE' },
+  ],
+  CHECK_IN_STARTED: [
+    { order: 0, label: 'CONTATTACI', payload: 'ACTION_CONTACT' },
+    { order: 1, label: 'MODIFICA', payload: 'ACTION_CHANGE' },
+  ],
+  CONFIRMATION: [
+    { order: 0, label: 'CONTATTACI', payload: 'ACTION_CONTACT' },
+    { order: 1, label: 'MODIFICA', payload: 'ACTION_CHANGE' },
   ],
 };
 
@@ -194,36 +218,92 @@ export interface SpokiServiceConfig {
   readonly allowedRecipients?: readonly string[];
   /** true = invii reali a tutti i clienti (fine della demo interna). Predefinito false. */
   readonly publicSends?: boolean;
+  /** true = ogni invio scrive anche i campi della rete di sicurezza (ACC_GIORNO, ACC_PROMEMORIA). */
+  readonly safetyNetFields?: boolean;
 }
 
 /**
- * I campi personalizzati del contatto che l'app scrive in Spoki a ogni invio. Spoki li identifica
- * con un codice MAIUSCOLO e li richiama come `%%CODICE%%` nei template, nelle automazioni e nei
- * webhook (documentazione API ufficiale): il prefisso `ACC_` li separa dai campi che l'account usa
- * per altro (marketing, altri reparti). Stesso elenco in `scripts/spoki-spec.mjs`, che li crea
- * nell'account; un test controlla che i due elenchi coincidano.
+ * I campi di ciascun template: codice del campo personalizzato in Spoki (come compare nel testo,
+ * `%%CODICE%%`) → variabile dell'app che lo riempie. Sono i campi che l'account ha già e che i
+ * template 📅 usano; stesso elenco in `scripts/spoki-spec.mjs`, e un test controlla che coincida
+ * con le variabili di ogni testo. Un tipo senza riga manda solo nome, cognome e telefono.
  */
-export const SPOKI_CUSTOM_FIELD_CODES = [
-  /** Codice della pratica in coda (es. F041). */
-  'ACC_CODICE',
-  /** Targa del veicolo. */
-  'ACC_TARGA',
-  /** Data dell'appuntamento da leggere, "GG/MM/AAAA". */
-  'ACC_DATA',
-  /** Orario dell'appuntamento, "HH:mm" locale (es. 09:30). */
-  'ACC_ORA',
-  /** Giorno dell'appuntamento "AAAA-MM-GG": campo DATA di Spoki, fa scattare le automazioni a data. */
-  'ACC_GIORNO',
-  /** Smart link personale al portale cliente: `${PUBLIC_BASE_URL}/portal/<token>`. */
-  'ACC_LINK',
-  /** Stato del promemoria del mattino (vedi `SpokiReminderState`). */
-  'ACC_PROMEMORIA',
-] as const;
+export const SPOKI_TEMPLATE_FIELDS: Readonly<
+  Partial<Record<SpokiTemplateKind, Readonly<Record<string, string>>>>
+> = {
+  // 📅 Reminder 24h Appuntamento.
+  REMINDER_PREVIOUS_DAY: {
+    NOME_CLIENTE: 'customerName',
+    DATA_PRENOTAZIONE: 'scheduledDate',
+    ORA_PRENOTAZIONE: 'scheduledTime',
+    LUOGO: 'site',
+    _MARCA_E_MODELLO_: 'vehicleLabel',
+    _TARGA_: 'plate',
+  },
+  // Promemoria del mattino con i tre pulsanti della coda (template nuovo, da approvare).
+  REMINDER_SAME_DAY: {
+    NOME_CLIENTE: 'customerName',
+    ORA_PRENOTAZIONE: 'scheduledTime',
+    _MARCA_E_MODELLO_: 'vehicleLabel',
+    _TARGA_: 'plate',
+  },
+  // 📅 Conferma Accettazione (presa in carico).
+  CHECK_IN_STARTED: {
+    NOME_CLIENTE: 'customerName',
+    _NOME_ACCETTATORE_: 'advisorName',
+    _MARCA_E_MODELLO_: 'vehicleLabel',
+    _TARGA_: 'plate',
+    _DATA_PREVISTA_: 'expectedDeliveryDate',
+    _ORA_PREVISTA_: 'expectedDeliveryTime',
+  },
+  // 📅 Conferma Prenotazione.
+  CONFIRMATION: {
+    NOME_CLIENTE: 'customerName',
+    DATA: 'scheduledDate',
+    ORA: 'scheduledTime',
+    LUOGO: 'site',
+    _MARCA_E_MODELLO_: 'vehicleLabel',
+    _TARGA_: 'plate',
+  },
+};
 
-export type SpokiCustomFieldCode = (typeof SPOKI_CUSTOM_FIELD_CODES)[number];
+/**
+ * Campi della rete di sicurezza del mattino (M8-T51-S08): si aggiungono a ogni invio solo quando
+ * la rete è accesa (SPOKI_SAFETY_NET_TIME), perché nell'account vanno prima creati.
+ */
+export const SPOKI_SAFETY_NET_FIELD_CODES = ['ACC_GIORNO', 'ACC_PROMEMORIA'] as const;
 
-/** Campi dinamici del messaggio, come li vedono l'automazione o il template Spoki. */
-export type SpokiCustomFields = Readonly<Record<SpokiCustomFieldCode, string>>;
+/** Campi personalizzati mandati con un messaggio (codice Spoki → valore). */
+export type SpokiCustomFields = Readonly<Record<string, string>>;
+
+/**
+ * I campi del template per questo messaggio e quelli rimasti vuoti. Un campo vuoto ferma l'invio:
+ * lo dice `missing`.
+ */
+export function templateFieldsFor(
+  kind: SpokiTemplateKind,
+  variables: Readonly<Record<string, string>>,
+): { readonly fields: SpokiCustomFields; readonly missing: readonly string[] } {
+  const tabella = SPOKI_TEMPLATE_FIELDS[kind] ?? {};
+  const fields: Record<string, string> = {};
+  const missing: string[] = [];
+  for (const [codice, variabile] of Object.entries(tabella)) {
+    const valore = (variables[variabile] ?? '').trim();
+    fields[codice] = valore;
+    if (valore === '') {
+      missing.push(codice);
+    }
+  }
+  return { fields, missing };
+}
+
+/** Le risposte ai pulsanti: senza un template dedicato partono come messaggio libero. */
+export const SPOKI_SESSION_TEXT_KINDS: readonly SpokiTemplateKind[] = [
+  'ARRIVAL_CONFIRMED',
+  'LATE_CONFIRMED',
+  'ABSENT_CONFIRMED',
+  'ARRIVAL_TOO_EARLY',
+];
 
 /** Lo stato del promemoria del mattino che un invio lascia sul contatto. */
 export function reminderStateAfter(kind: SpokiTemplateKind): SpokiReminderState {
@@ -277,6 +357,16 @@ export interface SpokiTemplateSendPayload {
   readonly metadata: SpokiSendMetadata;
 }
 
+/** Payload di `POST /api/1/messages/send/` per un messaggio libero (finestra di 24 ore aperta). */
+export interface SpokiTextSendPayload {
+  readonly type: 'Message';
+  readonly content_type: 'Text';
+  /** Numero in formato E.164. */
+  readonly phone: string;
+  readonly text: string;
+  readonly metadata: SpokiSendMetadata;
+}
+
 /** Trasporto scelto per un template: automazione (URL + segreto) o API (template id + chiave). */
 export type SpokiTransport =
   | {
@@ -290,6 +380,11 @@ export type SpokiTransport =
       /** Id del template; null se non configurato (in simulazione si registra comunque). */
       readonly templateId: string | null;
       readonly payload: SpokiTemplateSendPayload;
+    }
+  | {
+      /** Messaggio libero: risposta a un pulsante appena toccato dal cliente. */
+      readonly kind: 'TEXT';
+      readonly payload: SpokiTextSendPayload;
     };
 
 /**
@@ -301,9 +396,12 @@ export function resolveTransportKind(
   kind: SpokiTemplateKind,
   templateId: string | null,
   url: string | null,
-): 'TEMPLATE' | 'AUTOMATION' {
+): 'TEMPLATE' | 'AUTOMATION' | 'TEXT' {
   if (templateId !== null) {
     return 'TEMPLATE';
+  }
+  if (SPOKI_SESSION_TEXT_KINDS.includes(kind)) {
+    return 'TEXT';
   }
   if (url !== null) {
     return 'AUTOMATION';
@@ -370,7 +468,7 @@ export function maskSecret(secret: string): string {
 
 /** Copia del payload adatta a log e registro (segreto mascherato, se c'è). */
 export function payloadForLog(
-  payload: SpokiWebhookPayload | SpokiTemplateSendPayload,
+  payload: SpokiWebhookPayload | SpokiTemplateSendPayload | SpokiTextSendPayload,
 ): Readonly<Record<string, unknown>> {
   return 'secret' in payload ? { ...payload, secret: maskSecret(payload.secret) } : { ...payload };
 }

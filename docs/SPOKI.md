@@ -1,188 +1,134 @@
-# Spoki: WhatsApp che regge anche a server giù
+# Spoki: i WhatsApp dell'accettazione
 
-Questa pagina descrive cosa deve esistere nell'account Spoki perché i messaggi WhatsApp ai clienti
-continuino a funzionare anche quando il server dell'officina non risponde, e come si configura. La
-fonte unica di campi, testi e automazioni è [`scripts/spoki-spec.mjs`](../scripts/spoki-spec.mjs);
-`npm run spoki:setup` la applica all'account via API REST, con la stessa chiave dell'app. Formati e
-limiti vengono dalla documentazione API ufficiale di Spoki (collezione Postman, letta il 2026-09-24).
+Questa pagina dice quali template e campi dell'account Spoki usa l'app, cosa manca e come si
+verifica. La fonte unica di campi, testi e automazioni è
+[`scripts/spoki-spec.mjs`](../scripts/spoki-spec.mjs); `npm run spoki:setup` la confronta con
+l'account via API REST, con la stessa chiave dell'app. Formati e limiti vengono dalla documentazione
+API ufficiale di Spoki (collezione Postman, letta il 2026-09-24).
 
-> **Regola del committente (2026-09-25): ciò che esiste già nell'account Spoki non si modifica,
-> mai** — né template, né campi, né automazioni, né contatti. Si legge, si crea solo ciò che manca,
-> e l'approvazione a Meta si chiede solo per i template appena creati. Lo script lo impone in codice
-> (`chiamataAmmessa`), e con l'MCP si usano solo gli strumenti di lettura e di creazione.
+> **Regole del committente (2026-09-25)**
 >
-> **Demo interna.** Finché il committente non decide altrimenti i WhatsApp reali partono solo verso i
-> numeri di `SPOKI_ALLOWED_RECIPIENTS`: con `SPOKI_PUBLIC_SENDS=false` (predefinito) ogni altro
-> cliente resta in simulazione, anche con Spoki in `live` e il blocco di sicurezza tolto. Lo stesso
-> vale per gli aggiornamenti dei contatti. Le automazioni create dallo script nascono **disattivate**.
+> - **Ciò che esiste nell'account non si modifica, mai**: né template, né campi, né automazioni, né
+>   contatti. Si legge, si crea solo ciò che manca, e l'approvazione a Meta si chiede solo per i
+>   template appena creati (di norma la chiede il committente). Lo script lo impone in codice
+>   (`chiamataAmmessa`); con l'MCP si usano solo gli strumenti di lettura e di creazione.
+> - **I template da usare sono quelli che iniziano con 📅**, fatti apposta per questo sistema e già
+>   approvati. Le bozze `accettazione_*` e le automazioni «01 - Webhook Promemoria Domani» / «02 -
+>   Webhook Promemoria Oggi» restano come sono e l'app non le usa.
+> - **Demo interna**: i WhatsApp reali partono solo verso il numero di prova del committente
+>   (`SPOKI_ALLOWED_RECIPIENTS`); con `SPOKI_PUBLIC_SENDS=false` ogni altro cliente resta in
+>   simulazione, anche con Spoki in `live`.
 
-## Chi fa cosa
+## 1. Quale template per quale messaggio
 
-| Momento                      | Server su                                                                                                                              | Server giù                                                                                                                                        |
-| ---------------------------- | -------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Promemoria del giorno prima  | Lo manda l'app (template `acc_promemoria_giorno_prima`) e scrive sul contatto i campi `ACC_*`, con `ACC_PROMEMORIA = DA_INVIARE`       | Non parte: l'agenda di domani la conosce solo il server. Il giorno dopo il promemoria del mattino arriva comunque, se il server torna su in tempo |
-| Promemoria del mattino       | Lo manda l'app alle `REMINDER_SAME_DAY_HOUR_LOCAL` (`ACC_PROMEMORIA = INVIATO`) e disarma chi non deve riceverlo (`NON_SERVE`)         | Lo manda la **rete di sicurezza** Spoki alle `SPOKI_SAFETY_NET_TIME` a chi ha ancora `DA_INVIARE`                                                 |
-| Il cliente tocca un pulsante | L'automazione chiama l'app, che registra il fatto e restituisce il testo giusto (codice e link, «troppo presto», …); Spoki lo consegna | L'automazione manda il suo **testo di riserva**: il cliente ha comunque una risposta                                                              |
-| Esiti di consegna            | Webhook V2 `message.outbound` → stato WhatsApp della pratica                                                                           | Si perdono gli esiti del fermo; la coda funziona lo stesso                                                                                        |
+| Messaggio dell'app                                                  | Template                        | Id     | Variabile                       |
+| ------------------------------------------------------------------- | ------------------------------- | ------ | ------------------------------- |
+| Promemoria del giorno prima                                         | 📅 Reminder 24h Appuntamento    | 454558 | `SPOKI_TEMPLATE_REMINDER_D1_ID` |
+| Presa in carico                                                     | 📅 Conferma Accettazione        | 454762 | `SPOKI_TEMPLATE_WELCOME_ID`     |
+| Conferma della prenotazione (inserimento manuale)                   | 📅 Conferma Prenotazione        | 454556 | `SPOKI_TEMPLATE_BOOKING_ID`     |
+| Promemoria del mattino con «Sono arrivato / in ritardo / non vengo» | 📅 Promemoria Appuntamento Oggi | nuovo  | `SPOKI_TEMPLATE_SAME_DAY_ID`    |
+| Risposte ai pulsanti (codice e link, ritardo, assenza, «presto»)    | nessuno: **messaggio libero**   | —      | —                               |
+| Fine del check-in                                                   | nessuno: ripiega sull'SMS       | —      | `SPOKI_TEMPLATE_COMPLETE_ID`    |
+| Vettura pronta                                                      | 📅 Notifica Pronto Vettura      | —      | non usato dall'app              |
 
-## 1. Campi del contatto
+Le risposte ai pulsanti non hanno bisogno di un template: il cliente ha appena toccato un pulsante,
+quindi la finestra di 24 ore di WhatsApp è aperta e Spoki accetta un messaggio libero
+(`type: "Message"`). Il testo lo prepara l'app, con codice, smart link personale o «è ancora un po'
+presto».
 
-Spoki identifica i campi con un codice MAIUSCOLO e li richiama come `%%CODICE%%` in template,
-automazioni e webhook. Il prefisso `ACC_` li separa dai campi che l'account usa per altro.
+## 2. I campi di ciascun template
 
-| Codice           | Tipo  | Chi lo scrive                              | Esempio                                |
-| ---------------- | ----- | ------------------------------------------ | -------------------------------------- |
-| `ACC_CODICE`     | testo | l'app, a ogni invio                        | `F041`                                 |
-| `ACC_TARGA`      | testo | l'app, a ogni invio                        | `AB123CD`                              |
-| `ACC_DATA`       | testo | l'app, a ogni invio                        | `24/09/2026`                           |
-| `ACC_ORA`        | testo | l'app, a ogni invio                        | `09:30`                                |
-| `ACC_GIORNO`     | data  | l'app, a ogni invio (AAAA-MM-GG)           | `2026-09-24`                           |
-| `ACC_LINK`       | testo | l'app, a ogni invio (smart link personale) | `https://…/portal/<token>`             |
-| `ACC_PROMEMORIA` | testo | l'app e la rete di sicurezza               | `DA_INVIARE` · `INVIATO` · `NON_SERVE` |
-| `ACC_ESITO`      | testo | le automazioni dei pulsanti                | `ATTESA` finché il server non risponde |
-| `ACC_RISPOSTA`   | testo | le automazioni dei pulsanti                | il testo preparato dal server          |
+Ogni template riceve **solo i suoi** campi, con i codici che l'account già usa. Un template **non
+parte se uno dei suoi campi è vuoto** (Meta rifiuterebbe una variabile vuota, e un «📍 Sede:» vuoto
+al cliente non va): il messaggio ripiega sull'SMS e il registro del pannello Spoki dice quale campo
+manca.
 
-## 2. Template
+| Campo                                | Da dove viene                                                                      | Reminder 24h | Conferma Accettazione | Conferma Prenotazione | Mattino |
+| ------------------------------------ | ---------------------------------------------------------------------------------- | :----------: | :-------------------: | :-------------------: | :-----: |
+| `NOME_CLIENTE`                       | nome e cognome della pratica (o la ragione sociale)                                |      ✓       |           ✓           |           ✓           |    ✓    |
+| `DATA_PRENOTAZIONE`                  | giorno dell'appuntamento, GG/MM/AAAA                                               |      ✓       |                       |                       |         |
+| `ORA_PRENOTAZIONE`                   | ora dell'appuntamento, HH:mm                                                       |      ✓       |                       |                       |    ✓    |
+| `DATA` / `ORA`                       | giorno e ora dell'appuntamento                                                     |              |                       |           ✓           |         |
+| `LUOGO`                              | `SPOKI_LUOGO` — **ancora da decidere**                                             |      ✓       |                       |           ✓           |         |
+| `_MARCA_E_MODELLO_`                  | marca e modello del veicolo                                                        |      ✓       |           ✓           |           ✓           |    ✓    |
+| `_TARGA_`                            | targa                                                                              |      ✓       |           ✓           |           ✓           |    ✓    |
+| `_NOME_ACCETTATORE_`                 | chi ha preso in carico la pratica (altrimenti l'accettatore assegnato in Infinity) |              |           ✓           |                       |         |
+| `_DATA_PREVISTA_` / `_ORA_PREVISTA_` | riconsegna prevista da Infinity (`data_prevcons`/`ora_prevcons`)                   |              |           ✓           |                       |         |
 
-Tutti in categoria **UTILITY** (comunicazioni di servizio su un appuntamento già preso), lingua
-italiana. I testi sono gli stessi che l'app manda via SMS quando WhatsApp non arriva; Meta non
-accetta un corpo che comincia o finisce con una variabile, per questo i messaggi con il link
-finiscono con una frase.
+**Finché `SPOKI_LUOGO` è vuoto, il 📅 Reminder 24h e la 📅 Conferma Prenotazione non partono su
+WhatsApp.** Il testo della sede lo indica il committente.
 
-| Template                      | Variabile con l'id                | Pulsanti rapidi                                   |
-| ----------------------------- | --------------------------------- | ------------------------------------------------- |
-| `acc_promemoria_giorno_prima` | `SPOKI_TEMPLATE_REMINDER_D1_ID`   | —                                                 |
-| `acc_promemoria_giorno`       | `SPOKI_TEMPLATE_SAME_DAY_ID`      | «Sono arrivato», «In ritardo», «Non posso venire» |
-| `acc_arrivo_confermato`       | `SPOKI_TEMPLATE_ARRIVED_REPLY_ID` | —                                                 |
-| `acc_ritardo_confermato`      | `SPOKI_TEMPLATE_LATE_REPLY_ID`    | —                                                 |
-| `acc_assenza_confermata`      | `SPOKI_TEMPLATE_ABSENT_REPLY_ID`  | —                                                 |
-| `acc_arrivo_troppo_presto`    | `SPOKI_TEMPLATE_EARLY_REPLY_ID`   | —                                                 |
-| `acc_accettazione_iniziata`   | `SPOKI_TEMPLATE_WELCOME_ID`       | —                                                 |
-| `acc_accettazione_completata` | `SPOKI_TEMPLATE_COMPLETE_ID`      | —                                                 |
+Con ogni template l'app manda i payload dei pulsanti: `ACTION_CONTACT` / `ACTION_CHANGE` per
+«Contattaci» / «Modifica» dei 📅, `ACTION_ARRIVED` / `ACTION_LATE` / `ACTION_ABSENT` per il mattino.
+Tornano nel webhook `message.inbound`: i primi due la coda li ignora (sono per le automazioni), gli
+altri tre li registra.
 
-I testi completi sono in `scripts/spoki-spec.mjs`. Quando l'app manda il promemoria del giorno via
-API allega ai tre pulsanti i payload `ACTION_ARRIVED`, `ACTION_LATE`, `ACTION_ABSENT`, che tornano
-nel webhook `message.inbound`.
+## 3. Il template del mattino (da creare in bozza)
 
-## 3. Automazioni
+Nome «📅 Promemoria Appuntamento Oggi», categoria UTILITY, italiano, nello stile dei 📅. Intestazione
+«Promemoria Appuntamento Oggi»; corpo con `%%NOME_CLIENTE%%`, `%%ORA_PRENOTAZIONE%%`,
+`%%_MARCA_E_MODELLO_%%`, `%%_TARGA_%%` e la firma «_Il Team Autoclub_»; tre pulsanti rapidi «Sono
+arrivato», «Sono in ritardo», «Non posso venire». Il testo esatto è in `scripts/spoki-spec.mjs`.
+Si crea in bozza con `npm run spoki:setup -- --apply`; l'approvazione a Meta la chiede il committente
+da Spoki.
 
-### 3.1 Le tre risposte ai pulsanti
+## 4. Automazioni (da decidere)
 
-`ACC · Risposta «Sono arrivato»`, `ACC · Risposta «In ritardo»`, `ACC · Risposta «Non posso venire»`.
+Nessuna automazione è stata creata. Sono pronte nella specifica, per quando il committente lo dirà:
 
-**Trigger** (si sceglie nell'editor di Spoki: l'API non lo espone): _Messaggio del cliente → clic su
-un pulsante di un template inviato_, template `acc_promemoria_giorno`, il pulsante corrispondente.
+- **«Contattaci» e «Modifica» dei 📅** — cosa devono fare è da definire (per esempio: risposta al
+  cliente, nota o ticket per il personale, lead al BDC per «Modifica»).
+- **Risposte ai pulsanti del mattino a server giù** (`ACC · Risposta …`): l'automazione chiama
+  l'app dal suo passo «webhook» (`source: "automation"`, intestazione `x-spoki-secret`), consegna il
+  testo che l'app restituisce (`data.risposta`) o, se l'app non risponde, un testo di riserva.
+  Richiedono l'indirizzo https pubblico dell'app e i campi `ACC_ESITO`, `ACC_RISPOSTA`.
+- **Rete di sicurezza del mattino**: trigger sulla data `ACC_GIORNO` all'ora
+  `SPOKI_SAFETY_NET_TIME`, manda il promemoria del mattino a chi ha ancora `ACC_PROMEMORIA =
+DA_INVIARE`. Richiede i campi `ACC_GIORNO` e `ACC_PROMEMORIA` (l'app li scrive solo con la rete
+  accesa).
 
-**Passi** (li crea lo script):
+I campi `ACC_*` non esistono nell'account e si creano solo insieme alle automazioni
+(`--automazioni`). Il trigger «clic su un pulsante di un template» non è nell'API: si sceglie
+nell'editor di Spoki.
 
-1. _Imposta campo_ `ACC_ESITO = ATTESA` e `ACC_RISPOSTA = -`.
-2. _Webhook_ `POST <indirizzo pubblico>/api/v1/webhooks/spoki`, intestazioni
-   `content-type: application/json` e `x-spoki-secret: <SPOKI_INBOUND_SECRET>`, corpo:
-   ```json
-   {
-     "source": "automation",
-     "phone": "{{ contact.phone }}",
-     "reply": "ACTION_ARRIVED",
-     "code": "%%ACC_CODICE%%"
-   }
-   ```
-   (`ACTION_LATE` / `ACTION_ABSENT` nelle altre due). **Mappatura della risposta**: `data.esito` →
-   `ACC_ESITO`, `data.risposta` → `ACC_RISPOSTA`.
-3. _Se/altrimenti_ `ACC_ESITO` uguale a `ATTESA` (il server non ha risposto) → messaggio di
-   riserva; altrimenti, se `ACC_RISPOSTA` è diverso da `-`, messaggio libero `%%ACC_RISPOSTA%%`.
-
-La rotta dell'app registra il fatto (arrivo con la finestra di anticipo, ritardo, assenza che
-diventa lead per il BDC) e risponde con `esito` (`ARRIVATO`, `TROPPO_PRESTO`, `GIA_REGISTRATO`,
-`RITARDO`, `ASSENTE`, `NESSUNA_PRATICA`, `NON_RICONOSCIUTO`) e `risposta` (il testo per il cliente,
-vuoto quando non c'è niente da dire). Una chiamata dell'automazione non fa mai partire un messaggio
-dall'app.
-
-**Testi di riserva** (server giù):
-
-- Sono arrivato — «Grazie! Abbiamo ricevuto la sua conferma di arrivo per la vettura %%ACC_TARGA%%.
-  Il suo codice è %%ACC_CODICE%%: si accomodi, la chiameremo con questo codice.»
-- In ritardo — «Grazie per l'avviso! Abbiamo informato l'accettazione del suo ritardo. Quando arriva
-  in officina avvisi il nostro personale.»
-- Non posso venire — «Grazie per la comunicazione, abbiamo preso nota che oggi non potrà venire. Un
-  nostro operatore la ricontatterà per fissare un nuovo appuntamento.»
-
-Con le tre automazioni attive si mette `SPOKI_REPLIES_BY_AUTOMATION=true`: la stessa tocca che
-arriva anche dal webhook V2 non fa partire una seconda conferma dall'app. Un messaggio scritto a
-mano («sono in ritardo») resta all'app, perché nessuna automazione lo intercetta.
-
-### 3.2 Rete di sicurezza del promemoria del mattino
-
-`ACC · Rete di sicurezza promemoria del mattino`.
-
-**Trigger**: condizione su campo data `ACC_GIORNO` = oggi, alle `SPOKI_SAFETY_NET_TIME` (es. 08:30,
-dopo `REMINDER_SAME_DAY_HOUR_LOCAL`). **Passi**: _Se_ `ACC_PROMEMORIA` uguale a `DA_INVIARE` →
-template `acc_promemoria_giorno` (variabili `%%ACC_ORA%%`, `%%ACC_TARGA%%`) e _Imposta campo_
-`ACC_PROMEMORIA = INVIATO`.
-
-L'app, quando c'è, fa in modo che la rete non raddoppi e non scriva a chi non deve: dopo il suo
-promemoria scrive `NON_SERVE` su chi ha avuto il promemoria del giorno prima su WhatsApp ma non
-quello di oggi (annullate, già arrivate, in carico, promemoria finito sull'SMS), e dalle
-`SPOKI_SAFETY_NET_TIME` non manda più il promemoria del giorno, nemmeno rimettendosi in pari dopo un
-riavvio.
-
-## 4. Webhook V2 dell'account
+## 5. Webhook V2 dell'account
 
 Due webhook (Spoki ne vuole uno per evento, ognuno con il suo segreto `whsec_…`), entrambi verso
-`<indirizzo pubblico>/api/v1/webhooks/spoki`:
+`<indirizzo pubblico>/api/v1/webhooks/spoki`: `message.outbound` (esiti di consegna) e
+`message.inbound` (messaggi del cliente e tocchi sui pulsanti). `SPOKI_WEBHOOK_SECRET` accetta i due
+segreti separati da virgola. Anche questi aspettano l'indirizzo https pubblico.
 
-- `message.outbound` — esiti di consegna (inviato, consegnato, letto, fallito);
-- `message.inbound` — messaggi del cliente, compresi i tocchi sui pulsanti.
-
-`SPOKI_WEBHOOK_SECRET` accetta i due segreti separati da virgola.
-
-## 5. `npm run spoki:setup`
+## 6. `npm run spoki:setup`
 
 ```bash
 npm run spoki:setup
 ```
 
-Di base **controlla soltanto**: elenca campi, template, automazioni (e con `--webhooks` i webhook)
-e dice cosa c'è e cosa manca. Opzioni:
+Di base **controlla soltanto**: i template 📅 ci sono e sono approvati? i campi ci sono? il
+template del mattino esiste già? Opzioni:
 
-- `--apply` crea ciò che manca: campi, template **in bozza**, automazioni **disattivate**;
-- `--submit` chiede a Meta l'approvazione dei template in bozza;
-- `--app-url=https://…` indirizzo pubblico dell'app (predefinito `PUBLIC_BASE_URL`): serve alle
-  automazioni dei pulsanti e ai webhook, e deve essere `https` raggiungibile da Spoki;
+- `--apply` crea ciò che manca: il template del mattino **in bozza** (ed eventuali campi mancanti);
+- `--submit` chiede a Meta l'approvazione dei soli template appena creati;
+- `--automazioni` include campi `ACC_*` e automazioni (con `--apply` li crea, disattivate);
+- `--app-url=https://…` indirizzo pubblico dell'app (predefinito `PUBLIC_BASE_URL`);
 - `--webhooks` controlla (e con `--apply` crea) i due webhook V2;
-- `--write-env` scrive in `.env.local` gli id dei template e i segreti dei webhook creati;
-- `--safety-net-time=08:30` ora della rete (predefinito `SPOKI_SAFETY_NET_TIME`).
+- `--write-env` scrive in `.env.local` gli id dei template e i segreti dei webhook creati.
 
-Non stampa mai chiave API né segreti, non modifica e non cancella niente di ciò che esiste: ogni
+Non stampa mai chiave API né segreti e non modifica né cancella niente di ciò che esiste: ogni
 chiamata che non sia una lettura, una creazione o l'approvazione di un template appena creato viene
-fermata prima di partire. Rispetta i limiti di Spoki (i campi personalizzati ammettono 5 chiamate al
-minuto: la prima creazione richiede un paio di minuti).
+fermata prima di partire. Con più template dallo stesso nome sceglie quello approvato e lo dice.
 
 ### Con l'MCP di Spoki
 
 L'MCP ufficiale (`https://mcp.spoki.com/v2/mcp`, intestazione `X-Spoki-Api-Key`, chiave da
 _app.spoki.it → Integrazioni → Spoki MCP → Request Api Key_) crea **template** e **campi
 personalizzati** e sa elencare, attivare, disattivare e avviare le automazioni, ma **non le crea**:
-per quelle resta l'API REST (`POST /api/1/automations/`), cioè questo script, con la stessa
-intestazione. Con l'MCP collegato si usano solo `get_*`, `create_template`, `create_custom_field`
-e, a richiesta, `submit_template` sui template appena creati; mai `update_*` né `delete_*`, e
-`trigger_automation` solo verso il numero di prova. Per collegarlo, nel proprio terminale (la chiave
-non passa dalla chat):
+per quelle resta l'API REST (`POST /api/1/automations/`), con la stessa intestazione. Con l'MCP si
+usano solo `get_*`, `create_template`, `create_custom_field` e, a richiesta, `submit_template` sui
+template appena creati; mai `update_*` né `delete_*`, e `trigger_automation` solo verso il numero di
+prova.
 
-```bash
-claude mcp add --transport http spoki https://mcp.spoki.com/v2/mcp --header "X-Spoki-Api-Key: LA_CHIAVE" --scope user
-```
-
-## 6. Passi a mano
-
-1. **Approvazione dei template** da parte di Meta: si segue in Spoki → Template.
-2. **Trigger delle tre risposte**: nell'editor di ogni `ACC · Risposta …`, trigger _clic su un
-   pulsante di un template_ sul pulsante giusto di `acc_promemoria_giorno`; controllare anche che
-   la mappatura della risposta del webhook sia `data.esito → ACC_ESITO`, `data.risposta →
-ACC_RISPOSTA`. Poi **Attiva**.
-3. **Dopo la prova interna**: attivare la rete di sicurezza e impostare in `.env.local`
-   `SPOKI_SAFETY_NET_TIME` (la stessa ora del trigger) e `SPOKI_REPLIES_BY_AUTOMATION=true`.
-
-## 7. `.env.local` per la demo interna
+## 7. `.env.local`
 
 ```
 SPOKI_ENABLED=true
@@ -190,41 +136,37 @@ SPOKI_PROVIDER=real
 SPOKI_API_KEY=<chiave dell'account>
 SPOKI_MODE=live
 SPOKI_SAFETY_LOCK=false
-SPOKI_ALLOWED_RECIPIENTS=<numeri interni, E.164, separati da virgola>
+SPOKI_ALLOWED_RECIPIENTS=<numero di prova del committente, E.164>
 SPOKI_PUBLIC_SENDS=false
-SPOKI_INBOUND_SECRET=<segreto delle risposte, almeno 16 caratteri>
-SPOKI_WEBHOOK_SECRET=<whsec_… di message.inbound>,<whsec_… di message.outbound>
-SPOKI_TEMPLATE_…_ID=<id dei template approvati>
-SPOKI_REPLIES_BY_AUTOMATION=true
-SPOKI_SAFETY_NET_TIME=08:30
-PUBLIC_BASE_URL=https://<indirizzo pubblico dell'app>
+SPOKI_TEMPLATE_REMINDER_D1_ID=454558
+SPOKI_TEMPLATE_WELCOME_ID=454762
+SPOKI_TEMPLATE_BOOKING_ID=454556
+SPOKI_TEMPLATE_SAME_DAY_ID=<id del template del mattino, quando approvato>
+SPOKI_LUOGO=<sede, da decidere>
 ```
 
+Più avanti, con l'indirizzo https pubblico: `PUBLIC_BASE_URL`, `SPOKI_WEBHOOK_SECRET`,
+`SPOKI_INBOUND_SECRET`, e per le automazioni `SPOKI_REPLIES_BY_AUTOMATION` e `SPOKI_SAFETY_NET_TIME`.
 Chiave e segreti si scrivono solo in `.env.local`, mai in chat o nei documenti.
 
-## 8. Prova della demo interna
+## 8. Prova della demo interna (quando si accende)
 
-1. Una prenotazione di prova con il telefono di un numero interno.
-2. Promemoria del giorno prima (Amministrazione › Sistema › Spoki, o `POST
-/api/v1/system/cron/reminders?kind=previous-day`): arriva il messaggio; in Spoki il contatto ha i
-   campi `ACC_*` e `ACC_PROMEMORIA = DA_INVIARE`.
-3. Promemoria del mattino: arriva con i tre pulsanti; `ACC_PROMEMORIA = INVIATO`.
-4. Tocco su ciascun pulsante con il server acceso: risposta con codice e link (o «troppo presto»),
-   pratica aggiornata in dashboard, nessun doppio messaggio.
-5. Server spento, tocco su un pulsante: arriva il testo di riserva.
-6. Rete di sicurezza: server spento all'ora del promemoria, automazione attiva → il promemoria parte
-   da Spoki all'ora della rete. Verificare qui il formato di `ACC_GIORNO` che il trigger a data
-   accetta (l'app scrive AAAA-MM-GG).
-7. Un numero **non** in `SPOKI_ALLOWED_RECIPIENTS`: nel registro del pannello Spoki compare «demo ·
-   numero fuori lista» e al cliente non arriva niente.
+1. Una prenotazione di prova con il numero di prova.
+2. Presa in carico: arriva la 📅 Conferma Accettazione con accettatore, marca e modello, targa e
+   riconsegna prevista.
+3. Promemoria del giorno prima e conferma prenotazione: partono solo con `SPOKI_LUOGO` impostato;
+   senza, il registro del pannello dice «campi del template vuoti (LUOGO)».
+4. Promemoria del mattino (dopo l'approvazione): tre pulsanti; ogni tocco aggiorna la pratica e
+   riceve la risposta come messaggio libero.
+5. Un numero diverso da quello di prova: nel registro compare «demo · numero fuori lista» e non
+   arriva niente.
 
 ## 9. Limiti noti
 
-- Le risposte date durante un fermo del server non vengono registrate sulla pratica (l'automazione
-  non riesce a chiamare l'app): restano nella chat di Spoki, e a fine giornata chi non si è
-  presentato arriva comunque al CRM del BDC come assente.
+- Senza indirizzo https pubblico Spoki non può chiamare l'app: niente esiti di consegna né tocchi
+  sui pulsanti registrati in automatico finché non c'è.
 - Il promemoria del giorno prima non ha rete di sicurezza: l'agenda di domani la conosce solo il
   server.
-- Dove l'API di Spoki non documenta un dettaglio (formato del valore di un campo data per il
-  trigger, forma della mappatura della risposta del webhook), lo script usa la forma più probabile e
-  il punto va verificato nell'editor alla prima prova.
+- Dove l'API di Spoki non documenta un dettaglio (formato di un campo data per il trigger, forma
+  della mappatura della risposta del webhook), la specifica usa la forma più probabile e il punto va
+  verificato nell'editor alla prima prova.

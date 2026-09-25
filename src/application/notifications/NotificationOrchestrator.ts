@@ -28,6 +28,7 @@ import type { Result } from '@/domain/result';
 import { err, ok } from '@/domain/result';
 import type { IsoDateTime } from '@/domain/value-objects/iso-date';
 import type { PhoneE164 } from '@/domain/value-objects/phone';
+import type { IOperatorRepository } from '@/repositories/interfaces';
 import type { INotificationRepository } from '@/repositories/interfaces/INotificationRepository';
 import type { DeliveryStatus, ProviderError, SendReceipt } from '@/services/interfaces/common';
 import type { IClock } from '@/services/interfaces/IClock';
@@ -36,7 +37,7 @@ import type { IIdGenerator } from '@/services/interfaces/IIdGenerator';
 import type { ILogger } from '@/services/interfaces/ILogger';
 import type { ISmsHostingService } from '@/services/interfaces/ISmsHostingService';
 import type { ISpokiService } from '@/services/interfaces/ISpokiService';
-import { buildTemplateVars, NOTIFICATION_TEMPLATES } from './templates';
+import { buildTemplateVars, NOTIFICATION_TEMPLATES, readableName } from './templates';
 
 /**
  * Esito leggibile dell'orchestrazione.
@@ -104,6 +105,10 @@ export interface NotificationOrchestratorDeps {
   readonly whatsappDelivery?: WhatsAppDeliverySink;
   /** Minuti di anticipo ammessi per «Sono arrivato» (SPOKI_MAX_EARLY_ARRIVAL_MINUTES): finisce nel testo. */
   readonly maxEarlyArrivalMinutes?: number;
+  /** SPOKI_LUOGO: la sede scritta nei messaggi (📅 Reminder 24h, Conferma Prenotazione). */
+  readonly siteName?: string;
+  /** Per il nome di chi ha preso in carico la pratica (📅 Conferma Accettazione). */
+  readonly operators?: IOperatorRepository;
   /**
    * C'è qualcuno che ritenta davvero (`NOTIFICATION_RETRY_ENABLED` e messaggistica attiva)? Se no,
    * un fallimento temporaneo non promette un «nuovo tentativo alle…» che non arriverebbe mai: va
@@ -196,8 +201,23 @@ export class NotificationOrchestrator {
         this.deps.publicBaseUrl ?? '',
         this.deps.portalToken?.(appointment.id) ?? null,
         this.deps.maxEarlyArrivalMinutes,
+        { site: this.deps.siteName ?? '' },
       ),
     );
+  }
+
+  /**
+   * Chi è l'accettatore per il cliente: chi ha preso in carico la pratica, altrimenti quello a cui
+   * Infinity l'ha assegnata (il nome del gestionale è tutto maiuscolo: lo si rende leggibile).
+   */
+  private async advisorNameOf(appointment: Appointment): Promise<string> {
+    if (appointment.operatorId !== null && this.deps.operators !== undefined) {
+      const operatore = await this.deps.operators.findById(appointment.operatorId);
+      if (operatore !== null && operatore.displayName.trim() !== '') {
+        return operatore.displayName.trim();
+      }
+    }
+    return readableName(appointment.assignedAdvisor?.name ?? '');
   }
 
   async sendReminder(input: SendReminderInput): Promise<NotificationRun> {
@@ -218,6 +238,7 @@ export class NotificationOrchestrator {
       this.deps.publicBaseUrl ?? '',
       this.deps.portalToken?.(appointment.id) ?? null,
       this.deps.maxEarlyArrivalMinutes,
+      { advisorName: await this.advisorNameOf(appointment), site: this.deps.siteName ?? '' },
     );
     const renderedText = NOTIFICATION_TEMPLATES[kind].render(vars);
     const now = this.deps.clock.nowIso();

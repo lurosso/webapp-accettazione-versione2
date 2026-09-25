@@ -605,16 +605,20 @@ rimettendosi in pari dopo un riavvio. Vuota (predefinito) = rete spenta, tutto c
 `false` (predefinito `true`). Con l'interruttore spento o senza chiave la modalità effettiva è la
 simulazione qualunque cosa dica `SPOKI_MODE`, e il log lo dice all'avvio. Con il blocco attivo l'adapter non
 apre alcuna connessione: formatta il payload nel formato Spoki (`secret`, `phone` in E.164,
-`first_name`, `last_name`, `email`, `custom_fields` con i campi del contatto `ACC_*`), lo scrive nel log e nel registro del pannello, e risponde come se fosse andato.
+`first_name`, `last_name`, `email`, `custom_fields` con i campi del template), lo scrive nel log e nel registro del pannello, e risponde come se fosse andato.
 
-**Campi del contatto.** Spoki identifica i campi personalizzati con un codice MAIUSCOLO e li
-richiama come `%%CODICE%%` in template, automazioni e webhook. A ogni invio l'app scrive sul
-contatto `ACC_CODICE`, `ACC_TARGA`, `ACC_DATA` (GG/MM/AAAA), `ACC_ORA`, `ACC_GIORNO`
-(AAAA-MM-GG, campo data per le automazioni a data), `ACC_LINK` (smart link personale) e
-`ACC_PROMEMORIA` (`DA_INVIARE` dopo il promemoria del giorno prima, `INVIATO` dopo qualunque
-messaggio del giorno stesso): così le automazioni di Spoki hanno tutto quello che serve anche quando
-il server dell'officina non risponde. Campi, template, automazioni e configurazione dell'account
-(`npm run spoki:setup`) sono in [`docs/SPOKI.md`](docs/SPOKI.md).
+**Template 📅.** Dal 2026-09-25 i messaggi usano i template approvati dell'account che iniziano con
+📅, fatti per questo sistema: il promemoria del giorno prima è «📅 Reminder 24h Appuntamento», la
+presa in carico «📅 Conferma Accettazione» (con chi l'ha presa in carico e la riconsegna prevista da
+Infinity), la conferma della prenotazione «📅 Conferma Prenotazione». Il promemoria del mattino con
+«Sono arrivato / Sono in ritardo / Non posso venire» avrà un template nuovo, «📅 Promemoria
+Appuntamento Oggi», da far approvare. Ogni template riceve i **suoi** campi, con i codici che
+l'account già usa (`NOME_CLIENTE`, `_TARGA_`, `_MARCA_E_MODELLO_`, `LUOGO`…), e **non parte se
+uno è vuoto**: ripiega sull'SMS e il registro del pannello Spoki dice quale campo manca. La sede
+(`SPOKI_LUOGO`) è ancora da decidere, quindi per ora il 📅 Reminder 24h e la 📅 Conferma
+Prenotazione non partono su WhatsApp. Le risposte ai pulsanti partono come **messaggio libero**: il
+cliente ha appena toccato un pulsante, la finestra di 24 ore di WhatsApp è aperta. Campi, testi,
+automazioni e `npm run spoki:setup` sono in [`docs/SPOKI.md`](docs/SPOKI.md).
 
 **Demo interna.** Dal 2026-09-24 i test su WhatsApp sono solo interni. Anche con `SPOKI_MODE=live` e
 il blocco tolto, un WhatsApp reale parte **solo** verso i numeri di `SPOKI_ALLOWED_RECIPIENTS` (i

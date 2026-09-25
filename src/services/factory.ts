@@ -128,6 +128,8 @@ export function createExternalServices(env: AppEnv, deps: ExternalServiceDeps): 
             // Demo interna: finché SPOKI_PUBLIC_SENDS è spento ricevono davvero solo questi numeri.
             allowedRecipients: env.spokiAllowedRecipients,
             publicSends: env.spokiPublicSends,
+            // I campi della rete di sicurezza si scrivono solo quando la rete è accesa.
+            safetyNetFields: env.spokiSafetyNetTime !== null,
             apiKey: env.spokiApiKey,
             apiBaseUrl: env.spokiApiBaseUrl,
             urls: {
@@ -167,7 +169,7 @@ export function createExternalServices(env: AppEnv, deps: ExternalServiceDeps): 
               ARRIVAL_TOO_EARLY: env.spokiTemplateEarlyReplyId,
               CHECK_IN_STARTED: env.spokiTemplateWelcomeId,
               CHECK_IN_COMPLETED: env.spokiTemplateCompleteId,
-              CONFIRMATION: null,
+              CONFIRMATION: env.spokiTemplateBookingId,
               TURN_APPROACHING: null,
               CANCELLATION: null,
             },

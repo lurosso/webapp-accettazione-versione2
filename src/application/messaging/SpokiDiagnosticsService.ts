@@ -40,6 +40,7 @@ export const SPOKI_TEST_KINDS = [
   'ARRIVAL_TOO_EARLY',
   'CHECK_IN_STARTED',
   'CHECK_IN_COMPLETED',
+  'BOOKING_CONFIRMED',
 ] as const satisfies readonly NotificationKind[];
 
 export type SpokiTestKind = (typeof SPOKI_TEST_KINDS)[number];
@@ -71,6 +72,14 @@ export type SpokiTemplateStatus =
       readonly templateConfigured: boolean;
       /** Id del template: non è un segreto, si può mostrare. */
       readonly templateId: string | null;
+    }
+  | {
+      /** Risposta a un pulsante: messaggio libero, la finestra di 24 ore è aperta dal tocco. */
+      readonly kind: SpokiTestKind;
+      readonly label: string;
+      readonly transport: 'TEXT';
+      /** Variabile con cui dargli comunque un template, se un giorno servisse. */
+      readonly templateEnvKey: string;
     };
 
 export interface SpokiOverview {
@@ -141,7 +150,10 @@ export interface SpokiDiagnosticsConfig {
     readonly arrivalTooEarly?: string | null;
     readonly checkInStarted: string | null;
     readonly checkInCompleted: string | null;
+    readonly bookingConfirmed?: string | null;
   };
+  /** SPOKI_LUOGO: la sede dei template 📅 (facoltativa nei test). */
+  readonly siteName?: string | null;
   /** SPOKI_OVERRIDE_CONSENT (facoltativo nei test). */
   readonly consentOverride?: boolean;
   /** SPOKI_ALLOWED_RECIPIENTS e SPOKI_PUBLIC_SENDS (facoltativi nei test: demo senza numeri). */
@@ -196,8 +208,9 @@ export const SPOKI_TEST_KIND_LABELS: Readonly<Record<SpokiTestKind, string>> = {
   LATE_CONFIRMED: 'Risposta a «In ritardo»',
   ABSENT_CONFIRMED: 'Risposta a «Non posso venire»',
   ARRIVAL_TOO_EARLY: 'Risposta a «Sono arrivato» troppo presto',
-  CHECK_IN_STARTED: 'Presa in carico (link al portale)',
+  CHECK_IN_STARTED: 'Presa in carico (📅 Conferma Accettazione)',
   CHECK_IN_COMPLETED: 'Accettazione completata',
+  BOOKING_CONFIRMED: 'Conferma prenotazione (📅 Conferma Prenotazione)',
 };
 
 function maskKey(key: string): string {
@@ -277,6 +290,15 @@ export class SpokiDiagnosticsService {
       templateConfigured: templateId !== null,
       templateId,
     });
+    // Le risposte ai pulsanti: con un id vanno col template, senza come messaggio libero.
+    const risposta = (
+      kind: SpokiTestKind,
+      templateEnvKey: string,
+      templateId: string | null,
+    ): SpokiTemplateStatus =>
+      templateId !== null
+        ? template(kind, templateEnvKey, templateId)
+        : { kind, label: SPOKI_TEST_KIND_LABELS[kind], transport: 'TEXT', templateEnvKey };
     return {
       provider: c.provider,
       enabled,
@@ -315,22 +337,22 @@ export class SpokiDiagnosticsService {
               c.templateIds?.reminderSameDay ?? null,
             )
           : automazione('REMINDER_SAME_DAY', c.reminders.sameDay, 'REMINDER_SAME_DAY'),
-        template(
+        risposta(
           'ARRIVAL_CONFIRMED',
           'SPOKI_TEMPLATE_ARRIVED_REPLY_ID',
           c.templateIds?.arrivalConfirmed ?? null,
         ),
-        template(
+        risposta(
           'LATE_CONFIRMED',
           'SPOKI_TEMPLATE_LATE_REPLY_ID',
           c.templateIds?.lateConfirmed ?? null,
         ),
-        template(
+        risposta(
           'ABSENT_CONFIRMED',
           'SPOKI_TEMPLATE_ABSENT_REPLY_ID',
           c.templateIds?.absentConfirmed ?? null,
         ),
-        template(
+        risposta(
           'ARRIVAL_TOO_EARLY',
           'SPOKI_TEMPLATE_EARLY_REPLY_ID',
           c.templateIds?.arrivalTooEarly ?? null,
@@ -344,6 +366,11 @@ export class SpokiDiagnosticsService {
           'CHECK_IN_COMPLETED',
           'SPOKI_TEMPLATE_COMPLETE_ID',
           c.templateIds?.checkInCompleted ?? null,
+        ),
+        template(
+          'BOOKING_CONFIRMED',
+          'SPOKI_TEMPLATE_BOOKING_ID',
+          c.templateIds?.bookingConfirmed ?? null,
         ),
       ],
       publicBaseUrl: c.publicBaseUrl,
@@ -397,6 +424,13 @@ export class SpokiDiagnosticsService {
       brandName: 'Autoclub Group',
       portalUrl: buildPortalUrl(this.deps.config.publicBaseUrl, 'AB123CD'),
       earlyArrivalWindowMinutes: String(DEFAULT_MAX_EARLY_ARRIVAL_MINUTES),
+      customerName: `${input.firstName ?? 'Test'} Prova`,
+      vehicleLabel: 'Fiat Panda 1.0 Hybrid',
+      advisorName: 'Accettatore di prova',
+      expectedDeliveryDate: formatBusinessDateIt(giornata),
+      expectedDeliveryTime: '17:00',
+      // Senza SPOKI_LUOGO i template con la sede non partono: la prova lo dice, come l'invio vero.
+      site: this.deps.config.siteName ?? '',
     };
     const text = template.render(vars);
     const correlationId = this.deps.ids.next();

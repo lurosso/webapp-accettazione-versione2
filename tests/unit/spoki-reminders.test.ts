@@ -77,7 +77,7 @@ describe('Promemoria: variabili e testi', () => {
 });
 
 describe('Promemoria: dal record della pratica al payload Spoki, passando dal servizio reale bloccato', () => {
-  it('il payload ha phone E.164, first_name e i campi del contatto ACC_* nel formato Spoki', async () => {
+  it('il payload del 📅 Reminder 24h ha phone E.164, nome e i campi del template riempiti dalla pratica', async () => {
     const env = buildTestEnv();
     const clock = new TestClock();
     const ids = new SequentialIdGenerator('p');
@@ -145,6 +145,9 @@ describe('Promemoria: dal record della pratica al payload Spoki, passando dal se
       env.seed.brands[0]!,
       'Europe/Rome',
       'https://officina.example',
+      null,
+      60,
+      { site: 'Autoclub' },
     );
     const r = await spoki.sendTemplateMessage({
       idempotencyKey: `${a.id}:REMINDER_PREVIOUS_DAY:2026-09-11:WA:1`,
@@ -161,13 +164,13 @@ describe('Promemoria: dal record della pratica al payload Spoki, passando dal se
       first_name: 'Anna',
       last_name: 'Bianchi',
       email: 'anna@esempio.it',
+      // I campi del 📅 Reminder 24h, riempiti dalla pratica (la sede da SPOKI_LUOGO).
       custom_fields: {
-        ACC_CODICE: a.code,
-        ACC_TARGA: a.vehicle.plate,
-        ACC_DATA: '11/09/2026',
-        ACC_ORA: '09:30',
-        ACC_GIORNO: '2026-09-11',
-        ACC_LINK: `https://officina.example/portal?targa=${a.vehicle.plate}`,
+        NOME_CLIENTE: 'Anna Bianchi',
+        DATA_PRENOTAZIONE: '11/09/2026',
+        ORA_PRENOTAZIONE: '09:30',
+        LUOGO: 'Autoclub',
+        _TARGA_: a.vehicle.plate,
       },
     });
   });

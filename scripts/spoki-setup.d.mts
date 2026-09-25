@@ -3,9 +3,11 @@ export interface PianoSpoki {
   readonly campi: { code: string; id: number | string | null; tipoGiusto: boolean }[];
   readonly template: {
     name: string;
-    env: string;
+    env: string | null;
+    daCreare: boolean;
     id: number | string | null;
     stato: string | null;
+    doppioni: number;
   }[];
   readonly automazioni: {
     chiave: string;
@@ -25,7 +27,7 @@ export function pianifica(
     readonly automazioni: readonly Record<string, unknown>[];
     readonly webhook: readonly Record<string, unknown>[];
   },
-  opzioni?: { readonly appUrl?: string | null },
+  opzioni?: { readonly appUrl?: string | null; readonly automazioni?: boolean },
 ): PianoSpoki;
 /** Letture, creazioni e l'approvazione dei soli template appena creati; nient'altro. */
 export function chiamataAmmessa(

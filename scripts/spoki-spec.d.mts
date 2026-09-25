@@ -7,9 +7,11 @@ export interface CampoSpoki {
 }
 export interface TemplateSpoki {
   readonly name: string;
-  readonly tipo: string;
-  readonly env: string;
+  /** Tipo Spoki del messaggio dell'app; null = template non ancora usato. */
+  readonly tipo: string | null;
+  readonly env: string | null;
   readonly testo: string;
+  readonly intestazione?: string;
   readonly pulsanti: readonly string[];
 }
 export interface PulsanteSpoki {
@@ -21,18 +23,21 @@ export interface IdSpoki {
   readonly campi: Readonly<Record<string, number | string | null>>;
   readonly template: Readonly<Record<string, number | string | null>>;
 }
-export const PREFISSO: string;
 export const TIPO_CAMPO: { readonly TESTO: number; readonly DATA: number };
 export const CAMPI: readonly CampoSpoki[];
-export const CAMPI_SCRITTI_DALL_APP: readonly string[];
+export const CAMPI_AUTOMAZIONI: readonly CampoSpoki[];
 export const ESITO_IN_ATTESA: string;
 export const RISPOSTA_VUOTA: string;
 export const PULSANTI: readonly PulsanteSpoki[];
+export const PULSANTI_PRENOTAZIONE: readonly { readonly testo: string; readonly payload: string }[];
+export const TEMPLATE_ESISTENTI: readonly TemplateSpoki[];
+export const TEMPLATE_DA_CREARE: readonly TemplateSpoki[];
 export const TEMPLATE: readonly TemplateSpoki[];
 export const ESEMPI: Readonly<Record<string, string>>;
 export const RISERVA: Readonly<Record<'arrivato' | 'ritardo' | 'assente', string>>;
 export const AUTOMAZIONI: Readonly<Record<'arrivato' | 'ritardo' | 'assente' | 'rete', string>>;
 export const EVENTI_WEBHOOK: readonly string[];
+export function stessoNome(a: string, b: string): boolean;
 export function variabiliDi(testo: string): string[];
 export function componi(testo: string, valori: Readonly<Record<string, string>>): string;
 export function corpoTemplate(t: TemplateSpoki): Record<string, unknown>;

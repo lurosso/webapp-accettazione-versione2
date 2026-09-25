@@ -122,6 +122,12 @@ const richiesta = (overrides: Partial<SpokiSendRequestDto> = {}): SpokiSendReque
     scheduledDay: '2026-09-11',
     brandName: 'Fiat',
     portalUrl: 'https://officina.example/portal?targa=AB123CD',
+    customerName: 'Mario Rossi',
+    vehicleLabel: 'Fiat Panda 1.0 Hybrid',
+    advisorName: 'Laura Bianchi',
+    expectedDeliveryDate: '11/09/2026',
+    expectedDeliveryTime: '17:00',
+    site: 'Autoclub',
     text: 'Buongiorno Mario, le ricordiamo…',
   },
   correlationId: 'corr-1',
@@ -181,14 +187,12 @@ describe('SpokiService in simulazione (blocco predefinito)', () => {
       phone: '+393331234567',
       first_name: 'Mario',
       last_name: 'Rossi',
+      // Solo i campi del template del mattino: niente codici che l'account non ha.
       custom_fields: {
-        ACC_CODICE: 'F012',
-        ACC_TARGA: 'AB123CD',
-        ACC_DATA: '11/09/2026',
-        ACC_ORA: '09:30',
-        ACC_GIORNO: '2026-09-11',
-        ACC_LINK: 'https://officina.example/portal?targa=AB123CD',
-        ACC_PROMEMORIA: 'INVIATO',
+        NOME_CLIENTE: 'Mario Rossi',
+        ORA_PRENOTAZIONE: '09:30',
+        _MARCA_E_MODELLO_: 'Fiat Panda 1.0 Hybrid',
+        _TARGA_: 'AB123CD',
       },
     });
     // Nel registro il segreto è mascherato e il numero non compare fuori dal payload.
@@ -257,9 +261,17 @@ describe('SpokiService in simulazione (blocco predefinito)', () => {
       language: 'IT',
       phone: '+393331234567',
       custom_fields: {
-        ACC_CODICE: 'F012',
-        ACC_LINK: 'https://officina.example/portal?targa=AB123CD',
+        NOME_CLIENTE: 'Mario Rossi',
+        _NOME_ACCETTATORE_: 'Laura Bianchi',
+        _MARCA_E_MODELLO_: 'Fiat Panda 1.0 Hybrid',
+        _TARGA_: 'AB123CD',
+        _DATA_PREVISTA_: '11/09/2026',
+        _ORA_PREVISTA_: '17:00',
       },
+      buttons: [
+        { order: 0, payload: 'ACTION_CONTACT' },
+        { order: 1, payload: 'ACTION_CHANGE' },
+      ],
       metadata: {
         idempotency_key: 'app-1:CHECK_IN_STARTED:2026-09-11:WA:1',
         template_kind: 'CHECK_IN_STARTED',
@@ -279,15 +291,8 @@ describe('SpokiService in simulazione (blocco predefinito)', () => {
       first_name: 'Mario',
       last_name: 'Rossi',
       email: '',
-      custom_fields: {
-        ACC_CODICE: 'F012',
-        ACC_TARGA: 'AB123CD',
-        ACC_DATA: '11/09/2026',
-        ACC_ORA: '09:30',
-        ACC_GIORNO: '2026-09-11',
-        ACC_LINK: 'https://officina.example/portal?targa=AB123CD',
-        ACC_PROMEMORIA: 'INVIATO',
-      },
+      // Nessun template 📅 per la fine del check-in: nessun campo personalizzato.
+      custom_fields: {},
       metadata: {
         idempotency_key: 'app-1:REMINDER_SAME_DAY:2026-09-11:WA:1',
         template_kind: 'CHECK_IN_COMPLETED',
@@ -312,20 +317,64 @@ describe('SpokiService in simulazione (blocco predefinito)', () => {
       last_name: 'Rossi',
       email: '',
       custom_fields: {
-        ACC_CODICE: 'F012',
-        ACC_TARGA: 'AB123CD',
-        ACC_DATA: '11/09/2026',
-        ACC_ORA: '09:30',
-        ACC_GIORNO: '2026-09-11',
-        ACC_LINK: 'https://officina.example/portal?targa=AB123CD',
-        // Il promemoria del giorno prima arma la rete di sicurezza del mattino.
-        ACC_PROMEMORIA: 'DA_INVIARE',
+        NOME_CLIENTE: 'Mario Rossi',
+        DATA_PRENOTAZIONE: '11/09/2026',
+        ORA_PRENOTAZIONE: '09:30',
+        LUOGO: 'Autoclub',
+        _MARCA_E_MODELLO_: 'Fiat Panda 1.0 Hybrid',
+        _TARGA_: 'AB123CD',
       },
     });
     expect(buildWebhookPayload(richiesta(), 'REMINDER_SAME_DAY', null).secret).toBe('');
+    // Con la rete di sicurezza accesa si aggiungono i suoi due campi (da creare nell'account).
+    const conRete = buildWebhookPayload(richiesta(), 'REMINDER_PREVIOUS_DAY', null, {
+      safetyNetFields: true,
+    }).custom_fields;
+    expect(conRete['ACC_PROMEMORIA']).toBe('DA_INVIARE');
+    expect(conRete['ACC_GIORNO']).toBe('2026-09-11');
     expect(
-      buildWebhookPayload(richiesta(), 'REMINDER_SAME_DAY', null).custom_fields.ACC_PROMEMORIA,
-    ).toBe('INVIATO');
+      buildWebhookPayload(richiesta(), 'REMINDER_SAME_DAY', null).custom_fields['ACC_PROMEMORIA'],
+    ).toBeUndefined();
+  });
+
+  it('un campo del template vuoto ferma l’invio, lo scrive nel registro e non si ritenta', async () => {
+    const rete = fakeFetch(() => new Response('{}', { status: 200 }));
+    const { service, activityLog } = setup(LIVE_SBLOCCATO, rete.impl);
+    const r = await service.sendTemplateMessage(
+      richiesta({
+        templateKey: 'reminder_previous_day_v1',
+        variables: { ...richiesta().variables, site: '' },
+      }),
+    );
+    expect(!r.ok && r.error.code).toBe('INVALID_REQUEST');
+    expect(!r.ok && r.error.retryable).toBe(false);
+    expect(!r.ok && r.error.message).toContain('LUOGO');
+    expect(rete.calls).toHaveLength(0);
+    expect(activityLog.list()[0]?.outcome.error).toContain('LUOGO');
+  });
+
+  it('una risposta a un pulsante senza template parte come messaggio libero, con il testo dell’app', async () => {
+    const rete = fakeFetch(() => new Response(JSON.stringify({ id: 'wa-txt' }), { status: 200 }));
+    const { service } = setup(LIVE_SBLOCCATO, rete.impl);
+    const r = await service.sendTemplateMessage(
+      richiesta({
+        templateKey: 'arrival_confirmed_v1',
+        idempotencyKey: 'k-txt',
+        variables: { ...richiesta().variables, text: 'Perfetto! Sei in fila con il codice F012.' },
+      }),
+    );
+    expect(r.ok && r.value.providerMessageId).toBe('wa-txt');
+    const chiamata = rete.calls[0];
+    expect(chiamata?.url).toBe('https://api.spoki.example/api/1/messages/send/');
+    expect((chiamata?.init.headers as Record<string, string>)['x-spoki-api-key']).toBe(
+      'chiave-segreta',
+    );
+    expect(JSON.parse(String(chiamata?.init.body))).toMatchObject({
+      type: 'Message',
+      content_type: 'Text',
+      phone: '+393331234567',
+      text: 'Perfetto! Sei in fila con il codice F012.',
+    });
   });
 });
 
@@ -370,13 +419,12 @@ describe('SpokiService live con blocco tolto', () => {
     expect(body['secret']).toBe(SECRETS.REMINDER_PREVIOUS_DAY);
     expect(body['phone']).toBe('+393331234567');
     expect(body['custom_fields']).toEqual({
-      ACC_CODICE: 'F012',
-      ACC_TARGA: 'AB123CD',
-      ACC_DATA: '11/09/2026',
-      ACC_ORA: '09:30',
-      ACC_GIORNO: '2026-09-11',
-      ACC_LINK: 'https://officina.example/portal?targa=AB123CD',
-      ACC_PROMEMORIA: 'DA_INVIARE',
+      NOME_CLIENTE: 'Mario Rossi',
+      DATA_PRENOTAZIONE: '11/09/2026',
+      ORA_PRENOTAZIONE: '09:30',
+      LUOGO: 'Autoclub',
+      _MARCA_E_MODELLO_: 'Fiat Panda 1.0 Hybrid',
+      _TARGA_: 'AB123CD',
     });
     // In live la consegna non è nota finché Spoki non lo dice: resta SENT.
     const stato = await service.getDeliveryStatus('wa-42');
@@ -521,8 +569,12 @@ describe('SpokiService live con blocco tolto', () => {
       'ARRIVAL_TOO_EARLY',
       'CHECK_IN_STARTED',
       'CHECK_IN_COMPLETED',
+      'CONFIRMATION',
     ]);
     expect(t.find((x) => x.kind === 'CONFIRMATION')?.secretConfigured).toBe(false);
+    expect(t.find((x) => x.kind === 'CONFIRMATION')?.templateEnvKey).toBe(
+      'SPOKI_TEMPLATE_BOOKING_ID',
+    );
     const benvenuto = t.find((x) => x.kind === 'CHECK_IN_STARTED');
     expect(benvenuto?.transport).toBe('TEMPLATE');
     expect(benvenuto?.templateEnvKey).toBe('SPOKI_TEMPLATE_WELCOME_ID');
@@ -542,13 +594,20 @@ describe('SpokiService live con blocco tolto', () => {
         { order: 1, payload: 'ACTION_LATE' },
         { order: 2, payload: 'ACTION_ABSENT' },
       ]);
-      // Gli altri template non hanno pulsanti: la chiave non compare nemmeno.
+      // I 📅 hanno «Contattaci» e «Modifica»: i loro payload li riconosce l'automazione, non la coda.
       expect(
-        'buttons' in buildTemplateSendPayload(richiesta(), 'REMINDER_PREVIOUS_DAY', '4000'),
-      ).toBe(false);
+        buildTemplateSendPayload(richiesta(), 'REMINDER_PREVIOUS_DAY', '4000').buttons,
+      ).toEqual([
+        { order: 0, payload: 'ACTION_CONTACT' },
+        { order: 1, payload: 'ACTION_CHANGE' },
+      ]);
+      // Chi non ha pulsanti non ha la chiave.
+      expect('buttons' in buildTemplateSendPayload(richiesta(), 'CHECK_IN_COMPLETED', '4002')).toBe(
+        false,
+      );
     });
 
-    it("l'id del template vince sull'automazione; senza id il promemoria resta sull'automazione; le risposte sono via API", async () => {
+    it("l'id del template vince sull'automazione; senza id il promemoria resta sull'automazione; le risposte sono messaggi liberi", async () => {
       const rete = fakeFetch(() => new Response('{}', { status: 202 }));
       const { service } = setup(
         { ...LIVE_SBLOCCATO, templates: { ...TEMPLATES, REMINDER_PREVIOUS_DAY: '4000' } },
@@ -557,11 +616,12 @@ describe('SpokiService live con blocco tolto', () => {
       const t = service.templates();
       expect(t.find((x) => x.kind === 'REMINDER_PREVIOUS_DAY')?.transport).toBe('TEMPLATE');
       expect(t.find((x) => x.kind === 'REMINDER_SAME_DAY')?.transport).toBe('AUTOMATION');
-      expect(t.find((x) => x.kind === 'ARRIVAL_CONFIRMED')?.transport).toBe('TEMPLATE');
+      // Senza un template dedicato la risposta è un messaggio libero: basta la chiave API.
+      expect(t.find((x) => x.kind === 'ARRIVAL_CONFIRMED')?.transport).toBe('TEXT');
       expect(t.find((x) => x.kind === 'ARRIVAL_CONFIRMED')?.templateEnvKey).toBe(
         'SPOKI_TEMPLATE_ARRIVED_REPLY_ID',
       );
-      expect(t.find((x) => x.kind === 'ARRIVAL_CONFIRMED')?.configured).toBe(false);
+      expect(t.find((x) => x.kind === 'ARRIVAL_CONFIRMED')?.configured).toBe(true);
 
       await service.sendTemplateMessage(
         richiesta({ templateKey: 'reminder_previous_day_v1', idempotencyKey: 'k-d1' }),

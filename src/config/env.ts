@@ -127,6 +127,14 @@ export interface AppEnv {
    */
   readonly spokiWebhookSecret: string | null;
   /**
+   * SPOKI_LUOGO: la sede scritta nel campo LUOGO dei template 📅 (Reminder 24h, Conferma
+   * Prenotazione). null finché il committente non la indica: quei template non partono con un campo
+   * vuoto e ripiegano sull'SMS.
+   */
+  readonly spokiSite: string | null;
+  /** Id del template 📅 Conferma Prenotazione (SPOKI_TEMPLATE_BOOKING_ID). */
+  readonly spokiTemplateBookingId: string | null;
+  /**
    * Tutti i segreti dei webhook V2 (SPOKI_WEBHOOK_SECRET, separati da virgola): Spoki genera un
    * `whsec_…` per ogni webhook e ogni webhook ha un solo evento (`message.inbound`,
    * `message.outbound`), quindi i segreti sono di norma due. Il primo è `spokiWebhookSecret`.
@@ -604,6 +612,8 @@ export function parseEnv(
     spokiTemplateLateReplyId: pickStringOrNull(source, 'SPOKI_TEMPLATE_LATE_REPLY_ID'),
     spokiTemplateAbsentReplyId: pickStringOrNull(source, 'SPOKI_TEMPLATE_ABSENT_REPLY_ID'),
     spokiTemplateEarlyReplyId: pickStringOrNull(source, 'SPOKI_TEMPLATE_EARLY_REPLY_ID'),
+    spokiTemplateBookingId: pickStringOrNull(source, 'SPOKI_TEMPLATE_BOOKING_ID'),
+    spokiSite: pickStringOrNull(source, 'SPOKI_LUOGO'),
     spokiMaxEarlyArrivalMinutes: pickInt(
       source,
       'SPOKI_MAX_EARLY_ARRIVAL_MINUTES',
