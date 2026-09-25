@@ -134,14 +134,14 @@ describe('Matricola dell’accettatore', () => {
 describe('Dal planning alla pratica', () => {
   it('la sync porta matricola e nome dell’accettatore assegnato sulla pratica', async () => {
     const { env, sync } = setupSync([
-      dto(1, { advisorCode: '102 ', advisorName: 'GIUSEPPE BRINDICCI' }),
+      dto(1, { advisorCode: '102 ', advisorName: 'GIORGIO VERDI' }),
       dto(2, { advisorCode: null, advisorName: null }),
       dto(3),
     ]);
     await sync.runDailySync(TEST_DATE, 'BOOTSTRAP');
     const tutte = await env.appointments.listByDate(TEST_DATE);
     const per = (ref: string) => tutte.find((a) => a.externalRef === ref)?.assignedAdvisor;
-    expect(per('PRE-1')).toEqual({ code: '102', name: 'GIUSEPPE BRINDICCI' });
+    expect(per('PRE-1')).toEqual({ code: '102', name: 'GIORGIO VERDI' });
     expect(per('PRE-2')).toBeNull();
     // Un DTO senza i campi (versione precedente dell'adapter o del mock) vale «non indicato».
     expect(per('PRE-3')).toBeNull();
@@ -149,13 +149,13 @@ describe('Dal planning alla pratica', () => {
 
   it('se Infinity riassegna una prenotazione ancora in attesa, la sync la sposta', async () => {
     const { env, infinity, sync } = setupSync([
-      dto(1, { advisorCode: '102', advisorName: 'GIUSEPPE BRINDICCI' }),
+      dto(1, { advisorCode: '102', advisorName: 'GIORGIO VERDI' }),
     ]);
     await sync.runDailySync(TEST_DATE, 'BOOTSTRAP');
-    infinity.appointments = [dto(1, { advisorCode: '103', advisorName: 'MICHELE GIGLIONE' })];
+    infinity.appointments = [dto(1, { advisorCode: '103', advisorName: 'SILVIA NERI' })];
     await sync.runDailySync(TEST_DATE, 'MANUAL');
     const [a] = await env.appointments.listByDate(TEST_DATE);
-    expect(a?.assignedAdvisor).toEqual({ code: '103', name: 'MICHELE GIGLIONE' });
+    expect(a?.assignedAdvisor).toEqual({ code: '103', name: 'SILVIA NERI' });
   });
 
   it('arriva anche sulle pratiche già in carico o completate, senza cambiarne la versione', async () => {
@@ -171,8 +171,8 @@ describe('Dal planning alla pratica', () => {
       throw new Error('aggiornamento di prova fallito');
     }
     infinity.appointments = [
-      dto(1, { advisorCode: '102', advisorName: 'GIUSEPPE BRINDICCI' }),
-      dto(2, { advisorCode: '103', advisorName: 'MICHELE GIGLIONE' }),
+      dto(1, { advisorCode: '102', advisorName: 'GIORGIO VERDI' }),
+      dto(2, { advisorCode: '103', advisorName: 'SILVIA NERI' }),
     ];
     await sync.runDailySync(TEST_DATE, 'MANUAL');
     const dopo1 = await env.appointments.findById(uno.id);

@@ -74,7 +74,7 @@ const RIGHE_PLANNING: readonly OdbcRow[] = [
     contatto: null,
     contatto_cellulare: null,
     accettatore_cod: '102',
-    accettatore_nome: 'GIUSEPPE BRINDICCI',
+    accettatore_nome: 'GIORGIO VERDI',
     tipo_intervento: '2',
     tipo_intervento_descr: 'Postvendita',
     confermato: 1,
@@ -437,7 +437,7 @@ describe('Infinity ODBC: mappatura del planning', () => {
     expect(primo?.oraPrenotazione).toBe('08:30');
     expect(primo?.dataPrenotazione).toBe(GIORNATA);
     expect(primo?.sede).toBe('01');
-    expect(primo?.accettatoreNome).toBe('GIUSEPPE BRINDICCI');
+    expect(primo?.accettatoreNome).toBe('GIORGIO VERDI');
     expect(primo?.cliente).toBe('ROSSI MARIO');
     expect(primo?.clienteCognome).toBe('ROSSI');
     expect(primo?.consensoPrivacy).toBe(true);
@@ -574,7 +574,7 @@ describe('Infinity ODBC: mappatura del planning', () => {
     expect(a?.serviceDescription).toBe('TAGLIANDO DI MANUTENZIONE · 6338 - SW RADIO');
     // L'accettatore a cui Infinity ha assegnato la prenotazione: «Le mie prenotazioni».
     expect(a?.advisorCode).toBe('102');
-    expect(a?.advisorName).toBe('GIUSEPPE BRINDICCI');
+    expect(a?.advisorName).toBe('GIORGIO VERDI');
     expect(a?.cancelled).toBe(false);
 
     expect(b?.brandCode).toBe('ALFA_ROMEO');

@@ -65,7 +65,7 @@ describe('PrismaAppointmentRepository', () => {
     const repo = new PrismaAppointmentRepository(db, clock);
     const a = makeAppointment({
       businessDate: '2026-09-21' as IsoDate,
-      assignedAdvisor: { code: '102', name: 'GIUSEPPE BRINDICCI' },
+      assignedAdvisor: { code: '102', name: 'GIORGIO VERDI' },
     });
     const b = makeAppointment({ businessDate: '2026-09-21' as IsoDate });
     expect((await repo.insert(a)).ok).toBe(true);
@@ -83,7 +83,7 @@ describe('PrismaAppointmentRepository', () => {
     // L'accettatore assegnato in Infinity torna com'era; senza, resta null.
     expect((await repo.findById(a.id))?.assignedAdvisor).toEqual({
       code: '102',
-      name: 'GIUSEPPE BRINDICCI',
+      name: 'GIORGIO VERDI',
     });
     expect((await repo.findById(b.id))?.assignedAdvisor).toBeNull();
 
