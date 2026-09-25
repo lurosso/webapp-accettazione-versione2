@@ -15,8 +15,10 @@
 //   … --safety-net-time=08:30                   ora della rete di sicurezza (predefinito
 //                                               SPOKI_SAFETY_NET_TIME, altrimenti 08:30)
 //
-// Non stampa mai chiave API né segreti. Non tocca niente che non abbia il prefisso ACC / acc_ e non
-// cancella niente: ciò che esiste già si lascia com'è.
+// Non stampa mai chiave API né segreti. REGOLA DEL COMMITTENTE (2026-09-25): ciò che esiste già
+// nell'account NON si modifica, mai. Lo script legge, crea solo ciò che manca e chiede l'approvazione
+// a Meta solo per i template che ha appena creato lui; ogni altra chiamata (PATCH, PUT, DELETE, o un
+// POST diverso da una creazione) la ferma `chiamataAmmessa` prima che parta.
 import { existsSync, readFileSync, writeFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -74,6 +76,36 @@ export function aggiornaEnvText(testo, valori) {
     nuove.push('# Scritto da npm run spoki:setup', ...mancanti.map((k) => `${k}=${valori[k]}`), '');
   }
   return nuove.join('\n');
+}
+
+// --- Regola: niente modifiche a ciò che esiste ----------------------------------------------------
+
+/** Le sole creazioni ammesse: campi, template, automazioni, webhook V2. */
+const CREAZIONI = [
+  '/api/1/custom-fields/',
+  '/api/1/templates/',
+  '/api/1/automations/',
+  '/api/1/external-webhooks/',
+];
+
+/**
+ * True se la chiamata può partire: letture, creazioni, e la richiesta di approvazione di un template
+ * creato in questo giro (`creatiOra`: id dei template appena creati). Tutto il resto — aggiornare,
+ * cancellare, inviare a Meta un template che c'era già — no.
+ */
+export function chiamataAmmessa(metodo, percorso, creatiOra = new Set()) {
+  const p = new URL(percorso, 'https://api.spoki.invalid').pathname;
+  if (metodo === 'GET') {
+    return true;
+  }
+  if (metodo !== 'POST') {
+    return false;
+  }
+  if (CREAZIONI.includes(p)) {
+    return true;
+  }
+  const invio = p.match(/^\/api\/1\/templates\/([^/]+)\/submit\/$/);
+  return invio !== null && creatiOra.has(String(invio[1]));
 }
 
 // --- Stato dell'account e piano -------------------------------------------------------------------
@@ -145,7 +177,7 @@ export function pianifica(stato, { appUrl = null } = {}) {
 /** Pause minime fra due chiamate, dai limiti documentati da Spoki (al minuto). */
 const PAUSA_MS = { 'custom-fields': 12_500, 'external-webhooks': 2_100, altro: 1_100 };
 
-function creaClient({ base, chiave, segreti }) {
+function creaClient({ base, chiave, segreti, creatiOra }) {
   const ultima = new Map();
   const oscura = (testo) =>
     [chiave, ...segreti]
@@ -153,6 +185,11 @@ function creaClient({ base, chiave, segreti }) {
       .reduce((t, s) => t.split(s).join('••••'), testo);
 
   async function chiama(metodo, percorso, corpo) {
+    if (!chiamataAmmessa(metodo, percorso, creatiOra)) {
+      throw new Error(
+        `${metodo} ${percorso} fermata: lo script non modifica niente di ciò che esiste nell'account.`,
+      );
+    }
     const url = percorso.startsWith('http') ? percorso : `${base.replace(/\/+$/, '')}${percorso}`;
     const risorsa = Object.keys(PAUSA_MS).find((k) => url.includes(`/api/1/${k}/`)) ?? 'altro';
     const attesa = (ultima.get(risorsa) ?? 0) + PAUSA_MS[risorsa] - Date.now();
@@ -232,7 +269,9 @@ async function main() {
   const appUrl = (o.appUrl ?? env.PUBLIC_BASE_URL ?? '').trim() || null;
   const appPubblica = appUrl !== null && appUrl.startsWith('https://');
   const ora = o.ora ?? ((env.SPOKI_SAFETY_NET_TIME ?? '').trim() || '08:30');
-  const api = creaClient({ base, chiave, segreti: [inboundSecret] });
+  // Id dei template creati in questo giro: gli unici per cui si può chiedere l'approvazione.
+  const creatiOra = new Set();
+  const api = creaClient({ base, chiave, segreti: [inboundSecret], creatiOra });
 
   console.log(`Spoki: ${base} · app: ${appUrl ?? '(indirizzo pubblico non impostato)'}`);
   console.log(
@@ -278,6 +317,9 @@ async function main() {
       const creato = await api.chiama('POST', '/api/1/templates/', corpoTemplate(spec));
       t.id = creato?.id ?? null;
       t.stato = creato === null ? 'DRAFT' : statoTemplate(creato);
+      if (t.id !== null) {
+        creatiOra.add(String(t.id));
+      }
       riga('CREATO', `${t.name} (id ${t.id}, ${t.stato})`);
     } else {
       riga(
@@ -285,10 +327,13 @@ async function main() {
         `${t.name}${t.id === null ? '' : ` (id ${t.id})`}`,
       );
     }
-    if (t.id !== null && o.submit && (t.stato === 'DRAFT' || t.stato === 'SCONOSCIUTO')) {
+    // Solo i template appena creati: uno che c'era già (anche in bozza) non si tocca.
+    if (t.id !== null && o.submit && creatiOra.has(String(t.id))) {
       await api.chiama('POST', `/api/1/templates/${t.id}/submit/`);
       t.stato = 'INVIATO A META';
       riga('RICHIESTO', `${t.name}: approvazione chiesta a Meta`);
+    } else if (t.id !== null && o.submit) {
+      riga('non toccato', `${t.name}: esisteva già, l'approvazione si chiede da Spoki`);
     }
     if (t.id !== null) {
       envDaScrivere[t.env] = String(t.id);

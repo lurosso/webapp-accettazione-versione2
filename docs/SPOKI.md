@@ -6,6 +6,11 @@ fonte unica di campi, testi e automazioni è [`scripts/spoki-spec.mjs`](../scrip
 `npm run spoki:setup` la applica all'account via API REST, con la stessa chiave dell'app. Formati e
 limiti vengono dalla documentazione API ufficiale di Spoki (collezione Postman, letta il 2026-09-24).
 
+> **Regola del committente (2026-09-25): ciò che esiste già nell'account Spoki non si modifica,
+> mai** — né template, né campi, né automazioni, né contatti. Si legge, si crea solo ciò che manca,
+> e l'approvazione a Meta si chiede solo per i template appena creati. Lo script lo impone in codice
+> (`chiamataAmmessa`), e con l'MCP si usano solo gli strumenti di lettura e di creazione.
+>
 > **Demo interna.** Finché il committente non decide altrimenti i WhatsApp reali partono solo verso i
 > numeri di `SPOKI_ALLOWED_RECIPIENTS`: con `SPOKI_PUBLIC_SENDS=false` (predefinito) ogni altro
 > cliente resta in simulazione, anche con Spoki in `live` e il blocco di sicurezza tolto. Lo stesso
@@ -147,9 +152,25 @@ e dice cosa c'è e cosa manca. Opzioni:
 - `--write-env` scrive in `.env.local` gli id dei template e i segreti dei webhook creati;
 - `--safety-net-time=08:30` ora della rete (predefinito `SPOKI_SAFETY_NET_TIME`).
 
-Non stampa mai chiave API né segreti, non tocca niente senza il prefisso `ACC`/`acc_` e non cancella
-niente. Rispetta i limiti di Spoki (i campi personalizzati ammettono 5 chiamate al minuto: la prima
-creazione richiede un paio di minuti).
+Non stampa mai chiave API né segreti, non modifica e non cancella niente di ciò che esiste: ogni
+chiamata che non sia una lettura, una creazione o l'approvazione di un template appena creato viene
+fermata prima di partire. Rispetta i limiti di Spoki (i campi personalizzati ammettono 5 chiamate al
+minuto: la prima creazione richiede un paio di minuti).
+
+### Con l'MCP di Spoki
+
+L'MCP ufficiale (`https://mcp.spoki.com/v2/mcp`, intestazione `X-Spoki-Api-Key`, chiave da
+_app.spoki.it → Integrazioni → Spoki MCP → Request Api Key_) crea **template** e **campi
+personalizzati** e sa elencare, attivare, disattivare e avviare le automazioni, ma **non le crea**:
+per quelle resta l'API REST (`POST /api/1/automations/`), cioè questo script, con la stessa
+intestazione. Con l'MCP collegato si usano solo `get_*`, `create_template`, `create_custom_field`
+e, a richiesta, `submit_template` sui template appena creati; mai `update_*` né `delete_*`, e
+`trigger_automation` solo verso il numero di prova. Per collegarlo, nel proprio terminale (la chiave
+non passa dalla chat):
+
+```bash
+claude mcp add --transport http spoki https://mcp.spoki.com/v2/mcp --header "X-Spoki-Api-Key: LA_CHIAVE" --scope user
+```
 
 ## 6. Passi a mano
 

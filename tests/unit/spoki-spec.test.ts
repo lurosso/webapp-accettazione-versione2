@@ -27,7 +27,12 @@ import {
   corpoTemplate,
   variabiliDi,
 } from '../../scripts/spoki-spec.mjs';
-import { aggiornaEnvText, parseEnvText, pianifica } from '../../scripts/spoki-setup.mjs';
+import {
+  aggiornaEnvText,
+  chiamataAmmessa,
+  parseEnvText,
+  pianifica,
+} from '../../scripts/spoki-setup.mjs';
 import { makeAppointment } from '../helpers/fixtures';
 
 const IDS = {
@@ -252,5 +257,34 @@ describe('spoki:setup senza rete', () => {
       SPOKI_TEMPLATE_REMINDER_D1_ID: '90',
       ALTRO: 'con virgolette',
     });
+  });
+});
+
+describe('spoki:setup non modifica niente di ciò che esiste (regola del committente)', () => {
+  it('legge e crea; non aggiorna né cancella, nemmeno per errore', () => {
+    expect(chiamataAmmessa('GET', '/api/1/templates/')).toBe(true);
+    expect(chiamataAmmessa('GET', 'https://api.spoki.com/api/1/automations/?page=2')).toBe(true);
+    for (const p of [
+      '/api/1/custom-fields/',
+      '/api/1/templates/',
+      '/api/1/automations/',
+      '/api/1/external-webhooks/',
+    ]) {
+      expect(chiamataAmmessa('POST', p)).toBe(true);
+    }
+    for (const metodo of ['PATCH', 'PUT', 'DELETE']) {
+      expect(chiamataAmmessa(metodo, '/api/1/templates/91/')).toBe(false);
+      expect(chiamataAmmessa(metodo, '/api/1/automations/3/')).toBe(false);
+    }
+    // POST che non creano: ruotare un segreto, rimandare in bozza, avviare un'automazione.
+    expect(chiamataAmmessa('POST', '/api/1/external-webhooks/7/rotate_secret/')).toBe(false);
+    expect(chiamataAmmessa('POST', '/api/1/templates/91/back_to_draft/')).toBe(false);
+    expect(chiamataAmmessa('POST', '/api/1/contacts/sync/')).toBe(false);
+  });
+
+  it('l’approvazione a Meta solo per i template creati in questo giro', () => {
+    expect(chiamataAmmessa('POST', '/api/1/templates/91/submit/')).toBe(false);
+    expect(chiamataAmmessa('POST', '/api/1/templates/91/submit/', new Set(['91']))).toBe(true);
+    expect(chiamataAmmessa('POST', '/api/1/templates/92/submit/', new Set(['91']))).toBe(false);
   });
 });

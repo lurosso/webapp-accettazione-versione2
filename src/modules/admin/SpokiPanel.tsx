@@ -118,7 +118,7 @@ export function SpokiPanel({ timeZone }: SpokiPanelProps) {
             <Badge tone={data.demo.publicSends ? 'danger' : 'info'} data-testid="spoki-demo">
               {data.demo.publicSends
                 ? 'APERTO AL PUBBLICO'
-                : `DEMO INTERNA · ${data.demo.allowedRecipientsMasked.length} numeri ammessi`}
+                : `DEMO INTERNA · ${data.demo.allowedRecipientsMasked.length} ${data.demo.allowedRecipientsMasked.length === 1 ? 'numero ammesso' : 'numeri ammessi'}`}
             </Badge>
             <Badge
               tone={data.webhookSecretConfigured ? 'success' : 'warning'}

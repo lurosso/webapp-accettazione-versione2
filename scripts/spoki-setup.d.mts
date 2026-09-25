@@ -27,3 +27,9 @@ export function pianifica(
   },
   opzioni?: { readonly appUrl?: string | null },
 ): PianoSpoki;
+/** Letture, creazioni e l'approvazione dei soli template appena creati; nient'altro. */
+export function chiamataAmmessa(
+  metodo: string,
+  percorso: string,
+  creatiOra?: ReadonlySet<string>,
+): boolean;
