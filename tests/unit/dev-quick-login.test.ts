@@ -96,3 +96,18 @@ describe('Accesso veloce di sviluppo (DEV_QUICK_LOGIN)', () => {
     expect(parseEnv({ NODE_ENV: 'production' }, () => undefined).devQuickLogin).toBe(false);
   });
 });
+
+describe('Accesso veloce: l’amministratore non occupa sportelli', () => {
+  it('entra senza postazione e le accettazioni restano tutte libere', async () => {
+    const { env, auth, quick } = setup();
+    const r = await quick.login('admin');
+    expect(r.ok).toBe(true);
+    if (!r.ok) {
+      return;
+    }
+    expect(r.value.session.role).toBe('ADMIN');
+    expect(r.value.session.workstationId).toBeNull();
+    expect((await auth.verify(r.value.token)).ok).toBe(true);
+    expect(await env.workstationClaims.listActive(env.clock.nowIso())).toEqual([]);
+  });
+});

@@ -20,7 +20,7 @@ const ACCESSO = {
     'Pubblico · firma HMAC `X-Spoki-Signature` o segreto condiviso (`SPOKI_WEBHOOK_SECRET`; risposte piatte con `SPOKI_INBOUND_SECRET`); 404 con `MESSAGING_STANDBY=true`',
   monitor: 'Pubblico · token del monitor (`?token=`, obbligatorio con DISPLAY_TOKEN_REQUIRED=true)',
   sessione: 'Sessione operatore (Accettatore, Amministratore)',
-  comunicazioni: 'Accettatore e Amministratore',
+  comunicazioni: 'Solo Amministratore',
   banco: 'Accettatore e Amministratore',
   sessioneProvvisoria: 'Sessione operatore, anche con password provvisoria',
   admin: 'Solo Amministratore',
@@ -200,6 +200,13 @@ export const ROTTE = [
     area: AREE[8],
     descrizione: 'Sostituisce la password (provvisoria o no) e rinnova il cookie.',
     accesso: ACCESSO.sessioneProvvisoria,
+  },
+  {
+    path: '/api/v1/auth/login-options',
+    area: AREE[8],
+    descrizione:
+      'Postazioni del login, libere o occupate con il motivo: il form le richiede ogni 5 secondi (stessi dati della pagina di login; tetto per indirizzo).',
+    accesso: ACCESSO.pubblico,
   },
   {
     path: '/api/v1/auth/quick-login',

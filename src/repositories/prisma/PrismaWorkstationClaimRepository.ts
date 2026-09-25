@@ -1,7 +1,11 @@
 // Chi è seduto a quale postazione, su SQLite. È la tabella che rende vero «il posto resta suo
 // finché non esce»: prima viveva in memoria e un riavvio del server liberava tutti i banchi —
 // comodo, ma falso.
-import { isClaimActive, type WorkstationClaim } from '@/domain/entities/workstation-claim';
+import {
+  isClaimActive,
+  isWorkstationClaim,
+  type WorkstationClaim,
+} from '@/domain/entities/workstation-claim';
 import type { OperatorId, WorkstationId } from '@/domain/ids';
 import type { IsoDateTime } from '@/domain/value-objects/iso-date';
 import type { WorkstationClaim as Row } from '@/generated/prisma/client';
@@ -30,7 +34,7 @@ export class PrismaWorkstationClaimRepository implements IWorkstationClaimReposi
     // La regola di validità sta nel dominio (`isClaimActive`): si legge tutto e si filtra lì,
     // così non esistono due definizioni di «attiva». Le postazioni sono quattro.
     const rows = await this.db.workstationClaim.findMany();
-    return rows.map(toEntity).filter((c) => isClaimActive(c, now));
+    return rows.map(toEntity).filter((c) => isClaimActive(c, now) && isWorkstationClaim(c));
   }
 
   async upsert(claim: WorkstationClaim): Promise<WorkstationClaim> {

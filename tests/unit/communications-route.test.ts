@@ -1,6 +1,7 @@
 // GET /api/v1/notifications e POST /api/v1/notifications/[id]/actions dal punto di vista di chi
-// lavora la schermata Comunicazioni: sessione obbligatoria, banco e amministratore ammessi, comandi validati,
-// «Prendo io» esclusivo e chiusura con l'esito. Container isolato al posto di quello globale.
+// lavora la schermata Comunicazioni: sessione obbligatoria, solo l'amministratore (dal 2026-09-25 al
+// banco non serve), comandi validati, «Prendo io» esclusivo e chiusura con l'esito. Container isolato
+// al posto di quello globale.
 import { NextRequest } from 'next/server';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { GET } from '@/app/api/v1/notifications/route';
@@ -13,6 +14,8 @@ import {
 } from '@/config/container';
 import { SESSION_COOKIE_NAME } from '@/config/auth';
 import type { NotificationJob } from '@/domain/entities/notification';
+import { asOperatorId } from '@/domain/ids';
+import { hashPassword } from '@/lib/hash-password';
 import type { PhoneE164 } from '@/domain/value-objects/phone';
 import { InMemoryStore } from '@/repositories/in-memory/InMemoryStore';
 import { NoopLogger } from '@/services/mocks/ConsoleLogger';
@@ -23,7 +26,7 @@ let container: Container;
 let clock: TestClock;
 const cookie: Record<string, string> = {};
 
-async function accedi(username: string, workstationId: string): Promise<string> {
+async function accedi(username: string, workstationId: string | null): Promise<string> {
   const r = await container.authService.login({ username, password: 'demo', workstationId });
   if (!r.ok) {
     throw new Error(`login ${username}: ${r.error.message}`);
@@ -103,9 +106,22 @@ beforeAll(async () => {
     sessionSecret: 's'.repeat(40),
   });
   setContainerForTests(container);
+  // Un secondo amministratore, per provare che «Prendo io» è esclusivo.
+  await container.repos.operators.insert({
+    id: asOperatorId('op-admin-2'),
+    username: 'admin.due',
+    displayName: 'Seconda Amministratrice',
+    role: 'ADMIN',
+    deskIds: [],
+    defaultWorkstationId: null,
+    passwordHash: hashPassword('demo'),
+    isActive: true,
+    mustChangePassword: false,
+    infinityAdvisorCode: null,
+  });
   cookie['banco'] = await accedi('mario.rossi', 'ws-p1');
-  cookie['collega'] = await accedi('laura.bianchi', 'ws-p2');
-  cookie['admin'] = await accedi('admin', 'ws-p4');
+  cookie['admin'] = await accedi('admin', null);
+  cookie['collega'] = await accedi('admin.due', null);
 });
 
 afterAll(() => {
@@ -118,9 +134,15 @@ describe('Rotte della schermata Comunicazioni', () => {
     expect((await POST(...comando(null, 'qualunque', { action: 'claim' }))).status).toBe(401);
   });
 
-  it('il banco e l’amministratore vedono il messaggio in riprova con i conteggi', async () => {
+  it('al banco la schermata non c’è: 403 in lettura e sui comandi', async () => {
     const job = await messaggioFallito();
-    for (const chi of ['banco', 'admin']) {
+    expect((await GET(lettura('banco'))).status).toBe(403);
+    expect((await POST(...comando('banco', job.id, { action: 'claim' }))).status).toBe(403);
+  });
+
+  it('l’amministratore vede il messaggio in riprova con i conteggi', async () => {
+    const job = await messaggioFallito();
+    for (const chi of ['admin', 'collega']) {
       const r = await GET(lettura(chi));
       expect(r.status).toBe(200);
       const vista = (await r.json()) as {
@@ -136,16 +158,16 @@ describe('Rotte della schermata Comunicazioni', () => {
 
   it('comando sconosciuto o esito non previsto: 400; notifica inesistente: 404', async () => {
     const job = await messaggioFallito();
-    expect((await POST(...comando('banco', job.id, { action: 'boh' }))).status).toBe(400);
+    expect((await POST(...comando('admin', job.id, { action: 'boh' }))).status).toBe(400);
     expect(
-      (await POST(...comando('banco', job.id, { action: 'confirm', outcome: 'INVENTATO' }))).status,
+      (await POST(...comando('admin', job.id, { action: 'confirm', outcome: 'INVENTATO' }))).status,
     ).toBe(400);
-    expect((await POST(...comando('banco', 'non-esiste', { action: 'claim' }))).status).toBe(404);
+    expect((await POST(...comando('admin', 'non-esiste', { action: 'claim' }))).status).toBe(404);
   });
 
   it('«Prendo io» è esclusivo (409 al collega), poi l’esito chiude e la riga passa fra le gestite', async () => {
     const job = await messaggioFallito();
-    const presa = await POST(...comando('banco', job.id, { action: 'claim' }));
+    const presa = await POST(...comando('admin', job.id, { action: 'claim' }));
     expect(presa.status).toBe(200);
     expect(((await presa.json()) as { row: { claimedByMe: boolean } }).row.claimedByMe).toBe(true);
 
@@ -153,7 +175,7 @@ describe('Rotte della schermata Comunicazioni', () => {
     expect(collega.status).toBe(409);
 
     const chiusa = await POST(
-      ...comando('banco', job.id, {
+      ...comando('admin', job.id, {
         action: 'confirm',
         outcome: 'PHONE_CALLED',
         note: 'Arriva alle 11',

@@ -1,5 +1,6 @@
 // Client HTTP tipizzato verso /api/v1 (solo lato browser). Timeout di 8 s, errori come `ApiError`
 // con il codice di dominio del server; su 401 riporta al login conservando il percorso corrente.
+import type { LoginWorkstationOption } from '@/application/auth/login-options';
 import type { Appointment } from '@/domain/entities/appointment';
 import type { SyncRun } from '@/domain/entities/sync-run';
 import type { Session } from '@/application/auth/IAuthService';
@@ -679,9 +680,17 @@ export function fetchInspectionArchive(params: {
 export function postLogin(body: {
   readonly username: string;
   readonly password: string;
+  /** Vuota = nessuno sportello (l'amministratore non ne occupa). */
   readonly workstationId: string;
 }): Promise<{ readonly session: Session }> {
   return apiFetch('/api/v1/auth/login', { method: 'POST', json: body });
+}
+
+/** GET /api/v1/auth/login-options: le postazioni del login, libere o occupate (pubblica). */
+export function fetchLoginOptions(): Promise<{
+  readonly options: readonly LoginWorkstationOption[];
+}> {
+  return apiFetch('/api/v1/auth/login-options');
 }
 
 /** POST /api/v1/auth/quick-login: accesso veloce di sviluppo con un profilo dev.* (404 in produzione). */

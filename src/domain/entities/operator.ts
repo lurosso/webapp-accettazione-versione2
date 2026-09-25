@@ -18,6 +18,15 @@ export function isOperatorRole(value: unknown): value is OperatorRole {
   return typeof value === 'string' && (OPERATOR_ROLES as readonly string[]).includes(value);
 }
 
+/**
+ * Solo l'accettatore siede a uno sportello: al login ne sceglie uno e da quel momento è suo.
+ * L'amministratore (e un dispositivo kiosk) entra senza occupare niente, così non toglie un banco
+ * a chi deve lavorare la coda.
+ */
+export function occupiesWorkstation(role: OperatorRole): boolean {
+  return role === 'ADVISOR';
+}
+
 /** Accettatore. Il ruolo è sempre riverificato lato server, mai fidandosi del solo JWT. */
 export interface Operator {
   readonly id: OperatorId;

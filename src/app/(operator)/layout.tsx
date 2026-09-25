@@ -19,9 +19,11 @@ export default async function OperatorLayout({ children }: { readonly children: 
     redirect(homePathForRole(session.role));
   }
   const container = getContainer();
-  const workstation = await container.repos.referenceData.findWorkstationById(
-    session.workstationId,
-  );
+  // L'amministratore entra senza sportello (non ne occupa nessuno): nessuna postazione da cercare.
+  const workstation =
+    session.workstationId === null
+      ? null
+      : await container.repos.referenceData.findWorkstationById(session.workstationId);
   const desk =
     workstation === null
       ? null
@@ -38,9 +40,19 @@ export default async function OperatorLayout({ children }: { readonly children: 
   return (
     <AppShell
       session={session}
-      workstationLabel={workstation === null ? 'Accettazione n/d' : workstation.name}
+      workstationLabel={
+        session.workstationId === null
+          ? 'Nessuno sportello'
+          : workstation === null
+            ? 'Accettazione n/d'
+            : workstation.name
+      }
       deskLabel={
-        desk === null ? 'Sportello n/d' : codaLabel(desk, baysForLabel(bays, workstations))
+        session.workstationId === null
+          ? 'tutti gli sportelli'
+          : desk === null
+            ? 'Sportello n/d'
+            : codaLabel(desk, baysForLabel(bays, workstations))
       }
       timeZone={container.env.timeZone}
     >

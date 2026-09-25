@@ -27,13 +27,15 @@ export default async function AccettazionePage({ searchParams }: PageProps) {
     searchParams,
   ]);
   const container = getContainer();
-  const workstation = await container.repos.referenceData.findWorkstationById(
-    session.workstationId,
-  );
+  const workstation =
+    session.workstationId === null
+      ? null
+      : await container.repos.referenceData.findWorkstationById(session.workstationId);
   const homeDeskId = workstation?.deskId ?? session.deskIds[0] ?? null;
   const richiesta = single(params['view']);
   // Chi ha la matricola Infinity collegata parte da «Le mie prenotazioni»: sono quelle che il
-  // gestionale gli ha assegnato. Gli altri (e l'amministratore) partono dal proprio sportello.
+  // gestionale gli ha assegnato. Gli altri partono dal proprio sportello; l'amministratore, che
+  // non siede a nessuno sportello, da tutti.
   const operatore = await container.repos.operators.findById(session.operatorId);
   const collegato = (operatore?.infinityAdvisorCode ?? null) !== null;
   const initialView: QueueView =
@@ -43,7 +45,9 @@ export default async function AccettazionePage({ searchParams }: PageProps) {
         ? 'desk'
         : richiesta === 'mine' || (collegato && session.role === 'ADVISOR')
           ? 'mine'
-          : 'desk';
+          : session.workstationId === null
+            ? 'global'
+            : 'desk';
   const initialDeskId = single(params['deskId']) ?? homeDeskId;
   // Monitoraggio dell'amministratore: `?sola-lettura=1` guarda senza toccare, `?monitor=` dice
   // cosa si sta guardando. Solo l'amministratore ci arriva, dal proprio pannello.

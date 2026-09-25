@@ -1,7 +1,8 @@
 import { describe, expect, it } from 'vitest';
 import { OperatorAdminService } from '@/application/admin/OperatorAdminService';
 import { LocalAuthService } from '@/application/auth/LocalAuthService';
-import { verifySessionToken } from '@/application/auth/session-token';
+import { signSessionToken, verifySessionToken } from '@/application/auth/session-token';
+import { sessionOnlyClaimKey } from '@/domain/entities/workstation-claim';
 import { asOperatorId } from '@/domain/ids';
 import { buildTestEnv } from '../helpers/fixtures';
 
@@ -60,7 +61,7 @@ describe('LocalAuthService', () => {
       expect(wrong.error.message).toBe(unknown.error.message);
     }
     const badWs = await service.login({
-      username: 'admin',
+      username: 'mario.rossi',
       password: 'demo',
       workstationId: 'ws-x',
     });
@@ -340,5 +341,134 @@ describe('LocalAuthService: sportelli occupati', () => {
     env.clock.advance(9 * 3_600_000);
     expect((await login(service, 'laura.bianchi', 'ws-p1')).ok).toBe(true);
     expect(await env.workstationClaims.listActive(env.clock.nowIso())).toHaveLength(1);
+  });
+});
+
+describe("LocalAuthService: l'amministratore non occupa sportelli", () => {
+  const login = (service: LocalAuthService, username: string, workstationId: string | null) =>
+    service.login({ username, password: 'demo', workstationId });
+
+  it('entra senza sportello anche se ne ha scelto uno, e lo sportello resta libero', async () => {
+    const { env, service } = setup();
+    const r = await login(service, 'admin', 'ws-p1');
+    expect(r.ok).toBe(true);
+    if (!r.ok) {
+      return;
+    }
+    expect(r.value.session.workstationId).toBeNull();
+    expect((await service.verify(r.value.token)).ok).toBe(true);
+    // Nessuna postazione occupata: l'accettatore si siede proprio lì.
+    expect(await env.workstationClaims.listActive(env.clock.nowIso())).toEqual([]);
+    expect((await login(service, 'mario.rossi', 'ws-p1')).ok).toBe(true);
+    // Il token lo dice: nessuna postazione.
+    const token = await verifySessionToken(r.value.token, SECRET, env.clock.now());
+    expect(token.ok && token.value.workstationId).toBeNull();
+  });
+
+  it('entra anche con tutti gli sportelli occupati; l’accettatore senza sportello no', async () => {
+    const { service } = setup();
+    for (const [chi, dove] of [
+      ['mario.rossi', 'ws-p1'],
+      ['laura.bianchi', 'ws-p2'],
+      ['andrea.conti', 'ws-p3'],
+    ] as const) {
+      expect((await login(service, chi, dove)).ok).toBe(true);
+    }
+    expect((await login(service, 'admin', null)).ok).toBe(true);
+    expect((await login(service, 'admin', '')).ok).toBe(true);
+    const senza = await login(service, 'mario.rossi', null);
+    expect(senza.ok).toBe(false);
+    expect(!senza.ok && senza.error.message).toContain('Scegli uno sportello libero');
+  });
+
+  it('una sola sessione valida anche per lui: il secondo accesso ritira il primo, il logout la chiude', async () => {
+    const { service } = setup();
+    const primo = await login(service, 'admin', null);
+    const secondo = await login(service, 'admin', null);
+    if (!primo.ok || !secondo.ok) {
+      throw new Error('login falliti');
+    }
+    expect((await service.verify(secondo.value.token)).ok).toBe(true);
+    await service.logout(secondo.value.session);
+    expect((await service.verify(secondo.value.token)).ok).toBe(false);
+  });
+
+  it('il secondo accesso da un altro dispositivo ritira la sessione precedente', async () => {
+    const { env, service } = setup();
+    const primo = await login(service, 'admin', null);
+    env.clock.advance(5_000);
+    const secondo = await login(service, 'admin', null);
+    if (!primo.ok || !secondo.ok) {
+      throw new Error('login falliti');
+    }
+    const vecchia = await service.verify(primo.value.token);
+    expect(vecchia.ok).toBe(false);
+    expect(!vecchia.ok && vecchia.error.message).toContain('Sessione sostituita');
+    expect((await service.verify(secondo.value.token)).ok).toBe(true);
+  });
+
+  it('una sessione di prima (admin seduto a uno sportello) non vale più e libera subito il posto', async () => {
+    const { env, service } = setup();
+    const admin = await env.operators.findByUsername('admin');
+    if (admin === null) {
+      throw new Error('admin del seed');
+    }
+    // Come la emetteva il codice precedente: postazione nel token e posto occupato.
+    const issuedAt = env.clock.nowIso();
+    const expiresAt = new Date(env.clock.now().getTime() + 8 * 3_600_000).toISOString();
+    const token = await signSessionToken(
+      {
+        operatorId: admin.id,
+        username: admin.username,
+        displayName: admin.displayName,
+        role: 'ADMIN',
+        workstationId: 'ws-p1' as never,
+        deskIds: admin.deskIds,
+        mustChangePassword: false,
+        issuedAt,
+        expiresAt: expiresAt as never,
+      },
+      SECRET,
+    );
+    await env.workstationClaims.upsert({
+      workstationId: 'ws-p1' as never,
+      operatorId: admin.id,
+      operatorName: admin.displayName,
+      claimedAt: issuedAt,
+      expiresAt: expiresAt as never,
+    });
+    expect((await login(service, 'mario.rossi', 'ws-p1')).ok).toBe(false);
+
+    const r = await service.verify(token);
+    expect(r.ok).toBe(false);
+    expect(!r.ok && r.error.message).toContain('accedi di nuovo');
+    expect((await login(service, 'mario.rossi', 'ws-p1')).ok).toBe(true);
+  });
+
+  it('non cambia sportello, e il cambio password lo lascia senza', async () => {
+    const { env, service } = setup();
+    const r = await login(service, 'admin', null);
+    if (!r.ok) {
+      throw new Error('login fallito');
+    }
+    const cambio = await service.switchWorkstation(r.value.session, 'ws-p2');
+    expect(cambio.ok).toBe(false);
+    expect(!cambio.ok && cambio.error.message).toContain('non occupa sportelli');
+    env.clock.advance(2_000);
+    const nuova = await service.changePassword(r.value.session, {
+      currentPassword: 'demo',
+      newPassword: 'una-password-nuova-lunga',
+    });
+    expect(nuova.ok && nuova.value.session.workstationId).toBeNull();
+    if (nuova.ok) {
+      expect((await service.verify(nuova.value.token)).ok).toBe(true);
+    }
+    // La chiave della sessione esiste, ma fra le postazioni occupate non compare.
+    expect(
+      await env.workstationClaims.findByWorkstation(
+        sessionOnlyClaimKey(r.value.session.operatorId),
+      ),
+    ).not.toBeNull();
+    expect(await env.workstationClaims.listActive(env.clock.nowIso())).toEqual([]);
   });
 });

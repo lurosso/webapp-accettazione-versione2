@@ -3,8 +3,13 @@
 import { MIN_PASSWORD_LENGTH } from '@/config/constants';
 import { domainError, type DomainError } from '@/domain/errors';
 import type { Operator } from '@/domain/entities/operator';
+import { occupiesWorkstation } from '@/domain/entities/operator';
 import type { Workstation } from '@/domain/entities/workstation';
-import { isClaimActive, type WorkstationClaim } from '@/domain/entities/workstation-claim';
+import {
+  isClaimActive,
+  sessionOnlyClaimKey,
+  type WorkstationClaim,
+} from '@/domain/entities/workstation-claim';
 import { err, ok, type Result } from '@/domain/result';
 import { isoDateTime } from '@/domain/value-objects/iso-date';
 import { hashPassword, verifyPassword } from '@/lib/hash-password';
@@ -73,8 +78,26 @@ export class LocalAuthService implements IAuthService {
       this.logger.warn('login rifiutato', { username });
       return err(domainError('VALIDATION', INVALID_CREDENTIALS));
     }
+    // L'amministratore non siede a un banco: entra senza occupare uno sportello, qualunque cosa
+    // abbia lasciato selezionato nel form (anche quando sono tutti occupati).
+    if (!occupiesWorkstation(operator.role)) {
+      const issued = await this.issue(operator, null);
+      await this.claim(issued.session);
+      this.logger.info('login riuscito', {
+        operatorId: operator.id,
+        role: operator.role,
+        workstation: null,
+      });
+      return ok(issued);
+    }
+    const scelta = input.workstationId?.trim() ?? '';
+    if (scelta === '') {
+      return err(
+        domainError('VALIDATION', 'Scegli uno sportello libero: serve per lavorare la coda.'),
+      );
+    }
     const workstation = await this.deps.referenceData.findWorkstationById(
-      input.workstationId as Workstation['id'],
+      scelta as Workstation['id'],
     );
     if (workstation === null) {
       return err(domainError('VALIDATION', "Sportello non valido: selezionarne uno dall'elenco."));
@@ -102,10 +125,14 @@ export class LocalAuthService implements IAuthService {
   /**
    * Emette una sessione per un operatore già verificato dal chiamante (accesso veloce di
    * sviluppo): nessun controllo di password né di accettazione occupata, solo emissione e
-   * registrazione del posto. Non fa parte della porta `IAuthService`.
+   * registrazione del posto. Non fa parte della porta `IAuthService`. Per chi non siede a un banco
+   * la postazione si ignora.
    */
-  async issueSession(operator: Operator, workstation: Workstation): Promise<IssuedSession> {
-    const issued = await this.issue(operator, workstation);
+  async issueSession(operator: Operator, workstation: Workstation | null): Promise<IssuedSession> {
+    const issued = await this.issue(
+      operator,
+      occupiesWorkstation(operator.role) ? workstation : null,
+    );
     await this.claim(issued.session);
     return issued;
   }
@@ -120,11 +147,25 @@ export class LocalAuthService implements IAuthService {
     if (operator === null || !operator.isActive) {
       return err(domainError('NOT_FOUND', 'Sessione non più valida: operatore non attivo.'));
     }
+    // Sportello e ruolo devono andare d'accordo: l'accettatore ha una postazione, l'amministratore
+    // no. Una sessione che non torna — un amministratore entrato quando anche lui occupava uno
+    // sportello, un ruolo cambiato mentre era collegato — non vale più, e il posto che teneva
+    // occupato si libera subito invece di aspettare la scadenza.
+    if (occupiesWorkstation(operator.role) !== (parsed.value.workstationId !== null)) {
+      await this.deps.claims.deleteByOperator(operator.id);
+      this.logger.info('sessione ritirata: sportello e ruolo non coincidono', {
+        operatorId: operator.id,
+        role: operator.role,
+      });
+      return err(domainError('NOT_FOUND', 'Sessione da rinnovare: accedi di nuovo.'));
+    }
     // Il posto deve essere ancora suo. Se un amministratore ha scollegato lo sportello (turno
     // finito e logout dimenticato), o se un collega si è seduto lì, la sessione non vale più:
     // altrimenti resterebbero in due sullo stesso banco, che è esattamente ciò che l'occupazione
-    // della postazione serve a impedire.
-    const claim = await this.deps.claims.findByWorkstation(parsed.value.workstationId);
+    // della postazione serve a impedire. Chi non ha sportello ha la sua chiave di sessione.
+    const claim = await this.deps.claims.findByWorkstation(
+      parsed.value.workstationId ?? sessionOnlyClaimKey(parsed.value.operatorId),
+    );
     if (claim === null || claim.operatorId !== parsed.value.operatorId) {
       return err(
         domainError(
@@ -182,8 +223,11 @@ export class LocalAuthService implements IAuthService {
         domainError('VALIDATION', 'La nuova password deve essere diversa da quella attuale.'),
       );
     }
-    const workstation = await this.deps.referenceData.findWorkstationById(session.workstationId);
-    if (workstation === null) {
+    const workstation =
+      session.workstationId === null
+        ? null
+        : await this.deps.referenceData.findWorkstationById(session.workstationId);
+    if (session.workstationId !== null && workstation === null) {
       return err(domainError('VALIDATION', 'Sportello della sessione non più valido.'));
     }
     const aggiornato = await this.deps.operators.update({
@@ -192,7 +236,10 @@ export class LocalAuthService implements IAuthService {
       mustChangePassword: false,
     });
     this.logger.info('password cambiata', { operatorId: aggiornato.id });
-    const issued = await this.issue(aggiornato, workstation);
+    const issued = await this.issue(
+      aggiornato,
+      occupiesWorkstation(aggiornato.role) ? workstation : null,
+    );
     // Il nuovo token ha una nuova scadenza: l'occupazione del posto la segue.
     await this.claim(issued.session);
     return ok(issued);
@@ -205,6 +252,9 @@ export class LocalAuthService implements IAuthService {
     const operator = await this.deps.operators.findById(session.operatorId);
     if (operator === null || !operator.isActive) {
       return err(domainError('NOT_FOUND', 'Sessione non più valida: operatore non attivo.'));
+    }
+    if (!occupiesWorkstation(operator.role)) {
+      return err(domainError('VALIDATION', "L'amministratore non occupa sportelli."));
     }
     const workstation = await this.deps.referenceData.findWorkstationById(
       workstationId as Workstation['id'],
@@ -250,11 +300,14 @@ export class LocalAuthService implements IAuthService {
     return claim;
   }
 
-  /** Registra il posto della sessione; l'operatore lascia quello che occupava prima. */
+  /**
+   * Registra il posto della sessione; l'operatore lascia quello che occupava prima. Chi non ha
+   * sportello registra la sola sessione, con la sua chiave: non occupa niente.
+   */
   private async claim(session: Session): Promise<void> {
     await this.deps.claims.deleteByOperator(session.operatorId);
     await this.deps.claims.upsert({
-      workstationId: session.workstationId,
+      workstationId: session.workstationId ?? sessionOnlyClaimKey(session.operatorId),
       operatorId: session.operatorId,
       operatorName: session.displayName,
       claimedAt: session.issuedAt,
@@ -262,7 +315,7 @@ export class LocalAuthService implements IAuthService {
     });
   }
 
-  private async issue(operator: Operator, workstation: Workstation): Promise<IssuedSession> {
+  private async issue(operator: Operator, workstation: Workstation | null): Promise<IssuedSession> {
     const now = this.deps.clock.now();
     const expires = new Date(now.getTime() + this.deps.ttlHours * 3_600_000);
     const session: Session = {
@@ -270,7 +323,7 @@ export class LocalAuthService implements IAuthService {
       username: operator.username,
       displayName: operator.displayName,
       role: operator.role,
-      workstationId: workstation.id,
+      workstationId: workstation?.id ?? null,
       deskIds: operator.deskIds,
       mustChangePassword: operator.mustChangePassword,
       issuedAt: isoDateTime(now),

@@ -3,8 +3,7 @@
 import type { Metadata } from 'next';
 import { redirect } from 'next/navigation';
 import { readSession } from '@/app/_server/session';
-import { buildLoginOptions } from '@/application/auth/login-options';
-import { workstationAvailability, type BusyBay } from '@/application/auth/workstation-availability';
+import { loadLoginOptions } from '@/app/_server/login-screen';
 import { getContainer } from '@/config/container';
 import { BrandMark } from '@/components/layout/BrandMark';
 import { isDemoPasswordHash } from '@/lib/hash-password';
@@ -29,39 +28,11 @@ export default async function LoginPage({ searchParams }: LoginPageProps) {
   }
 
   const container = getContainer();
-  const now = container.clock.nowIso();
-  const [desks, workstations, brands, operators, claims, inCarico] = await Promise.all([
-    container.repos.referenceData.listDesks(),
-    container.repos.referenceData.listWorkstations(),
-    container.repos.referenceData.listBrands(),
+  // Le postazioni al primo caricamento; poi il form le richiede da sé ogni pochi secondi.
+  const [options, operators] = await Promise.all([
+    loadLoginOptions(container),
     container.repos.operators.listActive(),
-    container.repos.workstationClaims.listActive(now),
-    container.repos.appointments.listByDate(container.clock.today(), {
-      statuses: ['IN_PROGRESS'],
-    }),
   ]);
-
-  // Si propongono solo le accettazioni libere: né un collega collegato, né un veicolo in carico.
-  const busyBays: BusyBay[] = inCarico
-    .filter((a) => a.bayId !== null)
-    .map((a) => ({
-      bayId: a.bayId as string,
-      code: a.code,
-      operatorId: a.operatorId,
-      operatorName:
-        a.operatorId === null
-          ? null
-          : (operators.find((o) => o.id === a.operatorId)?.displayName ?? null),
-    }));
-  const disponibilita = workstationAvailability({ workstations, claims, busyBays, now });
-
-  // Un solo menu: ogni accettazione porta con sé sportello e marchi; le occupate non si scelgono.
-  const options = buildLoginOptions({
-    workstations,
-    desks: desks.filter((d) => d.isActive),
-    brands,
-    availability: disponibilita,
-  });
   // Suggerimenti visibili solo con il seed demo (mai in produzione: il container lo rifiuta).
   const demoAccounts: DemoAccount[] =
     container.env.nodeEnv === 'production'

@@ -12,8 +12,11 @@ export interface Session {
   readonly username: string;
   readonly displayName: string;
   readonly role: OperatorRole;
-  /** Postazione scelta al login: determina sportello e campata proposti. */
-  readonly workstationId: WorkstationId;
+  /**
+   * Postazione scelta al login: determina sportello e campata proposti. null per chi non siede a
+   * un banco (amministratore, kiosk: `occupiesWorkstation`), che entra senza occupare sportelli.
+   */
+  readonly workstationId: WorkstationId | null;
   /** Sportelli abituali dell'operatore. */
   readonly deskIds: readonly DeskId[];
   /** True finché l'operatore non sostituisce la password provvisoria: può fare solo quello. */
@@ -32,7 +35,11 @@ export interface ChangePasswordInput {
 export interface LoginInput {
   readonly username: string;
   readonly password: string;
-  readonly workstationId: string;
+  /**
+   * Postazione scelta; null o vuota = nessuna. Obbligatoria per l'accettatore, ignorata per
+   * l'amministratore (che non occupa sportelli, qualunque cosa scelga).
+   */
+  readonly workstationId: string | null;
 }
 
 /** Sessione emessa insieme al token firmato da mettere nel cookie. */

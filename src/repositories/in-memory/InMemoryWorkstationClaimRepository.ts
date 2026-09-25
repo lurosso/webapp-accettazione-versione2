@@ -1,7 +1,7 @@
 // Occupazioni delle accettazioni in memoria (chiave: workstationId).
 
 import type { WorkstationClaim } from '@/domain/entities/workstation-claim';
-import { isClaimActive } from '@/domain/entities/workstation-claim';
+import { isClaimActive, isWorkstationClaim } from '@/domain/entities/workstation-claim';
 import type { OperatorId, WorkstationId } from '@/domain/ids';
 import type { IsoDateTime } from '@/domain/value-objects/iso-date';
 import type { IWorkstationClaimRepository } from '../interfaces/IWorkstationClaimRepository';
@@ -17,7 +17,7 @@ export class InMemoryWorkstationClaimRepository implements IWorkstationClaimRepo
 
   async listActive(now: IsoDateTime): Promise<readonly WorkstationClaim[]> {
     return [...this.store.state.workstationClaims.values()]
-      .filter((c) => isClaimActive(c, now))
+      .filter((c) => isClaimActive(c, now) && isWorkstationClaim(c))
       .map((c) => ({ ...c }));
   }
 

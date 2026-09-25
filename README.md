@@ -205,11 +205,11 @@ account dei dispositivi, che atterrano sul tabellone e non entrano nell'area ope
 **Chi vede cosa.** I ruoli stanno in recinti espliciti, elencati in un solo posto (`AREA_ROLES` in
 `src/lib/navigation.ts`), che valgono per le pagine, per il menu e per le API:
 
-| Ruolo              | Dove entra                                                           |
-| ------------------ | -------------------------------------------------------------------- |
-| **Accettatore**    | Coda, archivio, check-in, Comunicazioni, Sistema (solo segnalazioni) |
-| **Amministratore** | Tutto                                                                |
-| **Kiosk**          | Solo il tabellone della sala                                         |
+| Ruolo              | Dove entra                                            |
+| ------------------ | ----------------------------------------------------- |
+| **Accettatore**    | Coda, archivio, check-in, Sistema (solo segnalazioni) |
+| **Amministratore** | Tutto                                                 |
+| **Kiosk**          | Solo il tabellone della sala                          |
 
 Dal 2026-09-24 il BDC **non usa l'app**: il ruolo Responsabile/BDC e il suo cruscotto non esistono
 più, e gli account che l'avevano sono stati disattivati. Ogni assente — segnato al banco, dichiarato
@@ -225,6 +225,18 @@ già collegato allo Sportello A, o ha un veicolo in carico lì, la voce è disab
 accanto ("in uso da Mario Rossi") finché non esce o la sua sessione scade. Il controllo lo fa
 anche il server, quindi due login sullo stesso posto non passano nemmeno chiamando l'API.
 
+Lo stato degli sportelli si **aggiorna da solo** mentre la pagina di login è aperta: il form lo
+richiede a `GET /api/v1/auth/login-options` ogni 5 secondi e subito quando la pagina torna in primo
+piano o torna la rete, da localhost come dall'indirizzo di rete (iPad compreso). Se lo sportello
+scelto viene preso nel frattempo, si propone il primo libero e lo si dice.
+
+**L'amministratore non occupa sportelli.** Solo l'accettatore siede a un banco: l'amministratore
+entra senza postazione qualunque cosa sia selezionata (la voce «Nessuno sportello (solo
+amministratore)» c'è sempre, ed è l'unica quando sono tutti occupati), in testata legge «Nessuno
+sportello · tutti gli sportelli» e la coda gli si apre su tutti gli sportelli. La regola di una sola
+sessione valida per operatore vale anche per lui. Una sessione amministratore di prima, che teneva
+occupato uno sportello, alla prima richiesta viene ritirata e il posto si libera: basta rientrare.
+
 ## Le dashboard
 
 | Percorso                 | Destinatario       | Stato       | Contenuto                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                         |
@@ -234,7 +246,7 @@ anche il server, quindi due login sullo stesso posto non passano nemmeno chiaman
 | `/sistema`               | Accettatore, Admin | disponibile | Accettatore: solo «Segnala un problema» (ticket all'amministratore). Amministratore: stato delle porte esterne (Infinity, Spoki, SMS Hosting, CRM), storage, rete e sincronizzazione, e la coda di uscita verso il CRM con "Forza riprova"                                                                                                                                                                                                                                                                                                                                                                                                        |
 | `/cliente` (`/qr`)       | Cliente (QR)       | disponibile | Ricerca per targa e stato del turno in tempo reale: codice, clienti in attesa, messaggio per stato; nessuna autenticazione e nessun dato personale                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                |
 | `/display/sala-attesa`   | Sala d'attesa      | disponibile | Tabellone stile ufficio pubblico: codici chiamati con la lettera dello sportello a cui presentarsi e prossimi turni                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                               |
-| `/comunicazioni`         | Accettatore, Admin | disponibile | Messaggi al cliente non arrivati: in riprova automatica, da contattare a mano, senza numero; presa in carico, riprova ed esito del contatto                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                       |
+| `/comunicazioni`         | Admin              | disponibile | Messaggi al cliente non arrivati: in riprova automatica, da contattare a mano, senza numero; presa in carico, riprova ed esito del contatto                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                       |
 | `/display/A` … `/D`      | Monitor            | disponibile | Schermo a tutto campo per i monitor sopra i quattro sportelli: lettera, codice e targa in servizio, oppure invito verde ad avanzare; si aggiorna ogni 2 secondi                                                                                                                                                                                                                                                                                                                                                                                                                                                                                   |
 | `/check-in`              | Tablet             | disponibile | Check-in veicolo a tutto schermo, senza l'intestazione del sito: le pratiche del proprio sportello in due schede grandi, foto a slot con «+ Foto» e «Video» (mai obbligatori), note con annotazioni rapide, comandi fissi in basso (il vecchio `/tablet` rimanda qui)                                                                                                                                                                                                                                                                                                                                                                             |
 | `/accettazione/archivio` | Accettatore        | disponibile | Archivio delle ispezioni: ricerca per targa o codice, schede con le foto per categoria; i file oltre la retention risultano eliminati ma la scheda resta                                                                                                                                                                                                                                                                                                                                                                                                                                                                                          |
@@ -416,7 +428,8 @@ preso in carico, l'anomalia si chiude da sola («Cliente presente»).
 
 ### Provare la schermata Comunicazioni
 
-<http://localhost:3000/comunicazioni> (accettatori e amministratore) elenca i **messaggi al
+<http://localhost:3000/comunicazioni> (solo l'amministratore: dal 2026-09-25 al banco non c'è più)
+elenca i **messaggi al
 cliente che non sono arrivati** negli ultimi sette giorni, con il testo del messaggio (quello da
 dire al telefono), il numero da chiamare con un tocco e l'ultimo errore dei provider. Ogni riga dice
 cosa sta facendo il sistema:
@@ -666,7 +679,8 @@ inserita a mano, turno che si avvicina, annullamento deciso da una persona) e se
 percorso della richiesta che li ha generati: la presa in carico non aspetta WhatsApp. Il ripiego
 WhatsApp → SMS → contatto manuale resta quello del promemoria del mattino. Un invio fallito per un
 problema temporaneo si ritenta da solo dopo 1, 5 e 15 minuti; poi la riga passa a «Da contattare a
-mano» nella schermata **Comunicazioni**, dove qualcuno la prende in carico e registra l'esito.
+mano» nella schermata **Comunicazioni** dell'amministratore, che la prende in carico e registra
+l'esito.
 
 **Una schermata va in errore.** L'area operatore mostra il problema dentro l'applicazione, con
 "Riprova" e "Torna alla coda"; un monitor mostra uno schermo giallo "MONITOR IN RIPRISTINO" e si
@@ -914,9 +928,9 @@ per i cron esterni.
 
 ### Comunicazioni
 
-| Rotta            | Metodo | Descrizione                                                                                                                                                                                                                 | Accesso                      |
-| ---------------- | ------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------- |
-| `/comunicazioni` | pagina | Comunicazioni: i messaggi al cliente non arrivati — in riprova automatica (con l’ora del prossimo tentativo), da contattare a mano, senza numero — con «Prendo io», «Riprova invio» e la chiusura con l’esito del contatto. | Accettatore e Amministratore |
+| Rotta            | Metodo | Descrizione                                                                                                                                                                                                                 | Accesso             |
+| ---------------- | ------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------- |
+| `/comunicazioni` | pagina | Comunicazioni: i messaggi al cliente non arrivati — in riprova automatica (con l’ora del prossimo tentativo), da contattare a mano, senza numero — con «Prendo io», «Riprova invio» e la chiusura con l’esito del contatto. | Solo Amministratore |
 
 ### Amministrazione e configurazione
 
@@ -950,13 +964,14 @@ per i cron esterni.
 
 ### API: autenticazione
 
-| Rotta                          | Metodo | Descrizione                                                                                                                       | Accesso                                            |
-| ------------------------------ | ------ | --------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------- |
-| `/api/v1/auth/login`           | POST   | Verifica credenziali e postazione, imposta il cookie di sessione (limiti di frequenza per IP e utente).                           | Pubblico                                           |
-| `/api/v1/auth/logout`          | POST   | Libera la postazione e cancella il cookie.                                                                                        | Sessione operatore, anche con password provvisoria |
-| `/api/v1/auth/me`              | GET    | Sessione corrente (ruolo, postazione, obbligo di cambio password).                                                                | Sessione operatore, anche con password provvisoria |
-| `/api/v1/auth/change-password` | POST   | Sostituisce la password (provvisoria o no) e rinnova il cookie.                                                                   | Sessione operatore, anche con password provvisoria |
-| `/api/v1/auth/quick-login`     | POST   | Accesso veloce di sviluppo (DEV_QUICK_LOGIN): sessione di un profilo dev.* senza credenziali; 404 in produzione o se disattivato. | Pubblico                                           |
+| Rotta                          | Metodo | Descrizione                                                                                                                                         | Accesso                                            |
+| ------------------------------ | ------ | --------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------- |
+| `/api/v1/auth/login`           | POST   | Verifica credenziali e postazione, imposta il cookie di sessione (limiti di frequenza per IP e utente).                                             | Pubblico                                           |
+| `/api/v1/auth/logout`          | POST   | Libera la postazione e cancella il cookie.                                                                                                          | Sessione operatore, anche con password provvisoria |
+| `/api/v1/auth/me`              | GET    | Sessione corrente (ruolo, postazione, obbligo di cambio password).                                                                                  | Sessione operatore, anche con password provvisoria |
+| `/api/v1/auth/change-password` | POST   | Sostituisce la password (provvisoria o no) e rinnova il cookie.                                                                                     | Sessione operatore, anche con password provvisoria |
+| `/api/v1/auth/login-options`   | GET    | Postazioni del login, libere o occupate con il motivo: il form le richiede ogni 5 secondi (stessi dati della pagina di login; tetto per indirizzo). | Pubblico                                           |
+| `/api/v1/auth/quick-login`     | POST   | Accesso veloce di sviluppo (DEV_QUICK_LOGIN): sessione di un profilo dev.* senza credenziali; 404 in produzione o se disattivato.                   | Pubblico                                           |
 
 ### API: coda e pratiche
 
@@ -988,14 +1003,14 @@ per i cron esterni.
 
 ### API: report, lead e comunicazioni
 
-| Rotta                               | Metodo | Descrizione                                                                                                                                                         | Accesso                      |
-| ----------------------------------- | ------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------- |
-| `/api/v1/reports/daily`             | GET    | Indicatori della giornata (`?giornata=`): attesa media, durata, esiti.                                                                                              | Solo Amministratore          |
-| `/api/v1/reports/daily/csv`         | GET    | Riepilogo dettagliato della giornata in CSV (con BOM per Excel).                                                                                                    | Solo Amministratore          |
-| `/api/v1/notifications`             | GET    | Schermata Comunicazioni: messaggi al cliente non arrivati degli ultimi giorni, con i conteggi (`?vista=gestite` per quelli chiusi a mano).                          | Accettatore e Amministratore |
-| `/api/v1/notifications/:id/actions` | POST   | Comandi su un messaggio non arrivato: `claim` (prendo io), `release`, `retry` (riprova invio), `confirm` (esito del contatto e chiusura).                           | Accettatore e Amministratore |
-| `/api/v1/crm/leads`                 | GET    | Assenti e anomalie della giornata per il pannello «Anomalie di oggi» (`?giornata=&gestiti=1`, `tipo=assenti` o `tipo=anomalie`); al BDC arrivano come lead nel CRM. | Solo Amministratore          |
-| `/api/v1/system/close-day`          | POST   | Chiusura della giornata: chi è in coda diventa assente (lead al CRM del BDC), chi è in carico viene chiuso d'ufficio.                                               | Solo Amministratore          |
+| Rotta                               | Metodo | Descrizione                                                                                                                                                         | Accesso             |
+| ----------------------------------- | ------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------- |
+| `/api/v1/reports/daily`             | GET    | Indicatori della giornata (`?giornata=`): attesa media, durata, esiti.                                                                                              | Solo Amministratore |
+| `/api/v1/reports/daily/csv`         | GET    | Riepilogo dettagliato della giornata in CSV (con BOM per Excel).                                                                                                    | Solo Amministratore |
+| `/api/v1/notifications`             | GET    | Schermata Comunicazioni: messaggi al cliente non arrivati degli ultimi giorni, con i conteggi (`?vista=gestite` per quelli chiusi a mano).                          | Solo Amministratore |
+| `/api/v1/notifications/:id/actions` | POST   | Comandi su un messaggio non arrivato: `claim` (prendo io), `release`, `retry` (riprova invio), `confirm` (esito del contatto e chiusura).                           | Solo Amministratore |
+| `/api/v1/crm/leads`                 | GET    | Assenti e anomalie della giornata per il pannello «Anomalie di oggi» (`?giornata=&gestiti=1`, `tipo=assenti` o `tipo=anomalie`); al BDC arrivano come lead nel CRM. | Solo Amministratore |
+| `/api/v1/system/close-day`          | POST   | Chiusura della giornata: chi è in coda diventa assente (lead al CRM del BDC), chi è in carico viene chiuso d'ufficio.                                               | Solo Amministratore |
 
 ### API: amministrazione
 

@@ -29,7 +29,8 @@ export const dynamic = 'force-dynamic';
 const LoginBody = z.object({
   username: z.string().trim().min(1, 'Nome utente obbligatorio.').max(64),
   password: z.string().min(1, 'Password obbligatoria.').max(200),
-  workstationId: z.string().trim().min(1, "Selezionare l'accettazione."),
+  // Facoltativa: l'amministratore non occupa sportelli. Per l'accettatore la esige il servizio.
+  workstationId: z.string().trim().max(64).optional(),
 });
 
 export async function POST(request: NextRequest): Promise<NextResponse> {
@@ -51,7 +52,11 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
   if (!perUser.allowed) {
     return tooManyAttempts(perUser.retryAfterSeconds);
   }
-  const result = await getContainer().authService.login(parsed.data);
+  const result = await getContainer().authService.login({
+    username: parsed.data.username,
+    password: parsed.data.password,
+    workstationId: parsed.data.workstationId ?? null,
+  });
   if (!result.ok) {
     return domainErrorResponse(result.error);
   }

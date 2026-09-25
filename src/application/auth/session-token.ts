@@ -71,7 +71,7 @@ export async function verifySessionToken(
       typeof username !== 'string' ||
       typeof displayName !== 'string' ||
       !isOperatorRole(role) ||
-      typeof workstationId !== 'string' ||
+      (typeof workstationId !== 'string' && workstationId !== null) ||
       !isStringArray(deskIds) ||
       typeof mustChangePassword !== 'boolean'
     ) {
@@ -82,7 +82,7 @@ export async function verifySessionToken(
       username,
       displayName,
       role,
-      workstationId: asWorkstationId(workstationId),
+      workstationId: workstationId === null ? null : asWorkstationId(workstationId),
       deskIds: deskIds.map(asDeskId),
       mustChangePassword,
       issuedAt: isoDateTime(new Date(iat * 1000)),

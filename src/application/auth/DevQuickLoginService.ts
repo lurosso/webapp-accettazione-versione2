@@ -7,7 +7,7 @@
 // quando è assente: in produzione questa classe non esiste proprio.
 import { randomBytes } from 'node:crypto';
 import type { Desk } from '@/domain/entities/desk';
-import type { Operator, OperatorRole } from '@/domain/entities/operator';
+import { occupiesWorkstation, type Operator, type OperatorRole } from '@/domain/entities/operator';
 import type { Workstation } from '@/domain/entities/workstation';
 import type { DomainError } from '@/domain/errors';
 import { domainError } from '@/domain/errors';
@@ -37,7 +37,7 @@ export interface QuickLoginProfile {
 
 /** Chi sa emettere una sessione per un operatore già verificato (LocalAuthService). */
 export interface SessionIssuer {
-  issueSession(operator: Operator, workstation: Workstation): Promise<IssuedSession>;
+  issueSession(operator: Operator, workstation: Workstation | null): Promise<IssuedSession>;
 }
 
 export interface DevQuickLoginServiceDeps {
@@ -101,6 +101,16 @@ export class DevQuickLoginService {
     const deskIds = desk === null ? desks.filter((d) => d.isActive).map((d) => d.id) : [desk.id];
     const operator = await this.ensureOperator(profile, deskIds, candidate[0]?.id ?? null);
 
+    // L'amministratore non siede a un banco: nessuna postazione da cercare.
+    if (!occupiesWorkstation(operator.role)) {
+      const issued = await this.deps.auth.issueSession(operator, null);
+      this.logger.info('accesso veloce di sviluppo', {
+        profile: profile.id,
+        username: operator.username,
+        workstation: null,
+      });
+      return ok(issued);
+    }
     const now = this.deps.clock.nowIso();
     const claims = await this.deps.claims.listActive(now);
     const libera =

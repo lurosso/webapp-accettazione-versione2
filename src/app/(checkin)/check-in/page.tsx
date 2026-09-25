@@ -18,9 +18,10 @@ interface CheckInPageProps {
 export default async function CheckInPage({ searchParams }: CheckInPageProps) {
   const [session, params] = await Promise.all([requireArea('check-in', '/check-in'), searchParams]);
   const container = getContainer();
-  const workstation = await container.repos.referenceData.findWorkstationById(
-    session.workstationId,
-  );
+  const workstation =
+    session.workstationId === null
+      ? null
+      : await container.repos.referenceData.findWorkstationById(session.workstationId);
   const homeDeskId = workstation?.deskId ?? session.deskIds[0] ?? null;
   // Arrivando dalla dashboard (presa in carico da tablet, o "Passa al check-in" dal dettaglio) il
   // parametro dice quale pratica aprire subito, senza far cercare la scheda in elenco.
@@ -31,7 +32,10 @@ export default async function CheckInPage({ searchParams }: CheckInPageProps) {
     <CheckInQueue
       session={session}
       homeDeskId={homeDeskId}
-      workstationLabel={workstation?.name ?? 'Accettazione n/d'}
+      workstationLabel={
+        workstation?.name ??
+        (session.workstationId === null ? 'Nessuno sportello' : 'Accettazione n/d')
+      }
       openCheckInFor={appointmentId}
     />
   );

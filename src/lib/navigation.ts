@@ -42,13 +42,16 @@ export type ProtectedArea = 'accettazione' | 'check-in' | 'admin' | 'sistema' | 
  * ruolo Responsabile/BDC (SUPERVISOR) non esiste più. Restano l'accettatore, che governa la coda
  * al banco, e l'amministratore, l'unico che vede tutto perché deve poter controllare (chiusura
  * della giornata, sync forzata, assistenza, statistiche).
+ *
+ * Dal 2026-09-25 la schermata Comunicazioni (messaggi al cliente non arrivati, da contattare a
+ * mano) è solo dell'amministratore: al banco non serve, l'accettatore lavora la coda.
  */
 export const AREA_ROLES: Record<ProtectedArea, readonly OperatorRole[]> = {
   accettazione: ['ADVISOR', 'ADMIN'],
   'check-in': ['ADVISOR', 'ADMIN'],
   admin: ['ADMIN'],
   sistema: ['ADVISOR', 'ADMIN'],
-  comunicazioni: ['ADVISOR', 'ADMIN'],
+  comunicazioni: ['ADMIN'],
 };
 
 /** True se il ruolo può accedere all'area. */

@@ -7,8 +7,16 @@
 // con chi c'è sopra. Sono due domande diverse — «dove mi siedo» e «chi c'è agli altri banchi» —
 // e prima erano la stessa tendina, con le occupate dentro ma spente. Chi arrivava e non trovava
 // la sua doveva aprire il menu e leggere le voci grigie per capire il perché.
+//
+// Lo stato delle postazioni si aggiorna da solo (`GET /api/v1/auth/login-options` ogni pochi
+// secondi, e subito quando la pagina torna in primo piano o la rete torna): chi aspetta davanti al
+// login dell'iPad vede il collega che si siede o si alza senza ricaricare. Se lo sportello scelto
+// viene preso nel frattempo, si propone il primo libero e lo si dice.
+//
+// L'amministratore non occupa sportelli: può lasciare qualunque scelta, o «Nessuno sportello»
+// (l'unica voce quando sono tutti occupati), e il server non gli assegna niente.
 import { useRouter } from 'next/navigation';
-import { useState, type FormEvent } from 'react';
+import { useEffect, useRef, useState, type FormEvent } from 'react';
 import type { OperatorRole } from '@/domain/entities/operator';
 import { defaultLoginOption, type LoginWorkstationOption } from '@/application/auth/login-options';
 import { Badge } from '@/components/ui/badge';
@@ -19,7 +27,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Notice } from '@/components/ui/notice';
 import { Select } from '@/components/ui/select';
-import { ApiError, postLogin, postQuickLogin } from '@/lib/api-client/client';
+import { ApiError, fetchLoginOptions, postLogin, postQuickLogin } from '@/lib/api-client/client';
 import { cn } from '@/lib/utils/cn';
 import type { QuickLoginProfile } from '@/application/auth/DevQuickLoginService';
 
@@ -37,8 +45,14 @@ export interface LoginFormProps {
   readonly quickLoginProfiles?: readonly QuickLoginProfile[];
 }
 
+/** Ogni quanto si richiede lo stato delle postazioni mentre la pagina è in primo piano. */
+export const LOGIN_OPTIONS_REFRESH_MS = 5_000;
+
+/** Valore della scelta «Nessuno sportello» (amministratore). */
+const NESSUNO_SPORTELLO = '';
+
 export function LoginForm({
-  options,
+  options: initialOptions,
   nextPath,
   demoAccounts,
   quickLoginProfiles = [],
@@ -46,9 +60,63 @@ export function LoginForm({
   const router = useRouter();
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
-  const [workstationId, setWorkstationId] = useState(() => defaultLoginOption(options));
+  const [options, setOptions] = useState(initialOptions);
+  const [workstationId, setWorkstationId] = useState(() => defaultLoginOption(initialOptions));
+  // La scelta corrente anche per il giro di aggiornamento, che gira fuori dal render.
+  const sceltaRef = useRef(workstationId);
+  const [avviso, setAvviso] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
+
+  const scegli = (id: string): void => {
+    sceltaRef.current = id;
+    setWorkstationId(id);
+  };
+
+  useEffect(() => {
+    let attivo = true;
+    let inCorso = false;
+    const aggiorna = async (): Promise<void> => {
+      if (inCorso || document.visibilityState === 'hidden') {
+        return;
+      }
+      inCorso = true;
+      try {
+        const { options: nuove } = await fetchLoginOptions();
+        if (!attivo) {
+          return;
+        }
+        setOptions(nuove);
+        const scelta = sceltaRef.current;
+        const ora = nuove.find((o) => o.id === scelta);
+        if (scelta !== NESSUNO_SPORTELLO && (ora === undefined || ora.disabled)) {
+          const prossima = defaultLoginOption(nuove);
+          sceltaRef.current = prossima;
+          setWorkstationId(prossima);
+          const proposta = nuove.find((o) => o.id === prossima);
+          setAvviso(
+            `${ora?.label ?? 'Lo sportello scelto'} è stato appena occupato${ora?.reason ? ` (${ora.reason})` : ''}: ${proposta === undefined ? 'nessun altro sportello è libero' : `ti proponiamo ${proposta.label}`}.`,
+          );
+        }
+      } catch {
+        // Rete o server giù: resta l'ultimo stato noto, si riprova al giro dopo.
+      } finally {
+        inCorso = false;
+      }
+    };
+    const timer = window.setInterval(() => void aggiorna(), LOGIN_OPTIONS_REFRESH_MS);
+    const subito = (): void => void aggiorna();
+    document.addEventListener('visibilitychange', subito);
+    window.addEventListener('focus', subito);
+    window.addEventListener('online', subito);
+    return () => {
+      attivo = false;
+      window.clearInterval(timer);
+      document.removeEventListener('visibilitychange', subito);
+      window.removeEventListener('focus', subito);
+      window.removeEventListener('online', subito);
+    };
+  }, []);
 
   const selected = options.find((o) => o.id === workstationId) ?? null;
   const libere = options.filter((o) => !o.disabled);
@@ -56,8 +124,9 @@ export function LoginForm({
   const onSubmit = async (event: FormEvent<HTMLFormElement>): Promise<void> => {
     event.preventDefault();
     setError(null);
-    if (selected === null || selected.disabled) {
-      setError('Selezionare uno sportello libero.');
+    // «Nessuno sportello» passa: il server lo accetta solo dall'amministratore.
+    if (workstationId !== NESSUNO_SPORTELLO && (selected === null || selected.disabled)) {
+      setError('Lo sportello scelto non è più libero: scegline un altro.');
       return;
     }
     setSubmitting(true);
@@ -135,18 +204,26 @@ export function LoginForm({
                 id="workstation"
                 name="workstation"
                 value={workstationId}
-                onChange={(event) => setWorkstationId(event.target.value)}
-                disabled={libere.length === 0}
+                onChange={(event) => {
+                  setAvviso(null);
+                  scegli(event.target.value);
+                }}
               >
-                {libere.length === 0 ? (
-                  <option value="">Tutte le postazioni sono occupate</option>
-                ) : null}
                 {libere.map((o) => (
                   <option key={o.id} value={o.id}>
                     {o.label}
                   </option>
                 ))}
+                <option value={NESSUNO_SPORTELLO}>
+                  {libere.length === 0
+                    ? 'Tutte occupate · nessuno sportello (solo amministratore)'
+                    : 'Nessuno sportello (solo amministratore)'}
+                </option>
               </Select>
+              <span className="text-ink-muted testo-nota">
+                L&apos;amministratore entra senza occupare uno sportello, qualunque sia la scelta.
+              </span>
+              {avviso !== null ? <Notice tone="warning">{avviso}</Notice> : null}
               {selected !== null && selected.brands.length > 0 ? (
                 <div className="flex flex-wrap gap-1.5" aria-label="Marchi serviti dallo sportello">
                   {selected.brands.map((b) => (
@@ -160,7 +237,7 @@ export function LoginForm({
 
             {error !== null ? <Notice tone="error">{error}</Notice> : null}
 
-            <Button type="submit" size="lg" disabled={submitting || libere.length === 0}>
+            <Button type="submit" size="lg" disabled={submitting}>
               {submitting ? 'Accesso in corso…' : 'Entra'}
             </Button>
           </form>
@@ -198,7 +275,7 @@ export function LoginForm({
             </ul>
             <p className="text-ink-muted testo-nota">
               Si scelgono solo le postazioni libere: due colleghi sullo stesso banco farebbero
-              chiamare due clienti allo stesso sportello.
+              chiamare due clienti allo stesso sportello. L&apos;elenco si aggiorna da solo.
             </p>
           </aside>
         </CardContent>

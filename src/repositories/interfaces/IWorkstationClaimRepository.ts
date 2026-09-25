@@ -6,7 +6,11 @@ import type { IsoDateTime } from '@/domain/value-objects/iso-date';
 
 export interface IWorkstationClaimRepository {
   findByWorkstation(workstationId: WorkstationId): Promise<WorkstationClaim | null>;
-  /** Occupazioni non ancora scadute all'istante indicato. */
+  /**
+   * Postazioni occupate e non ancora scadute all'istante indicato. Le sessioni senza sportello
+   * (amministratore, kiosk: `sessionOnlyClaimKey`) non occupano niente e qui non compaiono; si
+   * leggono con `findByWorkstation` sulla loro chiave.
+   */
   listActive(now: IsoDateTime): Promise<readonly WorkstationClaim[]>;
   /** Inserisce o sostituisce l'occupazione della postazione indicata dal claim. */
   upsert(claim: WorkstationClaim): Promise<WorkstationClaim>;

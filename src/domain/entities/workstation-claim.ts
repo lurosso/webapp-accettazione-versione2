@@ -22,3 +22,21 @@ export interface WorkstationClaim {
 export function isClaimActive(claim: WorkstationClaim, now: IsoDateTime): boolean {
   return claim.expiresAt > now;
 }
+
+/**
+ * Prefisso della «sessione senza sportello» (amministratore, kiosk). Chi non siede a un banco non
+ * occupa nessuna postazione, ma la sua sessione resta registrata come le altre: vale anche per lui
+ * la regola di una sola sessione valida per operatore (l'ultimo accesso). Nessun id di postazione
+ * comincia così.
+ */
+export const SESSION_ONLY_CLAIM_PREFIX = 'sessione:';
+
+/** Chiave della sessione senza sportello di un operatore. */
+export function sessionOnlyClaimKey(operatorId: OperatorId): WorkstationId {
+  return `${SESSION_ONLY_CLAIM_PREFIX}${operatorId}` as WorkstationId;
+}
+
+/** True se il record occupa davvero una postazione (non è una sessione senza sportello). */
+export function isWorkstationClaim(claim: Pick<WorkstationClaim, 'workstationId'>): boolean {
+  return !claim.workstationId.startsWith(SESSION_ONLY_CLAIM_PREFIX);
+}

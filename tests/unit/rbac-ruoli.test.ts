@@ -28,14 +28,15 @@ describe('RBAC: accettatore, amministratore, kiosk', () => {
     expect(Object.keys(AREA_ROLES).sort()).toEqual([...AREE].sort());
   });
 
-  it("l'accettatore lavora su coda, check-in, sistema (ticket) e comunicazioni, non in amministrazione", () => {
+  it("l'accettatore lavora su coda, check-in e sistema (ticket); comunicazioni e amministrazione no", () => {
     expect(AREE.filter((area) => canAccess(area, 'ADVISOR'))).toEqual([
       'accettazione',
       'check-in',
       'sistema',
-      'comunicazioni',
     ]);
     expect(redirectForForbiddenArea('admin', 'ADVISOR')).toBe('/accettazione');
+    // La schermata Comunicazioni al banco non serve: chi ci bussa torna alla coda.
+    expect(redirectForForbiddenArea('comunicazioni', 'ADVISOR')).toBe('/accettazione');
   });
 
   it("l'amministratore vede tutto: è l'unico che deve poter controllare", () => {
