@@ -32,7 +32,7 @@ export function checkInPath(appointmentId: string): string {
 export const CHECK_IN_PARAM = 'pratica';
 
 /** Aree protette dell'applicazione. */
-export type ProtectedArea = 'accettazione' | 'check-in' | 'admin' | 'sistema' | 'comunicazioni';
+export type ProtectedArea = 'accettazione' | 'check-in' | 'admin' | 'sistema';
 
 /**
  * Ruoli ammessi su ciascuna area; un solo elenco, usato dalle pagine, dalla navigazione e dalle
@@ -44,14 +44,14 @@ export type ProtectedArea = 'accettazione' | 'check-in' | 'admin' | 'sistema' | 
  * della giornata, sync forzata, assistenza, statistiche).
  *
  * Dal 2026-09-25 la schermata Comunicazioni (messaggi al cliente non arrivati, da contattare a
- * mano) è solo dell'amministratore: al banco non serve, l'accettatore lavora la coda.
+ * mano) non esiste più, su decisione del committente: lo stato dei messaggi resta visibile sul
+ * dettaglio della pratica.
  */
 export const AREA_ROLES: Record<ProtectedArea, readonly OperatorRole[]> = {
   accettazione: ['ADVISOR', 'ADMIN'],
   'check-in': ['ADVISOR', 'ADMIN'],
   admin: ['ADMIN'],
   sistema: ['ADVISOR', 'ADMIN'],
-  comunicazioni: ['ADMIN'],
 };
 
 /** True se il ruolo può accedere all'area. */

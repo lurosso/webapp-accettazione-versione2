@@ -20,7 +20,7 @@ describe('Sicurezza API: proxy', () => {
     expect(api.status).toBe(401);
     expect((await api.json()).error.code).toBe('UNAUTHORIZED');
 
-    for (const pagina of ['/admin', '/accettazione/archivio', '/check-in', '/comunicazioni']) {
+    for (const pagina of ['/admin', '/accettazione/archivio', '/check-in', '/sistema']) {
       const r = await proxy(richiesta(pagina));
       expect(r.status).toBe(307);
       expect(r.headers.get('location')).toContain('/login?next=');

@@ -140,7 +140,8 @@ export const PULSANTI_PRENOTAZIONE = [
 
 /**
  * I template 📅 approvati, come stanno nell'account (letti il 2026-09-25). `tipo` è il messaggio
- * dell'app (tipo Spoki), `env` la variabile che ne porta l'id; null = non ancora usato dall'app.
+ * dell'app (tipo Spoki), `env` la variabile che ne porta l'id; null = non è un messaggio dell'app.
+ * Dal 2026-09-25 l'app manda solo i promemoria: degli 📅 usa il Reminder 24h.
  */
 export const TEMPLATE_ESISTENTI = [
   {
@@ -152,17 +153,19 @@ export const TEMPLATE_ESISTENTI = [
     pulsanti: PULSANTI_PRENOTAZIONE.map((p) => p.testo),
   },
   {
+    // Non è un messaggio dell'app (decisione del committente, 2026-09-25).
     name: '📅 Conferma Accettazione',
-    tipo: 'CHECK_IN_STARTED',
-    env: 'SPOKI_TEMPLATE_WELCOME_ID',
+    tipo: null,
+    env: null,
     testo:
       'Gentile %%NOME_CLIENTE%% ,\nla informiamo che la sua vettura è stata presa in carico dalla nostra officina.\n\nDi seguito i dettagli:\n\n👤Accettatore: %%_NOME_ACCETTATORE_%%\n🚗 *Veicolo*: %%_MARCA_E_MODELLO_%%\n🔢 *Targa*: %%_TARGA_%%\n📆 *Data prevista di riconsegna* : %%_DATA_PREVISTA_%%\n🕒 *Orario prevista di riconsegna* : %%_ORA_PREVISTA_%%\n\nPer il ritiro attenda sempre nostra comunicazione di pronto vettura.\nPer qualsiasi aggiornamento sullo stato di avanzamento dei lavori, può rispondere a questo messaggio.\nGrazie per la fiducia\n\n_Il Team Autoclub_',
     pulsanti: PULSANTI_PRENOTAZIONE.map((p) => p.testo),
   },
   {
+    // Non è un messaggio dell'app (decisione del committente, 2026-09-25).
     name: '📅 Conferma Prenotazione',
-    tipo: 'CONFIRMATION',
-    env: 'SPOKI_TEMPLATE_BOOKING_ID',
+    tipo: null,
+    env: null,
     testo:
       'Gentile %%NOME_CLIENTE%%,\nla ringraziamo per aver prenotato un intervento presso la nostra officina.\n\n Di seguito il riepilogo del suo appuntamento:\n\n📅 *Data:* %%DATA%%\n⏰ *Ora:* %%ORA%%\n📍 *Sede:* %%LUOGO%%\n🚗 *Veicolo*: %%_MARCA_E_MODELLO_%%\n🔢 *Targa*: %%_TARGA_%%\n\n⚠️ Per eventuali modifiche o necessità, non esiti a contattarci rispondendo a questo messaggio\nGrazie per la fiducia e a presto!\n_Il Team Autoclub_',
     pulsanti: PULSANTI_PRENOTAZIONE.map((p) => p.testo),

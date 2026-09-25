@@ -61,9 +61,9 @@ export const SPOKI_TEMPLATE_KINDS: readonly SpokiTemplateKind[] = [
 ];
 
 /**
- * I template integrati: i due promemoria, le tre risposte automatiche ai pulsanti del promemoria
- * del giorno stesso e i due messaggi del check-in. Gli altri restano definiti per SMS e log ma
- * non hanno una configurazione Spoki.
+ * I messaggi integrati: i due promemoria e le risposte ai pulsanti del promemoria del mattino. Dal
+ * 2026-09-25 il committente vuole dall'app solo questi (promemoria e conferma del cliente): gli
+ * altri tipi restano definiti per SMS e log, e i loro messaggi a evento sono spenti.
  */
 export const SPOKI_ACTIVE_TEMPLATE_KINDS: readonly SpokiTemplateKind[] = [
   'REMINDER_PREVIOUS_DAY',
@@ -72,9 +72,6 @@ export const SPOKI_ACTIVE_TEMPLATE_KINDS: readonly SpokiTemplateKind[] = [
   'LATE_CONFIRMED',
   'ABSENT_CONFIRMED',
   'ARRIVAL_TOO_EARLY',
-  'CHECK_IN_STARTED',
-  'CHECK_IN_COMPLETED',
-  'CONFIRMATION',
 ];
 
 /** Da chiave del template Meta (usata dall'orchestratore) al template Spoki. */
@@ -171,16 +168,8 @@ export const SPOKI_QUICK_REPLIES: Readonly<
     { order: 1, label: 'SONO_IN_RITARDO', payload: 'ACTION_LATE' },
     { order: 2, label: 'NON_POSSO_VENIRE', payload: 'ACTION_ABSENT' },
   ],
-  // I template 📅 hanno «Contattaci» e «Modifica».
+  // Il 📅 Reminder 24h ha «Contattaci» e «Modifica»: fuori dal nostro perimetro, l'app li ignora.
   REMINDER_PREVIOUS_DAY: [
-    { order: 0, label: 'CONTATTACI', payload: 'ACTION_CONTACT' },
-    { order: 1, label: 'MODIFICA', payload: 'ACTION_CHANGE' },
-  ],
-  CHECK_IN_STARTED: [
-    { order: 0, label: 'CONTATTACI', payload: 'ACTION_CONTACT' },
-    { order: 1, label: 'MODIFICA', payload: 'ACTION_CHANGE' },
-  ],
-  CONFIRMATION: [
     { order: 0, label: 'CONTATTACI', payload: 'ACTION_CONTACT' },
     { order: 1, label: 'MODIFICA', payload: 'ACTION_CHANGE' },
   ],
@@ -244,24 +233,6 @@ export const SPOKI_TEMPLATE_FIELDS: Readonly<
   REMINDER_SAME_DAY: {
     NOME_CLIENTE: 'customerName',
     ORA_PRENOTAZIONE: 'scheduledTime',
-    _MARCA_E_MODELLO_: 'vehicleLabel',
-    _TARGA_: 'plate',
-  },
-  // 📅 Conferma Accettazione (presa in carico).
-  CHECK_IN_STARTED: {
-    NOME_CLIENTE: 'customerName',
-    _NOME_ACCETTATORE_: 'advisorName',
-    _MARCA_E_MODELLO_: 'vehicleLabel',
-    _TARGA_: 'plate',
-    _DATA_PREVISTA_: 'expectedDeliveryDate',
-    _ORA_PREVISTA_: 'expectedDeliveryTime',
-  },
-  // 📅 Conferma Prenotazione.
-  CONFIRMATION: {
-    NOME_CLIENTE: 'customerName',
-    DATA: 'scheduledDate',
-    ORA: 'scheduledTime',
-    LUOGO: 'site',
     _MARCA_E_MODELLO_: 'vehicleLabel',
     _TARGA_: 'plate',
   },

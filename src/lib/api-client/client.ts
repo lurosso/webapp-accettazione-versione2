@@ -21,11 +21,6 @@ import type {
   SpokiTestResult,
 } from '@/application/messaging/SpokiDiagnosticsService';
 import type { InspectionArchiveEntry } from '@/application/media/InspectionArchiveService';
-import type {
-  CommunicationRowView,
-  CommunicationsView,
-} from '@/application/notifications/CommunicationsService';
-import type { ManualContactOutcome } from '@/domain/entities/notification';
 import type { MediaCategory } from '@/domain/entities/media-asset';
 import type { BoardStatus, DisplayStatus } from '@/modules/bay-displays/types';
 import type { PublicStatus } from '@/modules/customer-portal/types';
@@ -558,31 +553,6 @@ export function postOutboxRetry(eventId: string): Promise<{
   readonly event: CrmOutboxEvent;
 }> {
   return apiFetch(`/api/v1/crm/outbox/${encodeURIComponent(eventId)}/retry`, { method: 'POST' });
-}
-
-/** GET /api/v1/notifications: i messaggi al cliente non arrivati (da gestire oppure già gestiti). */
-export function fetchCommunications(vista: 'open' | 'handled'): Promise<CommunicationsView> {
-  return apiFetch(`/api/v1/notifications${vista === 'handled' ? '?vista=gestite' : ''}`);
-}
-
-/** Comando della schermata Comunicazioni su un messaggio non arrivato. */
-export type CommunicationCommand =
-  | { readonly action: 'claim' | 'release' | 'retry' }
-  | {
-      readonly action: 'confirm';
-      readonly outcome: ManualContactOutcome;
-      readonly note: string | null;
-    };
-
-/** POST /api/v1/notifications/{id}/actions: prendo io, rilascio, riprova, esito e chiusura. */
-export function postCommunicationAction(
-  jobId: string,
-  command: CommunicationCommand,
-): Promise<{ readonly row: CommunicationRowView }> {
-  return apiFetch(`/api/v1/notifications/${encodeURIComponent(jobId)}/actions`, {
-    method: 'POST',
-    json: command,
-  });
 }
 
 /** GET /api/v1/reports/daily: indicatori della giornata (responsabile e amministratore). */

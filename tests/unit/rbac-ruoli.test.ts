@@ -14,13 +14,7 @@ import {
   type ProtectedArea,
 } from '@/lib/navigation';
 
-const AREE: readonly ProtectedArea[] = [
-  'accettazione',
-  'check-in',
-  'admin',
-  'sistema',
-  'comunicazioni',
-];
+const AREE: readonly ProtectedArea[] = ['accettazione', 'check-in', 'admin', 'sistema'];
 
 describe('RBAC: accettatore, amministratore, kiosk', () => {
   it('i ruoli sono tre: il Responsabile/BDC non esiste più', () => {
@@ -28,15 +22,13 @@ describe('RBAC: accettatore, amministratore, kiosk', () => {
     expect(Object.keys(AREA_ROLES).sort()).toEqual([...AREE].sort());
   });
 
-  it("l'accettatore lavora su coda, check-in e sistema (ticket); comunicazioni e amministrazione no", () => {
+  it("l'accettatore lavora su coda, check-in e sistema (ticket); l'amministrazione no", () => {
     expect(AREE.filter((area) => canAccess(area, 'ADVISOR'))).toEqual([
       'accettazione',
       'check-in',
       'sistema',
     ]);
     expect(redirectForForbiddenArea('admin', 'ADVISOR')).toBe('/accettazione');
-    // La schermata Comunicazioni al banco non serve: chi ci bussa torna alla coda.
-    expect(redirectForForbiddenArea('comunicazioni', 'ADVISOR')).toBe('/accettazione');
   });
 
   it("l'amministratore vede tutto: è l'unico che deve poter controllare", () => {

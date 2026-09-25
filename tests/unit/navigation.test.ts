@@ -24,7 +24,7 @@ describe('canAccess', () => {
   });
 
   it("l'amministratore entra ovunque", () => {
-    for (const area of ['accettazione', 'admin', 'sistema', 'comunicazioni'] as const) {
+    for (const area of ['accettazione', 'admin', 'sistema'] as const) {
       expect(canAccess(area, 'ADMIN')).toBe(true);
     }
   });
@@ -32,7 +32,7 @@ describe('canAccess', () => {
 
 describe('safeInternalPath', () => {
   it('accetta solo percorsi interni', () => {
-    expect(safeInternalPath('/comunicazioni', '/')).toBe('/comunicazioni');
+    expect(safeInternalPath('/sistema', '/')).toBe('/sistema');
     expect(safeInternalPath(['/admin'], '/')).toBe('/admin');
   });
 
@@ -64,7 +64,7 @@ describe('destinationAfterPasswordChange', () => {
     expect(destinationAfterPasswordChange('/accettazione?view=global', 'ADVISOR')).toBe(
       '/accettazione?view=global',
     );
-    expect(destinationAfterPasswordChange(['/comunicazioni'], 'ADVISOR')).toBe('/comunicazioni');
+    expect(destinationAfterPasswordChange(['/sistema'], 'ADVISOR')).toBe('/sistema');
   });
 
   it('senza destinazione va alla home del ruolo, mai restando sul cambio password o sul login', () => {

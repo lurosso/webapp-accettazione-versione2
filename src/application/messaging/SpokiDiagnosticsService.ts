@@ -38,9 +38,6 @@ export const SPOKI_TEST_KINDS = [
   'LATE_CONFIRMED',
   'ABSENT_CONFIRMED',
   'ARRIVAL_TOO_EARLY',
-  'CHECK_IN_STARTED',
-  'CHECK_IN_COMPLETED',
-  'BOOKING_CONFIRMED',
 ] as const satisfies readonly NotificationKind[];
 
 export type SpokiTestKind = (typeof SPOKI_TEST_KINDS)[number];
@@ -208,9 +205,6 @@ export const SPOKI_TEST_KIND_LABELS: Readonly<Record<SpokiTestKind, string>> = {
   LATE_CONFIRMED: 'Risposta a «In ritardo»',
   ABSENT_CONFIRMED: 'Risposta a «Non posso venire»',
   ARRIVAL_TOO_EARLY: 'Risposta a «Sono arrivato» troppo presto',
-  CHECK_IN_STARTED: 'Presa in carico (📅 Conferma Accettazione)',
-  CHECK_IN_COMPLETED: 'Accettazione completata',
-  BOOKING_CONFIRMED: 'Conferma prenotazione (📅 Conferma Prenotazione)',
 };
 
 function maskKey(key: string): string {
@@ -356,21 +350,6 @@ export class SpokiDiagnosticsService {
           'ARRIVAL_TOO_EARLY',
           'SPOKI_TEMPLATE_EARLY_REPLY_ID',
           c.templateIds?.arrivalTooEarly ?? null,
-        ),
-        template(
-          'CHECK_IN_STARTED',
-          'SPOKI_TEMPLATE_WELCOME_ID',
-          c.templateIds?.checkInStarted ?? null,
-        ),
-        template(
-          'CHECK_IN_COMPLETED',
-          'SPOKI_TEMPLATE_COMPLETE_ID',
-          c.templateIds?.checkInCompleted ?? null,
-        ),
-        template(
-          'BOOKING_CONFIRMED',
-          'SPOKI_TEMPLATE_BOOKING_ID',
-          c.templateIds?.bookingConfirmed ?? null,
         ),
       ],
       publicBaseUrl: c.publicBaseUrl,

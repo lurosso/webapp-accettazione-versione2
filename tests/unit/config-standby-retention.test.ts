@@ -18,10 +18,14 @@ describe('MESSAGING_STANDBY: integrazione con il cliente in pausa', () => {
 
   it("non tocca il resto della configurazione: l'officina lavora comunque", () => {
     const env = parseEnv({ MESSAGING_STANDBY: 'true' }, muto);
-    // Promemoria e messaggi a evento restano "abilitati" nella configurazione: è il container a
-    // fermarli, così togliendo lo standby si torna al comportamento di prima senza altre modifiche.
+    // I promemoria restano "abilitati" nella configurazione: è il container a fermarli, così
+    // togliendo lo standby si torna al comportamento di prima senza altre modifiche. I messaggi a
+    // evento sono spenti di serie dal 2026-09-25 (solo promemoria e conferma del cliente).
     expect(env.remindersEnabled).toBe(true);
-    expect(env.messagingTriggersEnabled).toBe(true);
+    expect(env.messagingTriggersEnabled).toBe(false);
+    expect(parseEnv({ MESSAGING_TRIGGERS_ENABLED: 'true' }, muto).messagingTriggersEnabled).toBe(
+      true,
+    );
     expect(env.infinityProvider).toBe('mock');
   });
 });

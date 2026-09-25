@@ -38,7 +38,6 @@ const PROTECTED_PAGE_PREFIXES = [
   '/check-in',
   '/sistema',
   '/admin',
-  '/comunicazioni',
   '/cambia-password',
 ];
 

@@ -236,7 +236,6 @@ describe('SpokiService in simulazione (blocco predefinito)', () => {
     expect(h.implementation).toBe('real');
     expect(h.detail).toContain('simulazione');
     expect(h.detail).toContain('REMINDER_PREVIOUS_DAY');
-    expect(h.detail).toContain('CHECK_IN_STARTED (SPOKI_TEMPLATE_WELCOME_ID)');
     expect(h.detail).toContain('chiave API assente');
     expect(service.liveDeliveryAllowed).toBe(false);
   });
@@ -260,18 +259,8 @@ describe('SpokiService in simulazione (blocco predefinito)', () => {
       template: 3068,
       language: 'IT',
       phone: '+393331234567',
-      custom_fields: {
-        NOME_CLIENTE: 'Mario Rossi',
-        _NOME_ACCETTATORE_: 'Laura Bianchi',
-        _MARCA_E_MODELLO_: 'Fiat Panda 1.0 Hybrid',
-        _TARGA_: 'AB123CD',
-        _DATA_PREVISTA_: '11/09/2026',
-        _ORA_PREVISTA_: '17:00',
-      },
-      buttons: [
-        { order: 0, payload: 'ACTION_CONTACT' },
-        { order: 1, payload: 'ACTION_CHANGE' },
-      ],
+      // Non è più un messaggio dell'app: nessun campo di un template 📅.
+      custom_fields: {},
       metadata: {
         idempotency_key: 'app-1:CHECK_IN_STARTED:2026-09-11:WA:1',
         template_kind: 'CHECK_IN_STARTED',
@@ -567,9 +556,6 @@ describe('SpokiService live con blocco tolto', () => {
       'LATE_CONFIRMED',
       'ABSENT_CONFIRMED',
       'ARRIVAL_TOO_EARLY',
-      'CHECK_IN_STARTED',
-      'CHECK_IN_COMPLETED',
-      'CONFIRMATION',
     ]);
     expect(t.find((x) => x.kind === 'CONFIRMATION')?.secretConfigured).toBe(false);
     expect(t.find((x) => x.kind === 'CONFIRMATION')?.templateEnvKey).toBe(

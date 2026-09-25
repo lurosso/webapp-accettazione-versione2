@@ -198,7 +198,12 @@ export interface AppEnv {
    * Predefinito false finché i link WhatsApp non sono in uso.
    */
   readonly portalWritesRequireToken: boolean;
-  /** Messaggi al cliente guidati dagli eventi (conferma, turno vicino, annullamento). */
+  /**
+   * MESSAGING_TRIGGERS_ENABLED: messaggi al cliente guidati dagli eventi (presa in carico, fine
+   * check-in, conferma dell'inserimento manuale, turno vicino, annullamento). Predefinito FALSE dal
+   * 2026-09-25: il committente vuole dall'app solo i promemoria e la conferma del cliente (i pulsanti
+   * del mattino); il resto «non è roba nostra». Il codice resta, si riaccende con true.
+   */
   readonly messagingTriggersEnabled: boolean;
   /**
    * NOTIFICATION_RETRY_ENABLED (predefinito true): riprova automatica dei messaggi falliti per un
@@ -664,7 +669,7 @@ export function parseEnv(
     databaseUrl: databaseUrlFromEnv(source),
     crmRetryEnabled: pickBool(source, 'CRM_RETRY_ENABLED', true, warn),
     displayTokenRequired: pickBool(source, 'DISPLAY_TOKEN_REQUIRED', false, warn),
-    messagingTriggersEnabled: pickBool(source, 'MESSAGING_TRIGGERS_ENABLED', true, warn),
+    messagingTriggersEnabled: pickBool(source, 'MESSAGING_TRIGGERS_ENABLED', false, warn),
     notificationRetryEnabled: pickBool(source, 'NOTIFICATION_RETRY_ENABLED', true, warn),
     messagingStandby: pickBool(source, 'MESSAGING_STANDBY', false, warn),
     // Nome nuovo (MEDIA_*, perché ormai ci sono anche i video) con il vecchio come ripiego: un

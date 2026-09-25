@@ -46,9 +46,8 @@ const IDS = {
 describe('Template 📅 e campi che l’app riempie', () => {
   it('ogni template usato dall’app: le sue variabili sono esattamente i campi che l’app manda', () => {
     const usati = TEMPLATE.filter((t) => t.tipo !== null);
-    expect(usati.map((t) => t.tipo).sort()).toEqual(
-      ['CHECK_IN_STARTED', 'CONFIRMATION', 'REMINDER_PREVIOUS_DAY', 'REMINDER_SAME_DAY'].sort(),
-    );
+    // Dal 2026-09-25 l'app manda solo i promemoria (e la conferma del cliente con i pulsanti).
+    expect(usati.map((t) => t.tipo).sort()).toEqual(['REMINDER_PREVIOUS_DAY', 'REMINDER_SAME_DAY']);
     for (const t of usati) {
       const campiApp = Object.keys(SPOKI_TEMPLATE_FIELDS[t.tipo as SpokiTemplateKind] ?? {});
       expect([...new Set(variabiliDi(t.testo))].sort()).toEqual(campiApp.sort());
@@ -85,15 +84,13 @@ describe('Template 📅 e campi che l’app riempie', () => {
       { advisorName: 'Laura Bianchi' },
     );
     const variabili = v as unknown as Readonly<Record<string, string>>;
-    const accettazione = templateFieldsFor('CHECK_IN_STARTED', variabili);
-    expect(accettazione.missing).toEqual([]);
-    expect(accettazione.fields).toMatchObject({
-      _NOME_ACCETTATORE_: 'Laura Bianchi',
-      _DATA_PREVISTA_: '11/09/2026',
-      _ORA_PREVISTA_: '17:30',
+    const mattino = templateFieldsFor('REMINDER_SAME_DAY', variabili);
+    expect(mattino.missing).toEqual([]);
+    expect(mattino.fields).toMatchObject({
+      NOME_CLIENTE: `${a.customer.firstName} ${a.customer.lastName}`,
       _TARGA_: a.vehicle.plate,
     });
-    expect(accettazione.fields['_MARCA_E_MODELLO_']).toContain('Fiat');
+    expect(mattino.fields['_MARCA_E_MODELLO_']).toContain('Fiat');
     // Senza SPOKI_LUOGO il 📅 Reminder 24h non ha la sede: il servizio non lo manda.
     expect(templateFieldsFor('REMINDER_PREVIOUS_DAY', variabili).missing).toEqual(['LUOGO']);
     const conSede = buildTemplateVars(

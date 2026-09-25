@@ -16,7 +16,6 @@ import { InspectionService } from '@/application/media/InspectionService';
 import { DailyReportService } from '@/application/reporting/DailyReportService';
 import { AppointmentReminderService } from '@/application/notifications/AppointmentReminderService';
 import { ReminderSafetyNet } from '@/application/notifications/ReminderSafetyNet';
-import { CommunicationsService } from '@/application/notifications/CommunicationsService';
 import { CustomerMessagingPolicy } from '@/application/notifications/CustomerMessagingPolicy';
 import { NotificationOrchestrator } from '@/application/notifications/NotificationOrchestrator';
 import { NotificationRetryScheduler } from '@/application/notifications/NotificationRetryScheduler';
@@ -84,7 +83,6 @@ export interface Container {
   readonly crmRetryScheduler: CrmRetryScheduler;
   /** Riprova automatica dei messaggi al cliente falliti per un problema temporaneo. */
   readonly notificationRetryScheduler: NotificationRetryScheduler;
-  readonly communicationsService: CommunicationsService;
   readonly inspectionService: InspectionService;
   readonly inspectionArchiveService: InspectionArchiveService;
   readonly operatorAdminService: OperatorAdminService;
@@ -372,14 +370,6 @@ export function createContainer(overrides: ContainerOverrides = {}): Container {
     orchestrator: notificationOrchestrator,
     logger,
   });
-  const communicationsService = new CommunicationsService({
-    notifications: repos.notifications,
-    appointments: repos.appointments,
-    operators: repos.operators,
-    orchestrator: notificationOrchestrator,
-    clock,
-    logger,
-  });
 
   const bdcLeadService = new BdcLeadService({
     outbox: repos.crmOutbox,
@@ -605,7 +595,6 @@ export function createContainer(overrides: ContainerOverrides = {}): Container {
     crmOutboxService,
     crmRetryScheduler,
     notificationRetryScheduler,
-    communicationsService,
     inspectionService,
     inspectionArchiveService,
     operatorAdminService,

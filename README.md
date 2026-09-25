@@ -51,7 +51,7 @@ codice e il link alla sua pagina di tracciamento (il QR in corsia resta come str
 Lì vede la posizione in fila, la lettera dello sportello quando tocca a lui e gli orari di arrivo e
 chiamata, con la pagina che si aggiorna da sola mentre l'operatore lavora. Sopra ogni postazione un **monitor** mostra il
 codice in lavorazione e, appena l'accettatore chiude la pratica, invita il cliente successivo ad
-avanzare. Le **comunicazioni** partono da sole dopo la sincronizzazione dell'agenda, con WhatsApp
+avanzare. I **promemoria** partono da soli dopo la sincronizzazione dell'agenda, con WhatsApp
 via Spoki e ripiego automatico su SMS. Dal **tablet** l'accettatore fa il giro della vettura, gira
 il video (l'unico passaggio obbligatorio), aggiunge le foto che servono, annota i danni e chiude il
 check-in dopo una conferma. Note, foto e video finiscono nel fascicolo della pratica, si rivedono
@@ -246,7 +246,6 @@ occupato uno sportello, alla prima richiesta viene ritirata e il posto si libera
 | `/sistema`               | Accettatore, Admin | disponibile | Accettatore: solo «Segnala un problema» (ticket all'amministratore). Amministratore: stato delle porte esterne (Infinity, Spoki, SMS Hosting, CRM), storage, rete e sincronizzazione, e la coda di uscita verso il CRM con "Forza riprova"                                                                                                                                                                                                                                                                                                                                                                                                        |
 | `/cliente` (`/qr`)       | Cliente (QR)       | disponibile | Ricerca per targa e stato del turno in tempo reale: codice, clienti in attesa, messaggio per stato; nessuna autenticazione e nessun dato personale                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                |
 | `/display/sala-attesa`   | Sala d'attesa      | disponibile | Tabellone stile ufficio pubblico: codici chiamati con la lettera dello sportello a cui presentarsi e prossimi turni                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                               |
-| `/comunicazioni`         | Admin              | disponibile | Messaggi al cliente non arrivati: in riprova automatica, da contattare a mano, senza numero; presa in carico, riprova ed esito del contatto                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                       |
 | `/display/A` … `/D`      | Monitor            | disponibile | Schermo a tutto campo per i monitor sopra i quattro sportelli: lettera, codice e targa in servizio, oppure invito verde ad avanzare; si aggiorna ogni 2 secondi                                                                                                                                                                                                                                                                                                                                                                                                                                                                                   |
 | `/check-in`              | Tablet             | disponibile | Check-in veicolo a tutto schermo, senza l'intestazione del sito: le pratiche del proprio sportello in due schede grandi, foto a slot con «+ Foto» e «Video» (mai obbligatori), note con annotazioni rapide, comandi fissi in basso (il vecchio `/tablet` rimanda qui)                                                                                                                                                                                                                                                                                                                                                                             |
 | `/accettazione/archivio` | Accettatore        | disponibile | Archivio delle ispezioni: ricerca per targa o codice, schede con le foto per categoria; i file oltre la retention risultano eliminati ma la scheda resta                                                                                                                                                                                                                                                                                                                                                                                                                                                                                          |
@@ -426,28 +425,6 @@ nel pannello **Anomalie di oggi** dell'amministratore
 giornata; la riga della coda dice «saltata 3 volte · verificare presenza». Se poi il cliente viene
 preso in carico, l'anomalia si chiude da sola («Cliente presente»).
 
-### Provare la schermata Comunicazioni
-
-<http://localhost:3000/comunicazioni> (solo l'amministratore: dal 2026-09-25 al banco non c'è più)
-elenca i **messaggi al
-cliente che non sono arrivati** negli ultimi sette giorni, con il testo del messaggio (quello da
-dire al telefono), il numero da chiamare con un tocco e l'ultimo errore dei provider. Ogni riga dice
-cosa sta facendo il sistema:
-
-- **Nuovo tentativo alle HH:mm (n/3)**: l'invio è fallito per un problema temporaneo e il sistema
-  lo ritenta da solo dopo 1, 5 e 15 minuti (`NOTIFICATION_RETRY_ENABLED`); un WhatsApp dato per non
-  consegnato da Spoki riparte via SMS;
-- **Da contattare a mano**: i tentativi automatici sono finiti o i canali hanno rifiutato il numero;
-- **Senza numero**: in agenda non c'è un telefono, il cliente va informato di persona.
-
-**Prendo io** mette il proprio nome sulla riga (un collega non può prenderla; la rilascia chi l'ha
-presa o l'amministratore), **Riprova invio** ripercorre subito WhatsApp e SMS,
-**Registra esito** chiude la segnalazione con l'esito (cliente chiamato al telefono, informato di
-persona, non raggiungibile, numero errato, altro) e una nota facoltativa. La vista **Gestite** mostra
-chi ha chiuso cosa e quando. Per provarla con i mock: un cliente il cui telefono finisce per **8**
-va in timeout su entrambi i canali (riprova automatica), uno che finisce per **99** va dritto a «Da
-contattare a mano».
-
 ### Provare il portale cliente
 
 Il portale si apre su <http://localhost:3000/qr> (alias breve di `/cliente`, adatto ai cartelli con
@@ -537,20 +514,16 @@ compare "in sala dalle HH:mm" — senza che l'accettatore ricarichi la pagina co
   la conferma che l'accettazione è stata avvisata; a chi tocca «Non posso venire» la conferma
   dell'annullamento e che un operatore richiamerà. È così che il cliente arriva alla pagina di
   tracciamento, senza inquadrare nessun QR.
-- **Presa in carico** («Prendi in carico» al banco o «Inizia check-in» dal tablet): benvenuto con il
-  link **personale** al portale (lo smart link `/portal/<token della pratica>`), dove il cliente segue
-  l'accettazione in tempo reale. Solo per le accettazioni in entrata e solo se a premere è stata una
-  persona.
-- **Accettazione completata** (check-in concluso con foto e video, oppure «Completato» dal banco):
-  «Procedura di accettazione completata. Grazie per la visita, puoi proseguire!». La chiusura
-  d'ufficio delle 19:00 e le pratiche chiuse in ODL dalla sync non ringraziano nessuno.
+  **Solo promemoria e conferma del cliente.** Dal 2026-09-25, su decisione del committente, l'app
+  manda ai clienti soltanto i due promemoria e le risposte ai pulsanti del mattino. Gli altri
+  messaggi a evento — benvenuto alla presa in carico, «accettazione completata», conferma
+  dell'inserimento manuale, turno vicino, annullamento — non sono compito suo e sono spenti
+  (`MESSAGING_TRIGGERS_ENABLED=false`, predefinito); il codice resta e si riaccende con `true`.
 
-I messaggi partono **via API** (`POST https://api.spoki.com/api/1/messages/send/`, intestazione
-`X-Spoki-Api-Key`) con il template approvato da Meta indicato per id: `SPOKI_TEMPLATE_REMINDER_D1_ID`,
-`SPOKI_TEMPLATE_SAME_DAY_ID` (con `buttons[].payload`), `SPOKI_TEMPLATE_ARRIVED_REPLY_ID`,
-`SPOKI_TEMPLATE_LATE_REPLY_ID`, `SPOKI_TEMPLATE_ABSENT_REPLY_ID`, `SPOKI_TEMPLATE_WELCOME_ID`,
-`SPOKI_TEMPLATE_COMPLETE_ID`. Un promemoria senza id resta sull'automazione (URL + segreto). Tutti sono idempotenti per pratica, tipo e giornata: riaprire e
-riprendere in carico la stessa pratica non manda un secondo benvenuto.
+I promemoria partono **via API** (`POST https://api.spoki.com/api/1/messages/send/`, intestazione
+`X-Spoki-Api-Key`) con il template approvato indicato per id: `SPOKI_TEMPLATE_REMINDER_D1_ID` e
+`SPOKI_TEMPLATE_SAME_DAY_ID` (con `buttons[].payload`); le risposte ai pulsanti come messaggio
+libero. Tutti sono idempotenti per pratica, tipo e giornata.
 
 I promemoria sono idempotenti per pratica e giornata e si possono lanciare anche da un cron esterno
 (`POST /api/v1/system/cron/reminders?kind=previous-day|same-day` con `x-cron-secret`).
@@ -607,18 +580,16 @@ simulazione qualunque cosa dica `SPOKI_MODE`, e il log lo dice all'avvio. Con il
 apre alcuna connessione: formatta il payload nel formato Spoki (`secret`, `phone` in E.164,
 `first_name`, `last_name`, `email`, `custom_fields` con i campi del template), lo scrive nel log e nel registro del pannello, e risponde come se fosse andato.
 
-**Template 📅.** Dal 2026-09-25 i messaggi usano i template approvati dell'account che iniziano con
-📅, fatti per questo sistema: il promemoria del giorno prima è «📅 Reminder 24h Appuntamento», la
-presa in carico «📅 Conferma Accettazione» (con chi l'ha presa in carico e la riconsegna prevista da
-Infinity), la conferma della prenotazione «📅 Conferma Prenotazione». Il promemoria del mattino con
-«Sono arrivato / Sono in ritardo / Non posso venire» avrà un template nuovo, «📅 Promemoria
-Appuntamento Oggi», da far approvare. Ogni template riceve i **suoi** campi, con i codici che
-l'account già usa (`NOME_CLIENTE`, `_TARGA_`, `_MARCA_E_MODELLO_`, `LUOGO`…), e **non parte se
-uno è vuoto**: ripiega sull'SMS e il registro del pannello Spoki dice quale campo manca. La sede
-(`SPOKI_LUOGO`) è ancora da decidere, quindi per ora il 📅 Reminder 24h e la 📅 Conferma
-Prenotazione non partono su WhatsApp. Le risposte ai pulsanti partono come **messaggio libero**: il
-cliente ha appena toccato un pulsante, la finestra di 24 ore di WhatsApp è aperta. Campi, testi,
-automazioni e `npm run spoki:setup` sono in [`docs/SPOKI.md`](docs/SPOKI.md).
+**Template 📅.** Dal 2026-09-25 i promemoria usano i template dell'account che iniziano con 📅,
+fatti per questo sistema: il giorno prima «📅 Reminder 24h Appuntamento» (approvato), il mattino
+«📅 Promemoria Appuntamento Oggi» con «Sono arrivato / Sono in ritardo / Non posso venire» (creato in
+bozza, in attesa dell'approvazione). Ogni template riceve i **suoi** campi, con i codici che
+l'account già usa (`NOME_CLIENTE`, `_TARGA_`, `_MARCA_E_MODELLO_`, `ORA_PRENOTAZIONE`, …), e **non
+parte se uno è vuoto**: ripiega sull'SMS e il registro del pannello Spoki dice quale campo manca. Il
+📅 Reminder 24h ha anche la sede (`LUOGO`, da `SPOKI_LUOGO`): finché è vuota il promemoria del giorno
+prima non parte su WhatsApp. Le risposte ai pulsanti partono come **messaggio libero**: il cliente ha
+appena toccato un pulsante, la finestra di 24 ore di WhatsApp è aperta. Dettagli e
+`npm run spoki:setup` in [`docs/SPOKI.md`](docs/SPOKI.md).
 
 **Demo interna.** Dal 2026-09-24 i test su WhatsApp sono solo interni. Anche con `SPOKI_MODE=live` e
 il blocco tolto, un WhatsApp reale parte **solo** verso i numeri di `SPOKI_ALLOWED_RECIPIENTS` (i
@@ -682,9 +653,8 @@ resta il pulsante **Riprova sync** in dashboard. Nel frattempo l'officina lavora
 inserita a mano, turno che si avvicina, annullamento deciso da una persona) e sempre fuori dal
 percorso della richiesta che li ha generati: la presa in carico non aspetta WhatsApp. Il ripiego
 WhatsApp → SMS → contatto manuale resta quello del promemoria del mattino. Un invio fallito per un
-problema temporaneo si ritenta da solo dopo 1, 5 e 15 minuti; poi la riga passa a «Da contattare a
-mano» nella schermata **Comunicazioni** dell'amministratore, che la prende in carico e registra
-l'esito.
+problema temporaneo si ritenta da solo dopo 1, 5 e 15 minuti; poi passa a «Da contattare a mano»,
+che si legge sul dettaglio della pratica.
 
 **Una schermata va in errore.** L'area operatore mostra il problema dentro l'applicazione, con
 "Riprova" e "Torna alla coda"; un monitor mostra uno schermo giallo "MONITOR IN RIPRISTINO" e si
@@ -930,12 +900,6 @@ per i cron esterni.
 | `/check-in` | pagina | Vista tablet a tutto schermo: pratiche in attesa del mio sportello, prese in carico, video obbligatorio e foto facoltative, conclusione con conferma. Da PC rimanda alla coda. | Accettatore e Amministratore |
 | `/tablet`   | pagina | Vecchio indirizzo del tablet: rimanda a /check-in conservando la pratica richiesta.                                                                                            | Accettatore e Amministratore |
 
-### Comunicazioni
-
-| Rotta            | Metodo | Descrizione                                                                                                                                                                                                                 | Accesso             |
-| ---------------- | ------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------- |
-| `/comunicazioni` | pagina | Comunicazioni: i messaggi al cliente non arrivati — in riprova automatica (con l’ora del prossimo tentativo), da contattare a mano, senza numero — con «Prendo io», «Riprova invio» e la chiusura con l’esito del contatto. | Solo Amministratore |
-
 ### Amministrazione e configurazione
 
 | Rotta               | Metodo | Descrizione                                                                                                                                                                                                                                                                               | Accesso             |
@@ -1005,16 +969,14 @@ per i cron esterni.
 | `/api/v1/public/display`       | GET    | Stato del monitor di uno sportello (`?campata=A`, `?bay=`, `?bayCode=`): solo lettera, codice e targa.                                                                                                                                                                            | Pubblico · token del monitor (`?token=`, obbligatorio con DISPLAY_TOKEN_REQUIRED=true)                                                                               |
 | `/api/v1/public/events/stream` | GET    | Eventi in tempo reale (SSE) per monitor e tabellone: solo il tipo di evento, senza identificativi.                                                                                                                                                                                | Pubblico                                                                                                                                                             |
 
-### API: report, lead e comunicazioni
+### API: report e lead
 
-| Rotta                               | Metodo | Descrizione                                                                                                                                                         | Accesso             |
-| ----------------------------------- | ------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------- |
-| `/api/v1/reports/daily`             | GET    | Indicatori della giornata (`?giornata=`): attesa media, durata, esiti.                                                                                              | Solo Amministratore |
-| `/api/v1/reports/daily/csv`         | GET    | Riepilogo dettagliato della giornata in CSV (con BOM per Excel).                                                                                                    | Solo Amministratore |
-| `/api/v1/notifications`             | GET    | Schermata Comunicazioni: messaggi al cliente non arrivati degli ultimi giorni, con i conteggi (`?vista=gestite` per quelli chiusi a mano).                          | Solo Amministratore |
-| `/api/v1/notifications/:id/actions` | POST   | Comandi su un messaggio non arrivato: `claim` (prendo io), `release`, `retry` (riprova invio), `confirm` (esito del contatto e chiusura).                           | Solo Amministratore |
-| `/api/v1/crm/leads`                 | GET    | Assenti e anomalie della giornata per il pannello «Anomalie di oggi» (`?giornata=&gestiti=1`, `tipo=assenti` o `tipo=anomalie`); al BDC arrivano come lead nel CRM. | Solo Amministratore |
-| `/api/v1/system/close-day`          | POST   | Chiusura della giornata: chi è in coda diventa assente (lead al CRM del BDC), chi è in carico viene chiuso d'ufficio.                                               | Solo Amministratore |
+| Rotta                       | Metodo | Descrizione                                                                                                                                                         | Accesso             |
+| --------------------------- | ------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------- |
+| `/api/v1/reports/daily`     | GET    | Indicatori della giornata (`?giornata=`): attesa media, durata, esiti.                                                                                              | Solo Amministratore |
+| `/api/v1/reports/daily/csv` | GET    | Riepilogo dettagliato della giornata in CSV (con BOM per Excel).                                                                                                    | Solo Amministratore |
+| `/api/v1/crm/leads`         | GET    | Assenti e anomalie della giornata per il pannello «Anomalie di oggi» (`?giornata=&gestiti=1`, `tipo=assenti` o `tipo=anomalie`); al BDC arrivano come lead nel CRM. | Solo Amministratore |
+| `/api/v1/system/close-day`  | POST   | Chiusura della giornata: chi è in coda diventa assente (lead al CRM del BDC), chi è in carico viene chiuso d'ufficio.                                               | Solo Amministratore |
 
 ### API: amministrazione
 

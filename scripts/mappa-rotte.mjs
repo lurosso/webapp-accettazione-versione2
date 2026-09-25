@@ -20,7 +20,6 @@ const ACCESSO = {
     'Pubblico · firma HMAC `X-Spoki-Signature` o segreto condiviso (`SPOKI_WEBHOOK_SECRET`; risposte piatte con `SPOKI_INBOUND_SECRET`); 404 con `MESSAGING_STANDBY=true`',
   monitor: 'Pubblico · token del monitor (`?token=`, obbligatorio con DISPLAY_TOKEN_REQUIRED=true)',
   sessione: 'Sessione operatore (Accettatore, Amministratore)',
-  comunicazioni: 'Solo Amministratore',
   banco: 'Accettatore e Amministratore',
   sessioneProvvisoria: 'Sessione operatore, anche con password provvisoria',
   admin: 'Solo Amministratore',
@@ -32,7 +31,6 @@ export const AREE = [
   'Accesso e sessione',
   'Dashboard accettazione e postazioni operatore',
   'Tablet e check-in veicolo',
-  'Comunicazioni',
   'Amministrazione e configurazione',
   'Sistema e diagnostica',
   'Display di sala e monitor delle campate',
@@ -40,7 +38,7 @@ export const AREE = [
   'API: autenticazione',
   'API: coda e pratiche',
   'API: pubbliche (portale cliente, monitor, tabellone)',
-  'API: report, lead e comunicazioni',
+  'API: report e lead',
   'API: amministrazione',
   'API: sistema e cron',
 ];
@@ -97,24 +95,17 @@ export const ROTTE = [
       'Vecchio indirizzo del tablet: rimanda a /check-in conservando la pratica richiesta.',
     accesso: ACCESSO.banco,
   },
-  {
-    path: '/comunicazioni',
-    area: AREE[3],
-    descrizione:
-      'Comunicazioni: i messaggi al cliente non arrivati — in riprova automatica (con l’ora del prossimo tentativo), da contattare a mano, senza numero — con «Prendo io», «Riprova invio» e la chiusura con l’esito del contatto.',
-    accesso: ACCESSO.comunicazioni,
-  },
   // Admin
   {
     path: '/admin',
-    area: AREE[4],
+    area: AREE[3],
     descrizione:
       'Statistiche della giornata con esporta CSV, chiusura della giornata operativa, operatori (crea, modifica, disattiva, reset password), assistenza (sportelli occupati, pratiche ferme), segnalazioni e alert di sistema in tempo reale (nuova, in gestione, risolta) e integrazione Spoki.',
     accesso: ACCESSO.admin,
   },
   {
     path: '/admin/spoki-test',
-    area: AREE[4],
+    area: AREE[3],
     descrizione:
       'Prova controllata dei due promemoria WhatsApp verso un numero digitato a mano; registro dei payload.',
     accesso: ACCESSO.admin,
@@ -122,7 +113,7 @@ export const ROTTE = [
   // Sistema
   {
     path: '/sistema',
-    area: AREE[5],
+    area: AREE[4],
     descrizione:
       "Accettatore: solo «Segnala un problema» (ticket all'amministratore, con categorie in parole semplici). Amministratore: diagnostica di porte esterne, storage dei media, rete e sincronizzazione con «Segnala ad Admin», segnalazione libera e coda di uscita verso il CRM.",
     accesso: ACCESSO.banco,
@@ -130,14 +121,14 @@ export const ROTTE = [
   // Display
   {
     path: '/display/sala-attesa',
-    area: AREE[6],
+    area: AREE[5],
     descrizione:
       "Tabellone della sala d'attesa: codici chiamati con la lettera dello sportello e prossimi turni (`?prossimi=`). Home degli account kiosk.",
     accesso: ACCESSO.monitor,
   },
   {
     path: '/display/:campata',
-    area: AREE[6],
+    area: AREE[5],
     descrizione:
       'Monitor sopra lo sportello (/display/A … /display/D, valgono anche 1…4): lettera dello sportello, codice e targa della vettura in accettazione.',
     accesso: ACCESSO.monitor,
@@ -145,72 +136,72 @@ export const ROTTE = [
   // Portale
   {
     path: '/portal',
-    area: AREE[7],
+    area: AREE[6],
     descrizione:
       'Tracciamento del cliente dal QR (`?targa=`) o dal token (`?t=`): posizione in fila, lettera dello sportello, orari di arrivo e chiamata, "Sono arrivato", "Sto arrivando in ritardo".',
     accesso: ACCESSO.pubblico,
   },
   {
     path: '/portal/:token',
-    area: AREE[7],
+    area: AREE[6],
     descrizione:
       'Smart link personale ricevuto su WhatsApp: apre direttamente lo stato di attesa della pratica legata al token, senza targa né codice (stessa schermata di /portal).',
     accesso: ACCESSO.pubblico,
   },
   {
     path: '/cliente',
-    area: AREE[7],
+    area: AREE[6],
     descrizione: 'Ingresso dal QR code: ricerca per targa.',
     accesso: ACCESSO.pubblico,
   },
   {
     path: '/cliente/stato',
-    area: AREE[7],
+    area: AREE[6],
     descrizione: 'Esito della ricerca per targa: la stessa schermata del portale.',
     accesso: ACCESSO.pubblico,
   },
   {
     path: '/qr',
-    area: AREE[7],
+    area: AREE[6],
     descrizione: 'Alias corto stampato sui cartelli: rimanda a /cliente (con `?src=` corsia).',
     accesso: ACCESSO.pubblico,
   },
   // API auth
   {
     path: '/api/v1/auth/login',
-    area: AREE[8],
+    area: AREE[7],
     descrizione:
       'Verifica credenziali e postazione, imposta il cookie di sessione (limiti di frequenza per IP e utente).',
     accesso: ACCESSO.pubblico,
   },
   {
     path: '/api/v1/auth/logout',
-    area: AREE[8],
+    area: AREE[7],
     descrizione: 'Libera la postazione e cancella il cookie.',
     accesso: ACCESSO.sessioneProvvisoria,
   },
   {
     path: '/api/v1/auth/me',
-    area: AREE[8],
+    area: AREE[7],
     descrizione: 'Sessione corrente (ruolo, postazione, obbligo di cambio password).',
     accesso: ACCESSO.sessioneProvvisoria,
   },
   {
     path: '/api/v1/auth/change-password',
-    area: AREE[8],
+    area: AREE[7],
     descrizione: 'Sostituisce la password (provvisoria o no) e rinnova il cookie.',
     accesso: ACCESSO.sessioneProvvisoria,
   },
   {
     path: '/api/v1/auth/login-options',
-    area: AREE[8],
+    area: AREE[7],
     descrizione:
       'Postazioni del login, libere o occupate con il motivo: il form le richiede ogni 5 secondi (stessi dati della pagina di login; tetto per indirizzo).',
     accesso: ACCESSO.pubblico,
   },
   {
     path: '/api/v1/auth/quick-login',
-    area: AREE[8],
+    area: AREE[7],
     descrizione:
       'Accesso veloce di sviluppo (DEV_QUICK_LOGIN): sessione di un profilo dev.* senza credenziali; 404 in produzione o se disattivato.',
     accesso: ACCESSO.pubblico,
@@ -218,21 +209,21 @@ export const ROTTE = [
   // API coda e pratiche
   {
     path: '/api/v1/queue',
-    area: AREE[9],
+    area: AREE[8],
     descrizione:
       "Coda della giornata (`?date=&deskId=&view=mine`, `desk` o `global`): con `mine` le prenotazioni che Infinity assegna all'accettatore collegato (matricola dell'account); righe arricchite, sportelli senza il token dei monitor, ultima sync, dati di riferimento. Polling della dashboard e del tablet.",
     accesso: ACCESSO.banco,
   },
   {
     path: '/api/v1/appointments',
-    area: AREE[9],
+    area: AREE[8],
     descrizione:
       'Inserimento manuale di una pratica (cliente senza appuntamento) nella coda di oggi.',
     accesso: ACCESSO.banco,
   },
   {
     path: '/api/v1/appointments/:id/actions',
-    area: AREE[9],
+    area: AREE[8],
     descrizione:
       'Azioni sulla pratica: take, skip, complete, release, restore, no-show, reactivate, cancel, confirm-auto-close (con `expectedVersion`, 409 sui conflitti).',
     accesso:
@@ -240,103 +231,103 @@ export const ROTTE = [
   },
   {
     path: '/api/v1/appointments/:id/check-in',
-    area: AREE[9],
+    area: AREE[8],
     descrizione:
       "Conclude l'accettazione dal tablet: note dell'ispezione, chiusura pratica (serve il video del veicolo, le foto no), notifica al CRM.",
     accesso: ACCESSO.banco,
   },
   {
     path: '/api/v1/appointments/:id/media',
-    area: AREE[9],
+    area: AREE[8],
     descrizione:
       "Media dell'ispezione: elenco (GET) e caricamento multipart di una foto o di un video dal tablet (POST, campo `foto`, `categoria` facoltativa).",
     accesso: ACCESSO.banco,
   },
   {
     path: '/api/v1/appointments/:id/media/:mediaId',
-    area: AREE[9],
+    area: AREE[8],
     descrizione:
       'Elimina (DELETE) una foto o un video acquisiti per sbaglio durante il check-in: solo con la pratica in carico, dopo il fascicolo è sigillato (409).',
     accesso: ACCESSO.banco,
   },
   {
     path: '/api/v1/media/:key',
-    area: AREE[9],
+    area: AREE[8],
     descrizione: "Rilegge una foto o un video dell'ispezione dallo storage.",
     accesso: ACCESSO.banco,
   },
   {
     path: '/api/v1/inspections/archive',
-    area: AREE[9],
+    area: AREE[8],
     descrizione:
       'Storico dei check-in con i media acquisiti (`?q=` targa o codice; vuoto = ultimi cinquanta).',
     accesso: ACCESSO.banco,
   },
   {
     path: '/api/v1/events/stream',
-    area: AREE[9],
+    area: AREE[8],
     descrizione:
       "Eventi in tempo reale (SSE) per l'area operatore: segnala cosa è cambiato, i dati si rileggono dagli endpoint.",
     accesso: ACCESSO.sessione,
   },
   {
     path: '/api/v1/sync',
-    area: AREE[9],
+    area: AREE[8],
     descrizione: "Sincronizzazione manuale dell'agenda Infinity di oggi.",
     accesso: 'Amministratore; Accettatore solo come «Riprova» dopo una sync fallita o assente',
   },
   // API pubbliche
   {
     path: '/api/v1/health',
-    area: AREE[10],
+    area: AREE[9],
     descrizione:
       'Liveness del processo e stato aggregato delle quattro porte esterne (`?strict=` per il readiness).',
     accesso: ACCESSO.pubblico,
   },
   {
     path: '/api/v1/public/status',
-    area: AREE[10],
+    area: AREE[9],
     descrizione:
       'Stato della pratica per il portale (`?targa=` o `?t=` token): tappa, posizione in coda, orario, accettatore, sede.',
     accesso: ACCESSO.pubblico,
   },
   {
     path: '/api/v1/webhooks/spoki',
-    area: AREE[10],
+    area: AREE[9],
     descrizione:
       'Webhook di Spoki: esiti di consegna dei WhatsApp (inviato, consegnato, letto, fallito) che aggiornano notifica e pratica, e risposte del cliente (Arrivato, In ritardo, Assente) che registrano arrivo o ritardo, segnano assente e rispondono con codice e link al tracciamento.',
     accesso: ACCESSO.webhook,
   },
   {
     path: '/api/v1/public/arrival',
-    area: AREE[10],
+    area: AREE[9],
     descrizione:
       '"Sono arrivato" dalla pagina di tracciamento: registra l\'ora in cui il cliente si annuncia in sala, senza cambiare il posto in coda.',
     accesso: ACCESSO.pubblico,
   },
   {
     path: '/api/v1/public/late-notice',
-    area: AREE[10],
+    area: AREE[9],
     descrizione:
       '"Sto arrivando in ritardo (+10 min)" dal portale: sposta l\'arrivo atteso e avvisa la dashboard.',
     accesso: ACCESSO.pubblico,
   },
   {
     path: '/api/v1/public/board',
-    area: AREE[10],
+    area: AREE[9],
     descrizione: "Dati del tabellone della sala d'attesa (`?prossimi=`).",
     accesso: ACCESSO.pubblico,
   },
   {
     path: '/api/v1/public/display',
-    area: AREE[10],
+    area: AREE[9],
     descrizione:
       'Stato del monitor di uno sportello (`?campata=A`, `?bay=`, `?bayCode=`): solo lettera, codice e targa.',
     accesso: ACCESSO.monitor,
   },
   {
     path: '/api/v1/public/events/stream',
-    area: AREE[10],
+    area: AREE[9],
     descrizione:
       'Eventi in tempo reale (SSE) per monitor e tabellone: solo il tipo di evento, senza identificativi.',
     accesso: ACCESSO.pubblico,
@@ -344,40 +335,26 @@ export const ROTTE = [
   // API manager
   {
     path: '/api/v1/reports/daily',
-    area: AREE[11],
+    area: AREE[10],
     descrizione: 'Indicatori della giornata (`?giornata=`): attesa media, durata, esiti.',
     accesso: ACCESSO.admin,
   },
   {
     path: '/api/v1/reports/daily/csv',
-    area: AREE[11],
+    area: AREE[10],
     descrizione: 'Riepilogo dettagliato della giornata in CSV (con BOM per Excel).',
     accesso: ACCESSO.admin,
   },
   {
-    path: '/api/v1/notifications',
-    area: AREE[11],
-    descrizione:
-      'Schermata Comunicazioni: messaggi al cliente non arrivati degli ultimi giorni, con i conteggi (`?vista=gestite` per quelli chiusi a mano).',
-    accesso: ACCESSO.comunicazioni,
-  },
-  {
-    path: '/api/v1/notifications/:id/actions',
-    area: AREE[11],
-    descrizione:
-      'Comandi su un messaggio non arrivato: `claim` (prendo io), `release`, `retry` (riprova invio), `confirm` (esito del contatto e chiusura).',
-    accesso: ACCESSO.comunicazioni,
-  },
-  {
     path: '/api/v1/crm/leads',
-    area: AREE[11],
+    area: AREE[10],
     descrizione:
       'Assenti e anomalie della giornata per il pannello «Anomalie di oggi» (`?giornata=&gestiti=1`, `tipo=assenti` o `tipo=anomalie`); al BDC arrivano come lead nel CRM.',
     accesso: ACCESSO.admin,
   },
   {
     path: '/api/v1/system/close-day',
-    area: AREE[11],
+    area: AREE[10],
     descrizione:
       "Chiusura della giornata: chi è in coda diventa assente (lead al CRM del BDC), chi è in carico viene chiuso d'ufficio.",
     accesso: ACCESSO.admin,
@@ -385,115 +362,115 @@ export const ROTTE = [
   // API admin
   {
     path: '/api/v1/admin/workstations/:id/eject',
-    area: AREE[12],
+    area: AREE[11],
     descrizione:
       'Scollega uno sportello rimasto occupato da chi ha finito il turno: libera il posto, non tocca la pratica in carico.',
     accesso: ACCESSO.admin,
   },
   {
     path: '/api/v1/admin/appointments/:id/retention',
-    area: AREE[12],
+    area: AREE[11],
     descrizione:
       'Conservazione dei media di una pratica (PATCH): vincolo legale e chiusura della commessa. Finché la commessa è aperta o c’è un vincolo, foto e video non scadono.',
     accesso: ACCESSO.admin,
   },
   {
     path: '/api/v1/admin/infinity-advisors',
-    area: AREE[12],
+    area: AREE[11],
     descrizione:
       'Matricole degli accettatori viste nel planning di Infinity (ultimi 14 giorni e prossimi 7), con nome, numero di prenotazioni e account già collegato: per scrivere la matricola sugli account.',
     accesso: ACCESSO.admin,
   },
   {
     path: '/api/v1/admin/operators',
-    area: AREE[12],
+    area: AREE[11],
     descrizione:
       'Elenco (GET) e creazione (POST) degli operatori, con sportelli e postazioni per i menu.',
     accesso: ACCESSO.admin,
   },
   {
     path: '/api/v1/admin/operators/:id',
-    area: AREE[12],
+    area: AREE[11],
     descrizione:
       'Modifica di un operatore: nome, ruolo, sportelli, postazione predefinita, attivazione.',
     accesso: ACCESSO.admin,
   },
   {
     path: '/api/v1/admin/operators/:id/reset-password',
-    area: AREE[12],
+    area: AREE[11],
     descrizione: 'Nuova password provvisoria, restituita una sola volta.',
     accesso: ACCESSO.admin,
   },
   {
     path: '/api/v1/admin/assistance',
-    area: AREE[12],
+    area: AREE[11],
     descrizione: 'Accettazioni occupate e pratiche in carico da troppo tempo.',
     accesso: ACCESSO.admin,
   },
   {
     path: '/api/v1/admin/spoki',
-    area: AREE[12],
+    area: AREE[11],
     descrizione:
       "Stato dell'integrazione WhatsApp (provider, modalità, safety lock, override consenso, template) e registro dei payload.",
     accesso: ACCESSO.admin,
   },
   {
     path: '/api/v1/admin/spoki/test',
-    area: AREE[12],
+    area: AREE[11],
     descrizione:
       'Invio di prova di un promemoria a un numero digitato a mano (in simulazione finisce nel registro).',
     accesso: ACCESSO.admin,
   },
   {
     path: '/api/v1/crm/outbox',
-    area: AREE[12],
+    area: AREE[11],
     descrizione: 'Coda di uscita verso il CRM, vista tecnica (`?stato=&limite=`).',
     accesso: ACCESSO.admin,
   },
   {
     path: '/api/v1/crm/outbox/:id/retry',
-    area: AREE[12],
+    area: AREE[11],
     descrizione: '"Forza riprova" di un evento verso il CRM.',
     accesso: ACCESSO.admin,
   },
   // API sistema e cron
   {
     path: '/api/v1/system/diagnostics',
-    area: AREE[13],
+    area: AREE[12],
     descrizione:
       'Diagnostica della pagina Sistema: porte esterne, storage dei media (sonda e spazio libero) e ultima sincronizzazione, ogni riga con stato e codice da segnalare.',
     accesso: ACCESSO.admin,
   },
   {
     path: '/api/v1/system/alerts',
-    area: AREE[13],
+    area: AREE[12],
     descrizione:
       "Segnalazioni di disfunzione: POST da qualunque operatore (codice, componente, messaggio; chi e da quale postazione dalla sessione); GET per l'amministratore con riepilogo per stato (`?risolte=1` include le chiuse).",
     accesso: ACCESSO.sessione,
   },
   {
     path: '/api/v1/system/alerts/:id',
-    area: AREE[13],
+    area: AREE[12],
     descrizione:
       'Cambio di stato di una segnalazione (nuova → in gestione → risolta, con riapertura) e nota.',
     accesso: ACCESSO.admin,
   },
   {
     path: '/api/v1/system/cron/reminders',
-    area: AREE[13],
+    area: AREE[12],
     descrizione:
       'Promemoria ai clienti (`?kind=previous-day oppure same-day`) per un cron esterno; stesso servizio dello scheduler interno.',
     accesso: ACCESSO.cron,
   },
   {
     path: '/api/v1/system/cron/crm-retry',
-    area: AREE[13],
+    area: AREE[12],
     descrizione: 'Svuotamento della coda di uscita verso il CRM (rinvii) per un cron esterno.',
     accesso: ACCESSO.cron,
   },
   {
     path: '/api/v1/system/cron/media-retention',
-    area: AREE[13],
+    area: AREE[12],
     descrizione: 'Eliminazione dei file di foto e video oltre la retention per un cron esterno.',
     accesso: ACCESSO.cron,
   },

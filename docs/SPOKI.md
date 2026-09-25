@@ -1,5 +1,10 @@
 # Spoki: i WhatsApp dell'accettazione
 
+> **Perimetro (2026-09-25).** L'app manda ai clienti **solo i promemoria** (giorno prima e mattino) e
+> gestisce **la conferma del cliente** (i pulsanti del mattino e le risposte). Tutto il resto — conferme
+> di prenotazione e di accettazione, vettura pronta, «Contattaci» / «Modifica» — non è compito
+> dell'app: i messaggi a evento sono spenti (`MESSAGING_TRIGGERS_ENABLED=false`).
+
 Questa pagina dice quali template e campi dell'account Spoki usa l'app, cosa manca e come si
 verifica. La fonte unica di campi, testi e automazioni è
 [`scripts/spoki-spec.mjs`](../scripts/spoki-spec.mjs); `npm run spoki:setup` la confronta con
@@ -21,15 +26,14 @@ API ufficiale di Spoki (collezione Postman, letta il 2026-09-24).
 
 ## 1. Quale template per quale messaggio
 
-| Messaggio dell'app                                                  | Template                        | Id             | Variabile                       |
-| ------------------------------------------------------------------- | ------------------------------- | -------------- | ------------------------------- |
-| Promemoria del giorno prima                                         | 📅 Reminder 24h Appuntamento    | 454558         | `SPOKI_TEMPLATE_REMINDER_D1_ID` |
-| Presa in carico                                                     | 📅 Conferma Accettazione        | 454762         | `SPOKI_TEMPLATE_WELCOME_ID`     |
-| Conferma della prenotazione (inserimento manuale)                   | 📅 Conferma Prenotazione        | 454556         | `SPOKI_TEMPLATE_BOOKING_ID`     |
-| Promemoria del mattino con «Sono arrivato / in ritardo / non vengo» | 📅 Promemoria Appuntamento Oggi | 508848 (bozza) | `SPOKI_TEMPLATE_SAME_DAY_ID`    |
-| Risposte ai pulsanti (codice e link, ritardo, assenza, «presto»)    | nessuno: **messaggio libero**   | —              | —                               |
-| Fine del check-in                                                   | nessuno: ripiega sull'SMS       | —              | `SPOKI_TEMPLATE_COMPLETE_ID`    |
-| Vettura pronta                                                      | 📅 Notifica Pronto Vettura      | —              | non usato dall'app              |
+| Messaggio dell'app                                                  | Template                        | Id                 | Variabile                       |
+| ------------------------------------------------------------------- | ------------------------------- | ------------------ | ------------------------------- |
+| Promemoria del giorno prima                                         | 📅 Reminder 24h Appuntamento    | 454558 (approvato) | `SPOKI_TEMPLATE_REMINDER_D1_ID` |
+| Promemoria del mattino con «Sono arrivato / in ritardo / non vengo» | 📅 Promemoria Appuntamento Oggi | 508848 (in bozza)  | `SPOKI_TEMPLATE_SAME_DAY_ID`    |
+| Risposte ai pulsanti (codice e link, ritardo, assenza, «presto»)    | nessuno: **messaggio libero**   | —                  | —                               |
+
+Gli altri 📅 (Conferma Accettazione, Conferma Prenotazione, Notifica Pronto Vettura) restano
+nell'account e l'app non li usa.
 
 Le risposte ai pulsanti non hanno bisogno di un template: il cliente ha appena toccato un pulsante,
 quindi la finestra di 24 ore di WhatsApp è aperta e Spoki accetta un messaggio libero
@@ -43,25 +47,23 @@ parte se uno dei suoi campi è vuoto** (Meta rifiuterebbe una variabile vuota, e
 al cliente non va): il messaggio ripiega sull'SMS e il registro del pannello Spoki dice quale campo
 manca.
 
-| Campo                                | Da dove viene                                                                      | Reminder 24h | Conferma Accettazione | Conferma Prenotazione | Mattino |
-| ------------------------------------ | ---------------------------------------------------------------------------------- | :----------: | :-------------------: | :-------------------: | :-----: |
-| `NOME_CLIENTE`                       | nome e cognome della pratica (o la ragione sociale)                                |      ✓       |           ✓           |           ✓           |    ✓    |
-| `DATA_PRENOTAZIONE`                  | giorno dell'appuntamento, GG/MM/AAAA                                               |      ✓       |                       |                       |         |
-| `ORA_PRENOTAZIONE`                   | ora dell'appuntamento, HH:mm                                                       |      ✓       |                       |                       |    ✓    |
-| `DATA` / `ORA`                       | giorno e ora dell'appuntamento                                                     |              |                       |           ✓           |         |
-| `LUOGO`                              | `SPOKI_LUOGO` — **ancora da decidere**                                             |      ✓       |                       |           ✓           |         |
-| `_MARCA_E_MODELLO_`                  | marca e modello del veicolo                                                        |      ✓       |           ✓           |           ✓           |    ✓    |
-| `_TARGA_`                            | targa                                                                              |      ✓       |           ✓           |           ✓           |    ✓    |
-| `_NOME_ACCETTATORE_`                 | chi ha preso in carico la pratica (altrimenti l'accettatore assegnato in Infinity) |              |           ✓           |                       |         |
-| `_DATA_PREVISTA_` / `_ORA_PREVISTA_` | riconsegna prevista da Infinity (`data_prevcons`/`ora_prevcons`)                   |              |           ✓           |                       |         |
+| Campo               | Da dove viene                                       | Reminder 24h | Mattino |
+| ------------------- | --------------------------------------------------- | :----------: | :-----: |
+| `NOME_CLIENTE`      | nome e cognome della pratica (o la ragione sociale) |      ✓       |    ✓    |
+| `DATA_PRENOTAZIONE` | giorno dell'appuntamento, GG/MM/AAAA                |      ✓       |         |
+| `ORA_PRENOTAZIONE`  | ora dell'appuntamento, HH:mm                        |      ✓       |    ✓    |
+| `LUOGO`             | `SPOKI_LUOGO` — **da confermare**                   |      ✓       |         |
+| `_MARCA_E_MODELLO_` | marca e modello del veicolo                         |      ✓       |    ✓    |
+| `_TARGA_`           | targa                                               |      ✓       |    ✓    |
 
-**Finché `SPOKI_LUOGO` è vuoto, il 📅 Reminder 24h e la 📅 Conferma Prenotazione non partono su
-WhatsApp.** Il testo della sede lo indica il committente.
+**La sede riguarda proprio il nostro promemoria del giorno prima**: il 📅 Reminder 24h scrive
+«📍 _Sede:_ …». Finché `SPOKI_LUOGO` è vuoto quel promemoria non parte su WhatsApp. In Infinity le
+prenotazioni dell'accettazione (tipo `PR01`, «Prenotazione/Preventivo officina Bari») sono della
+sede `01` · Bari, via Napoli 364 B2/B3 (tabella `sedi`).
 
-Con ogni template l'app manda i payload dei pulsanti: `ACTION_CONTACT` / `ACTION_CHANGE` per
-«Contattaci» / «Modifica» dei 📅, `ACTION_ARRIVED` / `ACTION_LATE` / `ACTION_ABSENT` per il mattino.
-Tornano nel webhook `message.inbound`: i primi due la coda li ignora (sono per le automazioni), gli
-altri tre li registra.
+Con il Reminder 24h l'app manda anche i payload dei suoi pulsanti, `ACTION_CONTACT` / `ACTION_CHANGE`
+(«Contattaci» / «Modifica»), che la coda ignora; con il template del mattino `ACTION_ARRIVED` /
+`ACTION_LATE` / `ACTION_ABSENT`, che la coda registra quando tornano nel webhook `message.inbound`.
 
 ## 3. Il template del mattino (da creare in bozza)
 
@@ -72,20 +74,19 @@ arrivato», «Sono in ritardo», «Non posso venire». Il testo esatto è in `sc
 Creato il 2026-09-25 con `npm run spoki:setup -- --apply`: id **508848**, in bozza. L'approvazione a Meta la chiede il committente
 da Spoki.
 
-## 4. Automazioni (da decidere)
+## 4. Automazioni
 
-Nessuna automazione è stata creata. Sono pronte nella specifica, per quando il committente lo dirà:
+Nessuna automazione è stata creata. «Contattaci» e «Modifica» dei 📅 **non sono compito dell'app**.
+Nella specifica restano pronte, per quando ci sarà l'indirizzo https pubblico e il committente lo
+dirà, le automazioni che riguardano la conferma del cliente:
 
-- **«Contattaci» e «Modifica» dei 📅** — cosa devono fare è da definire (per esempio: risposta al
-  cliente, nota o ticket per il personale, lead al BDC per «Modifica»).
 - **Risposte ai pulsanti del mattino a server giù** (`ACC · Risposta …`): l'automazione chiama
   l'app dal suo passo «webhook» (`source: "automation"`, intestazione `x-spoki-secret`), consegna il
   testo che l'app restituisce (`data.risposta`) o, se l'app non risponde, un testo di riserva.
-  Richiedono l'indirizzo https pubblico dell'app e i campi `ACC_ESITO`, `ACC_RISPOSTA`.
+  Richiedono i campi `ACC_ESITO`, `ACC_RISPOSTA`.
 - **Rete di sicurezza del mattino**: trigger sulla data `ACC_GIORNO` all'ora
   `SPOKI_SAFETY_NET_TIME`, manda il promemoria del mattino a chi ha ancora `ACC_PROMEMORIA =
-DA_INVIARE`. Richiede i campi `ACC_GIORNO` e `ACC_PROMEMORIA` (l'app li scrive solo con la rete
-  accesa).
+DA_INVIARE`. Richiede i campi `ACC_GIORNO` e `ACC_PROMEMORIA`.
 
 I campi `ACC_*` non esistono nell'account e si creano solo insieme alle automazioni
 (`--automazioni`). Il trigger «clic su un pulsante di un template» non è nell'API: si sceglie
@@ -139,10 +140,9 @@ SPOKI_SAFETY_LOCK=false
 SPOKI_ALLOWED_RECIPIENTS=<numero di prova del committente, E.164>
 SPOKI_PUBLIC_SENDS=false
 SPOKI_TEMPLATE_REMINDER_D1_ID=454558
-SPOKI_TEMPLATE_WELCOME_ID=454762
-SPOKI_TEMPLATE_BOOKING_ID=454556
-SPOKI_TEMPLATE_SAME_DAY_ID=<id del template del mattino, quando approvato>
-SPOKI_LUOGO=<sede, da decidere>
+SPOKI_TEMPLATE_SAME_DAY_ID=508848
+SPOKI_LUOGO=<sede, da confermare>
+MESSAGING_TRIGGERS_ENABLED=false
 ```
 
 Più avanti, con l'indirizzo https pubblico: `PUBLIC_BASE_URL`, `SPOKI_WEBHOOK_SECRET`,
@@ -152,13 +152,11 @@ Chiave e segreti si scrivono solo in `.env.local`, mai in chat o nei documenti.
 ## 8. Prova della demo interna (quando si accende)
 
 1. Una prenotazione di prova con il numero di prova.
-2. Presa in carico: arriva la 📅 Conferma Accettazione con accettatore, marca e modello, targa e
-   riconsegna prevista.
-3. Promemoria del giorno prima e conferma prenotazione: partono solo con `SPOKI_LUOGO` impostato;
-   senza, il registro del pannello dice «campi del template vuoti (LUOGO)».
-4. Promemoria del mattino (dopo l'approvazione): tre pulsanti; ogni tocco aggiorna la pratica e
+2. Promemoria del giorno prima: parte solo con `SPOKI_LUOGO` impostato; senza, il registro del
+   pannello dice «campi del template vuoti (LUOGO)».
+3. Promemoria del mattino (dopo l'approvazione): tre pulsanti; ogni tocco aggiorna la pratica e
    riceve la risposta come messaggio libero.
-5. Un numero diverso da quello di prova: nel registro compare «demo · numero fuori lista» e non
+4. Un numero diverso da quello di prova: nel registro compare «demo · numero fuori lista» e non
    arriva niente.
 
 ## 9. Limiti noti
