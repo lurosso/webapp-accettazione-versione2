@@ -77,9 +77,7 @@ export async function POST(request: NextRequest, context: RouteContext): Promise
   const { action } = parsed.data;
   // Annullare una pratica non è un'azione da banco: la decide l'amministratore.
   if (action === 'cancel' && !canAccess('admin', session.role)) {
-    return forbiddenResponse(
-      "L'annullamento di una pratica è riservato all'amministratore.",
-    );
+    return forbiddenResponse("L'annullamento di una pratica è riservato all'amministratore.");
   }
   // Rimettere in coda una pratica presa in carico svuota operatore e sportello: non è più un
   // pulsante da banco (tolto dalla riga il 2026-09-17), la fa l'assistenza in amministrazione.

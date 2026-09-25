@@ -13,7 +13,10 @@ export function normalizeAdvisorCode(raw: string | null | undefined): string | n
 export const ADVISOR_CODE_PATTERN = /^[A-Z0-9._-]{1,20}$/;
 
 /** True se le due matricole indicano lo stesso accettatore. */
-export function sameAdvisorCode(a: string | null | undefined, b: string | null | undefined): boolean {
+export function sameAdvisorCode(
+  a: string | null | undefined,
+  b: string | null | undefined,
+): boolean {
   const x = normalizeAdvisorCode(a);
   return x !== null && x === normalizeAdvisorCode(b);
 }

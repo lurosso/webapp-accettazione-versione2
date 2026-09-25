@@ -34,9 +34,7 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
     return unauthorizedResponse();
   }
   if (!canAccess('admin', session.role)) {
-    return forbiddenResponse(
-      "La chiusura della giornata è riservata all'amministratore.",
-    );
+    return forbiddenResponse("La chiusura della giornata è riservata all'amministratore.");
   }
 
   const raw: unknown = await request.json().catch(() => ({}));
