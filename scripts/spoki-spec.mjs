@@ -227,7 +227,8 @@ export function corpoTemplate(t) {
   const usate = [...new Set(variabiliDi(t.testo))];
   return {
     name: t.name,
-    category: 'UTILITY',
+    // Spoki chiama «TRANSACTIONAL» la categoria di servizio (UTILITY per Meta): come i 📅.
+    category: 'TRANSACTIONAL',
     templatelocalization_set: [
       {
         language: 'it',

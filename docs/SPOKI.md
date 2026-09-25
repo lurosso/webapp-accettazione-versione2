@@ -21,15 +21,15 @@ API ufficiale di Spoki (collezione Postman, letta il 2026-09-24).
 
 ## 1. Quale template per quale messaggio
 
-| Messaggio dell'app                                                  | Template                        | Id     | Variabile                       |
-| ------------------------------------------------------------------- | ------------------------------- | ------ | ------------------------------- |
-| Promemoria del giorno prima                                         | 📅 Reminder 24h Appuntamento    | 454558 | `SPOKI_TEMPLATE_REMINDER_D1_ID` |
-| Presa in carico                                                     | 📅 Conferma Accettazione        | 454762 | `SPOKI_TEMPLATE_WELCOME_ID`     |
-| Conferma della prenotazione (inserimento manuale)                   | 📅 Conferma Prenotazione        | 454556 | `SPOKI_TEMPLATE_BOOKING_ID`     |
-| Promemoria del mattino con «Sono arrivato / in ritardo / non vengo» | 📅 Promemoria Appuntamento Oggi | nuovo  | `SPOKI_TEMPLATE_SAME_DAY_ID`    |
-| Risposte ai pulsanti (codice e link, ritardo, assenza, «presto»)    | nessuno: **messaggio libero**   | —      | —                               |
-| Fine del check-in                                                   | nessuno: ripiega sull'SMS       | —      | `SPOKI_TEMPLATE_COMPLETE_ID`    |
-| Vettura pronta                                                      | 📅 Notifica Pronto Vettura      | —      | non usato dall'app              |
+| Messaggio dell'app                                                  | Template                        | Id             | Variabile                       |
+| ------------------------------------------------------------------- | ------------------------------- | -------------- | ------------------------------- |
+| Promemoria del giorno prima                                         | 📅 Reminder 24h Appuntamento    | 454558         | `SPOKI_TEMPLATE_REMINDER_D1_ID` |
+| Presa in carico                                                     | 📅 Conferma Accettazione        | 454762         | `SPOKI_TEMPLATE_WELCOME_ID`     |
+| Conferma della prenotazione (inserimento manuale)                   | 📅 Conferma Prenotazione        | 454556         | `SPOKI_TEMPLATE_BOOKING_ID`     |
+| Promemoria del mattino con «Sono arrivato / in ritardo / non vengo» | 📅 Promemoria Appuntamento Oggi | 508848 (bozza) | `SPOKI_TEMPLATE_SAME_DAY_ID`    |
+| Risposte ai pulsanti (codice e link, ritardo, assenza, «presto»)    | nessuno: **messaggio libero**   | —              | —                               |
+| Fine del check-in                                                   | nessuno: ripiega sull'SMS       | —              | `SPOKI_TEMPLATE_COMPLETE_ID`    |
+| Vettura pronta                                                      | 📅 Notifica Pronto Vettura      | —              | non usato dall'app              |
 
 Le risposte ai pulsanti non hanno bisogno di un template: il cliente ha appena toccato un pulsante,
 quindi la finestra di 24 ore di WhatsApp è aperta e Spoki accetta un messaggio libero
@@ -65,11 +65,11 @@ altri tre li registra.
 
 ## 3. Il template del mattino (da creare in bozza)
 
-Nome «📅 Promemoria Appuntamento Oggi», categoria UTILITY, italiano, nello stile dei 📅. Intestazione
+Nome «📅 Promemoria Appuntamento Oggi», categoria di servizio (in Spoki «TRANSACTIONAL», come i 📅), italiano, nello stile dei 📅. Intestazione
 «Promemoria Appuntamento Oggi»; corpo con `%%NOME_CLIENTE%%`, `%%ORA_PRENOTAZIONE%%`,
 `%%_MARCA_E_MODELLO_%%`, `%%_TARGA_%%` e la firma «_Il Team Autoclub_»; tre pulsanti rapidi «Sono
 arrivato», «Sono in ritardo», «Non posso venire». Il testo esatto è in `scripts/spoki-spec.mjs`.
-Si crea in bozza con `npm run spoki:setup -- --apply`; l'approvazione a Meta la chiede il committente
+Creato il 2026-09-25 con `npm run spoki:setup -- --apply`: id **508848**, in bozza. L'approvazione a Meta la chiede il committente
 da Spoki.
 
 ## 4. Automazioni (da decidere)

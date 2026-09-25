@@ -126,7 +126,7 @@ describe('Il template del mattino da creare', () => {
         templatebuttoncomponent_set: { button_type: string; text: string }[];
       }[];
     };
-    expect(corpo.category).toBe('UTILITY');
+    expect(corpo.category).toBe('TRANSACTIONAL');
     const loc = corpo.templatelocalization_set[0]!;
     expect(Object.keys(loc.example_custom_fields).sort()).toEqual(
       [...new Set(variabiliDi(mattino.testo))].sort(),
