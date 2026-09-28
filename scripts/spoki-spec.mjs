@@ -270,10 +270,37 @@ export function corpoTemplate(t) {
 
 /** Nomi delle automazioni (servono anche per ritrovarle nell'account). */
 export const AUTOMAZIONI = {
+  mattino: 'ACC · Promemoria del mattino (API)',
   arrivato: 'ACC · Pulsante «Sono arrivato»',
   ritardo: 'ACC · Pulsante «Sono in ritardo»',
   assente: 'ACC · Pulsante «Non posso venire»',
   rete: 'ACC · Rete di sicurezza promemoria del mattino',
+};
+
+/**
+ * L'automazione del promemoria del mattino, creata il 2026-09-28 (571227) su richiesta del
+ * committente: la chiama l'app via API (trigger «API», indirizzo e segreto in
+ * SPOKI_URL_REMINDER_SAME_DAY e SPOKI_SECRET_REMINDER_SAME_DAY, con i campi del template nel corpo),
+ * manda il template del mattino, aspetta la risposta e con uno Switch sul messaggio ricevuto scrive
+ * ACC_PULSANTE. Spoki non dà rami a un passo «template» («non è un passo ramificabile»): per questo
+ * c'è l'attesa della risposta, che però prende solo il PRIMO tocco. I tocchi seguenti (prima «in
+ * ritardo», poi «arrivato») li prendono le automazioni dei pulsanti qui sotto.
+ */
+export const AUTOMAZIONE_MATTINO = {
+  nome: AUTOMAZIONI.mattino,
+  trigger: 'API',
+  env: { url: 'SPOKI_URL_REMINDER_SAME_DAY', segreto: 'SPOKI_SECRET_REMINDER_SAME_DAY' },
+  passi: [
+    { tipo: 'templatemessage', template: '📅 Promemoria Appuntamento Oggi' },
+    { tipo: 'readmessage', attesaSecondi: 36_000 },
+    { tipo: 'switchcase', campo: 'context_field:last_message', casi: PULSANTI.map((p) => p.testo) },
+    ...PULSANTI.map((p) => ({
+      tipo: 'customfield',
+      ramo: p.testo,
+      campo: 'ACC_PULSANTE',
+      valore: p.valore,
+    })),
+  ],
 };
 
 /**

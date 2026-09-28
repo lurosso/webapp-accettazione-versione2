@@ -42,7 +42,15 @@ export const TEMPLATE_ESISTENTI: readonly TemplateSpoki[];
 export const TEMPLATE_DA_CREARE: readonly TemplateSpoki[];
 export const TEMPLATE: readonly TemplateSpoki[];
 export const ESEMPI: Readonly<Record<string, string>>;
-export const AUTOMAZIONI: Readonly<Record<'arrivato' | 'ritardo' | 'assente' | 'rete', string>>;
+export const AUTOMAZIONI: Readonly<
+  Record<'mattino' | 'arrivato' | 'ritardo' | 'assente' | 'rete', string>
+>;
+export const AUTOMAZIONE_MATTINO: {
+  readonly nome: string;
+  readonly trigger: 'API';
+  readonly env: { readonly url: string; readonly segreto: string };
+  readonly passi: readonly Readonly<Record<string, unknown>>[];
+};
 export const AUTOMAZIONI_PULSANTI: readonly AutomazionePulsanteSpoki[];
 export const EVENTI_WEBHOOK: readonly string[];
 export function stessoNome(a: string, b: string): boolean;

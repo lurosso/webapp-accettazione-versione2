@@ -29,7 +29,7 @@ API ufficiale di Spoki (collezione Postman, letta il 2026-09-24).
 | Messaggio dell'app                                                  | Template                        | Id                 | Variabile                       |
 | ------------------------------------------------------------------- | ------------------------------- | ------------------ | ------------------------------- |
 | Promemoria del giorno prima                                         | 📅 Reminder 24h Appuntamento    | 454558 (approvato) | `SPOKI_TEMPLATE_REMINDER_D1_ID` |
-| Promemoria del mattino con «Sono arrivato / in ritardo / non vengo» | 📅 Promemoria Appuntamento Oggi | 508848 (approvato) | `SPOKI_TEMPLATE_SAME_DAY_ID`    |
+| Promemoria del mattino con «Sono arrivato / in ritardo / non vengo» | 📅 Promemoria Appuntamento Oggi | 508848 (approvato) | `SPOKI_URL_REMINDER_SAME_DAY`   |
 | Risposte ai pulsanti (codice e link, ritardo, assenza, «presto»)    | nessuno: **messaggio libero**   | —                  | —                               |
 
 Gli altri 📅 (Conferma Accettazione, Conferma Prenotazione, Notifica Pronto Vettura) restano
@@ -83,6 +83,27 @@ Senza indirizzo https pubblico Spoki non può chiamare l'app. Il tocco su un pul
 passa allora da un campo del contatto: **Spoki lo scrive, l'app lo legge**. Al cliente scrive solo
 l'app: le automazioni non mandano messaggi. «Contattaci» e «Modifica» dei 📅 **non sono compito
 dell'app**.
+
+**Il promemoria del mattino parte da un'automazione chiamata via API** (richiesta del committente,
+2026-09-28): «ACC · Promemoria del mattino (API)», id **571227**, trigger «API». L'app la chiama con
+`SPOKI_URL_REMINDER_SAME_DAY` e `SPOKI_SECRET_REMINDER_SAME_DAY` (e senza
+`SPOKI_TEMPLATE_SAME_DAY_ID`, che altrimenti vince), mandando nel corpo numero, nome e i campi del
+template (`NOME_CLIENTE`, `ORA_PRENOTAZIONE`, `_MARCA_E_MODELLO_`, `_TARGA_`) più
+`ACC_PROMEMORIA = INVIATO` e `ACC_PULSANTE = ATTESA`. I passi: il template 508848 → «attendi la
+risposta» (fino a 10 ore) → uno **Switch** sul messaggio ricevuto con un ramo per pulsante → nel ramo
+`ACC_PULSANTE = ARRIVATO / RITARDO / ASSENTE`. Spoki non dà rami a un passo «invia template» (lo
+dice l'API: «non è un passo ramificabile»; i rami li hanno solo Se/Altrimenti, Switch e Voice), per
+questo c'è l'attesa della risposta. Due cose da sapere:
+
+- l'attesa prende **solo il primo tocco**: se il cliente tocca «Sono in ritardo» e più tardi «Sono
+  arrivato», il secondo lo prende l'automazione di quel pulsante (sotto), che Spoki ha collegato al
+  pulsante del template; per questo restano anche quelle, e un tocco preso da tutte e due scrive lo
+  stesso valore;
+- il valore dello Switch (`context_field` `last_message`) Spoki lo accetta ma non lo documenta: va
+  confermato con la prima prova sul numero del committente (se non corrisponde, il tocco lo prendono
+  comunque le automazioni dei pulsanti).
+
+Nasce disattivata: la attiva il committente da Spoki.
 
 **Nell'account** (creati il 2026-09-28 con l'MCP di Spoki; niente di esistente è stato toccato):
 
@@ -198,7 +219,8 @@ SPOKI_SAFETY_LOCK=false
 SPOKI_ALLOWED_RECIPIENTS=<numero di prova del committente, E.164>
 SPOKI_PUBLIC_SENDS=false
 SPOKI_TEMPLATE_REMINDER_D1_ID=454558
-SPOKI_TEMPLATE_SAME_DAY_ID=508848
+SPOKI_URL_REMINDER_SAME_DAY=<indirizzo del trigger API dell'automazione 571227>
+SPOKI_SECRET_REMINDER_SAME_DAY=<segreto del trigger API>
 SPOKI_LUOGO="Via Napoli 364 B2/B3, Bari"
 SPOKI_REPLY_POLLING=true
 SPOKI_REPLY_POLL_SECONDS=20
