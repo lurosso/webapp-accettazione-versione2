@@ -1,45 +1,36 @@
 // Pratica conclusa da oltre 24 ore o di una giornata passata: schermata cortese e chiara, senza
 // coda né pulsanti. Il cliente che riapre il link il giorno dopo capisce subito che non c'è nulla
-// da attendere.
+// da attendere. Solo codice, titolo e una frase (M8-T56).
 import Link from 'next/link';
 import type { PortalStatusView } from '@/domain/read-models';
-import { formatBusinessDateIt, localTimeHHmm } from '@/lib/dates';
 import { cn } from '@/lib/utils/cn';
 import { concludedMessage } from './status-messages';
 
 export interface ConcludedCardProps {
   readonly position: PortalStatusView;
-  readonly timeZone: string;
 }
 
-export function ConcludedCard({ position, timeZone }: ConcludedCardProps) {
+export function ConcludedCard({ position }: ConcludedCardProps) {
   const message = concludedMessage(position.status);
   return (
     <section
       role="status"
       data-testid="portal-concluded"
       className={cn(
-        'flex flex-col gap-4 rounded-3xl border-2 p-6 text-center shadow-sm',
+        'flex flex-col items-center gap-5 rounded-3xl border-2 px-5 py-7 text-center shadow-sm',
         message.tone === 'done'
           ? 'border-brand-primary bg-status-completed-soft'
-          : 'border-slate-300 bg-white',
+          : 'border-line bg-surface',
       )}
     >
-      <p className="font-mono text-4xl font-black tracking-wider text-slate-700 tabular-nums">
+      <p className="text-ink-soft font-mono text-5xl font-black tracking-wider tabular-nums">
         {position.code}
       </p>
-      <h1 className="text-2xl font-bold text-slate-900">{message.headline}</h1>
-      <p className="text-lg text-slate-700">{message.detail}</p>
-      <p className="text-sm text-slate-500">
-        Appuntamento del {formatBusinessDateIt(position.businessDate)} alle{' '}
-        {localTimeHHmm(new Date(position.scheduledAt), timeZone)} · targa {position.plate}
-        {position.concludedAt !== null
-          ? ` · chiusa alle ${localTimeHHmm(new Date(position.concludedAt), timeZone)}`
-          : ''}
-      </p>
+      <h1 className="text-ink text-3xl font-bold">{message.headline}</h1>
+      <p className="text-ink-soft text-xl">{message.detail}</p>
       <Link
         href="/cliente"
-        className="h-touch mx-auto flex w-full max-w-xs items-center justify-center rounded-xl bg-slate-900 px-6 text-lg font-semibold text-white transition-colors hover:bg-slate-700 focus-visible:ring-4 focus-visible:ring-slate-400 focus-visible:outline-none"
+        className="bg-surface-inverse focus-anello premibile flex min-h-16 w-full items-center justify-center rounded-2xl px-6 text-xl font-bold text-white"
       >
         Cerca un&apos;altra targa
       </Link>

@@ -3,7 +3,7 @@
 // messaggio apre direttamente il proprio stato di attesa, senza scrivere targa né codice. Nessun
 // dato personale nell'indirizzo: non c'è la targa, e il token non si indovina.
 //
-// La pagina è la stessa di `/portal?t=…`: stato in tempo reale, «Sono arrivato», «In ritardo».
+// La pagina è la stessa di `/portal?t=…`: stato in tempo reale, «Sono qui», «Sono in ritardo».
 // Un token che non ha la forma attesa non si cerca nemmeno: si torna all'ingresso per targa.
 import type { Metadata } from 'next';
 import { redirect } from 'next/navigation';

@@ -1,7 +1,9 @@
 'use client';
 
-// Form di ricerca della targa (portale cliente, mobile-first): campo unico in evidenza con
-// formattazione live, validazione in italiano e pulsante grande adatto al dito su smartphone.
+// Ricerca della targa (portale cliente, mobile): un campo grande con la targa formattata mentre si
+// scrive (spazi e trattini li toglie il campo, non il cliente) e un pulsante grande. Nessun testo
+// d'aiuto fisso (M8-T56): l'esempio è nel campo, e una spiegazione compare solo se serve, cioè
+// quando la targa non va.
 import { useRouter } from 'next/navigation';
 import { useState, type FormEvent } from 'react';
 import { formatPlateInput, PLATE_MAX_LENGTH, plateErrorMessage } from './plate-input';
@@ -36,10 +38,10 @@ export function PlateSearchForm({ initialPlate = '', source }: PlateSearchFormPr
   };
 
   return (
-    <form onSubmit={onSubmit} noValidate className="flex flex-col gap-4">
+    <form onSubmit={onSubmit} noValidate className="flex flex-col gap-5">
       <div className="flex flex-col gap-2">
-        <label htmlFor="targa" className="text-lg font-semibold text-slate-900">
-          Targa del veicolo
+        <label htmlFor="targa" className="text-ink text-xl font-semibold">
+          Targa della sua auto
         </label>
         <input
           id="targa"
@@ -53,23 +55,21 @@ export function PlateSearchForm({ initialPlate = '', source }: PlateSearchFormPr
           maxLength={PLATE_MAX_LENGTH}
           placeholder="AB123CD"
           value={plate}
-          aria-describedby="targa-aiuto"
           aria-invalid={error !== null}
+          aria-describedby={error !== null ? 'targa-errore' : undefined}
           onChange={(event) => {
             setPlate(formatPlateInput(event.target.value));
             setError(null);
           }}
-          className="controllo-lg border-line focus-anello w-full rounded-xl border-2 bg-white text-center font-mono text-3xl font-bold tracking-[0.2em] text-slate-900 uppercase shadow-sm placeholder:font-normal placeholder:tracking-normal placeholder:text-slate-300"
+          className="border-line focus-anello text-ink placeholder:text-ink-muted/40 min-h-20 w-full rounded-2xl border-2 bg-white text-center font-mono text-4xl font-bold tracking-[0.2em] uppercase shadow-sm placeholder:font-normal placeholder:tracking-normal"
         />
-        <p id="targa-aiuto" className="text-base text-slate-600">
-          Digiti la targa senza spazi, come è scritta sul veicolo.
-        </p>
       </div>
 
       {error !== null ? (
         <p
+          id="targa-errore"
           role="alert"
-          className="bg-status-no-show-soft text-status-no-show-ink rounded-lg px-4 py-3 text-base"
+          className="bg-status-no-show-soft text-status-no-show-ink rounded-xl px-4 py-3 text-lg font-semibold"
         >
           {error}
         </p>
@@ -78,9 +78,9 @@ export function PlateSearchForm({ initialPlate = '', source }: PlateSearchFormPr
       <button
         type="submit"
         disabled={submitting}
-        className="h-touch w-full rounded-xl bg-slate-900 px-6 text-lg font-semibold text-white shadow-sm transition-colors hover:bg-slate-700 focus-visible:ring-4 focus-visible:ring-slate-400 focus-visible:outline-none disabled:opacity-60"
+        className="bg-brand-secondary active:bg-brand-blue-dark premibile focus-anello flex min-h-16 w-full items-center justify-center rounded-2xl px-6 text-2xl font-bold text-white shadow-sm disabled:opacity-60"
       >
-        {submitting ? 'Ricerca in corso…' : 'Vedi il mio turno'}
+        {submitting ? 'Un istante…' : 'Vedi il mio turno'}
       </button>
     </form>
   );

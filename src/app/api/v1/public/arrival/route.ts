@@ -1,4 +1,4 @@
-// POST /api/v1/public/arrival — "Sono arrivato" dalla pagina di tracciamento del cliente.
+// POST /api/v1/public/arrival — «Sono qui» dalla pagina di tracciamento del cliente.
 //
 // Endpoint PUBBLICO, gemello di `late-notice`: il cliente si identifica con la targa e/o con il
 // token del link, come per lo stato. Registra l'ora dell'arrivo e restituisce lo stato aggiornato.

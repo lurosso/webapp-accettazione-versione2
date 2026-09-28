@@ -11,10 +11,9 @@ import type { IsoDate, IsoDateTime } from '@/domain/value-objects/iso-date';
 import {
   aheadCountMessage,
   concludedMessage,
-  PORTAL_STAGES,
-  stageLabel,
   statusMessage,
 } from '@/modules/customer-portal/status-messages';
+import { APPOINTMENT_STATUSES } from '@/domain/entities/appointment';
 import { buildTemplateVars } from '@/application/notifications/templates';
 import { buildTestEnv, makeAppointment, TEST_DATE, TestClock } from '../helpers/fixtures';
 
@@ -51,18 +50,12 @@ async function insert(env: ReturnType<typeof buildTestEnv>, a: Appointment): Pro
 }
 
 describe('Portale: rendering dello stato', () => {
-  it('le tre tappe e le etichette sono quelle del percorso del cliente', () => {
-    expect(PORTAL_STAGES.map((s) => s.label)).toEqual([
-      'In attesa',
-      'In accettazione',
-      'Accettazione conclusa',
-    ]);
+  it('le tappe del percorso e i messaggi di ciascuno stato', () => {
     expect(portalStageOf('WAITING')).toBe(1);
     expect(portalStageOf('SKIPPED')).toBe(1);
     expect(portalStageOf('IN_PROGRESS')).toBe(2);
     expect(portalStageOf('COMPLETED')).toBe(3);
     expect(portalStageOf('NO_SHOW')).toBe(1);
-    expect(stageLabel(2)).toBe('In accettazione');
     expect(statusMessage('IN_PROGRESS', 'C').detail).toContain('sportello C');
     expect(statusMessage('COMPLETED', null).headline).toBe('Accettazione conclusa');
     expect(statusMessage('COMPLETED', null).detail).toContain('può ripartire');
@@ -70,6 +63,15 @@ describe('Portale: rendering dello stato', () => {
     expect(concludedMessage('COMPLETED').headline).toBe('Pratica conclusa');
     expect(aheadCountMessage(0)).toBe('Il prossimo turno è il suo');
     expect(aheadCountMessage(3)).toBe('Ci sono 3 auto prima di lei');
+  });
+
+  it('testi essenziali (M8-T56): titolo di poche parole e una sola frase breve', () => {
+    for (const status of APPOINTMENT_STATUSES) {
+      for (const m of [statusMessage(status, 'B'), concludedMessage(status)]) {
+        expect(m.headline.split(' ').length).toBeLessThanOrEqual(3);
+        expect(m.detail.length).toBeLessThanOrEqual(90);
+      }
+    }
   });
 
   it('in attesa: tappa 1, clienti davanti dello stesso sportello, orario, sede e nessun accettatore', async () => {

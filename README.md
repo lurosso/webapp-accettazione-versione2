@@ -433,28 +433,22 @@ token unico della pratica apre la pagina senza login, senza scrivere la targa e 
 frequenza), oppure direttamente su `/portal?targa=AB123CD` (la stessa ricerca del QR; resta valido
 anche `/portal?t=<token>`).
 
-La schermata mobile è pensata per chi aspetta **in auto, in fila** davanti all'officina e guarda lo
-schermo due secondi ogni tanto, e cambia
-aspetto con lo stato: **in attesa** è bianca e blu, calma, perché non c'è niente da fare;
-**chiamato** diventa verde, con il bordo spesso e un alone che respira attorno alla lettera dello
-sportello, così il passaggio si nota senza leggere una parola (chi ha chiesto meno movimento al
-sistema operativo vede l'alone fermo). In alto codice e targa, poi la **barra di avanzamento** a
-quattro tappe (In attesa → In accettazione → In lavorazione → Pronta per il ritiro), e al centro
-**un solo numero grande**, che cambia significato con lo stato: mentre si aspetta è la posizione in
-fila ("Sei il numero 3 in fila", con le auto davanti sotto), quando tocca a lui è la **lettera
-dello sportello** ("Tocca a te · SPORTELLO A"). I testi danno per scontata la scena vera: il
-cliente non è seduto in una sala, è **in auto, in fila** davanti all'officina, quindi si aspetta in
-auto e si avanza verso lo sportello. In dashboard la stessa cosa si legge sulla riga: "in fila
-dalle 10:32". Mai due numeri grandi insieme: davanti a un "3" e a una "B" della stessa dimensione nessuno
-capisce quale contare. Sotto, la **riga del tempo** con tre orari — arrivo registrato, chiamata
-allo sportello, orario previsto — che risponde alla domanda di chi aspetta, "da quanto sono qui e
-quando tocca a me". Chiudono la pagina targa, accettatore, sede e due pulsanti. **"Sono arrivato, sono in fila"** registra
-l'ora dell'arrivo: la pratica resta al suo posto in coda (l'ordine lo decidono l'orario e
-l'accettatore, non chi tocca per primo), in dashboard compare "in sala dalle HH:mm" e il pulsante
-lascia il posto alla conferma. È lo stesso gesto della risposta «Arrivato» su WhatsApp, e vale
-anche quando la messaggistica è in standby. **"Sto arrivando in ritardo (+10 min)"** avvisa
-l'accettazione (avviso ambra sulla riga della dashboard, nessuna telefonata) senza cambiare codice
-né posizione in coda. Una
+La schermata mobile è pensata per chi aspetta **in auto, in fila** davanti all'officina, spesso
+una persona anziana che guarda il telefono ogni tanto: dal 2026-09-28 (M8-T56) mostra **solo
+l'essenziale**, con testi grandi. In alto il **codice** (con la targa sotto, per essere sicuri che
+sia la propria auto), poi **una frase grande** sullo stato e una su cosa fare: mentre si aspetta
+«È in fila · C'è 1 auto prima di lei · Resti pure in auto: la chiamiamo noi»; quando tocca a lui
+la scheda diventa verde, con il bordo spesso e un alone che respira attorno alla **lettera dello
+sportello** («Tocca a lei · SPORTELLO A»), così il passaggio si nota senza leggere una parola (chi
+ha chiesto meno movimento al sistema operativo vede l'alone fermo). Niente barra delle tappe, orari,
+accettatore o sede. Sotto, al massimo **due pulsanti grandi**, con le parole dei pulsanti WhatsApp e
+senza spiegazioni: **«Sono qui»** registra l'ora dell'arrivo (la pratica resta al suo posto in coda,
+in dashboard compare "in fila dalle HH:mm") e lascia il posto a «✓ Arrivo registrato alle …»;
+**«Sono in ritardo»** avvisa l'accettazione (avviso ambra sulla riga della dashboard, arrivo atteso
+spostato di 10 minuti) e lascia il posto a «✓ Ritardo segnalato: la aspettiamo verso le …». Chi ha
+già detto «Sono qui» non vede più il pulsante del ritardo. Valgono anche quando la messaggistica è in
+standby. `/cliente` è altrettanto essenziale: un titolo, una riga, il campo della targa (spazi e
+minuscole li sistema il campo) e «Vedi il mio turno». Una
 targa sconosciuta, un token non valido o una pratica conclusa da oltre 24 ore mostrano una
 schermata cortese al posto della coda. Serve una targa presente nell'agenda del giorno: le targhe
 finte sono generate in modo deterministico dal seme dei mock **e dalla data**, quindi cambiano ogni
@@ -927,13 +921,13 @@ per i cron esterni.
 
 ### Portale cliente (live tracking)
 
-| Rotta            | Metodo | Descrizione                                                                                                                                                                           | Accesso  |
-| ---------------- | ------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------- |
-| `/portal`        | pagina | Tracciamento del cliente dal QR (`?targa=`) o dal token (`?t=`): posizione in fila, lettera dello sportello, orari di arrivo e chiamata, "Sono arrivato", "Sto arrivando in ritardo". | Pubblico |
-| `/portal/:token` | pagina | Smart link personale ricevuto su WhatsApp: apre direttamente lo stato di attesa della pratica legata al token, senza targa né codice (stessa schermata di /portal).                   | Pubblico |
-| `/cliente`       | pagina | Ingresso dal QR code: ricerca per targa.                                                                                                                                              | Pubblico |
-| `/cliente/stato` | pagina | Esito della ricerca per targa: la stessa schermata del portale.                                                                                                                       | Pubblico |
-| `/qr`            | pagina | Alias corto stampato sui cartelli: rimanda a /cliente (con `?src=` corsia).                                                                                                           | Pubblico |
+| Rotta            | Metodo | Descrizione                                                                                                                                                         | Accesso  |
+| ---------------- | ------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------- |
+| `/portal`        | pagina | Tracciamento del cliente dal QR (`?targa=`) o dal token (`?t=`), essenziale: codice, auto prima di lui, lettera dello sportello, «Sono qui», «Sono in ritardo».     | Pubblico |
+| `/portal/:token` | pagina | Smart link personale ricevuto su WhatsApp: apre direttamente lo stato di attesa della pratica legata al token, senza targa né codice (stessa schermata di /portal). | Pubblico |
+| `/cliente`       | pagina | Ingresso dal QR code: ricerca per targa.                                                                                                                            | Pubblico |
+| `/cliente/stato` | pagina | Esito della ricerca per targa: la stessa schermata del portale.                                                                                                     | Pubblico |
+| `/qr`            | pagina | Alias corto stampato sui cartelli: rimanda a /cliente (con `?src=` corsia).                                                                                         | Pubblico |
 
 ### API: autenticazione
 
@@ -968,8 +962,8 @@ per i cron esterni.
 | `/api/v1/health`               | GET    | Liveness del processo e stato aggregato delle quattro porte esterne (`?strict=` per il readiness).                                                                                                                                                                                | Pubblico                                                                                                                                                             |
 | `/api/v1/public/status`        | GET    | Stato della pratica per il portale (`?targa=` o `?t=` token): tappa, posizione in coda, orario, accettatore, sede.                                                                                                                                                                | Pubblico                                                                                                                                                             |
 | `/api/v1/webhooks/spoki`       | POST   | Webhook di Spoki: esiti di consegna dei WhatsApp (inviato, consegnato, letto, fallito) che aggiornano notifica e pratica, e risposte del cliente (Arrivato, In ritardo, Assente) che registrano arrivo o ritardo, segnano assente e rispondono con codice e link al tracciamento. | Pubblico · firma HMAC `X-Spoki-Signature` o segreto condiviso (`SPOKI_WEBHOOK_SECRET`; risposte piatte con `SPOKI_INBOUND_SECRET`); 404 con `MESSAGING_STANDBY=true` |
-| `/api/v1/public/arrival`       | POST   | "Sono arrivato" dalla pagina di tracciamento: registra l'ora in cui il cliente si annuncia in sala, senza cambiare il posto in coda.                                                                                                                                              | Pubblico                                                                                                                                                             |
-| `/api/v1/public/late-notice`   | POST   | "Sto arrivando in ritardo (+10 min)" dal portale: sposta l'arrivo atteso e avvisa la dashboard.                                                                                                                                                                                   | Pubblico                                                                                                                                                             |
+| `/api/v1/public/arrival`       | POST   | «Sono qui» dalla pagina di tracciamento: registra l'ora in cui il cliente si annuncia in fila, senza cambiare il posto in coda.                                                                                                                                                   | Pubblico                                                                                                                                                             |
+| `/api/v1/public/late-notice`   | POST   | «Sono in ritardo» dal portale: sposta l'arrivo atteso di 10 minuti e avvisa la dashboard.                                                                                                                                                                                         | Pubblico                                                                                                                                                             |
 | `/api/v1/public/board`         | GET    | Dati del tabellone della sala d'attesa (`?prossimi=`).                                                                                                                                                                                                                            | Pubblico                                                                                                                                                             |
 | `/api/v1/public/display`       | GET    | Stato del monitor di uno sportello (`?campata=A`, `?bay=`, `?bayCode=`): solo lettera, codice e targa.                                                                                                                                                                            | Pubblico · token del monitor (`?token=`, obbligatorio con DISPLAY_TOKEN_REQUIRED=true)                                                                               |
 | `/api/v1/public/events/stream` | GET    | Eventi in tempo reale (SSE) per monitor e tabellone: solo il tipo di evento, senza identificativi.                                                                                                                                                                                | Pubblico                                                                                                                                                             |

@@ -1,9 +1,8 @@
 'use client';
 
-// Vista di stato del portale cliente: polling ogni 5 s verso l'API pubblica, con la card dello
-// stato (barra di avanzamento, info appuntamento, pulsante di ritardo) oppure il messaggio di
-// errore. Mantiene sempre visibile l'ultimo stato noto: se la rete cade, il cliente continua a
-// vedere il proprio codice.
+// Vista di stato del portale cliente: polling ogni 5 s verso l'API pubblica, con la scheda dello
+// stato e i due pulsanti, oppure il messaggio di errore. Mantiene sempre visibile l'ultimo stato
+// noto: se la rete cade, il cliente continua a vedere il proprio codice.
 import Link from 'next/link';
 import { problemFrom, usePublicStatus } from '@/hooks/usePublicStatus';
 import { ConcludedCard } from './ConcludedCard';
@@ -23,9 +22,9 @@ export function PublicStatusView({ targa, token = null }: PublicStatusViewProps)
 
   if (query.isPending) {
     return (
-      <section className="flex flex-col items-center gap-3 rounded-3xl border-2 border-slate-200 bg-white p-8 text-center shadow-sm">
-        <p className="text-lg text-slate-600">
-          {targa !== '' ? `Cerchiamo la targa ${targa}…` : 'Apriamo la sua pratica…'}
+      <section className="border-line bg-surface flex flex-col items-center gap-3 rounded-3xl border-2 p-8 text-center shadow-sm">
+        <p className="text-ink-soft text-xl">
+          {targa !== '' ? `Cerchiamo la targa ${targa}…` : 'Un istante…'}
         </p>
       </section>
     );
@@ -45,37 +44,35 @@ export function PublicStatusView({ targa, token = null }: PublicStatusViewProps)
 
   const { position, timeZone } = query.data;
   if (position.expired) {
-    return <ConcludedCard position={position} timeZone={timeZone} />;
+    return <ConcludedCard position={position} />;
   }
 
   return (
-    <div className="flex flex-col gap-4">
+    <div className="flex flex-col gap-5">
       <PortalStatusCard
         position={position}
-        timeZone={timeZone}
-        updatedAtMs={query.dataUpdatedAt}
         stale={query.isError}
         action={
-          <div className="flex flex-col gap-3">
-            {/* Prima "sono arrivato" (il gesto che ci si aspetta appena entrati in officina),
-                poi l'avviso di ritardo, che serve a chi invece non è ancora qui. */}
+          <div className="flex w-full flex-col gap-3">
+            {/* Prima «Sono qui» (il gesto che ci si aspetta appena entrati in officina), poi il
+                ritardo, che serve a chi invece non è ancora qui. */}
             <ArrivalButton position={position} targa={targa} token={token} timeZone={timeZone} />
             <LateNoticeButton position={position} targa={targa} token={token} timeZone={timeZone} />
           </div>
         }
       />
-      {/* Anche un collegamento secondario si tocca con il pollice: 44 px di altezza, come tutto
-          il resto della pagina. */}
-      <Link
-        href="/cliente"
-        className="controllo focus-anello text-ink-soft mx-auto inline-flex items-center rounded-md px-4 text-base font-medium underline hover:text-slate-900"
-      >
-        Cerca un&apos;altra targa
-      </Link>
-      {/* Promessa fatta solo dove è vera: sulle schermate di errore non c'è nulla da aggiornare. */}
-      <p className="text-center text-sm text-slate-500">
-        Questa pagina si aggiorna da sola: la tenga aperta mentre attende.
-      </p>
+      {/* Chi è entrato con la targa può averla scritta male: gli si lascia la strada per
+          riprovare. Dal link WhatsApp la pratica è già la sua, e il collegamento sarebbe solo
+          una cosa in più da leggere. */}
+      {targa !== '' ? (
+        <Link
+          href="/cliente"
+          className="controllo focus-anello text-ink-soft hover:text-ink mx-auto inline-flex items-center rounded-md px-4 text-lg font-medium underline"
+        >
+          Cerca un&apos;altra targa
+        </Link>
+      ) : null}
+      <p className="text-ink-muted text-center text-lg">Questa pagina si aggiorna da sola.</p>
     </div>
   );
 }

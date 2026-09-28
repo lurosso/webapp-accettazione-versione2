@@ -1,11 +1,12 @@
 // Portale cliente (modulo B): pagina di ingresso raggiunta dal QR code, con la ricerca per targa.
-// Pubblica: nessuna sessione, nessun dato personale.
+// Pubblica: nessuna sessione, nessun dato personale. Essenziale (M8-T56): un titolo, una riga,
+// il campo e il pulsante.
 import type { Metadata } from 'next';
 import { PlateSearchForm } from '@/modules/customer-portal/PlateSearchForm';
 
 export const metadata: Metadata = {
   title: 'Il suo turno in officina',
-  description: 'Inserisca la targa per vedere il suo codice e quante auto ci sono prima di lei.',
+  description: 'Scriva la targa per vedere il suo codice e quante auto ci sono prima di lei.',
 };
 
 interface PageProps {
@@ -20,26 +21,18 @@ export default async function ClientePage({ searchParams }: PageProps) {
   const params = await searchParams;
 
   return (
-    <div className="flex flex-col gap-8">
+    <div className="flex flex-col gap-6">
       <header className="flex flex-col gap-2 text-center">
-        <h1 className="text-3xl font-bold tracking-tight text-slate-900">Il suo turno</h1>
-        <p className="text-lg text-slate-600">
-          Inserisca la targa del veicolo per vedere il suo codice di prenotazione e quante auto ci
-          sono prima di lei.
-        </p>
+        <h1 className="text-ink text-4xl font-bold tracking-tight">Il suo turno</h1>
+        <p className="text-ink-soft text-xl">Scriva la targa per vedere il suo codice.</p>
       </header>
 
-      <div className="rounded-2xl border-2 border-slate-200 bg-white p-6 shadow-sm">
+      <div className="border-line bg-surface rounded-3xl border-2 px-5 py-6 shadow-sm">
         <PlateSearchForm
           initialPlate={single(params['targa']) ?? ''}
           source={single(params['src'])}
         />
       </div>
-
-      <p className="text-center text-sm text-slate-500">
-        Usiamo la targa solo per mostrare la sua posizione in coda: non vengono mostrati dati
-        personali e non conserviamo la ricerca.
-      </p>
     </div>
   );
 }

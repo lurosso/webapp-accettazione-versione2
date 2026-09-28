@@ -1,4 +1,4 @@
-// POST /api/v1/public/late-notice — "Sto arrivando in ritardo (+10 min)" dal portale cliente.
+// POST /api/v1/public/late-notice — «Sono in ritardo» (+10 min) dal portale cliente.
 //
 // Endpoint PUBBLICO: il cliente si identifica con la targa e/o con il token del link WhatsApp,
 // come per lo stato. È l'unica azione concessa al cliente: sposta l'arrivo atteso, pubblica

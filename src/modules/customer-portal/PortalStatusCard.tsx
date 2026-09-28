@@ -1,29 +1,25 @@
-// Pagina di tracciamento del cliente (mobile-first, brandizzata Autoclub). È quello che si apre
-// dal link WhatsApp dopo aver risposto «Arrivato», e sostituisce il QR da inquadrare in officina.
+// Pagina di tracciamento del cliente (mobile, brandizzata Autoclub): si apre dal link WhatsApp o
+// dal QR in officina.
 //
-// La gerarchia è pensata per chi aspetta IN AUTO, in fila davanti all'officina, e guarda lo
-// schermo per due secondi ogni tanto:
-// 1. il codice, perché è quello che sentirà chiamare;
-// 2. UN SOLO numero grande al centro, che cambia significato con lo stato: la posizione in fila
-//    mentre aspetta, la lettera dello sportello quando tocca a lui. Mai due numeri grandi insieme:
-//    davanti a "3" e "B" della stessa dimensione nessuno capisce quale contare;
-// 3. la riga del tempo (arrivo registrato, chiamata allo sportello, orario previsto), che risponde
-//    alla domanda vera di chi aspetta, "da quanto sono qui e quando tocca a me";
-// 4. i dati di contorno e, in fondo, l'unica azione concessa.
+// ESSENZIALE (M8-T56, 2026-09-28): chi la guarda è spesso una persona anziana, in auto, in fila
+// davanti all'officina, che dà un'occhiata al telefono ogni tanto. Sulla scheda ci sono solo:
+// 1. il codice, grande, perché è quello che sentirà chiamare (con la targa sotto, per essere sicuri
+//    che sia la propria auto);
+// 2. UNA frase grande sullo stato e UNA frase su cosa fare;
+// 3. mentre aspetta, quante auto ci sono prima di lui; quando tocca a lui, la lettera dello
+//    sportello, che diventa la cosa più grande della pagina;
+// 4. i due pulsanti, quando servono.
+// Niente barra delle tappe, orari, accettatore o sede: erano informazioni giuste ma da ufficio, e
+// facevano cercare la cosa importante in mezzo alle altre.
 import type { PortalStatusView } from '@/domain/read-models';
-import { localTimeHHmm } from '@/lib/dates';
 import { cn } from '@/lib/utils/cn';
-import { ProgressSteps } from './ProgressSteps';
-import { aheadCountMessage, stageLabel, statusMessage, type StatusTone } from './status-messages';
+import { aheadCountMessage, statusMessage, type StatusTone } from './status-messages';
 
 export interface PortalStatusCardProps {
   readonly position: PortalStatusView;
-  readonly timeZone: string;
-  /** Istante dell'ultimo aggiornamento riuscito (per la riga "aggiornato alle …"). */
-  readonly updatedAtMs: number;
   /** True mentre il polling sta riprovando dopo un errore: lo stato mostrato è l'ultimo noto. */
   readonly stale: boolean;
-  /** Pulsante "Sto arrivando in ritardo" (o la sua conferma), quando ha senso. */
+  /** I pulsanti «Sono qui» e «Sono in ritardo» (o le loro conferme), quando hanno senso. */
   readonly action?: React.ReactNode;
 }
 
@@ -34,7 +30,7 @@ export interface PortalStatusCardProps {
  * mettere a fuoco le parole.
  */
 const TONE_CARD: Record<StatusTone, string> = {
-  waiting: 'border-slate-200 bg-white',
+  waiting: 'border-line bg-surface',
   serving: 'border-brand-primary bg-brand-primary/15 ring-4 ring-brand-primary/20',
   done: 'border-brand-primary bg-status-completed-soft',
   attention: 'border-status-no-show/40 bg-status-no-show-soft',
@@ -42,74 +38,14 @@ const TONE_CARD: Record<StatusTone, string> = {
 
 const TONE_CODE: Record<StatusTone, string> = {
   waiting: 'text-brand-blue-dark',
-  serving: 'text-slate-950',
+  serving: 'text-ink-forte',
   done: 'text-status-completed-ink',
   attention: 'text-status-no-show-ink',
 };
 
-function InfoItem({
-  label,
-  value,
-  mono = false,
-}: {
-  readonly label: string;
-  readonly value: string;
-  readonly mono?: boolean;
-}) {
-  return (
-    <div className="flex flex-col gap-0.5 rounded-xl bg-white/70 px-3 py-2 ring-1 ring-slate-200">
-      <dt className="text-[11px] font-semibold tracking-wide text-slate-500 uppercase">{label}</dt>
-      <dd className={cn('text-base font-semibold text-slate-900', mono && 'font-mono')}>{value}</dd>
-    </div>
-  );
-}
-
-/** Una tappa della riga del tempo: ora grande, etichetta piccola. Assente = non ancora successa. */
-function Tappa({
-  label,
-  time,
-  tone = 'neutral',
-}: {
-  readonly label: string;
-  readonly time: string | null;
-  readonly tone?: 'neutral' | 'done';
-}) {
-  return (
-    <div
-      className={cn(
-        'flex flex-1 flex-col items-center gap-0.5 rounded-xl px-2 py-2 text-center',
-        tone === 'done' ? 'bg-white ring-1 ring-slate-200' : 'bg-white/60',
-      )}
-    >
-      <span className="text-[11px] font-semibold tracking-wide text-slate-500 uppercase">
-        {label}
-      </span>
-      <span
-        className={cn(
-          'font-mono text-lg font-bold tabular-nums',
-          time === null ? 'text-slate-300' : 'text-slate-900',
-        )}
-      >
-        {time ?? '—'}
-      </span>
-    </div>
-  );
-}
-
-export function PortalStatusCard({
-  position,
-  timeZone,
-  updatedAtMs,
-  stale,
-  action,
-}: PortalStatusCardProps) {
+export function PortalStatusCard({ position, stale, action }: PortalStatusCardProps) {
   const message = statusMessage(position.status, position.bayCode);
-  const ora = (iso: string | null): string | null =>
-    iso === null ? null : localTimeHHmm(new Date(iso), timeZone);
-  const orario = localTimeHHmm(new Date(position.expectedTime), timeZone);
-  const orarioAgenda = localTimeHHmm(new Date(position.scheduledAt), timeZone);
-  // Il numero grande al centro: la posizione mentre si aspetta, la lettera quando si è chiamati.
-  const inFila = position.queuePosition !== null;
+  const inFila = message.showAheadCount && position.queuePosition !== null;
   const allosportello = position.status === 'IN_PROGRESS' && position.bayCode !== null;
 
   return (
@@ -118,42 +54,29 @@ export function PortalStatusCard({
       data-testid="portal-status"
       data-status={position.status}
       className={cn(
-        'flex flex-col gap-6 rounded-3xl border-2 p-5 shadow-sm sm:p-7',
+        'flex flex-col items-center gap-6 rounded-3xl border-2 px-5 py-7 text-center shadow-sm',
         TONE_CARD[message.tone],
       )}
     >
-      <div className="flex items-start justify-between gap-3">
-        <div className="flex flex-col">
-          <p className="text-xs font-semibold tracking-wide text-slate-500 uppercase">
-            Il suo codice
-          </p>
-          <p
-            className={cn(
-              'font-mono text-6xl leading-none font-black tracking-wider tabular-nums sm:text-7xl',
-              TONE_CODE[message.tone],
-            )}
-          >
-            {position.code}
-          </p>
-        </div>
-        <div className="flex flex-col items-end gap-1 text-right">
-          <span className="rounded-md border-2 border-slate-900 bg-white px-2 py-0.5 font-mono text-xl font-bold tracking-widest text-slate-900">
-            {position.plate}
-          </span>
-          <span className="text-xs text-slate-500">{stageLabel(position.stage)}</span>
-        </div>
+      <div className="flex flex-col items-center gap-1">
+        <p className="text-ink-soft text-lg font-semibold">Il suo codice</p>
+        <p
+          className={cn(
+            'font-mono text-7xl leading-none font-black tracking-wider tabular-nums',
+            TONE_CODE[message.tone],
+          )}
+          data-testid="codice"
+        >
+          {position.code}
+        </p>
+        <p className="text-ink-soft mt-1 text-lg">
+          Targa{' '}
+          <span className="text-ink font-mono font-bold tracking-widest">{position.plate}</span>
+        </p>
       </div>
 
-      <ProgressSteps stage={position.stage} tone={message.tone} />
-
-      <div className="flex flex-col items-center gap-2 text-center" aria-live="polite">
-        <h1
-          id="stato-titolo"
-          className={cn(
-            'font-bold text-slate-900',
-            allosportello ? 'text-4xl tracking-tight' : 'text-3xl',
-          )}
-        >
+      <div className="flex flex-col items-center gap-3" aria-live="polite">
+        <h1 id="stato-titolo" className="text-ink text-4xl font-bold tracking-tight">
           {message.headline}
         </h1>
 
@@ -164,76 +87,31 @@ export function PortalStatusCard({
             className="chiamata-pulsa bg-brand-primary flex flex-col items-center rounded-3xl px-10 py-4 shadow-lg"
             data-testid="sportello"
           >
-            <span className="text-sm font-bold tracking-[0.3em] text-slate-900/70 uppercase">
+            <span className="text-ink-forte text-lg font-bold tracking-[0.3em] uppercase">
               Sportello
             </span>
-            <span className="text-8xl leading-none font-black text-slate-950">
+            <span className="text-ink-forte text-8xl leading-none font-black">
               {position.bayCode}
             </span>
           </div>
-        ) : inFila ? (
-          <div className="flex flex-col items-center gap-1" data-testid="posizione">
-            <p className="text-2xl font-semibold text-slate-900">
-              È il numero{' '}
-              <span className="font-mono text-5xl leading-none font-black tabular-nums">
-                {position.queuePosition}
-              </span>{' '}
-              in fila
-            </p>
-            <p className="text-lg text-slate-600" data-testid="ahead-count">
-              {aheadCountMessage(position.aheadCount)}
-            </p>
-          </div>
         ) : null}
 
-        <p className="text-lg text-slate-700">{message.detail}</p>
+        {inFila ? (
+          <p className="text-ink text-2xl font-semibold" data-testid="ahead-count">
+            {aheadCountMessage(position.aheadCount)}
+          </p>
+        ) : null}
+
+        <p className="text-ink-soft text-xl">{message.detail}</p>
       </div>
-
-      {/* Riga del tempo: da quando è qui, da quando è allo sportello, a che ora era atteso. */}
-      <div className="flex gap-2" aria-label="Orari della sua accettazione">
-        <Tappa
-          label="Arrivo"
-          time={ora(position.arrivedAt)}
-          tone={position.arrivedAt === null ? 'neutral' : 'done'}
-        />
-        <Tappa
-          label="Allo sportello"
-          time={ora(position.startedAt)}
-          tone={position.startedAt === null ? 'neutral' : 'done'}
-        />
-        <Tappa label="Orario previsto" time={orario} tone="done" />
-      </div>
-
-      <dl className="grid grid-cols-2 gap-2">
-        <InfoItem label="Targa" value={position.plate} mono />
-        <InfoItem
-          label="Accettatore"
-          value={
-            position.operatorName ??
-            (position.status === 'IN_PROGRESS' ? 'allo sportello' : 'da assegnare')
-          }
-        />
-        <div className="col-span-2">
-          <InfoItem
-            label="Sede"
-            value={[position.siteName, position.deskName].filter((x) => x !== null).join(' · ')}
-          />
-        </div>
-      </dl>
-
-      {orario !== orarioAgenda ? (
-        <p className="text-center text-sm text-slate-500">
-          Orario in agenda {orarioAgenda}, riprogrammato in officina alle {orario}.
-        </p>
-      ) : null}
 
       {action}
 
-      <p className="text-center text-sm text-slate-500">
-        {stale
-          ? 'Connessione lenta: stiamo riprovando, questo è l’ultimo stato ricevuto.'
-          : `Aggiornato automaticamente alle ${localTimeHHmm(new Date(updatedAtMs), timeZone)}`}
-      </p>
+      {stale ? (
+        <p role="status" className="text-status-in-progress-ink text-lg font-semibold">
+          Connessione lenta: stiamo riprovando.
+        </p>
+      ) : null}
     </section>
   );
 }

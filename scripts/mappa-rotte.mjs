@@ -138,7 +138,7 @@ export const ROTTE = [
     path: '/portal',
     area: AREE[6],
     descrizione:
-      'Tracciamento del cliente dal QR (`?targa=`) o dal token (`?t=`): posizione in fila, lettera dello sportello, orari di arrivo e chiamata, "Sono arrivato", "Sto arrivando in ritardo".',
+      'Tracciamento del cliente dal QR (`?targa=`) o dal token (`?t=`), essenziale: codice, auto prima di lui, lettera dello sportello, «Sono qui», «Sono in ritardo».',
     accesso: ACCESSO.pubblico,
   },
   {
@@ -302,14 +302,14 @@ export const ROTTE = [
     path: '/api/v1/public/arrival',
     area: AREE[9],
     descrizione:
-      '"Sono arrivato" dalla pagina di tracciamento: registra l\'ora in cui il cliente si annuncia in sala, senza cambiare il posto in coda.',
+      "«Sono qui» dalla pagina di tracciamento: registra l'ora in cui il cliente si annuncia in fila, senza cambiare il posto in coda.",
     accesso: ACCESSO.pubblico,
   },
   {
     path: '/api/v1/public/late-notice',
     area: AREE[9],
     descrizione:
-      '"Sto arrivando in ritardo (+10 min)" dal portale: sposta l\'arrivo atteso e avvisa la dashboard.',
+      "«Sono in ritardo» dal portale: sposta l'arrivo atteso di 10 minuti e avvisa la dashboard.",
     accesso: ACCESSO.pubblico,
   },
   {

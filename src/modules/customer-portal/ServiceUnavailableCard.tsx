@@ -1,6 +1,8 @@
 // Schermate di errore del portale cliente: targa non trovata, targa non valida, troppe richieste,
-// servizio non disponibile. Nessun dettaglio tecnico: sempre un'indicazione su cosa fare.
+// servizio non disponibile. Nessun dettaglio tecnico: un titolo, una frase su cosa fare, un
+// pulsante grande per riprovare (M8-T56).
 import Link from 'next/link';
+import { cn } from '@/lib/utils/cn';
 import type { PublicStatusProblem } from './types';
 
 export interface ServiceUnavailableCardProps {
@@ -20,27 +22,28 @@ function copyFor(problem: PublicStatusProblem, plate: string): ProblemCopy {
     case 'not-found':
       return {
         title: 'Targa non trovata',
-        detail: `Non risulta un appuntamento di oggi per la targa ${plate}. Controlli di averla digitata correttamente oppure si rivolga allo sportello dell'accettazione.`,
+        detail:
+          plate === ''
+            ? "Non troviamo l'appuntamento di oggi. Si rivolga all'accettazione."
+            : `Oggi non c'è un appuntamento per la targa ${plate}. Controlli la targa o si rivolga all'accettazione.`,
         tone: 'attention',
       };
     case 'invalid-plate':
       return {
         title: 'Targa non valida',
-        detail:
-          'Il formato della targa non è corretto. La digiti senza spazi, come è scritta sul veicolo.',
+        detail: 'Scriva la targa come è sulla sua auto, per esempio AB123CD.',
         tone: 'attention',
       };
     case 'rate-limited':
       return {
-        title: 'Troppe richieste',
-        detail: 'Sono state fatte molte ricerche di seguito. Attenda qualche istante e riprovi.',
+        title: 'Un attimo di pazienza',
+        detail: 'Sono state fatte molte ricerche di seguito. Riprovi fra qualche istante.',
         tone: 'neutral',
       };
     case 'unavailable':
       return {
-        title: 'Servizio momentaneamente non disponibile',
-        detail:
-          "Non riusciamo a leggere lo stato della coda. Si rivolga allo sportello dell'accettazione.",
+        title: 'Servizio non disponibile',
+        detail: "Al momento non riusciamo a mostrare il suo turno. Si rivolga all'accettazione.",
         tone: 'neutral',
       };
   }
@@ -51,19 +54,20 @@ export function ServiceUnavailableCard({ problem, plate }: ServiceUnavailableCar
   return (
     <section
       role="alert"
-      className={`flex flex-col gap-4 rounded-2xl border-2 p-6 text-center shadow-sm ${
+      className={cn(
+        'flex flex-col items-center gap-5 rounded-3xl border-2 px-5 py-7 text-center shadow-sm',
         copy.tone === 'attention'
           ? 'bg-status-no-show-soft border-status-no-show/40'
-          : 'border-slate-300 bg-white'
-      }`}
+          : 'border-line bg-surface',
+      )}
     >
-      <h1 className="text-2xl font-bold text-slate-900">{copy.title}</h1>
-      <p className="text-lg text-slate-700">{copy.detail}</p>
+      <h1 className="text-ink text-3xl font-bold">{copy.title}</h1>
+      <p className="text-ink-soft text-xl">{copy.detail}</p>
       <Link
         href="/cliente"
-        className="h-touch mx-auto flex w-full max-w-xs items-center justify-center rounded-xl bg-slate-900 px-6 text-lg font-semibold text-white transition-colors hover:bg-slate-700 focus-visible:ring-4 focus-visible:ring-slate-400 focus-visible:outline-none"
+        className="bg-surface-inverse focus-anello premibile flex min-h-16 w-full items-center justify-center rounded-2xl px-6 text-xl font-bold text-white"
       >
-        Cerca di nuovo
+        Riprovi
       </Link>
     </section>
   );
