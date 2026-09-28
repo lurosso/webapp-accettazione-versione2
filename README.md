@@ -441,8 +441,8 @@ sia la propria auto), poi **una frase grande** sullo stato e una su cosa fare: m
 la scheda diventa verde, con il bordo spesso e un alone che respira attorno alla **lettera dello
 sportello** («Tocca a lei · SPORTELLO A»), così il passaggio si nota senza leggere una parola (chi
 ha chiesto meno movimento al sistema operativo vede l'alone fermo). Niente barra delle tappe, orari,
-accettatore o sede. Sotto, al massimo **due pulsanti grandi**, con le parole dei pulsanti WhatsApp e
-senza spiegazioni: **«Sono qui»** registra l'ora dell'arrivo (la pratica resta al suo posto in coda,
+accettatore o sede. Sotto, al massimo **due pulsanti grandi** e senza spiegazioni (su WhatsApp il
+primo si chiama «Sono arrivato»; qui «Sono qui», che non sceglie un genere): **«Sono qui»** registra l'ora dell'arrivo (la pratica resta al suo posto in coda,
 in dashboard compare "in fila dalle HH:mm") e lascia il posto a «✓ Arrivo registrato alle …»;
 **«Sono in ritardo»** avvisa l'accettazione (avviso ambra sulla riga della dashboard, arrivo atteso
 spostato di 10 minuti) e lascia il posto a «✓ Ritardo segnalato: la aspettiamo verso le …». Chi ha
