@@ -184,6 +184,9 @@ export const SPOKI_SEND_PATH = '/api/1/messages/send/';
 /** Percorso di «crea o aggiorna contatto» (campi personalizzati compresi). */
 export const SPOKI_CONTACT_SYNC_PATH = '/api/1/contacts/sync/';
 
+/** Percorso dell'elenco dei contatti: con `?phone=` restituisce il contatto con i suoi campi. */
+export const SPOKI_CONTACTS_PATH = '/api/1/contacts/';
+
 export interface SpokiServiceConfig {
   readonly mode: SpokiMode;
   /**
@@ -209,6 +212,11 @@ export interface SpokiServiceConfig {
   readonly publicSends?: boolean;
   /** true = ogni invio scrive anche i campi della rete di sicurezza (ACC_GIORNO, ACC_PROMEMORIA). */
   readonly safetyNetFields?: boolean;
+  /**
+   * true = l'app legge i tocchi sui pulsanti da Spoki (SPOKI_REPLY_POLLING): il promemoria del
+   * mattino scrive anche `ACC_PROMEMORIA = INVIATO` e `ACC_PULSANTE = ATTESA`.
+   */
+  readonly replyPolling?: boolean;
 }
 
 /**
@@ -422,6 +430,11 @@ export function spokiSendUrl(apiBaseUrl: string): string {
 /** URL completo dell'aggiornamento di un contatto. */
 export function spokiContactSyncUrl(apiBaseUrl: string): string {
   return `${apiBaseUrl.replace(/\/+$/, '')}${SPOKI_CONTACT_SYNC_PATH}`;
+}
+
+/** URL della ricerca di un contatto per numero (E.164, codificato: il «+» non è uno spazio). */
+export function spokiContactLookupUrl(apiBaseUrl: string, phone: string): string {
+  return `${apiBaseUrl.replace(/\/+$/, '')}${SPOKI_CONTACTS_PATH}?phone=${encodeURIComponent(phone)}`;
 }
 
 /** Ultime quattro cifre visibili: basta per riconoscere il numero nel registro. */

@@ -120,6 +120,27 @@ export const NOTIFICATION_DRAIN_INTERVAL_MS = 60_000;
 /** Quanti messaggi ritenta al massimo per passata. */
 export const NOTIFICATION_DRAIN_BATCH = 20;
 
+/**
+ * Lettura dei tocchi sui pulsanti del mattino da Spoki (SPOKI_REPLY_POLL_SECONDS): ogni quanti
+ * secondi, e i limiti ammessi. Ogni contatto letto è una chiamata, e Spoki ne concede 120 al minuto.
+ */
+export const DEFAULT_SPOKI_REPLY_POLL_SECONDS = 20;
+export const MIN_SPOKI_REPLY_POLL_SECONDS = 10;
+export const MAX_SPOKI_REPLY_POLL_SECONDS = 300;
+
+/**
+ * Chiamate a Spoki al minuto che la lettura dei pulsanti può usare (letture, riletture,
+ * azzeramenti e risposte): metà del tetto di 120, l'altra metà resta agli invii. Il numero di
+ * chiamate per passata si ricava dall'intervallo: 20 ogni 20 s, 10 ogni 10 s.
+ */
+export const SPOKI_REPLY_POLL_CALLS_PER_MINUTE = 60;
+
+/**
+ * Chiamate al massimo in una passata, qualunque sia l'intervallo: con un intervallo lungo non si
+ * manda a Spoki una raffica. Con più pratiche da guardare si prosegue a rotazione.
+ */
+export const SPOKI_REPLY_POLL_MAX_PER_TICK = 20;
+
 /** Giorni indietro mostrati dalla schermata Comunicazioni. */
 export const COMMUNICATIONS_LOOKBACK_DAYS = 7;
 

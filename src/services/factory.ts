@@ -130,6 +130,8 @@ export function createExternalServices(env: AppEnv, deps: ExternalServiceDeps): 
             publicSends: env.spokiPublicSends,
             // I campi della rete di sicurezza si scrivono solo quando la rete è accesa.
             safetyNetFields: env.spokiSafetyNetTime !== null,
+            // Con la lettura dei pulsanti il promemoria del mattino arma le automazioni dei pulsanti.
+            replyPolling: env.spokiReplyPolling,
             apiKey: env.spokiApiKey,
             apiBaseUrl: env.spokiApiBaseUrl,
             urls: {

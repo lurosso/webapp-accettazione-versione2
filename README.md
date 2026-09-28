@@ -550,18 +550,23 @@ pratica in agenda oggi, riceve `200 {"handled": false}` e non tocca niente — s
 dell'officina arriva di tutto, e un «grazie» non deve segnare nessuno come assente. Un secondo
 tocco sullo stesso pulsante non sposta l'ora già registrata e non manda un secondo messaggio.
 
-**Risposte affidate a Spoki.** Perché il cliente abbia una risposta anche quando il server
-dell'officina non risponde, ai tre pulsanti possono rispondere le **automazioni Spoki**: al tocco
-l'automazione chiama questa rotta dal suo passo «webhook» (forma piatta con `source: "automation"`,
-`x-spoki-secret`), la rotta registra il fatto come sopra e restituisce `esito` (`ARRIVATO`,
-`TROPPO_PRESTO`, `GIA_REGISTRATO`, `RITARDO`, `ASSENTE`, `NESSUNA_PRATICA`,
-`NON_RICONOSCIUTO`) e `risposta`, il testo che spetta al cliente (codice e smart link, «troppo
-presto», conferme), che Spoki salva nei campi del contatto e consegna. Se la rotta non risponde,
-l'automazione manda il suo testo di riserva. Una chiamata dell'automazione non fa mai partire un
-messaggio dall'app; con `SPOKI_REPLIES_BY_AUTOMATION=true` (da accendere quando le automazioni sono
-attive) nemmeno la stessa tocca arrivata dal webhook V2, mentre un messaggio scritto a mano resta
-all'app. Spoki genera un segreto `whsec_…` per ogni webhook V2 (uno per `message.inbound`, uno per
-`message.outbound`): `SPOKI_WEBHOOK_SECRET` li accetta separati da virgola.
+**Pulsanti senza https.** Finché l'app non ha un indirizzo pubblico, Spoki non può chiamarla. Le
+tre automazioni dell'account «ACC · Pulsante «Sono arrivato»», «… «Sono in ritardo»» e «… «Non
+posso venire»» (trigger «messaggio del cliente», che Spoki elenca come «QR Code» e ha collegato da
+solo al pulsante del template) scrivono allora il pulsante toccato nel campo `ACC_PULSANTE` del
+contatto (`ARRIVATO`, `RITARDO`, `ASSENTE`), solo se il cliente ha avuto il promemoria del mattino
+dall'app (`ACC_PROMEMORIA = INVIATO`, che il promemoria scrive), e non mandano messaggi. Con
+`SPOKI_REPLY_POLLING=true` l'app legge quel campo ogni `SPOKI_REPLY_POLL_SECONDS` (20) per le
+pratiche di oggi in coda, non ancora arrivate, con il promemoria del mattino su WhatsApp
+(`GET /api/1/contacts/?phone=`, dentro un budget di 60 chiamate al minuto, metà del tetto di
+Spoki), applica il tocco come sopra, risponde al cliente e rimette il campo ad `ATTESA` se nel
+frattempo non è cambiato. Letture e scritture hanno gli stessi blocchi
+degli invii (simulazione, safety lock, demo interna), e il pannello Spoki dice com'è andata l'ultima
+passata. La forma piatta con `source: "automation"` (un'automazione che chiama l'app e consegna la
+`risposta` restituita, `SPOKI_REPLIES_BY_AUTOMATION`) resta nel codice, ma le automazioni
+dell'account non la usano. Con l'https arriveranno anche i webhook V2: Spoki genera un segreto
+`whsec_…` per ognuno (uno per `message.inbound`, uno per `message.outbound`), e
+`SPOKI_WEBHOOK_SECRET` li accetta separati da virgola.
 
 **Rete di sicurezza del mattino.** Il promemoria del giorno lo manda l'app alle
 `REMINDER_SAME_DAY_HOUR_LOCAL`. Se a quell'ora il server è giù, lo manda Spoki: un'automazione con
@@ -582,8 +587,8 @@ apre alcuna connessione: formatta il payload nel formato Spoki (`secret`, `phone
 
 **Template 📅.** Dal 2026-09-25 i promemoria usano i template dell'account che iniziano con 📅,
 fatti per questo sistema: il giorno prima «📅 Reminder 24h Appuntamento» (approvato), il mattino
-«📅 Promemoria Appuntamento Oggi» con «Sono arrivato / Sono in ritardo / Non posso venire» (creato in
-bozza, in attesa dell'approvazione). Ogni template riceve i **suoi** campi, con i codici che
+«📅 Promemoria Appuntamento Oggi» con «Sono arrivato / Sono in ritardo / Non posso venire» (approvato
+da Meta il 2026-09-28). Ogni template riceve i **suoi** campi, con i codici che
 l'account già usa (`NOME_CLIENTE`, `_TARGA_`, `_MARCA_E_MODELLO_`, `ORA_PRENOTAZIONE`, …), e **non
 parte se uno è vuoto**: ripiega sull'SMS e il registro del pannello Spoki dice quale campo manca. Il
 📅 Reminder 24h ha anche la sede (`LUOGO`, da `SPOKI_LUOGO`): finché è vuota il promemoria del giorno

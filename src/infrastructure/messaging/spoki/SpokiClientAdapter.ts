@@ -6,10 +6,13 @@
 //   fornitore documenta: il POST all'URL dell'automazione (segreto nel payload) oppure
 //   `POST /api/1/messages/send/` con il template per id e la chiave API nell'intestazione
 //   `X-Spoki-Api-Key`.
+// Gli stessi blocchi valgono per aggiornare e per leggere i campi di un contatto (`contacts/sync`,
+// `GET /api/1/contacts/?phone=`): il tocco sui pulsanti si legge così, senza webhook.
 // Non lancia mai: ogni guasto diventa un ProviderError con il flag `retryable` giusto, così
 // l'orchestratore decide se ritentare o passare all'SMS.
 import { err, ok } from '@/domain/result';
 import type { IsoDateTime } from '@/domain/value-objects/iso-date';
+import { SPOKI_SIMULATED_MESSAGE_ID_PREFIX } from '@/services/dto/spoki.dto';
 import type { CallOptions, ProviderError, ProviderResult } from '@/services/interfaces/common';
 import { providerError } from '@/services/interfaces/common';
 import type { IClock } from '@/services/interfaces/IClock';
@@ -25,6 +28,7 @@ import {
   recipientBlockReason,
   maskForLog,
   payloadForLog,
+  spokiContactLookupUrl,
   spokiContactSyncUrl,
   spokiSendUrl,
   type SpokiTemplateKind,
@@ -86,6 +90,77 @@ export interface ContactUpdateResult {
   /** True se Spoki ha aggiornato davvero il contatto; false se la chiamata è rimasta bloccata. */
   readonly updated: boolean;
   readonly blockedBy: TriggerResult['blockedBy'];
+}
+
+export interface ContactReadInput {
+  readonly phone: string;
+  /** Codici dei campi da leggere (MAIUSCOLO). */
+  readonly codes: readonly string[];
+  readonly correlationId: string;
+  readonly options?: CallOptions | undefined;
+}
+
+export interface ContactReadResult {
+  /** False se la chiamata è rimasta bloccata (nessuna rete). */
+  readonly read: boolean;
+  /** False se Spoki non ha un contatto con quel numero. */
+  readonly found: boolean;
+  readonly fields: Readonly<Record<string, string>>;
+  readonly blockedBy: TriggerResult['blockedBy'];
+}
+
+/** Maschera le sequenze di cifre lunghe come un telefono (anche «%2B39…» di una query). */
+export function oscuraNumeri(testo: string): string {
+  return testo.replace(/\d{7,}/g, (cifre) => maskForLog(cifre));
+}
+
+/**
+ * Dal corpo di `GET /api/1/contacts/?phone=` ai campi chiesti: `results[].contactfield_set[]` con
+ * `visual_code` («%%CODICE%%») e `value`. Vale solo il contatto con lo stesso numero (confronto
+ * sulle cifre); null se il corpo non è quello atteso.
+ */
+export function contactFieldsFrom(
+  body: string,
+  phone: string,
+  codes: readonly string[],
+): { readonly found: boolean; readonly fields: Readonly<Record<string, string>> } | null {
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(body);
+  } catch {
+    return null;
+  }
+  const risultati: unknown = Array.isArray(parsed)
+    ? parsed
+    : typeof parsed === 'object' && parsed !== null
+      ? (parsed as Record<string, unknown>)['results']
+      : undefined;
+  if (!Array.isArray(risultati)) {
+    return null;
+  }
+  const cifre = (s: unknown): string => (typeof s === 'string' ? s.replace(/\D/g, '') : '');
+  const contatto: unknown = risultati.find(
+    (c: unknown) =>
+      typeof c === 'object' &&
+      c !== null &&
+      cifre((c as Record<string, unknown>)['phone']) === cifre(phone),
+  );
+  if (contatto === undefined) {
+    return { found: false, fields: {} };
+  }
+  const campi = (contatto as Record<string, unknown>)['contactfield_set'];
+  const fields: Record<string, string> = {};
+  for (const campo of Array.isArray(campi) ? campi : []) {
+    if (typeof campo !== 'object' || campo === null) {
+      continue;
+    }
+    const r = campo as Record<string, unknown>;
+    const codice = typeof r['visual_code'] === 'string' ? r['visual_code'].replace(/%/g, '') : '';
+    if (codes.includes(codice) && typeof r['value'] === 'string') {
+      fields[codice] = r['value'];
+    }
+  }
+  return { found: true, fields };
 }
 
 type BlockReason = NonNullable<TriggerResult['blockedBy']>;
@@ -224,6 +299,67 @@ export class SpokiClientAdapter {
     return ok({ updated: true, blockedBy: null });
   }
 
+  /**
+   * Legge i campi personalizzati del contatto con quel numero (`GET /api/1/contacts/?phone=`),
+   * senza scrivere niente. Stessi blocchi dell'invio: in simulazione, con il blocco di sicurezza o
+   * per un numero fuori dalla lista della demo la chiamata non parte (`read: false`). Non va nel
+   * registro del pannello: la lettura dei pulsanti gira ogni pochi secondi e lo riempirebbe.
+   */
+  async readContact(input: ContactReadInput): Promise<ProviderResult<ContactReadResult>> {
+    const blocco = this.blockReasonFor(input.phone);
+    if (blocco !== null) {
+      return ok({ read: false, found: false, fields: {}, blockedBy: blocco });
+    }
+    const fallito = (error: ProviderError): ProviderResult<ContactReadResult> => {
+      this.logger.warn(`CONTACT READ → ${maskForLog(input.phone)} FALLITO`, {
+        code: error.code,
+        retryable: error.retryable,
+        message: error.message,
+        correlationId: input.correlationId,
+      });
+      return err(error);
+    };
+    if (this.config.apiKey === null) {
+      return fallito(
+        providerError(
+          'SPOKI',
+          'AUTH',
+          'Chiave API Spoki mancante (SPOKI_API_KEY): impossibile leggere il contatto.',
+          false,
+        ),
+      );
+    }
+    const risposta = await this.http(
+      'GET',
+      spokiContactLookupUrl(this.config.apiBaseUrl, input.phone),
+      {
+        accept: 'application/json',
+        'x-correlation-id': input.correlationId,
+        'x-spoki-api-key': this.config.apiKey,
+      },
+      undefined,
+      input.options,
+    );
+    if (!risposta.ok) {
+      return fallito(risposta.error);
+    }
+    if (!risposta.value.ok) {
+      return fallito(this.errorForStatus(risposta.value.status, risposta.value.text));
+    }
+    const letti = contactFieldsFrom(risposta.value.text, input.phone, input.codes);
+    if (letti === null) {
+      return fallito(
+        providerError(
+          'SPOKI',
+          'PROVIDER_ERROR',
+          'Risposta di Spoki sul contatto non leggibile.',
+          true,
+        ),
+      );
+    }
+    return ok({ read: true, found: letti.found, fields: letti.fields, blockedBy: null });
+  }
+
   /** Perché una chiamata verso questo numero non può partire; null se può. */
   private blockReasonFor(phone: string): BlockReason | null {
     return (
@@ -246,7 +382,7 @@ export class SpokiClientAdapter {
     blockedBy: 'SIMULATION' | 'SAFETY_LOCK' | 'DEMO_ALLOWLIST',
   ): ProviderResult<TriggerResult> {
     const acceptedAt = this.deps.clock.nowIso();
-    const messageId = `sim-${this.deps.ids.next()}`;
+    const messageId = `${SPOKI_SIMULATED_MESSAGE_ID_PREFIX}${this.deps.ids.next()}`;
     const etichetta = blockLabel(blockedBy);
     const target = describeTarget(input.transport, this.config.apiBaseUrl);
     this.logger.info(`${etichetta} ${input.kind} → ${maskForLog(input.transport.payload.phone)}`, {
@@ -318,15 +454,29 @@ export class SpokiClientAdapter {
     return ok({ httpStatus: status, messageId, acceptedAt, blockedBy: null });
   }
 
-  /**
-   * POST JSON con il tempo massimo configurato (o quello del chiamante) e l'annullamento del
-   * chiamante. Una risposta HTTP qualsiasi è un successo del trasporto (lo stato lo giudica chi
-   * chiama); rete giù e tempo scaduto diventano errori ritentabili.
-   */
+  /** POST JSON: vedi `http`. */
   private async postJson(
     url: string,
     headers: Record<string, string>,
     body: string,
+    options: CallOptions | undefined,
+    fetchImpl: FetchLike | undefined = this.deps.fetchImpl,
+  ): Promise<
+    ProviderResult<{ readonly ok: boolean; readonly status: number; readonly text: string }>
+  > {
+    return this.http('POST', url, headers, body, options, fetchImpl);
+  }
+
+  /**
+   * Chiamata HTTP con il tempo massimo configurato (o quello del chiamante) e l'annullamento del
+   * chiamante. Una risposta HTTP qualsiasi è un successo del trasporto (lo stato lo giudica chi
+   * chiama); rete giù e tempo scaduto diventano errori ritentabili.
+   */
+  private async http(
+    method: 'GET' | 'POST',
+    url: string,
+    headers: Record<string, string>,
+    body: string | undefined,
     options: CallOptions | undefined,
     fetchImpl: FetchLike | undefined = this.deps.fetchImpl,
   ): Promise<
@@ -342,9 +492,9 @@ export class SpokiClientAdapter {
     options?.signal?.addEventListener('abort', () => controller.abort(), { once: true });
     try {
       const response = await fetchImpl(url, {
-        method: 'POST',
+        method,
         headers,
-        body,
+        ...(body === undefined ? {} : { body }),
         signal: controller.signal,
       });
       const text = await response.text().catch(() => '');
@@ -357,7 +507,8 @@ export class SpokiClientAdapter {
           timeout ? 'TIMEOUT' : 'NETWORK',
           timeout
             ? 'Spoki non ha risposto in tempo.'
-            : `Errore di rete verso Spoki: ${cause instanceof Error ? cause.message : String(cause)}.`,
+            : // L'URL della lettura porta il numero nella query: nel messaggio si maschera.
+              `Errore di rete verso Spoki: ${oscuraNumeri(cause instanceof Error ? cause.message : String(cause))}.`,
           true,
           cause,
         ),

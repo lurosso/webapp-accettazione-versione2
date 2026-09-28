@@ -2,6 +2,8 @@
 
 import type { Result } from '@/domain/result';
 import type {
+  SpokiContactFieldsReceipt,
+  SpokiContactReadDto,
   SpokiContactUpdateDto,
   SpokiContactUpdateReceipt,
   SpokiSendRequestDto,
@@ -32,6 +34,15 @@ export interface ISpokiService {
     request: SpokiContactUpdateDto,
     options?: CallOptions,
   ): Promise<ProviderResult<SpokiContactUpdateReceipt>>;
+  /**
+   * Legge i campi personalizzati del contatto con quel numero, senza scrivere niente (per esempio
+   * il pulsante toccato, ACC_PULSANTE). Stessi blocchi dell'invio: bloccato = `read: false`, non un
+   * errore; nessun contatto = `found: false`.
+   */
+  readContactFields(
+    request: SpokiContactReadDto,
+    options?: CallOptions,
+  ): Promise<ProviderResult<SpokiContactFieldsReceipt>>;
   /** Stato di consegna di un messaggio già accettato. */
   getDeliveryStatus(
     providerMessageId: string,

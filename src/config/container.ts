@@ -23,6 +23,7 @@ import {
   AppointmentWhatsAppMirror,
   WhatsAppDeliveryService,
 } from '@/application/notifications/WhatsAppDeliveryService';
+import { SpokiReplyPoller } from '@/application/notifications/SpokiReplyPoller';
 import { WhatsAppInboundService } from '@/application/notifications/WhatsAppInboundService';
 import { CustomerPortalService } from '@/application/portal/CustomerPortalService';
 import { createPortalTokenFactory, derivePortalTokenKey } from '@/application/portal/portal-token';
@@ -77,6 +78,8 @@ export interface Container {
   readonly whatsAppInboundService: WhatsAppInboundService;
   /** Esiti di consegna dei WhatsApp (webhook di Spoki) applicati a job e pratica. */
   readonly whatsAppDeliveryService: WhatsAppDeliveryService;
+  /** Tocchi sui pulsanti del mattino letti dai contatti Spoki (SPOKI_REPLY_POLLING, senza https). */
+  readonly spokiReplyPoller: SpokiReplyPoller;
   readonly crmNotifier: CrmNotifier;
   readonly bdcLeadService: BdcLeadService;
   readonly crmOutboxService: CrmOutboxService;
@@ -287,6 +290,8 @@ export function createContainer(overrides: ContainerOverrides = {}): Container {
       remindersEnabled: env.remindersEnabled && !env.messagingStandby,
       standby: env.messagingStandby,
     },
+    // Letto a ogni richiesta del pannello: il servizio nasce più sotto, dopo quello delle risposte.
+    replyPolling: () => spokiReplyPoller.status(),
     ids,
     clock,
     logger,
@@ -416,6 +421,20 @@ export function createContainer(overrides: ContainerOverrides = {}): Container {
     logger,
     maxEarlyArrivalMinutes: env.spokiMaxEarlyArrivalMinutes,
     repliesByAutomation: env.spokiRepliesByAutomation,
+  });
+
+  // Senza https Spoki non può chiamare l'app: i tocchi sui pulsanti del mattino si leggono dai
+  // contatti Spoki e passano dalla stessa strada del webhook. Letture con i blocchi degli invii.
+  const spokiReplyPoller = new SpokiReplyPoller({
+    appointments: repos.appointments,
+    notifications: repos.notifications,
+    spoki: external.spoki,
+    inbound: whatsAppInboundService,
+    clock,
+    ids,
+    logger,
+    enabled: env.spokiReplyPolling && !env.messagingStandby,
+    intervalSeconds: env.spokiReplyPollSeconds,
   });
 
   const inspectionService = new InspectionService({
@@ -589,6 +608,7 @@ export function createContainer(overrides: ContainerOverrides = {}): Container {
     customerPortalService,
     whatsAppInboundService,
     whatsAppDeliveryService,
+    spokiReplyPoller,
     spokiDiagnosticsService,
     crmNotifier,
     bdcLeadService,
@@ -631,6 +651,7 @@ export function getContainer(): Container {
     existing.crmRetryScheduler.stop();
     // Un container creato prima che esistesse la riprova dei messaggi non ha questo scheduler.
     (existing as Partial<Container>).notificationRetryScheduler?.stop();
+    (existing as Partial<Container>).spokiReplyPoller?.stop();
     existing.messagingPolicy.stop();
     const rebuilt = createContainer();
     g[GLOBAL_KEY] = rebuilt;
@@ -642,6 +663,8 @@ export function getContainer(): Container {
       if (rebuilt.env.notificationRetryEnabled && !rebuilt.env.messagingStandby) {
         rebuilt.notificationRetryScheduler.start();
       }
+      // Parte solo se SPOKI_REPLY_POLLING è acceso (senza, `start` non fa niente).
+      rebuilt.spokiReplyPoller.start();
     }
     rebuilt.logger.info('[Container] ricostruito dopo una ricompilazione (solo sviluppo)');
     return rebuilt;
@@ -668,6 +691,7 @@ export function resetContainerForTests(): void {
     existing.syncScheduler.stop();
     existing.crmRetryScheduler.stop();
     existing.notificationRetryScheduler.stop();
+    existing.spokiReplyPoller.stop();
     existing.messagingPolicy.stop();
   }
   delete g[GLOBAL_KEY];

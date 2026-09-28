@@ -5,11 +5,11 @@
 // - i MESSAGGI del cliente (evento V2 `message.inbound`, oppure la forma piatta delle automazioni):
 //   «Arrivato», «In ritardo», «Assente».
 //
-// Le automazioni Spoki dei tre pulsanti (docs/SPOKI.md) chiamano questa rotta dal loro passo
-// «webhook» con `source: "automation"`: al cliente risponde l'automazione, quindi qui si registra il
-// fatto e si restituiscono `esito` (una parola) e `risposta` (il testo che spetta al cliente, con
-// codice e link personale), che Spoki salva nei campi del contatto e consegna. Se questa rotta non
-// risponde, l'automazione manda il suo testo di riserva: il cliente ha comunque una risposta.
+// Un'automazione Spoki che chiama questa rotta dal suo passo «webhook» con `source: "automation"`
+// risponde lei al cliente: qui si registra il fatto e si restituiscono `esito` (una parola) e
+// `risposta` (il testo che spetta al cliente, con codice e link personale). Nessuna automazione
+// dell'account la usa: senza https le automazioni «ACC · Pulsante …» scrivono il campo
+// ACC_PULSANTE e l'app lo legge (SpokiReplyPoller, docs/SPOKI.md §4).
 //
 // Endpoint PUBBLICO, senza sessione. Due modi di autenticare, a tempo costante:
 // - gli eventi V2 portano la firma `X-Spoki-Signature: t=…,v2=HMAC-SHA256(SPOKI_WEBHOOK_SECRET,

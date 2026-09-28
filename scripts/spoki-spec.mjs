@@ -13,8 +13,13 @@
 // Formato Spoki (API REST ufficiale, collezione Postman letta il 2026-09-24): campo personalizzato
 // { label, code, field_type: 1 testo | 2 data, example }; template { name, category,
 // templatelocalization_set: [{ language, header/body/footer, templatebuttoncomponent_set,
-// example_custom_fields }] }, nasce in bozza; automazione { name, is_active, steps, *_set } — il
-// trigger «clic su un pulsante di un template» non è nell'API e si sceglie nell'editor.
+// example_custom_fields }] }, nasce in bozza; automazione { name, is_active, steps, *_set }.
+//
+// I TOCCHI SUI PULSANTI (2026-09-28): senza indirizzo https Spoki non può chiamare l'app. Le tre
+// automazioni dei pulsanti scrivono il pulsante toccato nel campo ACC_PULSANTE del contatto e l'app
+// lo legge a intervalli (SPOKI_REPLY_POLLING). Il loro trigger «messaggio del cliente» è un widget
+// (Spoki lo elenca come «QR Code» e lo collega da solo al pulsante del template con lo stesso
+// testo): l'API REST non lo crea, quindi si creano con l'MCP di Spoki o dall'editor.
 
 /** Tipi di campo di Spoki. */
 export const TIPO_CAMPO = { TESTO: 1, DATA: 2 };
@@ -88,9 +93,10 @@ export const CAMPI = [
 ];
 
 /**
- * Campi delle automazioni ancora da decidere (risposte ai pulsanti a server giù, rete di sicurezza
- * del mattino): NON esistono nell'account e si creano solo insieme alle automazioni
- * (`--automazioni`), quando il committente lo dice.
+ * Campi delle automazioni, creati nell'account il 2026-09-28 (`--automazioni` li controlla):
+ * `ACC_PROMEMORIA` dice che il cliente ha avuto il promemoria del mattino dall'app, `ACC_PULSANTE`
+ * il pulsante che ha toccato (lo scrive l'automazione, lo legge l'app), `ACC_GIORNO` il giorno
+ * dell'appuntamento per la rete di sicurezza, che non è ancora stata creata.
  */
 export const CAMPI_AUTOMAZIONI = [
   {
@@ -106,30 +112,25 @@ export const CAMPI_AUTOMAZIONI = [
     descrizione: 'Stato del promemoria del mattino: DA_INVIARE, INVIATO, NON_SERVE',
   },
   {
-    code: 'ACC_ESITO',
+    code: 'ACC_PULSANTE',
     tipo: TIPO_CAMPO.TESTO,
     esempio: 'ARRIVATO',
-    descrizione: "Esito restituito dal server all'automazione (ATTESA finché non risponde)",
-  },
-  {
-    code: 'ACC_RISPOSTA',
-    tipo: TIPO_CAMPO.TESTO,
-    esempio: 'Perfetto! Sei stato inserito in fila…',
-    descrizione: 'Testo della risposta preparato dal server',
+    descrizione:
+      "Pulsante toccato dal cliente: ARRIVATO, RITARDO, ASSENTE; ATTESA dopo che l'app l'ha letto",
   },
 ];
 
-/** Valore di ACC_ESITO prima del webhook: se resta così, il server non ha risposto. */
-export const ESITO_IN_ATTESA = 'ATTESA';
+/** Valore di ACC_PULSANTE quando non c'è niente da leggere: lo scrivono il promemoria e l'app. */
+export const PULSANTE_IN_ATTESA = 'ATTESA';
 
-/** Valore di ACC_RISPOSTA prima del webhook: «nessun testo dal server». */
-export const RISPOSTA_VUOTA = '-';
-
-/** I tre pulsanti del promemoria del mattino: testo (max 20 caratteri) e payload. */
+/**
+ * I tre pulsanti del promemoria del mattino: testo (max 20 caratteri), payload e il valore che la
+ * loro automazione scrive in ACC_PULSANTE.
+ */
 export const PULSANTI = [
-  { testo: 'Sono arrivato', payload: 'ACTION_ARRIVED', chiave: 'arrivato' },
-  { testo: 'Sono in ritardo', payload: 'ACTION_LATE', chiave: 'ritardo' },
-  { testo: 'Non posso venire', payload: 'ACTION_ABSENT', chiave: 'assente' },
+  { testo: 'Sono arrivato', payload: 'ACTION_ARRIVED', chiave: 'arrivato', valore: 'ARRIVATO' },
+  { testo: 'Sono in ritardo', payload: 'ACTION_LATE', chiave: 'ritardo', valore: 'RITARDO' },
+  { testo: 'Non posso venire', payload: 'ACTION_ABSENT', chiave: 'assente', valore: 'ASSENTE' },
 ];
 
 /** I pulsanti dei template 📅. */
@@ -267,23 +268,27 @@ export function corpoTemplate(t) {
   };
 }
 
-/** Testi di riserva delle automazioni di risposta: il cliente li riceve a server giù. */
-export const RISERVA = {
-  arrivato:
-    'Grazie! Abbiamo ricevuto la sua conferma di arrivo per la vettura %%_TARGA_%%: si accomodi, la chiameremo a breve.',
-  ritardo:
-    "Grazie per l'avviso! Abbiamo informato l'accettazione del suo ritardo. Quando arriva in officina avvisi il nostro personale.",
-  assente:
-    'Grazie per la comunicazione, abbiamo preso nota che oggi non potrà venire. Un nostro operatore la ricontatterà per fissare un nuovo appuntamento.',
-};
-
 /** Nomi delle automazioni (servono anche per ritrovarle nell'account). */
 export const AUTOMAZIONI = {
-  arrivato: 'ACC · Risposta «Sono arrivato»',
-  ritardo: 'ACC · Risposta «Sono in ritardo»',
-  assente: 'ACC · Risposta «Non posso venire»',
+  arrivato: 'ACC · Pulsante «Sono arrivato»',
+  ritardo: 'ACC · Pulsante «Sono in ritardo»',
+  assente: 'ACC · Pulsante «Non posso venire»',
   rete: 'ACC · Rete di sicurezza promemoria del mattino',
 };
+
+/**
+ * Le automazioni dei pulsanti, create il 2026-09-28 (570921, 570922, 570923). Ognuna: trigger
+ * «messaggio del cliente» con il testo del pulsante; passo «se ACC_PROMEMORIA = INVIATO» (solo chi
+ * ha avuto il promemoria dall'app: un cliente che scrive le stesse parole per altro non tocca
+ * niente); passo «ACC_PULSANTE = valore». Nessun messaggio: al cliente risponde l'app.
+ */
+export const AUTOMAZIONI_PULSANTI = PULSANTI.map((p) => ({
+  chiave: p.chiave,
+  nome: AUTOMAZIONI[p.chiave],
+  trigger: p.testo,
+  condizione: { campo: 'ACC_PROMEMORIA', uguale: 'INVIATO' },
+  scrive: { campo: 'ACC_PULSANTE', valore: p.valore },
+}));
 
 /** Indirizzo del webhook dell'app a partire dall'indirizzo pubblico. */
 export function urlWebhook(appUrl) {
@@ -309,58 +314,12 @@ function condizioneCampo(idCampo, codice, condizione, valore) {
 }
 
 /**
- * Corpo di `POST /api/1/automations/` per la risposta a un pulsante del promemoria del mattino.
- * Passi: ACC_ESITO = ATTESA e ACC_RISPOSTA = «-»; webhook verso l'app con il segreto delle risposte
- * (la risposta JSON finisce nei campi: data.esito → ACC_ESITO, data.risposta → ACC_RISPOSTA); se
- * ACC_ESITO è ancora ATTESA il server è giù e parte il testo di riserva, altrimenti quello del
- * server. Nasce disattivata e senza trigger (si sceglie nell'editor).
- */
-export function corpoAutomazioneRisposta(pulsante, { ids, appUrl, inboundSecret }) {
-  const esito = ids.campi.ACC_ESITO;
-  const risposta = ids.campi.ACC_RISPOSTA;
-  const payload = JSON.stringify({
-    source: 'automation',
-    phone: '{{ contact.phone }}',
-    reply: pulsante.payload,
-  });
-  return {
-    name: AUTOMAZIONI[pulsante.chiave],
-    description: `Risponde al pulsante «${pulsante.testo}» del promemoria del mattino anche a server giù, poi avvisa l'app (docs/SPOKI.md).`,
-    is_active: false,
-    steps: [
-      { step_type: 'CustomField', custom_field: esito, value: ESITO_IN_ATTESA },
-      { step_type: 'CustomField', custom_field: risposta, value: RISPOSTA_VUOTA },
-      {
-        step_type: 'Webhook',
-        url: urlWebhook(appUrl),
-        method: 'POST',
-        headers: { 'content-type': 'application/json', 'x-spoki-secret': inboundSecret },
-        payload,
-        response_data: { 'data.esito': esito, 'data.risposta': risposta },
-      },
-      {
-        step_type: 'IfElse',
-        conditions: condizioneCampo(esito, 'ACC_ESITO', 'equal_to', ESITO_IN_ATTESA),
-        // Ramo «falso»: il server ha risposto. Se ha mandato un testo, si consegna quello.
-        step_set: [
-          {
-            step_type: 'IfElse',
-            conditions: condizioneCampo(risposta, 'ACC_RISPOSTA', 'not_equal_to', RISPOSTA_VUOTA),
-            step_set: [],
-          },
-          { step_type: 'FreeMessage', text: '%%ACC_RISPOSTA%%' },
-        ],
-      },
-      // Ramo «vero»: il server non ha risposto.
-      { step_type: 'FreeMessage', text: RISERVA[pulsante.chiave] },
-    ],
-  };
-}
-
-/**
  * Corpo di `POST /api/1/automations/` per la rete di sicurezza: trigger sulla data ACC_GIORNO
- * all'ora della rete; se ACC_PROMEMORIA vale ancora DA_INVIARE manda il promemoria del mattino e lo
- * segna INVIATO. Nasce disattivata.
+ * all'ora della rete; se ACC_PROMEMORIA vale ancora DA_INVIARE manda il promemoria del mattino, lo
+ * segna INVIATO e rimette ACC_PULSANTE ad ATTESA (come il promemoria dell'app, così un tocco di un
+ * altro giorno non vale per oggi). Nasce disattivata. Non è ancora nell'account: è Spoki a scrivere
+ * al cliente, quindi si crea solo con il sì esplicito del committente (`--rete`). Limite noto: la
+ * lettura dei tocchi guarda le pratiche con il promemoria mandato dall'app, non da questa rete.
  */
 export function corpoAutomazioneRete({ ids, ora }) {
   const promemoria = ids.campi.ACC_PROMEMORIA;
@@ -396,6 +355,7 @@ export function corpoAutomazioneRete({ ids, ora }) {
         ),
       },
       { step_type: 'CustomField', custom_field: promemoria, value: 'INVIATO' },
+      { step_type: 'CustomField', custom_field: ids.campi.ACC_PULSANTE, value: PULSANTE_IN_ATTESA },
     ],
   };
 }

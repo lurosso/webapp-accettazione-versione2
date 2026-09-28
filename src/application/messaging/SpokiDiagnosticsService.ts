@@ -24,6 +24,7 @@ import type {
 } from '@/services/interfaces/ISpokiActivityLog';
 import type { ISpokiService } from '@/services/interfaces/ISpokiService';
 import type { ProviderKind, SpokiMode } from '@/services/interfaces/provider-kinds';
+import type { ReplyPollStatus } from '../notifications/SpokiReplyPoller';
 import {
   buildPortalUrl,
   NOTIFICATION_TEMPLATES,
@@ -117,6 +118,8 @@ export interface SpokiOverview {
   readonly remindersEnabled: boolean;
   /** MESSAGING_STANDBY: l'integrazione con il cliente è in pausa, di proposito. */
   readonly standby: boolean;
+  /** Lettura dei tocchi sui pulsanti dai contatti Spoki (SPOKI_REPLY_POLLING); null se non cablata. */
+  readonly replyPolling: ReplyPollStatus | null;
   readonly log: readonly SpokiActivityEntry[];
 }
 
@@ -180,6 +183,8 @@ export interface SpokiDiagnosticsDeps {
   readonly logger: ILogger;
   /** Per rifiutare i numeri dei clienti reali in agenda; facoltativo nei test. */
   readonly appointments?: IAppointmentRepository;
+  /** Stato della lettura dei pulsanti da Spoki; facoltativo nei test. */
+  readonly replyPolling?: () => ReplyPollStatus;
 }
 
 export interface SpokiTestInput {
@@ -358,6 +363,7 @@ export class SpokiDiagnosticsService {
       safetyNetTime: c.safetyNetTime ?? null,
       remindersEnabled: c.remindersEnabled,
       standby: c.standby === true,
+      replyPolling: this.deps.replyPolling?.() ?? null,
       log: this.deps.activityLog.list(limit),
     };
   }

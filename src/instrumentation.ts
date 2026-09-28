@@ -3,7 +3,9 @@
 //    adapter reale non disponibile (`NotImplementedError`) emergono all'avvio, non alla prima richiesta;
 // 2) avvia lo scheduler della sync giornaliera (06:00 con catch-up al riavvio) e il
 //    temporizzatore dei rinvii verso il CRM (spegnibile con CRM_RETRY_ENABLED=false, quando a
-//    riprovare è un cron esterno sull'endpoint /api/v1/system/cron/crm-retry).
+//    riprovare è un cron esterno sull'endpoint /api/v1/system/cron/crm-retry);
+// 3) avvia la riprova dei messaggi falliti e, con SPOKI_REPLY_POLLING=true, la lettura dei tocchi
+//    sui pulsanti del mattino dai contatti Spoki.
 // Un solo scheduler per processo, anche con l'HMR di sviluppo (flag su globalThis).
 export async function register(): Promise<void> {
   // Solo nel runtime Node: i mock e lo store in memoria non hanno senso nell'edge runtime.
@@ -26,4 +28,6 @@ export async function register(): Promise<void> {
   if (container.env.notificationRetryEnabled && !container.env.messagingStandby) {
     container.notificationRetryScheduler.start();
   }
+  // Tocchi sui pulsanti del mattino letti da Spoki: solo con SPOKI_REPLY_POLLING=true.
+  container.spokiReplyPoller.start();
 }

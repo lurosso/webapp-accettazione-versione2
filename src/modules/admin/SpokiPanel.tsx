@@ -12,6 +12,7 @@ import {
   type SpokiBlockReason,
   type SpokiTestKind,
 } from '@/application/messaging/SpokiDiagnosticsService';
+import type { ReplyPollStatus } from '@/application/notifications/SpokiReplyPoller';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Panel } from '@/components/ui/panel';
@@ -33,6 +34,31 @@ const BLOCK_LABELS: Record<Exclude<SpokiBlockReason, null>, string> = {
   SIMULATION: 'simulazione: nessuna chiamata a Spoki',
   SAFETY_LOCK: 'SAFETY LOCK attivo: chiamate bloccate',
 };
+
+/** Com'è andata la lettura dei tocchi, in una riga per l'amministratore. */
+function testoLettura(stato: ReplyPollStatus | null, timeZone: string): string {
+  if (stato === null || !stato.enabled) {
+    return 'spenta (SPOKI_REPLY_POLLING=false oppure MESSAGING_STANDBY=true).';
+  }
+  const errore =
+    stato.lastError === null
+      ? ''
+      : ` Ultimo errore${stato.lastErrorAt === null ? '' : ` (${formatDateTimeIt(stato.lastErrorAt, timeZone)})`}: ${stato.lastError}.`;
+  if (stato.lastTickAt === null || stato.last === null) {
+    return `accesa, ogni ${stato.intervalSeconds} s: prima passata in corso.${errore}`;
+  }
+  const u = stato.last;
+  const ultimo =
+    stato.lastAppliedAt === null
+      ? ''
+      : `, l'ultimo il ${formatDateTimeIt(stato.lastAppliedAt, timeZone)}`;
+  return (
+    `ultima passata il ${formatDateTimeIt(stato.lastTickAt, timeZone)}: ${u.watched} ` +
+    `${u.watched === 1 ? 'contatto da guardare' : 'contatti da guardare'}, ${u.read} letti, ` +
+    `${u.blocked} fermati dal guardrail, ${u.failed} non riusciti (al massimo ` +
+    `${stato.callsPerTick} chiamate a passata). Tocchi registrati: ${stato.appliedTotal}${ultimo}.${errore}`
+  );
+}
 
 export function SpokiPanel({ timeZone }: SpokiPanelProps) {
   const queryClient = useQueryClient();
@@ -83,13 +109,12 @@ export function SpokiPanel({ timeZone }: SpokiPanelProps) {
             Integrazione Spoki &amp; messaggistica
           </h2>
           <p className="text-sm text-slate-600">
-            Quattro WhatsApp ai clienti: i promemoria del <strong>giorno prima</strong> e del{' '}
-            <strong>giorno stesso</strong> (automazioni), il{' '}
-            <strong>benvenuto alla presa in carico</strong> con il link personale al portale e la
-            conferma di <strong>accettazione completata</strong> (template via API). Finché
-            l&apos;integrazione è spenta, il blocco di sicurezza è attivo o la modalità non è live,
-            nessun messaggio parte davvero: i payload finiscono nel registro qui sotto. Gli esiti
-            (inviato, consegnato, letto) tornano dal webhook e si vedono in coda e in archivio.
+            Ai clienti partono solo i promemoria del <strong>giorno prima</strong> e del{' '}
+            <strong>giorno stesso</strong> (template 📅 via API) e le risposte ai tre pulsanti del
+            mattino, con codice e link personale. I tocchi sui pulsanti l&apos;app li legge da Spoki
+            (campo <span className="font-mono">ACC_PULSANTE</span>), senza bisogno dell&apos;https.
+            Finché l&apos;integrazione è spenta, il blocco di sicurezza è attivo o la modalità non è
+            live, nessun messaggio parte davvero: i payload finiscono nel registro qui sotto.
           </p>
         </div>
         {data !== undefined ? (
@@ -133,6 +158,14 @@ export function SpokiPanel({ timeZone }: SpokiPanelProps) {
               data-testid="spoki-risposte"
             >
               {data.repliesByAutomation ? 'pulsanti: risponde Spoki' : "pulsanti: risponde l'app"}
+            </Badge>
+            <Badge
+              tone={data.replyPolling?.enabled === true ? 'success' : 'neutral'}
+              data-testid="spoki-lettura-pulsanti"
+            >
+              {data.replyPolling?.enabled === true
+                ? `tocchi letti da Spoki ogni ${data.replyPolling.intervalSeconds} s`
+                : 'lettura dei tocchi: spenta'}
             </Badge>
           </div>
         ) : null}
@@ -205,6 +238,11 @@ export function SpokiPanel({ timeZone }: SpokiPanelProps) {
                 {data.webhookSecretConfigured
                   ? ' · firma verificata con SPOKI_WEBHOOK_SECRET'
                   : ' · SPOKI_WEBHOOK_SECRET assente: gli esiti non vengono accettati'}
+              </p>
+              <p className="mt-1 text-xs text-slate-500" data-testid="spoki-lettura-dettaglio">
+                Tocchi sui pulsanti del mattino (campo{' '}
+                <span className="font-mono">ACC_PULSANTE</span> dei contatti, senza https):{' '}
+                {testoLettura(data.replyPolling, timeZone)}
               </p>
             </div>
             <div className="min-w-0 rounded-lg border border-slate-200 bg-slate-50 p-3">

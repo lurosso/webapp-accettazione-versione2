@@ -29,6 +29,9 @@ import {
   DEFAULT_SYNC_HOUR_LOCAL,
   TIMEZONE,
   DEFAULT_MAX_EARLY_ARRIVAL_MINUTES,
+  DEFAULT_SPOKI_REPLY_POLL_SECONDS,
+  MAX_SPOKI_REPLY_POLL_SECONDS,
+  MIN_SPOKI_REPLY_POLL_SECONDS,
 } from './constants';
 
 /** Sorgente grezza delle variabili (process.env o un oggetto nei test). */
@@ -141,11 +144,21 @@ export interface AppEnv {
    */
   readonly spokiWebhookSecrets: readonly string[];
   /**
-   * SPOKI_REPLIES_BY_AUTOMATION (predefinito false): true quando le automazioni Spoki dei tre pulsanti
-   * sono attive. Rispondono loro al cliente, anche a server giù; l'app registra il fatto e restituisce
-   * all'automazione il testo della conferma, ma non la manda di suo.
+   * SPOKI_REPLIES_BY_AUTOMATION (predefinito false): solo per automazioni che chiamano l'app via https
+   * e rispondono loro al cliente (disegno non usato: le automazioni «ACC · Pulsante …» dell'account
+   * scrivono soltanto il campo ACC_PULSANTE, e a rispondere è l'app). Lasciare false: con true un
+   * tocco arrivato dal webhook V2 resterebbe senza risposta.
    */
   readonly spokiRepliesByAutomation: boolean;
+  /**
+   * SPOKI_REPLY_POLLING (predefinito false): l'app legge a intervalli, dai contatti Spoki, il pulsante
+   * toccato sul promemoria del mattino (campo ACC_PULSANTE, scritto dalle automazioni dei pulsanti)
+   * e lo registra sulla pratica. Serve finché Spoki non può chiamare l'app (niente https pubblico).
+   * Le letture seguono gli stessi blocchi degli invii: in simulazione non parte niente.
+   */
+  readonly spokiReplyPolling: boolean;
+  /** SPOKI_REPLY_POLL_SECONDS: ogni quanti secondi si leggono i pulsanti (predefinito 20, minimo 10). */
+  readonly spokiReplyPollSeconds: number;
   /** URL e segreti delle automazioni dei due promemoria (giorno prima, giorno stesso). */
   readonly spokiUrlReminderPreviousDay: string | null;
   readonly spokiUrlReminderSameDay: string | null;
@@ -543,6 +556,27 @@ function pickSafetyNetTime(
 }
 
 /**
+ * SPOKI_REPLY_POLL_SECONDS: fra 10 s (ogni lettura è una chiamata a Spoki, che ne concede 120 al
+ * minuto) e 300 s (oltre, il cliente che ha toccato «Sono arrivato» aspetta troppo la risposta).
+ */
+function pickReplyPollSeconds(source: EnvSource, warn: EnvWarning): number {
+  const secondi = pickInt(
+    source,
+    'SPOKI_REPLY_POLL_SECONDS',
+    DEFAULT_SPOKI_REPLY_POLL_SECONDS,
+    warn,
+    MIN_SPOKI_REPLY_POLL_SECONDS,
+  );
+  if (secondi > MAX_SPOKI_REPLY_POLL_SECONDS) {
+    warn(
+      `SPOKI_REPLY_POLL_SECONDS=${secondi} oltre il massimo di ${MAX_SPOKI_REPLY_POLL_SECONDS}: uso ${MAX_SPOKI_REPLY_POLL_SECONDS}.`,
+    );
+    return MAX_SPOKI_REPLY_POLL_SECONDS;
+  }
+  return secondi;
+}
+
+/**
  * Legge una zona IANA e la valida con `Intl.DateTimeFormat`: un valore errato farebbe
  * lanciare RangeError alla prima `toBusinessDate` (crash all'avvio), quindi si ricade sul default.
  */
@@ -628,6 +662,8 @@ export function parseEnv(
     spokiWebhookSecret: webhookSecrets[0] ?? null,
     spokiWebhookSecrets: webhookSecrets,
     spokiRepliesByAutomation: pickBool(source, 'SPOKI_REPLIES_BY_AUTOMATION', false, warn),
+    spokiReplyPolling: pickBool(source, 'SPOKI_REPLY_POLLING', false, warn),
+    spokiReplyPollSeconds: pickReplyPollSeconds(source, warn),
     spokiUrlReminderPreviousDay: pickStringOrNull(source, 'SPOKI_URL_REMINDER_PREVIOUS_DAY'),
     spokiUrlReminderSameDay: pickStringOrNull(source, 'SPOKI_URL_REMINDER_SAME_DAY'),
     spokiSecretReminderPreviousDay: pickStringOrNull(source, 'SPOKI_SECRET_REMINDER_PREVIOUS_DAY'),

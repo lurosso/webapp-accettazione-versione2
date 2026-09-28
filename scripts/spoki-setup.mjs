@@ -9,8 +9,12 @@
 //                                               bozza) e gli eventuali campi mancanti
 //   … --submit                                  chiede a Meta l'approvazione dei SOLI template
 //                                               appena creati (di norma lo fa il committente)
-//   … --automazioni                             anche i campi ACC_* e le automazioni (risposte ai
-//                                               pulsanti, rete del mattino): solo quando deciso
+//   … --automazioni                             anche i campi ACC_* e le automazioni: quelle dei
+//                                               pulsanti si controllano soltanto (il loro trigger
+//                                               non è nell'API)
+//   … --automazioni --apply --rete              crea anche la rete del mattino (disattivata): solo
+//                                               con il sì del committente, perché è Spoki a
+//                                               scrivere al cliente, e con l'ora della rete
 //   … --app-url=https://officina.example        indirizzo pubblico dell'app (predefinito
 //                                               PUBLIC_BASE_URL); serve ad automazioni e webhook
 //   … --webhooks                                controlla (e con --apply crea) i due webhook V2
@@ -30,11 +34,9 @@ import {
   CAMPI,
   CAMPI_AUTOMAZIONI,
   EVENTI_WEBHOOK,
-  PULSANTI,
   TEMPLATE_DA_CREARE,
   TEMPLATE_ESISTENTI,
   corpoAutomazioneRete,
-  corpoAutomazioneRisposta,
   corpoTemplate,
   stessoNome,
   urlWebhook,
@@ -139,8 +141,8 @@ export function statoTemplate(t) {
 /**
  * Confronta la specifica con quello che l'account ha già. `stato` ha gli elenchi grezzi dell'API
  * (`campi`, `template`, `automazioni`, `webhook`); il piano dice, voce per voce, cosa esiste (con
- * l'id e lo stato) e cosa manca. I campi e le automazioni delle risposte a server giù entrano solo
- * con `automazioni: true`.
+ * l'id e lo stato) e cosa manca. I campi ACC_* e le automazioni (pulsanti del mattino, rete di
+ * sicurezza) entrano solo con `automazioni: true`.
  */
 export function pianifica(stato, { appUrl = null, automazioni = false } = {}) {
   const campi = [...CAMPI, ...(automazioni ? CAMPI_AUTOMAZIONI : [])].map((c) => {
@@ -254,6 +256,7 @@ function opzioni(argv) {
     submit: argv.includes('--submit'),
     webhooks: argv.includes('--webhooks'),
     automazioni: argv.includes('--automazioni'),
+    rete: argv.includes('--rete'),
     writeEnv: argv.includes('--write-env'),
     appUrl: valore('app-url'),
     ora: valore('safety-net-time'),
@@ -286,7 +289,8 @@ async function main() {
   const inboundSecret = (env.SPOKI_INBOUND_SECRET ?? '').trim();
   const appUrl = (o.appUrl ?? env.PUBLIC_BASE_URL ?? '').trim() || null;
   const appPubblica = appUrl !== null && appUrl.startsWith('https://');
-  const ora = o.ora ?? ((env.SPOKI_SAFETY_NET_TIME ?? '').trim() || '08:30');
+  // L'ora della rete va detta: da --safety-net-time o da SPOKI_SAFETY_NET_TIME, mai di serie.
+  const ora = o.ora ?? ((env.SPOKI_SAFETY_NET_TIME ?? '').trim() || null);
   // Id dei template creati in questo giro: gli unici per cui si può chiedere l'approvazione.
   const creatiOra = new Set();
   const api = creaClient({ base, chiave, segreti: [inboundSecret], creatiOra });
@@ -369,36 +373,34 @@ async function main() {
   const campiCompleti = piano.campi.every((c) => c.id !== null);
   for (const a of piano.automazioni) {
     if (a.id !== null) {
-      riga(a.attiva ? 'ATTIVA' : 'disattivata', `${a.nome} (id ${a.id})`);
+      const spenta = a.chiave === 'rete' ? 'disattivata' : 'DA ATTIVARE';
+      riga(a.attiva ? 'ATTIVA' : spenta, `${a.nome} (id ${a.id})`);
       continue;
     }
-    if (!o.apply) {
-      riga('MANCA', a.nome);
+    if (a.chiave !== 'rete') {
+      // Il trigger «messaggio del cliente» (widget) non si crea via REST: si usa l'MCP di Spoki.
+      riga('MANCA', `${a.nome}: si crea con l'MCP di Spoki (docs/SPOKI.md)`);
+      continue;
+    }
+    if (!o.apply || !o.rete) {
+      // È Spoki a scrivere al cliente: la si crea solo con il sì del committente (--rete).
+      riga('NON CREATA', `${a.nome}: serve il sì del committente (--apply --rete)`);
+      continue;
+    }
+    if (ora === null) {
+      riga('RIMANDATA', `${a.nome}: manca l'ora (SPOKI_SAFETY_NET_TIME o --safety-net-time)`);
       continue;
     }
     if (!campiCompleti) {
       riga('RIMANDATA', `${a.nome}: mancano campi del contatto`);
       continue;
     }
-    let corpo;
-    if (a.chiave === 'rete') {
-      const mattino = TEMPLATE_DA_CREARE[0].name;
-      if (templateId[mattino] === null || templateId[mattino] === undefined) {
-        riga('RIMANDATA', `${a.nome}: manca il template «${mattino}»`);
-        continue;
-      }
-      corpo = corpoAutomazioneRete({ ids, ora });
-    } else {
-      if (!appPubblica || inboundSecret.length < 16) {
-        riga(
-          'RIMANDATA',
-          `${a.nome}: serve l'indirizzo pubblico https dell'app (--app-url) e SPOKI_INBOUND_SECRET`,
-        );
-        continue;
-      }
-      const pulsante = PULSANTI.find((p) => p.chiave === a.chiave);
-      corpo = corpoAutomazioneRisposta(pulsante, { ids, appUrl, inboundSecret });
+    const mattino = TEMPLATE_DA_CREARE[0].name;
+    if (templateId[mattino] === null || templateId[mattino] === undefined) {
+      riga('RIMANDATA', `${a.nome}: manca il template «${mattino}»`);
+      continue;
     }
+    const corpo = corpoAutomazioneRete({ ids, ora });
     const creata = await api.chiama('POST', '/api/1/automations/', corpo);
     a.id = creata?.id ?? null;
     riga('CREATA', `${a.nome} (id ${a.id}, disattivata)`);
@@ -451,13 +453,13 @@ async function main() {
 
   console.log("\nPassi a mano (l'API non li espone), dettagli in docs/SPOKI.md:");
   console.log(
-    "  1. l'approvazione del template del mattino la chiedi tu da Spoki (Template → invia a Meta);",
+    "  1. l'approvazione di un template che c'era già si chiede da Spoki (Template → invia a Meta);",
   );
   console.log(
-    '  2. il campo LUOGO (sede) va indicato in SPOKI_LUOGO: finché manca, 📅 Reminder 24h e 📅 Conferma Prenotazione non partono;',
+    '  2. il campo LUOGO (sede) va indicato in SPOKI_LUOGO: finché manca, il 📅 Reminder 24h non parte;',
   );
   console.log(
-    "  3. le automazioni sui pulsanti si creano con --automazioni quando è deciso; il trigger sul pulsante si sceglie nell'editor.",
+    "  3. le automazioni dei pulsanti si attivano da Spoki (Automazioni → interruttore); l'app legge il campo ACC_PULSANTE con SPOKI_REPLY_POLLING=true.",
   );
 }
 

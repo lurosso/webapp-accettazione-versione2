@@ -1,14 +1,19 @@
 // Mock di Spoki (WhatsApp): esiti deterministici decisi dall'ultima cifra del telefono,
-// registro in memoria delle consegne, idempotenza per idempotencyKey. Mai throw.
+// registro in memoria delle consegne, idempotenza per idempotencyKey, campi dei contatti in memoria
+// (con il tocco su un pulsante simulabile). Mai throw.
 
 import { err, ok } from '@/domain/result';
 import type { Result } from '@/domain/result';
 import type { IsoDateTime } from '@/domain/value-objects/iso-date';
 import { lastDigit, maskPhone } from '@/domain/value-objects/phone';
-import type {
-  SpokiContactUpdateDto,
-  SpokiContactUpdateReceipt,
-  SpokiSendRequestDto,
+import {
+  SPOKI_BUTTON_FIELD,
+  type SpokiButtonState,
+  type SpokiContactFieldsReceipt,
+  type SpokiContactReadDto,
+  type SpokiContactUpdateDto,
+  type SpokiContactUpdateReceipt,
+  type SpokiSendRequestDto,
 } from '../dto/spoki.dto';
 import { parseSpokiWebhookBody, type SpokiWebhookEvent } from '../dto/spoki-webhook.dto';
 import type {
@@ -66,6 +71,8 @@ export class SpokiServiceMock implements ISpokiService {
   private readonly receipts = new Map<string, SendReceipt>();
   private readonly deliveries = new Map<string, DeliveryRecord>();
   private readonly aggiornamentiContatto: SpokiContactUpdateDto[] = [];
+  /** Campi personalizzati dei contatti, per numero: scritti da `updateContactFields` e dai tocchi simulati. */
+  private readonly campiContatto = new Map<string, Record<string, string>>();
 
   constructor(
     private readonly options: SpokiMockOptions,
@@ -79,6 +86,38 @@ export class SpokiServiceMock implements ISpokiService {
     return this.aggiornamentiContatto;
   }
 
+  /**
+   * Simula il tocco su un pulsante del promemoria del mattino: scrive `ACC_PULSANTE` sul contatto,
+   * come fa l'automazione Spoki del pulsante (per i test e le prove senza Spoki).
+   */
+  simulateButtonTap(phone: string, state: SpokiButtonState): void {
+    this.campiContatto.set(phone, {
+      ...this.campiContatto.get(phone),
+      [SPOKI_BUTTON_FIELD]: state,
+    });
+  }
+
+  async readContactFields(
+    request: SpokiContactReadDto,
+    options?: CallOptions,
+  ): Promise<ProviderResult<SpokiContactFieldsReceipt>> {
+    if (isAborted(options?.signal)) {
+      return err(providerError('SPOKI', 'TIMEOUT', 'Richiesta annullata dal chiamante.', true));
+    }
+    if (this.options.mode === 'down') {
+      return err(providerError('SPOKI', 'UNAVAILABLE', 'Spoki non disponibile (simulato).', true));
+    }
+    const campi = this.campiContatto.get(request.to);
+    const fields: Record<string, string> = {};
+    for (const codice of request.codes) {
+      const valore = campi?.[codice];
+      if (valore !== undefined) {
+        fields[codice] = valore;
+      }
+    }
+    return ok({ read: true, found: campi !== undefined, fields });
+  }
+
   async updateContactFields(
     request: SpokiContactUpdateDto,
     options?: CallOptions,
@@ -87,6 +126,10 @@ export class SpokiServiceMock implements ISpokiService {
       return err(providerError('SPOKI', 'TIMEOUT', 'Richiesta annullata dal chiamante.', true));
     }
     this.aggiornamentiContatto.push({ ...request, fields: { ...request.fields } });
+    this.campiContatto.set(request.to, {
+      ...this.campiContatto.get(request.to),
+      ...request.fields,
+    });
     this.logger.debug(`contatto ${maskPhone(request.to)} aggiornato`, {
       campi: Object.keys(request.fields),
       correlationId: request.correlationId,

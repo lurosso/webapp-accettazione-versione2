@@ -1,9 +1,10 @@
 // La specifica di Spoki (scripts/spoki-spec.mjs) e lo script che la applica (scripts/spoki-setup.mjs)
 // senza rete. I messaggi usano i template 📅 dell'account (decisione del committente, 2026-09-25):
 // ogni variabile dei loro testi deve essere un campo che l'app riempie, e nessun campo in più; il
-// template del mattino da creare rispetta i vincoli di Meta; le automazioni hanno la forma
-// documentata da Spoki; il piano riconosce ciò che esiste (anche con nomi doppi) e lo script non può
-// modificare niente di ciò che c'è.
+// template del mattino da creare rispetta i vincoli di Meta; le automazioni dei pulsanti scrivono
+// i valori che l'app legge e la rete di sicurezza ha la forma documentata da Spoki; il piano
+// riconosce ciò che esiste (anche con nomi doppi) e lo script non può modificare niente di ciò che
+// c'è.
 import { describe, expect, it } from 'vitest';
 import { buildTemplateVars } from '@/application/notifications/templates';
 import {
@@ -13,19 +14,18 @@ import {
   templateFieldsFor,
   type SpokiTemplateKind,
 } from '@/infrastructure/messaging/spoki';
+import { SPOKI_BUTTON_FIELD, SPOKI_REMINDER_STATE_FIELD } from '@/services/dto/spoki.dto';
 import {
   AUTOMAZIONI,
+  AUTOMAZIONI_PULSANTI,
   CAMPI,
   CAMPI_AUTOMAZIONI,
-  ESITO_IN_ATTESA,
   PULSANTI,
   PULSANTI_PRENOTAZIONE,
-  RISERVA,
   TEMPLATE,
   TEMPLATE_DA_CREARE,
   TEMPLATE_ESISTENTI,
   corpoAutomazioneRete,
-  corpoAutomazioneRisposta,
   corpoTemplate,
   variabiliDi,
 } from '../../scripts/spoki-spec.mjs';
@@ -153,49 +153,25 @@ describe('Il template del mattino da creare', () => {
   });
 });
 
-describe('Specifica Spoki: automazioni (per quando saranno decise)', () => {
-  it('risposta a un pulsante: azzera i campi, chiama l’app con il segreto, testo del server o di riserva', () => {
-    const corpo = corpoAutomazioneRisposta(PULSANTI[0]!, {
-      ids: IDS,
-      appUrl: 'https://officina.example/',
-      inboundSecret: 'segreto-inbound-di-prova-0123456789',
-    });
-    expect(corpo['name']).toBe(AUTOMAZIONI.arrivato);
-    expect(corpo['is_active']).toBe(false);
-    expect(corpo.steps.map((s) => s['step_type'])).toEqual([
-      'CustomField',
-      'CustomField',
-      'Webhook',
-      'IfElse',
-      'FreeMessage',
+describe('Specifica Spoki: automazioni', () => {
+  it('pulsanti: una per pulsante, col suo testo; solo chi ha avuto il promemoria; scrivono ACC_PULSANTE', () => {
+    expect(AUTOMAZIONI_PULSANTI.map((a) => a.trigger)).toEqual(TEMPLATE_DA_CREARE[0]!.pulsanti);
+    expect(AUTOMAZIONI_PULSANTI.map((a) => a.nome)).toEqual([
+      AUTOMAZIONI.arrivato,
+      AUTOMAZIONI.ritardo,
+      AUTOMAZIONI.assente,
     ]);
-    expect(corpo.steps[0]).toMatchObject({
-      custom_field: IDS.campi['ACC_ESITO'],
-      value: ESITO_IN_ATTESA,
-    });
-    const webhook = corpo.steps[2] as {
-      url: string;
-      headers: Record<string, string>;
-      payload: string;
-      response_data: Record<string, unknown>;
-    };
-    expect(webhook.url).toBe('https://officina.example/api/v1/webhooks/spoki');
-    expect(webhook.headers['x-spoki-secret']).toBe('segreto-inbound-di-prova-0123456789');
-    expect(webhook.payload.length).toBeLessThan(4096);
-    expect(JSON.parse(webhook.payload)).toEqual({
-      source: 'automation',
-      phone: '{{ contact.phone }}',
-      reply: 'ACTION_ARRIVED',
-    });
-    expect(webhook.response_data).toEqual({
-      'data.esito': IDS.campi['ACC_ESITO'],
-      'data.risposta': IDS.campi['ACC_RISPOSTA'],
-    });
-    expect(corpo.steps[4]).toMatchObject({ text: RISERVA.arrivato });
-    // Il testo di riserva usa solo campi che esistono.
-    for (const v of variabiliDi(RISERVA.arrivato)) {
-      expect(TUTTI_I_CAMPI.map((c) => c.code)).toContain(v);
+    for (const a of AUTOMAZIONI_PULSANTI) {
+      expect(a.nome.startsWith('ACC · Pulsante «')).toBe(true);
+      expect(a.condizione).toEqual({ campo: SPOKI_REMINDER_STATE_FIELD, uguale: 'INVIATO' });
+      expect(a.scrive.campo).toBe(SPOKI_BUTTON_FIELD);
+      expect(a.scrive.valore).toBe(PULSANTI.find((p) => p.chiave === a.chiave)?.valore);
     }
+    // I campi che usano esistono nella specifica.
+    const codici = CAMPI_AUTOMAZIONI.map((c) => c.code);
+    expect(codici).toEqual(
+      expect.arrayContaining([SPOKI_BUTTON_FIELD, SPOKI_REMINDER_STATE_FIELD]),
+    );
   });
 
   it('rete di sicurezza: trigger sulla data ACC_GIORNO, manda il template del mattino', () => {
@@ -210,6 +186,12 @@ describe('Specifica Spoki: automazioni (per quando saranno decise)', () => {
         ignore_year: false,
       },
     ]);
+    // Come il promemoria dell'app, rimette anche ACC_PULSANTE ad ATTESA.
+    expect(corpo.steps.at(-1)).toMatchObject({
+      step_type: 'CustomField',
+      custom_field: IDS.campi['ACC_PULSANTE'],
+      value: 'ATTESA',
+    });
     expect(corpo.steps[1]).toMatchObject({
       template: IDS.template['📅 Promemoria Appuntamento Oggi'],
       custom_field_values: {
@@ -267,8 +249,33 @@ describe('spoki:setup senza rete', () => {
       { campi: [], template: [], automazioni: [], webhook: [] },
       { automazioni: true },
     );
-    expect(piano.campi.filter((c) => c.code.startsWith('ACC_'))).toHaveLength(4);
+    expect(piano.campi.filter((c) => c.code.startsWith('ACC_')).map((c) => c.code)).toEqual([
+      'ACC_GIORNO',
+      'ACC_PROMEMORIA',
+      'ACC_PULSANTE',
+    ]);
     expect(piano.automazioni).toHaveLength(4);
+  });
+
+  it('le automazioni dei pulsanti si ritrovano per nome, attive o da attivare', () => {
+    const piano = pianifica(
+      {
+        campi: [],
+        template: [],
+        automazioni: [
+          { id: 570921, name: AUTOMAZIONI.arrivato, is_active: false },
+          { id: 570923, name: AUTOMAZIONI.assente, is_active: true },
+        ],
+        webhook: [],
+      },
+      { automazioni: true },
+    );
+    expect(piano.automazioni).toEqual([
+      { chiave: 'arrivato', nome: AUTOMAZIONI.arrivato, id: 570921, attiva: false },
+      { chiave: 'ritardo', nome: AUTOMAZIONI.ritardo, id: null, attiva: false },
+      { chiave: 'assente', nome: AUTOMAZIONI.assente, id: 570923, attiva: true },
+      { chiave: 'rete', nome: AUTOMAZIONI.rete, id: null, attiva: false },
+    ]);
   });
 
   it('.env.local: aggiorna le variabili presenti, aggiunge le altre in fondo, lascia intatto il resto', () => {

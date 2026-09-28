@@ -18,12 +18,16 @@
 //                libera) e il BDC la trova nel proprio elenco per richiamarlo e riprogrammare
 //                l'appuntamento su Infinity; il cliente riceve la conferma dell'annullamento.
 //
-// CHI RISPONDE. Con le automazioni Spoki dei pulsanti attive (SPOKI_REPLIES_BY_AUTOMATION=true) la
-// conferma al cliente la manda Spoki, anche quando questo server non risponde: l'app registra il
-// fatto e restituisce all'automazione il testo che spetta al cliente (`replyText`, con codice e link
-// personale, o il messaggio «troppo presto»), che Spoki consegna; se il server è giù, l'automazione
-// manda il suo testo di riserva. Una chiamata che arriva dall'automazione (`channel: AUTOMATION`)
-// non fa mai partire una risposta dall'app, qualunque sia l'interruttore.
+// CHI RISPONDE. Di norma l'app. Resta nel codice, non usato dall'account, il disegno in cui
+// un'automazione Spoki chiama l'app via https e consegna lei la risposta: l'app registra il fatto e
+// restituisce il testo che spetta al cliente (`replyText`, con codice e link personale, o il
+// messaggio «troppo presto»). Una chiamata che arriva da un'automazione così (`channel: AUTOMATION`)
+// non fa mai partire una risposta dall'app; con SPOKI_REPLIES_BY_AUTOMATION=true nemmeno un tocco
+// arrivato dal webhook V2 (da lasciare false).
+//
+// SENZA HTTPS (M8-T55): finché Spoki non può chiamare l'app, le automazioni dei pulsanti scrivono il
+// pulsante toccato nel campo ACC_PULSANTE del contatto e `SpokiReplyPoller` lo porta qui con il
+// canale `POLLING`; al cliente risponde l'app.
 //
 // Tutto passa dai casi d'uso esistenti (portale e coda): questo servizio traduce, non decide.
 // Un messaggio che non corrisponde a nessuna delle tre risposte viene ignorato senza errori: sul
@@ -60,6 +64,11 @@ export type InboundChannel =
   | 'EVENT'
   /** Passo «webhook» di un'automazione Spoki: al cliente risponde l'automazione. */
   | 'AUTOMATION'
+  /**
+   * Lettura periodica del campo ACC_PULSANTE del contatto Spoki (SPOKI_REPLY_POLLING): le
+   * automazioni dei pulsanti scrivono soltanto, al cliente risponde sempre l'app.
+   */
+  | 'POLLING'
   /** Forma piatta per prove manuali. */
   | 'MANUAL';
 
@@ -205,11 +214,15 @@ export class WhatsAppInboundService {
     }
 
     // Ai pulsanti risponde Spoki se la chiamata viene dall'automazione, oppure se le automazioni dei
-    // pulsanti sono attive e il cliente ha toccato un pulsante (non scritto a mano: quello resta
-    // all'app, perché nessuna automazione lo intercetta).
+    // pulsanti rispondono loro (SPOKI_REPLIES_BY_AUTOMATION) e il cliente ha toccato un pulsante
+    // (non scritto a mano: quello resta all'app, perché nessuna automazione lo intercetta). Un tocco
+    // letto dal campo del contatto (`POLLING`) ha sempre la risposta dall'app: quelle automazioni
+    // scrivono il campo e basta.
     const replyBy: 'APP' | 'SPOKI' =
       message.channel === 'AUTOMATION' ||
-      (this.deps.repliesByAutomation === true && message.viaButton === true)
+      (message.channel !== 'POLLING' &&
+        this.deps.repliesByAutomation === true &&
+        message.viaButton === true)
         ? 'SPOKI'
         : 'APP';
     const correlationId = message.correlationId ?? null;

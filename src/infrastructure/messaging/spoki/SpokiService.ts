@@ -20,10 +20,14 @@ import type {
   SendReceipt,
 } from '@/services/interfaces/common';
 import { providerError } from '@/services/interfaces/common';
-import type {
-  SpokiContactUpdateDto,
-  SpokiContactUpdateReceipt,
-  SpokiSendRequestDto,
+import {
+  SPOKI_BUTTON_FIELD,
+  SPOKI_REMINDER_STATE_FIELD,
+  type SpokiContactFieldsReceipt,
+  type SpokiContactReadDto,
+  type SpokiContactUpdateDto,
+  type SpokiContactUpdateReceipt,
+  type SpokiSendRequestDto,
 } from '@/services/dto/spoki.dto';
 import { parseSpokiWebhookBody, type SpokiWebhookEvent } from '@/services/dto/spoki-webhook.dto';
 import type { IClock } from '@/services/interfaces/IClock';
@@ -183,7 +187,10 @@ export class SpokiService implements ISpokiService {
    */
   private transportFor(kind: SpokiTemplateKind, request: SpokiSendRequestDto): SpokiTransport {
     const templateId = this.config.templates[kind];
-    const opzioni = { safetyNetFields: this.config.safetyNetFields === true };
+    const opzioni = {
+      safetyNetFields: this.config.safetyNetFields === true,
+      replyPolling: this.config.replyPolling === true,
+    };
     const scelto = resolveTransportKind(kind, templateId, this.config.urls[kind]);
     if (scelto === 'TEMPLATE') {
       return {
@@ -213,6 +220,21 @@ export class SpokiService implements ISpokiService {
       options,
     });
     return esito.ok ? ok({ updated: esito.value.updated }) : esito;
+  }
+
+  async readContactFields(
+    request: SpokiContactReadDto,
+    options?: CallOptions,
+  ): Promise<ProviderResult<SpokiContactFieldsReceipt>> {
+    const esito = await this.adapter.readContact({
+      phone: request.to,
+      codes: request.codes,
+      correlationId: request.correlationId,
+      options,
+    });
+    return esito.ok
+      ? ok({ read: esito.value.read, found: esito.value.found, fields: esito.value.fields })
+      : esito;
   }
 
   async getDeliveryStatus(
@@ -376,15 +398,22 @@ export function buildTemplateSendPayload(
   };
 }
 
-/** Opzioni dei payload: con la rete di sicurezza accesa si scrivono anche i suoi campi. */
+/**
+ * Opzioni dei payload: con la rete di sicurezza accesa si scrivono anche i suoi campi; con la
+ * lettura dei pulsanti (SPOKI_REPLY_POLLING) il promemoria del mattino arma le automazioni dei
+ * pulsanti.
+ */
 export interface PayloadOptions {
   readonly safetyNetFields?: boolean;
+  readonly replyPolling?: boolean;
 }
 
 /**
  * I campi del template (`SPOKI_TEMPLATE_FIELDS`): Spoki li salva sul contatto a ogni invio, così
  * anche le automazioni li ritrovano. Con la rete di sicurezza del mattino si aggiungono ACC_GIORNO
- * e ACC_PROMEMORIA.
+ * e ACC_PROMEMORIA. Con la lettura dei pulsanti il promemoria del mattino scrive
+ * `ACC_PROMEMORIA = INVIATO` (le automazioni dei pulsanti agiscono solo così) e rimette
+ * `ACC_PULSANTE = ATTESA` (un tocco di un altro giorno non vale per oggi).
  */
 function customFieldsOf(
   request: SpokiSendRequestDto,
@@ -392,14 +421,16 @@ function customFieldsOf(
   options: PayloadOptions,
 ): SpokiCustomFields {
   const { fields } = templateFieldsFor(kind, request.variables);
-  if (options.safetyNetFields !== true) {
-    return fields;
+  const out: Record<string, string> = { ...fields };
+  if (options.safetyNetFields === true) {
+    out['ACC_GIORNO'] = request.variables['scheduledDay'] ?? '';
+    out[SPOKI_REMINDER_STATE_FIELD] = reminderStateAfter(kind);
   }
-  return {
-    ...fields,
-    ACC_GIORNO: request.variables['scheduledDay'] ?? '',
-    ACC_PROMEMORIA: reminderStateAfter(kind),
-  };
+  if (options.replyPolling === true && kind === 'REMINDER_SAME_DAY') {
+    out[SPOKI_REMINDER_STATE_FIELD] = 'INVIATO';
+    out[SPOKI_BUTTON_FIELD] = 'ATTESA';
+  }
+  return out;
 }
 
 /**
