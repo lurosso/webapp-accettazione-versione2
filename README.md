@@ -19,6 +19,7 @@ riduce le attese e rende trasparente lo stato della pratica a operatori e client
 - [Mappa delle rotte](#mappa-delle-rotte)
 - [Il planning di Infinity dal database reale (ODBC)](#il-planning-di-infinity-dal-database-reale-odbc)
 - [Amministrazione, archivio foto e retention](#amministrazione-archivio-foto-e-retention)
+- [Rilascio su SRV-AI](#rilascio-su-srv-ai)
 - [Script disponibili](#script-disponibili)
 - [Struttura del repository](#struttura-del-repository)
 - [Documentazione](#documentazione)
@@ -166,8 +167,10 @@ deploy`); in sviluppo `npm run db:migrate:dev` ne crea di nuove dallo schema. Il
   configurazione (`src/config/seed.ts`) e cambiano con un rilascio, non durante il turno. Gli
   operatori del seed entrano nel database **solo al primo avvio**, a tabella vuota; da lì in avanti
   comanda il database, e un reset o una disattivazione fatti da `/admin` restano.
-- **Backup**: copia di `.data/` (database e media). Per il ripristino si rimette la cartella e si
-  riavvia.
+- **Backup**: ogni notte alle 02:30 il programma copia il database con `VACUUM INTO` in
+  `.data/backup/accettazione-AAAA-MM-GG.db`, una copia coerente anche a server acceso, e tiene gli
+  ultimi 14 giorni (`DB_BACKUP_*` in `.env.example`). I media si copiano da `.data/uploads/`. Per
+  il ripristino: server fermo, la copia al posto di `.data/accettazione.db`, riavvio.
 - I test dei repository (`tests/repositories/`) girano su un SQLite in una cartella temporanea,
   applicando la stessa migrazione dell'officina: il database di sviluppo non viene toccato.
 
@@ -1005,6 +1008,48 @@ per i cron esterni.
 | `/api/v1/system/cron/media-retention` | POST      | Eliminazione dei file di foto e video oltre la retention per un cron esterno.                                                                                                                                          | Amministratore oppure intestazione `x-cron-secret` |
 
 <!-- mappa-rotte:fine -->
+
+## Rilascio su SRV-AI
+
+Il programma è preparato per il **server AI di Autoclub** (Docker, Portainer, Gitea, Caddy). Le
+richieste da fare a chi gestisce il server sono in
+[`docs/HOSTING_SRV-AI.md`](docs/HOSTING_SRV-AI.md); qui i file del repository e il giro del
+rilascio.
+
+- **Immagine** ([`Dockerfile`](Dockerfile)): Node 24, build `standalone`, un solo processo
+  `node server.js` con l'utente `node` (uid 1000), porta **3000**, controllo di salute su
+  `/api/v1/health`. All'avvio [`docker/entrypoint.sh`](docker/entrypoint.sh) scrive il DSN ODBC
+  verso il driver SQL Anywhere 17 (solo con Infinity reale; se il driver manca avvisa e parte lo
+  stesso) e applica le migrazioni del database (`prisma migrate deploy`: quelle già fatte si
+  saltano).
+- **Stack** ([`compose.yaml`](compose.yaml)): **un solo container**, mai repliche. Il volume
+  `/data` contiene `accettazione.db`, `uploads/` (foto e video) e `backup/` (copie notturne) e deve
+  essere scrivibile dall'utente 1000. Il client SQL Anywhere 17 per Linux si monta in sola lettura
+  su `/opt/sqlanywhere17`: è software SAP e non entra nell'immagine. La rete di Caddy si sceglie con
+  `RETE_PROXY`. Fissi nello stack: `NODE_ENV=production`, `REPOSITORY_PROVIDER=prisma`,
+  `TRUST_PROXY_HEADERS=true`, `DEV_QUICK_LOGIN=false`, `DISPLAY_TOKEN_REQUIRED=true`.
+- **Variabili da impostare in Portainer**, segreti compresi (mai nel repository; l'elenco completo
+  è in [`.env.example`](.env.example)):
+
+| Variabili                                                                                                      | A cosa servono                                                                                                                                                                    |
+| -------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `SEED_PROFILE=real`, `SEED_ADMIN_PASSWORD_HASH`, `SEED_DISPLAY_TOKEN_SECRET`                                   | l'officina vera e il primo account `admin`; i valori li genera `npm run seed:credenziali`                                                                                         |
+| `SESSION_SECRET`, `CRON_SECRET`                                                                                | segreti di almeno 32 caratteri                                                                                                                                                    |
+| `PUBLIC_BASE_URL`                                                                                              | l'indirizzo da cui i clienti aprono il portale: è quello dei link su WhatsApp                                                                                                     |
+| `INFINITY_PROVIDER=real`, `INFINITY_ODBC_DSN`, `INFINITY_ODBC_UID`, `INFINITY_ODBC_PWD`, `INFINITY_ODBC_EXTRA` | il planning in sola lettura; nel container il DSN porta solo il driver, quindi server e database vanno in `INFINITY_ODBC_EXTRA` (`Host=<ip>:<porta>;ServerName=…;DatabaseName=…`) |
+| `SPOKI_*`                                                                                                      | WhatsApp, come in [`docs/SPOKI.md`](docs/SPOKI.md); in simulazione finché non si decide di mandare davvero                                                                        |
+| `DB_BACKUP_TIME`, `DB_BACKUP_KEEP_DAYS`                                                                        | facoltative: ora (02:30) e giorni (14) delle copie notturne                                                                                                                       |
+
+- **Rilascio**: un tag di versione (`v1.0.0`) su Gitea fa partire
+  [`.gitea/workflows/rilascio.yaml`](.gitea/workflows/rilascio.yaml): typecheck, lint e test, poi
+  l'immagine nel registry con il tag e `latest`. In Portainer si aggiorna lo stack con `IMMAGINE`
+  al nuovo tag. **Rollback**: si ridistribuisce il tag precedente; se il rilascio aveva una
+  migrazione nuova, si rimette anche la copia del database della notte prima.
+- **Backup**: ogni notte (`DB_BACKUP_TIME`, 02:30) il programma copia il database con `VACUUM INTO`
+  in `/data/backup/accettazione-AAAA-MM-GG.db`: una copia coerente anche mentre si lavora, che il
+  backup della VM prende così com'è. Se alle 02:30 il server era spento, la copia si fa al
+  riavvio. Si tengono gli ultimi 14 giorni. Per il ripristino: container fermo, la copia al posto di
+  `/data/accettazione.db`, riavvio.
 
 ## Script disponibili
 

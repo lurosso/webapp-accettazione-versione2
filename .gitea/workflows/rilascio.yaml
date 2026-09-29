@@ -1,0 +1,43 @@
+# Rilascio su Gitea (server AI di Autoclub): a ogni tag di versione (v1.0.0, v1.1.0…) i controlli e,
+# se passano, l'immagine nel registry di Gitea. Il deploy lo fa Portainer aggiornando lo stack al
+# nuovo tag; il rollback è ridistribuire il tag precedente (docs/HOSTING_SRV-AI.md).
+#
+# Da configurare nel repository su Gitea:
+# - variabile REGISTRY_HOST (per esempio git.movingcenter.local);
+# - segreti REGISTRY_USER e REGISTRY_TOKEN (token con permesso di scrittura sui pacchetti).
+# Il runner deve avere Docker e fidarsi del certificato del registry (CA interna di Caddy).
+name: rilascio
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+jobs:
+  controlli:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+      - run: npm ci --no-audit --no-fund
+      - run: npm run typecheck
+      - run: npm run lint
+      - run: npm test
+
+  immagine:
+    needs: controlli
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Accesso al registry
+        run: echo "${{ secrets.REGISTRY_TOKEN }}" | docker login "${{ vars.REGISTRY_HOST }}" -u "${{ secrets.REGISTRY_USER }}" --password-stdin
+      - name: Build e push dell'immagine
+        run: |
+          immagine="${{ vars.REGISTRY_HOST }}/${{ github.repository }}"
+          versione="${GITHUB_REF_NAME}"
+          docker build --pull -t "${immagine}:${versione}" -t "${immagine}:latest" .
+          docker push "${immagine}:${versione}"
+          docker push "${immagine}:latest"

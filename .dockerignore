@@ -1,0 +1,17 @@
+# Contesto della build dell'immagine: solo ciò che serve a `npm ci` e `next build`.
+.git
+.gitea
+.claude
+.next
+node_modules
+.data
+coverage
+tests
+docs
+Claude outputs
+*.log
+*.tsbuildinfo
+# Segreti e configurazioni locali: mai nell'immagine (le variabili arrivano da Portainer).
+.env
+.env.*
+!.env.example

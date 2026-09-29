@@ -1,0 +1,49 @@
+# Stack «accettazione» per il server AI di Autoclub (SRV-AI), da Portainer. Dettagli in
+# docs/HOSTING_SRV-AI.md e nel README («Rilascio su SRV-AI»).
+#
+# UN SOLO container, mai repliche: il programma tiene in memoria parte dello stato e fa da sé i
+# lavori della giornata (sync da Infinity, promemoria, lettura dei tocchi su WhatsApp, copia del
+# database). Le variabili dello stack impostate in Portainer, segreti compresi, arrivano da
+# `stack.env`; quelle qui sotto sono fisse per il server.
+name: accettazione
+
+services:
+  app:
+    image: ${IMMAGINE:-git.movingcenter.local/ai/accettazione:latest}
+    restart: unless-stopped
+    env_file:
+      - path: stack.env
+        required: false
+    environment:
+      NODE_ENV: production
+      TZ: Europe/Rome
+      APP_TIMEZONE: Europe/Rome
+      REPOSITORY_PROVIDER: prisma
+      DATABASE_URL: file:/data/accettazione.db
+      MEDIA_STORAGE_DIR: /data/uploads
+      DB_BACKUP_DIR: /data/backup
+      # Dietro Caddy: l'indirizzo del client arriva da X-Forwarded-For.
+      TRUST_PROXY_HEADERS: 'true'
+      DEV_QUICK_LOGIN: 'false'
+      DISPLAY_TOKEN_REQUIRED: 'true'
+    volumes:
+      # Database, copie notturne e foto/video delle ispezioni. La cartella deve essere
+      # scrivibile dall'utente 1000 del container (`node`).
+      - ${CARTELLA_DATI:-/srv/stacks/accettazione/data}:/data
+      # Client SQL Anywhere 17 per Linux (driver ODBC), in sola lettura.
+      - ${CARTELLA_SQLANYWHERE:-/srv/stacks/accettazione/sqlanywhere17}:/opt/sqlanywhere17:ro
+    expose:
+      - '3000'
+    networks:
+      - proxy
+    deploy:
+      resources:
+        limits:
+          cpus: '2'
+          memory: 2g
+
+networks:
+  # La rete di Caddy dello stack «platform»: il nome esatto lo conferma chi gestisce il server.
+  proxy:
+    external: true
+    name: ${RETE_PROXY:-platform_default}

@@ -73,15 +73,17 @@ adatterà allora.
 3. **Accesso a SyInfinity_Test** per il collaudo: il documento vuole sviluppo e collaudo sul
    database di test e la produzione solo al rilascio. Oggi il programma legge SyInfinity01 dal PC
    dello sviluppatore.
-4. **Il client SQL Anywhere 17 per Linux** (driver ODBC), da mettere nell'immagine Docker: da dove
-   lo prendiamo (download SAP o pacchetto già usato dal reparto) e se ci sono vincoli di licenza.
+4. **Il client SQL Anywhere 17 per Linux** (driver ODBC), da mettere sul server in una cartella
+   che il container monta in sola lettura (non entra nell'immagine): da dove lo prendiamo
+   (download SAP o pacchetto già usato dal reparto) e se ci sono vincoli di licenza.
 
 ### D. Uscita verso Internet (FortiGate)
 
 1. Il **container**: `api.spoki.com` sulla porta 443 (invio dei WhatsApp, lettura dei tocchi sui
    pulsanti).
 2. Il **runner di Gitea Actions**, per costruire l'immagine: registro npm (`registry.npmjs.org`),
-   Docker Hub (immagine base di Node) e il download del client SQL Anywhere, se non lo fornite voi.
+   Docker Hub (immagine base di Node), `binaries.prisma.sh` (motore delle migrazioni) e, se
+   possibile, `github.com` (moduli nativi già compilati; senza, si compilano durante la build).
 
 ### E. Accesso da fuori, per i clienti (il punto più importante)
 
@@ -114,16 +116,42 @@ escono su stdout.
 
 Le regole di sviluppo del documento, punto per punto:
 
-| Regola                                         | Stato                                                                                                                                                                                                                            |
-| ---------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| 1. Dockerfile e `compose.yaml`                 | **da fare**: immagine multi-stage (`standalone`, utente non root, unixODBC + driver SQL Anywhere 17, `better-sqlite3`), `compose.yaml` con un servizio, il volume e il controllo di salute; all'avvio le migrazioni del database |
-| 2. Nessuna gestione utenti propria             | escluso per ora (parte del portale myAutoclub): l'accettazione ha il suo login e i suoi ruoli                                                                                                                                    |
-| 3. Configurazione da variabili d'ambiente      | già così (`.env.example`); i segreti andranno in Portainer                                                                                                                                                                       |
-| 4. Rilascio con tag di versione su Gitea       | **da fare**: repository su Gitea (organizzazione «ai») e un workflow Gitea Actions che, sul tag, lancia typecheck, lint, test e costruisce l'immagine nel registry                                                               |
-| 5. Dati di test, nessuna scrittura su Infinity | nessuna scrittura: già così. Dati di test: serve l'accesso a SyInfinity_Test (2.C)                                                                                                                                               |
-| 6. Log su stdout/stderr                        | già così                                                                                                                                                                                                                         |
-| 7. Sotto-percorso dietro reverse proxy         | escluso per ora (parte del portale): l'app sta su un nome suo                                                                                                                                                                    |
-| 8. README con variabili e porta                | **da completare**: una sezione «Rilascio su SRV-AI» con variabili richieste, porta 3000 e volume                                                                                                                                 |
+| Regola                                         | Stato                                                                                                                                                                                                                                                |
+| ---------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 1. Dockerfile e `compose.yaml`                 | **preparati**: immagine multi-stage (`standalone`, utente non root, unixODBC, `better-sqlite3`), driver SQL Anywhere 17 montato dal server, `compose.yaml` con un servizio, il volume e il controllo di salute; all'avvio le migrazioni del database |
+| 2. Nessuna gestione utenti propria             | escluso per ora (parte del portale myAutoclub): l'accettazione ha il suo login e i suoi ruoli                                                                                                                                                        |
+| 3. Configurazione da variabili d'ambiente      | già così (`.env.example`); i segreti andranno in Portainer                                                                                                                                                                                           |
+| 4. Rilascio con tag di versione su Gitea       | **workflow preparato** (`.gitea/workflows/rilascio.yaml`): sul tag lancia typecheck, lint, test e pubblica l'immagine nel registry. Manca il repository su Gitea (organizzazione «ai»)                                                               |
+| 5. Dati di test, nessuna scrittura su Infinity | nessuna scrittura: già così. Dati di test: serve l'accesso a SyInfinity_Test (2.C)                                                                                                                                                                   |
+| 6. Log su stdout/stderr                        | già così                                                                                                                                                                                                                                             |
+| 7. Sotto-percorso dietro reverse proxy         | escluso per ora (parte del portale): l'app sta su un nome suo                                                                                                                                                                                        |
+| 8. README con variabili e porta                | **fatto**: sezione «Rilascio su SRV-AI» del README, con variabili richieste, porta 3000, volume, rilascio e rollback                                                                                                                                 |
 
-In più, per il server: la copia notturna coerente del database SQLite (2.A.3) e, in produzione,
-`DEV_QUICK_LOGIN=false` e `DISPLAY_TOKEN_REQUIRED=true` (i monitor con il loro token).
+In più, per il server:
+
+- **Copia notturna coerente del database** (2.A.3): **fatta**. Ogni notte alle 02:30 il programma
+  scrive `/data/backup/accettazione-AAAA-MM-GG.db` con `VACUUM INTO` (coerente anche mentre si
+  lavora) e tiene gli ultimi 14 giorni. Il backup Veeam della VM deve includere `/data/backup`.
+- In produzione `DEV_QUICK_LOGIN=false` e `DISPLAY_TOKEN_REQUIRED=true` (i monitor con il loro
+  token): già fissi in `compose.yaml`.
+
+### Note per chi prepara il server
+
+- **Cartella dei dati**: deve appartenere all'utente 1000 (`chown 1000:1000`), perché il programma
+  gira come utente `node`, senza root.
+- **Client SQL Anywhere 17**: la cartella di installazione per Linux (con `lib64/libdbodbc17_r.so`)
+  va in `/srv/stacks/accettazione/sqlanywhere17`, montata in sola lettura. Il DSN lo scrive l'avvio
+  del container; server e database arrivano da `INFINITY_ODBC_EXTRA`
+  (`Host=<ip>:<porta>;ServerName=…;DatabaseName=…`).
+- **Rete di Caddy**: in `compose.yaml` si chiama `platform_default` (variabile `RETE_PROXY`). Il
+  nome giusto va confermato.
+- **Runner di Gitea Actions**: deve avere Docker, fidarsi del certificato del registry e
+  raggiungere gli indirizzi di 2.D.2. Nel repository su Gitea servono la variabile
+  `REGISTRY_HOST` e i segreti `REGISTRY_USER` e `REGISTRY_TOKEN` (permesso di scrittura sui
+  pacchetti).
+- **npm 11.19 e successivi** eseguono gli script di installazione solo dei pacchetti approvati:
+  l'elenco è in `allowScripts` del `package.json`. Chi aggiorna una di quelle dipendenze deve
+  approvare anche la versione nuova (`npm install-scripts approve`).
+- **Immagine non ancora costruita**: sul PC di sviluppo non c'è Docker. Build e avvio in
+  produzione (`standalone`, migrazioni, copia notturna) sono stati provati fuori dal container. La
+  prima build vera la farà il runner di Gitea, oppure una macchina con Docker.
