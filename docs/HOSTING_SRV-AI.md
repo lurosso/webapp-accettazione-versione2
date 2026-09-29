@@ -10,6 +10,11 @@ dai gruppi AD, menu per moduli, sotto-percorso tipo `/preventivi`). L'accettazio
 i suoi ruoli e le postazioni degli sportelli, e oggi non è un modulo del portale. Se lo diventerà, si
 adatterà allora.
 
+Esclusi anche i **monitor delle campate** e il **tabellone della sala d'attesa** (detto dal
+committente il 2026-09-29): il programma li ha, ma quasi certamente non si useranno. Se un giorno
+servissero, basterà che la loro rete raggiunga il nome interno (2.B) e che le loro risposte in
+streaming (`/api/v1/public/events/stream`) non vengano bufferizzate.
+
 ## 1. Il programma, visto dal server
 
 | Cosa                  | Com'è                                                                                                                                                                                                                                                 |
@@ -20,7 +25,7 @@ adatterà allora.
 | Dati propri           | database SQLite (un file, oggi < 1 MB, a regime qualche centinaio di MB) e cartella delle foto e dei video delle ispezioni                                                                                                                            |
 | Infinity              | **solo lettura**, via ODBC (SQL Anywhere): l'agenda del giorno alle 06:00 e quando l'accettatore aggiorna. Poche query brevi: non serve la copia su PostgreSQL                                                                                        |
 | Verso Internet        | solo Spoki (WhatsApp), `https://api.spoki.com`. Gli SMS oggi sono simulati                                                                                                                                                                            |
-| Chi lo usa            | accettatori da PC e iPad/tablet sul piazzale, 4 monitor delle campate e il tabellone della sala d'attesa, **e i clienti dal loro telefono** (QR in officina e link su WhatsApp)                                                                       |
+| Chi lo usa            | accettatori da PC e iPad/tablet sul piazzale, **e i clienti dal loro telefono** (QR in officina e link su WhatsApp)                                                                                                                                   |
 | Controllo dello stato | `GET /api/v1/health`                                                                                                                                                                                                                                  |
 
 ## 2. Da chiedere a chi gestisce SRV-AI
@@ -43,22 +48,21 @@ adatterà allora.
    (`SPOKI_SECRET_REMINDER_SAME_DAY`, `SPOKI_WEBHOOK_SECRET`). L'elenco completo, con i valori di
    esempio, è in `.env.example`.
 
-### B. Rete interna: accettatori, tablet e monitor
+### B. Rete interna: accettatori e tablet
 
 1. Un **nome interno** per il programma (per esempio `accettazione.movingcenter.local`) con Caddy
    che inoltra al container sulla porta 3000. Caddy deve:
    - passare l'indirizzo del client (`X-Forwarded-For`): l'app lo usa per i limiti anti-abuso, con
      `TRUST_PROXY_HEADERS=true`;
    - accettare caricamenti fino a **80 MB** (i video dell'ispezione);
-   - non bufferizzare le risposte in streaming (`/api/v1/events/stream`, `/api/v1/public/events/stream`):
-     coda, monitor e tabellone si aggiornano così.
+   - non bufferizzare le risposte in streaming (`/api/v1/events/stream`): la coda degli
+     accettatori si aggiorna così.
 2. Un **certificato attendibile anche sugli iPad e sui tablet**. In produzione il login funziona
    solo in HTTPS (cookie di sessione `Secure`), e un avviso del certificato su ogni tablet non è
    gestibile in officina. La CA interna distribuita via GPO arriva ai PC Windows, non agli iPad: per
    quelli serve un profilo (MDM) oppure il certificato Let's Encrypt su un nome `autoclubgroup.it`,
    come previsto nel documento.
-3. Che la **rete Wi-Fi di tablet e iPad** e quella dei **monitor delle campate** raggiungano quel
-   nome.
+3. Che la **rete Wi-Fi di tablet e iPad** raggiunga quel nome.
 
 ### C. Infinity
 
@@ -100,7 +104,7 @@ reverse proxy in DMZ:
 | `/_next/static/…`, `/icon-192.png`, `/icon-512.png`, `/apple-touch-icon.png`    | il browser del cliente (file della pagina)                     |
 | `/api/v1/webhooks/spoki` (solo POST)                                            | i server di Spoki (esiti dei WhatsApp e tocchi in tempo reale) |
 
-Tutto il resto (area degli accettatori, amministrazione, monitor, API interne) resta **solo
+Tutto il resto (area degli accettatori, amministrazione, API interne) resta **solo
 interno**, come Gitea e Portainer. Le pagine pubbliche non mostrano dati personali (codice, targa,
 posizione in fila) e hanno già i loro limiti anti-abuso. Con l'indirizzo pubblico, `PUBLIC_BASE_URL`
 diventa quello: i link su WhatsApp puntano lì, e Spoki può avvisare l'app a ogni tocco, senza la
@@ -132,8 +136,8 @@ In più, per il server:
 - **Copia notturna coerente del database** (2.A.3): **fatta**. Ogni notte alle 02:30 il programma
   scrive `/data/backup/accettazione-AAAA-MM-GG.db` con `VACUUM INTO` (coerente anche mentre si
   lavora) e tiene gli ultimi 14 giorni. Il backup Veeam della VM deve includere `/data/backup`.
-- In produzione `DEV_QUICK_LOGIN=false` e `DISPLAY_TOKEN_REQUIRED=true` (i monitor con il loro
-  token): già fissi in `compose.yaml`.
+- In produzione `DEV_QUICK_LOGIN=false` e `DISPLAY_TOKEN_REQUIRED=true` (i monitor, se mai si
+  useranno, solo con il loro token): già fissi in `compose.yaml`.
 
 ### Note per chi prepara il server
 

@@ -1274,7 +1274,7 @@ Decisioni del committente (2026-09-28): la sede va bene («Via Napoli 364 B2/B3,
 
 ### M8-T58 — Rilascio sul server AI di Autoclub (SRV-AI) _(2026-09-29, richiesta del committente)_
 
-Il committente ha passato il documento dell'infrastruttura (VM Ubuntu con Docker, Gitea, Portainer, Caddy; regole di sviluppo per il team AI) e chiede cosa domandare per ospitare l'accettazione. La parte sul nuovo portale myAutoclub (Entra ID, gruppi AD, sotto-percorsi) è esclusa: non riguarda l'accettazione adesso.
+Il committente ha passato il documento dell'infrastruttura (VM Ubuntu con Docker, Gitea, Portainer, Caddy; regole di sviluppo per il team AI) e chiede cosa domandare per ospitare l'accettazione. La parte sul nuovo portale myAutoclub (Entra ID, gruppi AD, sotto-percorsi) è esclusa: non riguarda l'accettazione adesso. Esclusi dalle richieste anche i monitor delle campate e il tabellone della sala d'attesa: il committente, il 2026-09-29, dice che quasi certamente non si faranno.
 
 - [x] M8-T58-S01 **Requisiti per il server** in `docs/HOSTING_SRV-AI.md`: stack con un solo container, volume su `/srv` (stima 50–150 GB per foto e video), backup coerente del database, nome interno con Caddy e certificato attendibile anche sugli iPad, utente Infinity in sola lettura e porte 2638/2644, client SQL Anywhere 17, uscita verso Spoki, **pubblicazione su Internet dei soli percorsi del cliente e del webhook Spoki**, monitoraggio su `/api/v1/health`. _(fatto 2026-09-29.)_
 - [ ] M8-T58-S02 **Richieste all'infrastruttura** (sezione 2 del documento): in attesa delle risposte.
