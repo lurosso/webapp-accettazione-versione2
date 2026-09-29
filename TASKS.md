@@ -1276,9 +1276,9 @@ Decisioni del committente (2026-09-28): la sede va bene («Via Napoli 364 B2/B3,
 
 Il committente: «fare una automazione che tramite API … prende in esame il template del reminder del giorno con i 3 pulsanti e poi ai pulsanti dà le funzioni», invece dei trigger «QR Code».
 
-- [x] M8-T57-S01 **Automazione «ACC · Promemoria del mattino (API)»** (571227, disattivata): trigger API → template 508848 → attesa della risposta (10 ore) → Switch sul messaggio ricevuto con i tre rami → `ACC_PULSANTE`. _(fatto 2026-09-28 con l'MCP: Spoki rifiuta rami su un passo template («non è un passo ramificabile»), quindi attesa + Switch; prende solo il primo tocco, i seguenti restano alle tre «ACC · Pulsante …».)_
+- [x] M8-T57-S01 **Automazione «ACC · Promemoria del mattino (API)»** (571227, disattivata): trigger API → template 508848. _(fatto 2026-09-28 con l'MCP. Spoki rifiuta rami su un passo template («non è un passo ramificabile»); l'«attendi risposta + Switch» provato il 28 prendeva solo il primo tocco e avrebbe registrato due volte i tocchi presi anche dalle automazioni dei pulsanti: tolto il 29. I pulsanti restano alle tre «ACC · Pulsante …», che prendono ogni tocco.)_
 - [x] M8-T57-S02 **L'app la chiama**: `SPOKI_URL_REMINDER_SAME_DAY` e `SPOKI_SECRET_REMINDER_SAME_DAY` in .env.local, `SPOKI_TEMPLATE_SAME_DAY_ID` commentato (il trasporto «automazione» c'era già); specifica, `spoki:setup`, docs/SPOKI.md. _(fatto 2026-09-28.)_
-- [ ] M8-T57-S03 **Prova sul numero del committente**, dopo che l'ha attivata: promemoria del mattino via API → tocco su «Sono in ritardo» → `ACC_PULSANTE = RITARDO` dallo Switch (conferma del valore `last_message`).
+- [ ] M8-T57-S03 **Prova sul numero del committente**, dopo che ha attivato le quattro automazioni: promemoria del mattino via API → tocco su «Sono in ritardo» e poi «Sono arrivato» → `ACC_PULSANTE` a ogni tocco.
 
 ### M8-T56 — Portale cliente essenziale, per un pubblico anziano _(2026-09-28, richiesta del committente)_
 

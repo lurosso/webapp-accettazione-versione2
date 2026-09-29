@@ -155,18 +155,18 @@ describe('Il template del mattino da creare', () => {
 });
 
 describe('Specifica Spoki: automazioni', () => {
-  it('mattino via API: le variabili che l’app legge, il template del mattino, un ramo per pulsante', () => {
+  it('mattino via API: le variabili che l’app legge e il template del mattino, e basta', () => {
     expect(AUTOMAZIONE_MATTINO.trigger).toBe('API');
     // Sono le variabili del trasporto «automazione» dell'app per il promemoria del mattino.
     expect(AUTOMAZIONE_MATTINO.env).toEqual({
       url: 'SPOKI_URL_REMINDER_SAME_DAY',
       segreto: 'SPOKI_SECRET_REMINDER_SAME_DAY',
     });
-    expect(AUTOMAZIONE_MATTINO.passi[0]).toMatchObject({ template: TEMPLATE_DA_CREARE[0]!.name });
-    const rami = AUTOMAZIONE_MATTINO.passi.filter((p) => p['tipo'] === 'customfield');
-    expect(rami.map((p) => [p['ramo'], p['valore']])).toEqual(
-      PULSANTI.map((p) => [p.testo, p.valore]),
-    );
+    expect(AUTOMAZIONE_MATTINO.passi).toEqual([
+      { tipo: 'templatemessage', template: TEMPLATE_DA_CREARE[0]!.name },
+    ]);
+    // I pulsanti li gestiscono le loro automazioni, una per pulsante: ognuna prende ogni tocco.
+    expect(AUTOMAZIONI_PULSANTI.map((a) => a.trigger)).toEqual(PULSANTI.map((p) => p.testo));
   });
 
   it('pulsanti: una per pulsante, col suo testo; solo chi ha avuto il promemoria; scrivono ACC_PULSANTE', () => {

@@ -89,21 +89,18 @@ dell'app**.
 `SPOKI_URL_REMINDER_SAME_DAY` e `SPOKI_SECRET_REMINDER_SAME_DAY` (e senza
 `SPOKI_TEMPLATE_SAME_DAY_ID`, che altrimenti vince), mandando nel corpo numero, nome e i campi del
 template (`NOME_CLIENTE`, `ORA_PRENOTAZIONE`, `_MARCA_E_MODELLO_`, `_TARGA_`) più
-`ACC_PROMEMORIA = INVIATO` e `ACC_PULSANTE = ATTESA`. I passi: il template 508848 → «attendi la
-risposta» (fino a 10 ore) → uno **Switch** sul messaggio ricevuto con un ramo per pulsante → nel ramo
-`ACC_PULSANTE = ARRIVATO / RITARDO / ASSENTE`. Spoki non dà rami a un passo «invia template» (lo
-dice l'API: «non è un passo ramificabile»; i rami li hanno solo Se/Altrimenti, Switch e Voice), per
-questo c'è l'attesa della risposta. Due cose da sapere:
+`ACC_PROMEMORIA = INVIATO` e `ACC_PULSANTE = ATTESA`. Ha un solo passo: il template 508848.
 
-- l'attesa prende **solo il primo tocco**: se il cliente tocca «Sono in ritardo» e più tardi «Sono
-  arrivato», il secondo lo prende l'automazione di quel pulsante (sotto), che Spoki ha collegato al
-  pulsante del template; per questo restano anche quelle, e un tocco preso da tutte e due scrive lo
-  stesso valore;
-- il valore dello Switch (`context_field` `last_message`) Spoki lo accetta ma non lo documenta: va
-  confermato con la prima prova sul numero del committente (se non corrisponde, il tocco lo prendono
-  comunque le automazioni dei pulsanti).
+Le **funzioni dei pulsanti** non possono stare in questa automazione: Spoki non dà rami a un passo
+«invia template» (lo dice l'API: «non è un passo ramificabile»; i rami li hanno solo Se/Altrimenti,
+Switch e Voice). Il 2026-09-28 ci si è provato con «attendi la risposta» + uno Switch sul messaggio
+ricevuto: prende solo il **primo** tocco (chi tocca «Sono in ritardo» e poi «Sono arrivato» perde il
+secondo), tiene il contatto «in corso» per ore e, insieme alle automazioni dei pulsanti, registra
+lo stesso tocco due volte. Tolto il 2026-09-29. Ogni tocco lo prende l'automazione del suo pulsante
+(sotto), che Spoki ha collegato al pulsante del template: è il modo di Spoki di dare una funzione a
+un pulsante, a ogni tocco.
 
-Nasce disattivata: la attiva il committente da Spoki.
+Nasce disattivata: la attiva il committente da Spoki, insieme alle tre dei pulsanti.
 
 **Nell'account** (creati il 2026-09-28 con l'MCP di Spoki; niente di esistente è stato toccato):
 
