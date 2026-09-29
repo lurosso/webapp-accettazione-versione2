@@ -136,6 +136,13 @@ export const MAX_SPOKI_REPLY_POLL_SECONDS = 300;
 export const SPOKI_REPLY_POLL_CALLS_PER_MINUTE = 60;
 
 /**
+ * Copia notturna del database (DB_BACKUP_TIME, DB_BACKUP_KEEP_DAYS): alle 02:30, a officina chiusa e
+ * prima della sync delle 06:00; due settimane di copie, una per giorno.
+ */
+export const DEFAULT_DB_BACKUP_TIME = '02:30';
+export const DEFAULT_DB_BACKUP_KEEP_DAYS = 14;
+
+/**
  * Chiamate al massimo in una passata, qualunque sia l'intervallo: con un intervallo lungo non si
  * manda a Spoki una raffica. Con più pratiche da guardare si prosegue a rotazione.
  */

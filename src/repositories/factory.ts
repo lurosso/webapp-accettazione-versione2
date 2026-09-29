@@ -9,7 +9,9 @@
 // Mock-First, e l'`InMemoryStore` è DEPRECATO come persistenza dell'officina — tutto quello che
 // contiene sparisce al riavvio del processo.
 
+import { dirname, join } from 'node:path';
 import type { AppEnv } from '@/config/env';
+import { sqlitePathFrom } from '@/config/database-url';
 import type { IClock } from '@/services/interfaces/IClock';
 import {
   InMemoryAppointmentRepository,
@@ -22,6 +24,7 @@ import {
   InMemorySyncRunRepository,
   InMemorySystemAlertRepository,
   InMemoryWorkstationClaimRepository,
+  NoDatabaseBackup,
 } from './in-memory';
 import type { Repositories } from './interfaces';
 import {
@@ -34,6 +37,7 @@ import {
   PrismaSyncRunRepository,
   PrismaSystemAlertRepository,
   PrismaWorkstationClaimRepository,
+  SqliteDatabaseBackup,
 } from './prisma';
 
 /** Implementazioni di persistenza selezionabili via REPOSITORY_PROVIDER (definito in services/interfaces/provider-kinds). */
@@ -60,6 +64,7 @@ export function createRepositories(env: AppEnv, deps: RepositoryDeps): Repositor
         media: new InMemoryMediaRepository(store),
         workstationClaims: new InMemoryWorkstationClaimRepository(store),
         systemAlerts: new InMemorySystemAlertRepository(store),
+        databaseBackup: new NoDatabaseBackup(),
       };
     case 'prisma': {
       const db = getSharedPrismaClient(env.databaseUrl);
@@ -75,6 +80,11 @@ export function createRepositories(env: AppEnv, deps: RepositoryDeps): Repositor
         media: new PrismaMediaRepository(db),
         workstationClaims: new PrismaWorkstationClaimRepository(db),
         systemAlerts: new PrismaSystemAlertRepository(db),
+        // Le copie stanno accanto al database (`<cartella del database>/backup`), salvo DB_BACKUP_DIR.
+        databaseBackup: new SqliteDatabaseBackup(db, {
+          dir: env.dbBackupDir ?? join(dirname(sqlitePathFrom(env.databaseUrl)), 'backup'),
+          keepDays: env.dbBackupKeepDays,
+        }),
       };
     }
   }

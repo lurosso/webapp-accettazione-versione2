@@ -15,7 +15,11 @@ import { ACTIVE_QUEUE_STATUSES } from '@/domain/entities/appointment';
 import type { SyncRun } from '@/domain/entities/sync-run';
 import type { IsoDate } from '@/domain/value-objects/iso-date';
 import { localTimeHHmm, toBusinessDate } from '@/lib/dates';
-import type { IAppointmentRepository, ISyncRunRepository } from '@/repositories/interfaces';
+import type {
+  IAppointmentRepository,
+  IDatabaseBackup,
+  ISyncRunRepository,
+} from '@/repositories/interfaces';
 import type { IClock } from '@/services/interfaces/IClock';
 import type { ILogger } from '@/services/interfaces/ILogger';
 import type { InspectionArchiveService } from '../media/InspectionArchiveService';
@@ -49,6 +53,10 @@ export interface SyncSchedulerDeps {
   readonly reminderPreviousDayHourLocal?: string;
   /** Ora locale "HH:mm" del promemoria del giorno stesso (env REMINDER_SAME_DAY_HOUR_LOCAL). */
   readonly reminderSameDayHourLocal?: string;
+  /** Copia notturna del database (M8-T58); facoltativa nei test. */
+  readonly databaseBackup?: IDatabaseBackup;
+  /** Ora locale "HH:mm" della copia (DB_BACKUP_TIME); null o assente = spenta. */
+  readonly databaseBackupTimeLocal?: string | null;
 }
 
 const DEFAULT_TICK_MS = 60_000;
@@ -66,6 +74,8 @@ export class SyncScheduler {
   /** Giornate in cui i promemoria sono già partiti (uno per tipo). */
   private lastSameDayReminderDate: IsoDate | null = null;
   private lastPreviousDayReminderDate: IsoDate | null = null;
+  /** Giornata in cui la copia del database è già stata valutata. */
+  private lastBackupDate: IsoDate | null = null;
 
   constructor(private readonly deps: SyncSchedulerDeps) {
     this.logger = deps.logger.child('[Scheduler]');
@@ -113,6 +123,7 @@ export class SyncScheduler {
       const oraLocale = localTimeHHmm(now, this.deps.timeZone);
 
       await this.closeBusinessDayIfDue(today, oraLocale);
+      await this.backupDatabaseIfDue(today, oraLocale);
       await this.purgeExpiredMediaIfDue(today, oraLocale);
       await this.sendPreviousDayRemindersIfDue(today, oraLocale);
 
@@ -133,6 +144,39 @@ export class SyncScheduler {
       });
     } finally {
       this.ticking = false;
+    }
+  }
+
+  /**
+   * Copia notturna del database: una volta al giorno, dall'ora configurata (anche in ritardo, dopo
+   * un riavvio), se quella di oggi non c'è già. Un guasto va nel log e non ferma il resto del giro:
+   * la sync delle 06:00 conta più della copia.
+   */
+  private async backupDatabaseIfDue(today: IsoDate, oraLocale: string): Promise<void> {
+    const backup = this.deps.databaseBackup;
+    const ora = this.deps.databaseBackupTimeLocal;
+    if (backup === undefined || !backup.supported || ora === null || ora === undefined) {
+      return;
+    }
+    if (oraLocale < ora || this.lastBackupDate === today) {
+      return;
+    }
+    // Segnata subito: un errore non deve far ripartire la copia a ogni minuto.
+    this.lastBackupDate = today;
+    try {
+      if (await backup.hasBackupFor(today)) {
+        return;
+      }
+      const esito = await backup.backup(today);
+      this.logger.info(`copia del database del ${today} fatta`, {
+        file: esito.file,
+        byte: esito.bytes,
+        copieTolte: esito.removed,
+      });
+    } catch (error) {
+      this.logger.error('copia del database non riuscita', {
+        message: error instanceof Error ? error.message : String(error),
+      });
     }
   }
 

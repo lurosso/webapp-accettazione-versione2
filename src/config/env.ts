@@ -32,6 +32,8 @@ import {
   DEFAULT_SPOKI_REPLY_POLL_SECONDS,
   MAX_SPOKI_REPLY_POLL_SECONDS,
   MIN_SPOKI_REPLY_POLL_SECONDS,
+  DEFAULT_DB_BACKUP_KEEP_DAYS,
+  DEFAULT_DB_BACKUP_TIME,
 } from './constants';
 
 /** Sorgente grezza delle variabili (process.env o un oggetto nei test). */
@@ -195,6 +197,15 @@ export interface AppEnv {
   readonly mediaStorageDir: string;
   /** URL SQLite del database (`file:./.data/accettazione.db` se manca): vale con REPOSITORY_PROVIDER=prisma. */
   readonly databaseUrl: string;
+  /**
+   * Copia notturna coerente del database (M8-T58), per il backup del server: DB_BACKUP_ENABLED
+   * (predefinito true; vale solo con REPOSITORY_PROVIDER=prisma), all'ora DB_BACKUP_TIME (02:30),
+   * nella cartella DB_BACKUP_DIR (predefinita: `backup` accanto al database), per
+   * DB_BACKUP_KEEP_DAYS giorni (14). null = spenta.
+   */
+  readonly dbBackupTimeLocal: string | null;
+  readonly dbBackupDir: string | null;
+  readonly dbBackupKeepDays: number;
   /** Rinvii automatici al CRM dal processo dell'app (false quando li fa un cron esterno). */
   readonly crmRetryEnabled: boolean;
   /** Se true i monitor devono passare il token della propria accettazione (?token=). */
@@ -703,6 +714,11 @@ export function parseEnv(
     ),
     mediaStorageDir: pickString(source, 'MEDIA_STORAGE_DIR', DEFAULT_MEDIA_DIR),
     databaseUrl: databaseUrlFromEnv(source),
+    dbBackupTimeLocal: pickBool(source, 'DB_BACKUP_ENABLED', true, warn)
+      ? pickHourLocal(source, 'DB_BACKUP_TIME', DEFAULT_DB_BACKUP_TIME, warn)
+      : null,
+    dbBackupDir: pickStringOrNull(source, 'DB_BACKUP_DIR'),
+    dbBackupKeepDays: pickInt(source, 'DB_BACKUP_KEEP_DAYS', DEFAULT_DB_BACKUP_KEEP_DAYS, warn, 1),
     crmRetryEnabled: pickBool(source, 'CRM_RETRY_ENABLED', true, warn),
     displayTokenRequired: pickBool(source, 'DISPLAY_TOKEN_REQUIRED', false, warn),
     messagingTriggersEnabled: pickBool(source, 'MESSAGING_TRIGGERS_ENABLED', false, warn),

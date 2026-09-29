@@ -9,3 +9,4 @@ export { PrismaOperatorRepository } from './PrismaOperatorRepository';
 export { PrismaSyncRunRepository } from './PrismaSyncRunRepository';
 export { PrismaWorkstationClaimRepository } from './PrismaWorkstationClaimRepository';
 export { PrismaSystemAlertRepository } from './PrismaSystemAlertRepository';
+export { SqliteDatabaseBackup } from './SqliteDatabaseBackup';

@@ -539,6 +539,9 @@ export function createContainer(overrides: ContainerOverrides = {}): Container {
     reminders: appointmentReminderService,
     reminderPreviousDayHourLocal: env.reminderPreviousDayHourLocal,
     reminderSameDayHourLocal: env.reminderSameDayHourLocal,
+    // Copia notturna del database per il backup del server (M8-T58).
+    databaseBackup: repos.databaseBackup,
+    databaseBackupTimeLocal: env.dbBackupTimeLocal,
   });
 
   // Demo interna: detto all'avvio, così nessuno pensa di aver aperto gli invii al pubblico.

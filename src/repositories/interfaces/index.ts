@@ -1,6 +1,7 @@
 // Barrel delle interfacce dei repository e tipo aggregato `Repositories`.
 
 import type { IAppointmentRepository } from './IAppointmentRepository';
+import type { IDatabaseBackup } from './IDatabaseBackup';
 import type { ICrmOutboxRepository } from './ICrmOutboxRepository';
 import type { IMediaRepository } from './IMediaRepository';
 import type { INotificationRepository } from './INotificationRepository';
@@ -23,6 +24,7 @@ export type { ISystemAlertRepository, SystemAlertFilter } from './ISystemAlertRe
 export type { ICrmOutboxRepository } from './ICrmOutboxRepository';
 export type { IMediaRepository } from './IMediaRepository';
 export type { IWorkstationClaimRepository } from './IWorkstationClaimRepository';
+export type { DatabaseBackupResult, IDatabaseBackup } from './IDatabaseBackup';
 
 /** Insieme dei repository esposto dal container. */
 export interface Repositories {
@@ -35,4 +37,6 @@ export interface Repositories {
   readonly media: IMediaRepository;
   readonly workstationClaims: IWorkstationClaimRepository;
   readonly systemAlerts: ISystemAlertRepository;
+  /** Copia notturna coerente del database, per il backup del server. */
+  readonly databaseBackup: IDatabaseBackup;
 }

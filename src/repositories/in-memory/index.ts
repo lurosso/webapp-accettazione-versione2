@@ -11,3 +11,4 @@ export * from './InMemoryCrmOutboxRepository';
 export * from './InMemoryMediaRepository';
 export * from './InMemoryWorkstationClaimRepository';
 export * from './InMemorySystemAlertRepository';
+export * from './NoDatabaseBackup';
