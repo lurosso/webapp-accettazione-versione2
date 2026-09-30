@@ -50,8 +50,9 @@ streaming (`/api/v1/public/events/stream`) non vengano bufferizzate.
 
 ### B. Rete interna: accettatori e tablet
 
-1. Un **nome interno** per il programma (per esempio `accettazione.movingcenter.local`) con Caddy
-   che inoltra al container sulla porta 3000. Caddy deve:
+1. Un **nome** per il programma, come quelli di Gitea e Portainer (per esempio
+   `accettazione.autoclubgroup.it`), con Caddy che inoltra al container sulla porta 3000. Caddy
+   deve:
    - passare l'indirizzo del client (`X-Forwarded-For`): l'app lo usa per i limiti anti-abuso, con
      `TRUST_PROXY_HEADERS=true`;
    - accettare caricamenti fino a **80 MB** (i video dell'ispezione);
@@ -59,9 +60,9 @@ streaming (`/api/v1/public/events/stream`) non vengano bufferizzate.
      accettatori si aggiorna così.
 2. Un **certificato attendibile anche sugli iPad e sui tablet**. In produzione il login funziona
    solo in HTTPS (cookie di sessione `Secure`), e un avviso del certificato su ogni tablet non è
-   gestibile in officina. La CA interna distribuita via GPO arriva ai PC Windows, non agli iPad: per
-   quelli serve un profilo (MDM) oppure il certificato Let's Encrypt su un nome `autoclubgroup.it`,
-   come previsto nel documento.
+   gestibile in officina. La CA interna distribuita via GPO arriva ai PC Windows, non agli iPad.
+   **Dal 2026-09-30 Gitea e Portainer hanno nomi `autoclubgroup.it` con certificato valido**: lo
+   stesso tipo di nome e di certificato per l'accettazione risolve anche gli iPad.
 3. Che la **rete Wi-Fi di tablet e iPad** raggiunga quel nome.
 
 ### C. Infinity
@@ -93,9 +94,9 @@ streaming (`/api/v1/public/events/stream`) non vengano bufferizzate.
 
 Le pagine del cliente si aprono **dal telefono del cliente**, spesso in 4G: il QR in officina e il
 link personale che arriva su WhatsApp. Con l'accesso «solo dalla rete aziendale» del documento non
-funzionano. Serve pubblicare su Internet **solo questi percorsi**, su un nome pubblico (per esempio
-`accettazione.autoclubgroup.it`) con certificato pubblico, tramite FortiGate sulla porta 443 e il
-reverse proxy in DMZ:
+funzionano. Serve pubblicare su Internet **solo questi percorsi**, sullo stesso nome (per esempio
+`accettazione.autoclubgroup.it`, così i link e il QR sono uno solo) o su uno pubblico dedicato,
+tramite FortiGate sulla porta 443 e il reverse proxy in DMZ:
 
 | Percorso                                                                        | Chi lo usa                                                     |
 | ------------------------------------------------------------------------------- | -------------------------------------------------------------- |
@@ -125,7 +126,7 @@ Le regole di sviluppo del documento, punto per punto:
 | 1. Dockerfile e `compose.yaml`                 | **preparati**: immagine multi-stage (`standalone`, utente non root, unixODBC, `better-sqlite3`), driver SQL Anywhere 17 montato dal server, `compose.yaml` con un servizio, il volume e il controllo di salute; all'avvio le migrazioni del database |
 | 2. Nessuna gestione utenti propria             | escluso per ora (parte del portale myAutoclub): l'accettazione ha il suo login e i suoi ruoli                                                                                                                                                        |
 | 3. Configurazione da variabili d'ambiente      | già così (`.env.example`); i segreti andranno in Portainer                                                                                                                                                                                           |
-| 4. Rilascio con tag di versione su Gitea       | **workflow preparato** (`.gitea/workflows/rilascio.yaml`): sul tag lancia typecheck, lint, test e pubblica l'immagine nel registry. Manca il repository su Gitea (organizzazione «ai»)                                                               |
+| 4. Rilascio con tag di versione su Gitea       | **workflow preparato** (`.gitea/workflows/rilascio.yaml`): sul tag lancia typecheck, lint, test e pubblica l'immagine nel registry, `git.autoclubgroup.it/ai/accettazione`                                                                           |
 | 5. Dati di test, nessuna scrittura su Infinity | nessuna scrittura: già così. Dati di test: serve l'accesso a SyInfinity_Test (2.C)                                                                                                                                                                   |
 | 6. Log su stdout/stderr                        | già così                                                                                                                                                                                                                                             |
 | 7. Sotto-percorso dietro reverse proxy         | escluso per ora (parte del portale): l'app sta su un nome suo                                                                                                                                                                                        |
@@ -149,13 +150,49 @@ In più, per il server:
   (`Host=<ip>:<porta>;ServerName=…;DatabaseName=…`).
 - **Rete di Caddy**: in `compose.yaml` si chiama `platform_default` (variabile `RETE_PROXY`). Il
   nome giusto va confermato.
-- **Runner di Gitea Actions**: deve avere Docker, fidarsi del certificato del registry e
-  raggiungere gli indirizzi di 2.D.2. Nel repository su Gitea servono la variabile
-  `REGISTRY_HOST` e i segreti `REGISTRY_USER` e `REGISTRY_TOKEN` (permesso di scrittura sui
-  pacchetti).
+- **Runner di Gitea Actions**: deve avere Docker e raggiungere gli indirizzi di 2.D.2. Nel
+  repository su Gitea servono la variabile `REGISTRY_HOST=git.autoclubgroup.it` e i segreti
+  `REGISTRY_USER` e `REGISTRY_TOKEN` (permesso di scrittura sui pacchetti).
 - **npm 11.19 e successivi** eseguono gli script di installazione solo dei pacchetti approvati:
   l'elenco è in `allowScripts` del `package.json`. Chi aggiorna una di quelle dipendenze deve
   approvare anche la versione nuova (`npm install-scripts approve`).
 - **Immagine non ancora costruita**: sul PC di sviluppo non c'è Docker. Build e avvio in
   produzione (`standalone`, migrazioni, copia notturna) sono stati provati fuori dal container. La
   prima build vera la farà il runner di Gitea, oppure una macchina con Docker.
+
+## 4. Primo rilascio, passo per passo
+
+Accessi attivi dal 2026-09-30, con le credenziali di dominio (solo il nome utente, senza
+`movingcenter\`):
+
+- **Gitea**: <https://git.autoclubgroup.it>, organizzazione «ai», team «tecnici» (repository,
+  rilasci e registry delle immagini);
+- **Portainer**: <https://portainer.autoclubgroup.it>, gli stack dei progetti (i servizi di
+  piattaforma restano agli amministratori).
+
+1. **Repository**: su Gitea, nuovo repository `ai/accettazione`, privato e **vuoto** (senza README,
+   licenza né `.gitignore`).
+2. **Codice**: remote `gitea` su `https://git.autoclubgroup.it/ai/accettazione.git` e push di
+   `main`. Le credenziali le chiede Git Credential Manager nella sua finestra. Per SSH la porta è
+   la 2222.
+3. **Actions**: nel repository la scheda Actions attiva e almeno un runner in linea. In
+   Impostazioni → Actions, la variabile `REGISTRY_HOST` e i segreti `REGISTRY_USER` e
+   `REGISTRY_TOKEN`. Il token si crea in Impostazioni utente → Applicazioni, con lettura e scrittura
+   sui pacchetti.
+4. **Prima immagine**: il tag `v0.1.0` spinto su Gitea lancia i controlli e pubblica
+   `git.autoclubgroup.it/ai/accettazione:v0.1.0`. È la prima build Docker vera.
+5. **Da guardare in Portainer, senza cambiare niente**:
+   - il nome della rete di Caddy (Networks);
+   - se il registry `git.autoclubgroup.it` è già configurato (Registries);
+   - l'immagine del container di Caddy. Con `caddy-docker-proxy` la rotta si scrive come
+     etichette in `compose.yaml`; altrimenti la aggiunge l'amministratore nel Caddyfile.
+6. **Dall'amministratore**: le due cartelle su `/srv` (i dati, dell'utente 1000, e il client SQL
+   Anywhere 17), la rotta di Caddy (2.B), l'utente Infinity e il FortiGate (2.C), la decisione
+   sull'accesso dei clienti (2.E).
+7. **Stack**: in Portainer, Stacks → Add stack «accettazione» dal repository Gitea (`compose.yaml`),
+   con le variabili del README («Rilascio su SRV-AI»), `IMMAGINE` al tag e `RETE_PROXY`. I segreti
+   sono **nuovi**, generati per il server con `npm run seed:credenziali`, non quelli del PC. Spoki
+   resta spento (`SPOKI_ENABLED=false`) finché non si decide di mandare davvero.
+8. **Controllo**: `/api/v1/health` risponde 200 e `admin` entra e cambia la password. Se driver e
+   FortiGate non sono ancora pronti, la dashboard segnala la sync da Infinity fallita: è atteso, il
+   resto funziona.

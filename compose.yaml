@@ -9,7 +9,7 @@ name: accettazione
 
 services:
   app:
-    image: ${IMMAGINE:-git.movingcenter.local/ai/accettazione:latest}
+    image: ${IMMAGINE:-git.autoclubgroup.it/ai/accettazione:latest}
     restart: unless-stopped
     env_file:
       - path: stack.env

@@ -2,10 +2,10 @@
 # se passano, l'immagine nel registry di Gitea. Il deploy lo fa Portainer aggiornando lo stack al
 # nuovo tag; il rollback è ridistribuire il tag precedente (docs/HOSTING_SRV-AI.md).
 #
-# Da configurare nel repository su Gitea:
-# - variabile REGISTRY_HOST (per esempio git.movingcenter.local);
+# Da configurare nel repository su Gitea (Impostazioni → Actions):
+# - variabile REGISTRY_HOST = git.autoclubgroup.it;
 # - segreti REGISTRY_USER e REGISTRY_TOKEN (token con permesso di scrittura sui pacchetti).
-# Il runner deve avere Docker e fidarsi del certificato del registry (CA interna di Caddy).
+# Il runner deve avere Docker. L'immagine diventa git.autoclubgroup.it/ai/accettazione:<tag>.
 name: rilascio
 
 on:
