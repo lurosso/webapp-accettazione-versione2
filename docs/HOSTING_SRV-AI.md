@@ -149,10 +149,28 @@ In più, per il server:
   del container; server e database arrivano da `INFINITY_ODBC_EXTRA`
   (`Host=<ip>:<porta>;ServerName=…;DatabaseName=…`).
 - **Rete di Caddy**: in `compose.yaml` si chiama `platform_default` (variabile `RETE_PROXY`). Il
-  nome giusto va confermato.
-- **Runner di Gitea Actions**: deve avere Docker e raggiungere gli indirizzi di 2.D.2. Nel
-  repository su Gitea servono la variabile `REGISTRY_HOST=git.autoclubgroup.it` e i segreti
-  `REGISTRY_USER` e `REGISTRY_TOKEN` (permesso di scrittura sui pacchetti).
+  nome giusto lo dà l'amministratore: da utente, Portainer non mostra le reti della piattaforma.
+  Sulla rete il programma ha il nome fisso `accettazione`.
+- **Caddy** è l'immagine standard `caddy:2` con un Caddyfile (visto in Portainer il 2026-09-30),
+  non `caddy-docker-proxy`: il sito lo aggiunge l'amministratore. Basta questo, con il certificato
+  configurato come per Gitea e Portainer:
+
+  ```caddyfile
+  accettazione.autoclubgroup.it {
+  	reverse_proxy accettazione:3000
+  }
+  ```
+
+  Caddy di suo passa `X-Forwarded-For` (sostituendo quello scritto dal client), non limita la
+  dimensione dei caricamenti e inoltra subito gli eventi in streaming (`text/event-stream`): non
+  serve altro. Il nome va anche nel DNS interno, come `git` e `portainer`.
+
+- **Runner di Gitea Actions**: il 2026-09-30 sul server non ce n'è (fra le immagini ci sono solo
+  Caddy, Gitea, Portainer e PostgreSQL). Senza runner il rilascio sul tag non parte: va installato
+  (`gitea/act_runner`, con Docker, etichetta `ubuntu-latest`) oppure l'amministratore dice come
+  vuole che si costruiscano le immagini. Deve raggiungere gli indirizzi di 2.D.2. Nel repository su
+  Gitea servono la variabile `REGISTRY_HOST=git.autoclubgroup.it` e i segreti `REGISTRY_USER` e
+  `REGISTRY_TOKEN` (permesso di scrittura sui pacchetti).
 - **npm 11.19 e successivi** eseguono gli script di installazione solo dei pacchetti approvati:
   l'elenco è in `allowScripts` del `package.json`. Chi aggiorna una di quelle dipendenze deve
   approvare anche la versione nuova (`npm install-scripts approve`).
@@ -181,14 +199,15 @@ Accessi attivi dal 2026-09-30, con le credenziali di dominio (solo il nome utent
    sui pacchetti.
 4. **Prima immagine**: il tag `v0.1.0` spinto su Gitea lancia i controlli e pubblica
    `git.autoclubgroup.it/ai/accettazione:v0.1.0`. È la prima build Docker vera.
-5. **Da guardare in Portainer, senza cambiare niente**:
-   - il nome della rete di Caddy (Networks);
-   - se il registry `git.autoclubgroup.it` è già configurato (Registries);
-   - l'immagine del container di Caddy. Con `caddy-docker-proxy` la rotta si scrive come
-     etichette in `compose.yaml`; altrimenti la aggiunge l'amministratore nel Caddyfile.
-6. **Dall'amministratore**: le due cartelle su `/srv` (i dati, dell'utente 1000, e il client SQL
-   Anywhere 17), la rotta di Caddy (2.B), l'utente Infinity e il FortiGate (2.C), la decisione
-   sull'accesso dei clienti (2.E).
+5. **Portainer, visto da utente il 2026-09-30**: niente container, reti, volumi e registry (sono
+   della piattaforma, riservati agli amministratori); fra le immagini `caddy:2`, `gitea/gitea:1`,
+   `portainer/portainer-ce:lts` e `postgres:16`. Quindi Caddy standard con Caddyfile e nessun runner
+   (vedi le note qui sopra).
+6. **Dall'amministratore**: il permesso di creare repository in «ai» (il team «tecnici» non lo dava
+   ancora), il runner di Actions, il nome della rete di Caddy e il sito nel Caddyfile con il nome
+   nel DNS, le credenziali del registry in Portainer, le due cartelle su `/srv` (i dati,
+   dell'utente 1000, e il client SQL Anywhere 17), l'utente Infinity e il FortiGate (2.C), la
+   decisione sull'accesso dei clienti (2.E).
 7. **Stack**: in Portainer, Stacks → Add stack «accettazione» dal repository Gitea (`compose.yaml`),
    con le variabili del README («Rilascio su SRV-AI»), `IMMAGINE` al tag e `RETE_PROXY`. I segreti
    sono **nuovi**, generati per il server con `npm run seed:credenziali`, non quelli del PC. Spoki

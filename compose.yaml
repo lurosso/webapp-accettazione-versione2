@@ -35,7 +35,10 @@ services:
     expose:
       - '3000'
     networks:
-      - proxy
+      proxy:
+        # Nome fisso con cui Caddy raggiunge il programma: `reverse_proxy accettazione:3000`.
+        aliases:
+          - accettazione
     deploy:
       resources:
         limits:
@@ -43,7 +46,7 @@ services:
           memory: 2g
 
 networks:
-  # La rete di Caddy dello stack «platform»: il nome esatto lo conferma chi gestisce il server.
+  # La rete di Caddy: il nome esatto lo dà chi gestisce il server (da utente, Portainer non la mostra).
   proxy:
     external: true
     name: ${RETE_PROXY:-platform_default}

@@ -1283,7 +1283,7 @@ Il committente ha passato il documento dell'infrastruttura (VM Ubuntu con Docker
 - [x] M8-T58-S05 **Copia notturna coerente del database SQLite** per il backup. _(fatto 2026-09-29: porta `IDatabaseBackup`, `SqliteDatabaseBackup` con `VACUUM INTO` su un file provvisorio rinominato alla fine, dalle 02:30 o al primo avvio dopo, 14 giorni; `DB_BACKUP_*`; un guasto va nel log e non ferma la sync.)_
 - [ ] M8-T58-S06 **Collaudo su SyInfinity_Test** e passaggio a SyInfinity01 solo al rilascio.
 - [ ] M8-T58-S07 **Repository `ai/accettazione` su Gitea** e push di `main` (il committente crea il repository vuoto, le credenziali le chiede Git Credential Manager).
-- [ ] M8-T58-S08 **Actions e prima immagine**: runner in linea, `REGISTRY_HOST` e segreti del registry, tag `v0.1.0` → prima build Docker vera.
+- [ ] M8-T58-S08 **Actions e prima immagine**: runner in linea, `REGISTRY_HOST` e segreti del registry, tag `v0.1.0` → prima build Docker vera. _(2026-09-30: da Portainer risulta che sul server non c'è un runner; chiesto all'amministratore insieme al permesso di creare repository in «ai», alla rete e al sito di Caddy.)_
 - [ ] M8-T58-S09 **Stack in Portainer** (`docs/HOSTING_SRV-AI.md` §4): segreti nuovi per il server, Spoki spento, controllo di `/api/v1/health` e del login.
 
 ### M8-T57 — Promemoria del mattino da un'automazione chiamata via API _(2026-09-28, richiesta del committente)_
